@@ -43,6 +43,20 @@
   padding: 48px;
   background: var(--panel);
 }
+.onboarding-titlebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0 12px;
+  -webkit-app-region: drag;
+  z-index: 20;
+}
+.onboarding-titlebar .window-controls { -webkit-app-region: no-drag; }
 .onboarding-steps { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 28px; }
 .step-chip {
   height: 24px;

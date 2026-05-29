@@ -4,7 +4,7 @@ import {
   type AppSnapshot,
   type ProviderCatalogEntry,
 } from "../../../shared/domain";
-import { Button, Field, Icon, Pill } from "../shared/ui";
+import { Button, Field, Icon, IconButton, Pill } from "../shared/ui";
 import type { SnapshotActions } from "./useSnapshot";
 
 type Step = "welcome" | "provider" | "company" | "mode" | "mission";
@@ -65,6 +65,7 @@ export function Onboarding({
   const [submitting, setSubmitting] = useState(false);
 
   const selectedProvider = requireProvider(availableProviders, draft.providerKey);
+  const isMac = window.agentCompany.platform === "darwin";
   const update = (patch: Partial<Draft>) => setDraft((current) => ({ ...current, ...patch }));
 
   const guard = (validator: () => string | null, next: Step) => () => {
@@ -115,7 +116,17 @@ export function Onboarding({
   };
 
   return (
-    <main className="onboarding-shell">
+    <>
+      <header className="onboarding-titlebar">
+        {!isMac && (
+          <span className="window-controls">
+            <IconButton icon="minus" label="Minimize" onClick={() => void window.agentCompany.windowMinimize()} />
+            <IconButton icon="grid" label="Maximize" onClick={() => void window.agentCompany.windowMaximize()} />
+            <IconButton icon="x" label="Close" onClick={() => void window.agentCompany.windowClose()} />
+          </span>
+        )}
+      </header>
+      <main className="onboarding-shell">
       <section className="onboarding-hero">
         <div>
           <div className="row" style={{ gap: 8 }}>
@@ -184,7 +195,8 @@ export function Onboarding({
         )}
         {error && <div style={{ color: "var(--red)", marginTop: 14, fontSize: 12.5 }}>{error}</div>}
       </form>
-    </main>
+      </main>
+    </>
   );
 }
 
