@@ -20,15 +20,22 @@
 .modal-title { margin: 0 0 14px; font-size: 16px; font-weight: 620; letter-spacing: -0.01em; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
 
-.onboarding-shell {
+.onboarding-window {
   width: 100%;
-  min-height: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+.onboarding-shell {
+  flex: 1;
+  min-height: 0;
   display: grid;
   grid-template-columns: minmax(0, 1.05fr) minmax(420px, 0.95fr);
   background: var(--bg);
 }
 .onboarding-hero {
   min-width: 0;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -37,6 +44,7 @@
 }
 .onboarding-panel {
   min-width: 0;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -44,17 +52,13 @@
   background: var(--panel);
 }
 .onboarding-titlebar {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
+  flex-shrink: 0;
   height: 44px;
   display: flex;
   align-items: center;
   justify-content: flex-end;
   padding: 0 12px;
   -webkit-app-region: drag;
-  z-index: 20;
 }
 .onboarding-titlebar .window-controls { -webkit-app-region: no-drag; }
 .onboarding-steps { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 28px; }
@@ -148,7 +152,7 @@
   .sidebar .search-kbd { display: none; }
   .content { padding: 20px 18px 32px; }
   .secondary-pane { width: 180px; }
-  .onboarding-shell { grid-template-columns: 1fr; }
-  .onboarding-hero { padding: 28px; border-right: 0; border-bottom: 1px solid var(--border-soft); }
-  .onboarding-panel { padding: 28px; justify-content: flex-start; }
+  .onboarding-shell { grid-template-columns: 1fr; overflow-y: auto; }
+  .onboarding-hero { padding: 28px; border-right: 0; border-bottom: 1px solid var(--border-soft); overflow-y: visible; }
+  .onboarding-panel { padding: 28px; justify-content: flex-start; overflow-y: visible; }
 }

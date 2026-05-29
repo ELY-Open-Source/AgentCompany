@@ -116,7 +116,7 @@ export function Onboarding({
   };
 
   return (
-    <>
+    <div className="onboarding-window">
       <header className="onboarding-titlebar">
         {!isMac && (
           <span className="window-controls">
@@ -196,7 +196,7 @@ export function Onboarding({
         {error && <div style={{ color: "var(--red)", marginTop: 14, fontSize: 12.5 }}>{error}</div>}
       </form>
       </main>
-    </>
+    </div>
   );
 }
 
