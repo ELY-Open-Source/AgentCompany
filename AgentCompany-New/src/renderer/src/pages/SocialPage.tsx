@@ -12,6 +12,7 @@ import {
 } from "../../../shared/domain";
 import { APPROVAL_STATE } from "../../../shared/domain";
 import { SocialCalendar } from "./social/SocialCalendar";
+import { SocialActivity } from "./social/SocialActivity";
 import { PlatformIcon } from "./social/PlatformIcon";
 import type { PageProps } from "./types";
 import { activeOrgId, requireActiveEmployee } from "./types";
@@ -37,6 +38,9 @@ export function SocialPage({ snapshot, actions }: PageProps) {
     return states;
   }, [snapshot.approvals, orgId]);
   const employees = snapshot.employees.filter((item) => item.orgId === orgId);
+  const socialGrants = useMemo(() => snapshot.socialAccountGrants.filter((grant) => grant.orgId === orgId), [snapshot.socialAccountGrants, orgId]);
+  const socialAudit = useMemo(() => snapshot.socialAuditRecords.filter((record) => record.orgId === orgId), [snapshot.socialAuditRecords, orgId]);
+  const browserActions = useMemo(() => snapshot.browserActions.filter((action) => action.orgId === orgId), [snapshot.browserActions, orgId]);
 
   const [connectOpen, setConnectOpen] = useState(false);
   const [draftOpen, setDraftOpen] = useState(false);
@@ -149,6 +153,14 @@ export function SocialPage({ snapshot, actions }: PageProps) {
 
         <SocialCalendar posts={scheduledPosts} accounts={accounts} />
       </div>
+
+      <SocialActivity
+        accounts={accounts}
+        grants={socialGrants}
+        auditRecords={socialAudit}
+        browserActions={browserActions}
+        employees={employees}
+      />
       </div>
 
       <Dialog title="Connect social account" open={connectOpen} submitLabel="Connect" onClose={() => setConnectOpen(false)} onSubmit={connect}>
