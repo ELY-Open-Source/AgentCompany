@@ -231,6 +231,12 @@ export function ChatPage({ snapshot, actions }: PageProps) {
     });
   };
 
+  const openFile = (fileId: string) => {
+    void window.agentCompany.openFile({ orgId, fileId }).then((result) => {
+      if (!result.ok) throw new Error(result.error.message);
+    });
+  };
+
   return (
     <div className="split-main">
       <ChatSidebar
@@ -268,6 +274,7 @@ export function ChatPage({ snapshot, actions }: PageProps) {
         onDecline={(approvalId) => decideApproval(approvalId, "declined")}
         onEditMessage={editChatMessage}
         onDeleteMessage={deleteChatMessage}
+        onOpenFile={openFile}
         onSubmit={sendInChannel}
         composerRef={composerRef}
       />
@@ -288,6 +295,7 @@ export function ChatPage({ snapshot, actions }: PageProps) {
           onClose={() => setOpenThreadId(null)}
           onSubmit={sendInThread}
           onBoardSubmit={sendBoardIntervention}
+          onOpenFile={openFile}
         />
       )}
 
