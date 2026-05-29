@@ -1,0 +1,89 @@
+import { Avatar, IconButton, Pill } from "../../shared/ui";
+import type {
+  AgentRecord,
+  EmployeeRecord,
+  FileAccessGrantRecord,
+  FileObjectRecord,
+} from "../../../../shared/domain";
+import { formatBytes, formatRelative } from "../types";
+import { FileIcon } from "./FileVisuals";
+import { fileGrantCount, isAgentOwner, resolveOwnerName, shortChecksum, shortObjectRef } from "./file-helpers";
+
+const ROW_COLUMNS = "minmax(0, 2.7fr) minmax(70px, 0.7fr) minmax(0, 1.2fr) minmax(94px, 0.8fr) minmax(88px, 0.8fr) 56px";
+
+export function FilesTable({
+  files,
+  grants,
+  employees,
+  agents,
+  onTogglePin,
+}: {
+  files: FileObjectRecord[];
+  grants: FileAccessGrantRecord[];
+  employees: EmployeeRecord[];
+  agents: AgentRecord[];
+  onTogglePin: (file: FileObjectRecord) => void;
+}) {
+  return (
+    <div className="card" style={{ padding: 0, overflow: "hidden" }}>
+      <div className="table-row head" style={{ gridTemplateColumns: ROW_COLUMNS }}>
+        <div>Name</div><div>Size</div><div>Owner</div><div>Access</div><div>Modified</div><div />
+      </div>
+      {files.map((file, index) => (
+        <FileRow
+          key={file.id}
+          file={file}
+          owner={resolveOwnerName(file, employees, agents)}
+          grantCount={fileGrantCount(file.id, grants)}
+          last={index === files.length - 1}
+          onTogglePin={() => onTogglePin(file)}
+        />
+      ))}
+    </div>
+  );
+}
+
+function FileRow({
+  file,
+  owner,
+  grantCount,
+  last,
+  onTogglePin,
+}: {
+  file: FileObjectRecord;
+  owner: string;
+  grantCount: number;
+  last: boolean;
+  onTogglePin: () => void;
+}) {
+  return (
+    <div
+      className="table-row"
+      style={{ gridTemplateColumns: ROW_COLUMNS, borderBottom: last ? "none" : "1px solid var(--border-soft)" }}
+    >
+      <div className="row" style={{ gap: 10, minWidth: 0 }}>
+        <FileIcon kind={file.kind} />
+        <div style={{ display: "grid", gap: 3, minWidth: 0 }}>
+          <span style={{ fontWeight: 480, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{file.name}</span>
+          <span className="mono" style={{ color: "var(--text-3)", fontSize: 10, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            sha:{shortChecksum(file.sha256)} · obj:{shortObjectRef(file.storagePath)}
+          </span>
+        </div>
+        {file.pinned && <Pill tone="violet" dot>Pinned</Pill>}
+      </div>
+      <div className="num mono" style={{ color: "var(--text-3)", fontSize: 12 }}>{formatBytes(file.sizeBytes)}</div>
+      <div className="row" style={{ gap: 8, minWidth: 0 }}>
+        <Avatar name={owner} size="sm" bot={isAgentOwner(file)} />
+        <span style={{ color: "var(--text-2)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{owner}</span>
+      </div>
+      <div className="row" style={{ gap: 6, minWidth: 0 }}>
+        <Pill tone={file.scanState === "approved" ? "green" : "red"}>{file.scanState === "approved" ? "Clean" : "Blocked"}</Pill>
+        <span className="mono" style={{ color: "var(--text-3)", fontSize: 11 }}>{grantCount}</span>
+      </div>
+      <div style={{ color: "var(--text-3)", fontSize: 12 }}>{formatRelative(file.updatedAt ?? file.createdAt)}</div>
+      <div style={{ textAlign: "right" }}>
+        <IconButton icon={file.pinned ? "pin" : "more"} label={file.pinned ? "Unpin" : "More"} onClick={onTogglePin} />
+      </div>
+    </div>
+  );
+}
