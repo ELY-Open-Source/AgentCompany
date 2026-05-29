@@ -1,10 +1,8 @@
 import type { DatabaseSync } from "node:sqlite";
 import { createHash, randomBytes } from "node:crypto";
-import type { CancelProviderResponseInput, CreateProviderResponseInput, LaunchProviderSignInInput, RevokeProviderCredentialInput, SaveProviderCredentialInput, StreamProviderResponseInput, UpdateProviderPolicyInput } from "../../shared/commands";
-import { FEATURE_FLAG_KEY, PROVIDER_AUTH_TYPE, PROVIDER_DATA_POLICY, PROVIDER_EXECUTION_MODE, PROVIDER_REQUEST_STATE, type ProviderAuthType, type ProviderExecutionMode } from "../../shared/domain";
+import type { CancelProviderResponseInput, LaunchProviderSignInInput, RevokeProviderCredentialInput, SaveProviderCredentialInput, StreamProviderResponseInput, UpdateProviderPolicyInput } from "../../shared/commands";
+import { PROVIDER_AUTH_TYPE, PROVIDER_DATA_POLICY, type ProviderAuthType } from "../../shared/domain";
 import type { ProviderStreamRendererEvent } from "../../shared/provider-request-domain";
-import { PROVIDER_CATALOG } from "../../shared/provider-catalog";
-import { currentProviderUsageWindow } from "../../shared/provider-runtime-domain";
 import { AuditService } from "./audit-service";
 import { AuthBrokerService, type ProviderSecretVault } from "./auth-broker-service";
 import { OperationsService } from "./operations-service";
@@ -13,22 +11,27 @@ import { providerAdapters, providerRateLimitStateFromError, type ProviderAdapter
 import { ProviderBackgroundService } from "./provider-background-service";
 import { ProviderRateLimitRegistry } from "./provider-rate-limit-registry";
 import { ProviderResponseObserver } from "./provider-response-observer";
-import { hashPrompt, readProviderResponseId, requireStreamText } from "./provider-response-utils";
 import { ProviderRequestStore } from "./provider-request-store";
+import { ProviderResponseRunner, type ProviderResponseCreateInput } from "./provider-response-runner";
 import { launchProviderSignInWindow, type LaunchProviderSignInWindowInput } from "./provider-sign-in-window";
-import type { ProviderObservedRateLimitState } from "../../shared/provider-runtime-domain";
+import {
+  AUTH_STATE_CONFIGURED,
+  AUTH_STATE_REVOKED,
+  HEALTH_STATE_FAILED,
+  HEALTH_STATE_HEALTHY,
+  HEALTH_STATE_UNCHECKED,
+  WORKSPACE_SCOPES,
+  loadConfiguredProvider,
+  loadCredential,
+  recordObservedRateLimit,
+  recordProviderHealth,
+  requireAdapter,
+  requireCatalogEntry,
+} from "./provider-internal";
 
-const AUTH_STATE_CONFIGURED = "configured";
-const AUTH_STATE_REVOKED = "revoked";
-const HEALTH_STATE_HEALTHY = "healthy";
-const HEALTH_STATE_FAILED = "failed";
-const HEALTH_STATE_UNCHECKED = "unchecked";
-const WORKSPACE_SCOPES = new Set(["organization", "workspace"]);
+export type { ProviderResponseCreateInput };
+
 const AUTH_SESSION_TTL_MS = 15 * 60 * 1000;
-
-export type ProviderResponseCreateInput = CreateProviderResponseInput & {
-  onRequestCreated?: (requestId: string) => void;
-};
 
 export class ProviderService {
   private readonly audit: AuditService;
@@ -38,6 +41,7 @@ export class ProviderService {
   private readonly responseObserver: ProviderResponseObserver;
   private readonly requestStore: ProviderRequestStore;
   private readonly background: ProviderBackgroundService;
+  private readonly runner: ProviderResponseRunner;
 
   constructor(
     private readonly db: DatabaseSync,
@@ -52,6 +56,29 @@ export class ProviderService {
     this.requestStore = new ProviderRequestStore(db);
     this.responseObserver = new ProviderResponseObserver(db, this.audit, this.operations, this.requestStore, this.rateLimitRegistry);
     this.background = new ProviderBackgroundService(db, adapters, vault);
+    this.runner = new ProviderResponseRunner({
+      db,
+      adapters,
+      audit: this.audit,
+      authBroker: this.authBroker,
+      operations: this.operations,
+      rateLimitRegistry: this.rateLimitRegistry,
+      responseObserver: this.responseObserver,
+      requestStore: this.requestStore,
+      background: this.background,
+    });
+  }
+
+  createResponse(input: ProviderResponseCreateInput): Promise<string> {
+    return this.runner.createResponse(input);
+  }
+
+  streamResponse(input: StreamProviderResponseInput, onEvent: (event: ProviderStreamRendererEvent) => void): Promise<string> {
+    return this.runner.streamResponse(input, onEvent);
+  }
+
+  cancelResponse(input: CancelProviderResponseInput): Promise<void> {
+    return this.runner.cancelResponse(input);
   }
 
   saveCredential(input: SaveProviderCredentialInput): void {
@@ -60,9 +87,9 @@ export class ProviderService {
     if (!provider) throw new Error("Provider was not found.");
     const secret = input.secret.trim();
     if (!secret) throw new Error("Credential is required.");
-    const adapter = this.requireAdapter(provider.provider_key, provider.auth_type);
+    const adapter = requireAdapter(this.adapters, provider.provider_key, provider.auth_type);
     adapter.parseAuthProfile(secret);
-    const catalogEntry = this.requireCatalogEntry(provider.provider_key);
+    const catalogEntry = requireCatalogEntry(provider.provider_key);
     const source = this.resolveCredentialSource({
       orgId: input.orgId,
       providerId: input.providerId,
@@ -126,14 +153,14 @@ export class ProviderService {
   }
 
   async checkHealth(orgId: string, providerId: string): Promise<void> {
-    const provider = this.loadConfiguredProvider(orgId, providerId);
-    const adapter = this.requireAdapter(provider.provider_key, provider.auth_type);
-    const credential = this.loadCredential(orgId, provider);
+    const provider = loadConfiguredProvider(this.db, orgId, providerId);
+    const adapter = requireAdapter(this.adapters, provider.provider_key, provider.auth_type);
+    const credential = loadCredential(this.authBroker, orgId, provider);
     try {
       const profile = adapter.parseAuthProfile(credential.secret);
       const result = await adapter.checkHealth({ authProfile: profile, model: provider.model });
-      this.recordObservedRateLimit(orgId, provider, provider.model, result.rateLimitState);
-      this.recordProviderHealth(provider.id, orgId, HEALTH_STATE_HEALTHY, null);
+      recordObservedRateLimit(this.rateLimitRegistry, orgId, provider, provider.model, result.rateLimitState);
+      recordProviderHealth(this.db, provider.id, orgId, HEALTH_STATE_HEALTHY, null);
       this.audit.record({
         orgId,
         entityType: "provider",
@@ -145,8 +172,8 @@ export class ProviderService {
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      this.recordObservedRateLimit(orgId, provider, provider.model, providerRateLimitStateFromError(error));
-      this.recordProviderHealth(provider.id, orgId, HEALTH_STATE_FAILED, message);
+      recordObservedRateLimit(this.rateLimitRegistry, orgId, provider, provider.model, providerRateLimitStateFromError(error));
+      recordProviderHealth(this.db, provider.id, orgId, HEALTH_STATE_FAILED, message);
       throw error;
     }
   }
@@ -159,7 +186,7 @@ export class ProviderService {
       where id = ? and org_id = ?
     `).get(input.providerId, input.orgId) as { id: string; provider_key: string; label: string; auth_type: string } | undefined;
     if (!provider) throw new Error("Provider was not found.");
-    const catalogEntry = this.requireCatalogEntry(provider.provider_key);
+    const catalogEntry = requireCatalogEntry(provider.provider_key);
     if (!catalogEntry.signInUrl) throw new Error(`${provider.label} does not support browser sign-in.`);
     const session = this.createAuthSession({
       orgId: input.orgId,
@@ -222,274 +249,6 @@ export class ProviderService {
         workspaceScope: input.workspaceScope,
       },
     });
-  }
-
-  async createResponse(input: ProviderResponseCreateInput): Promise<string> {
-    if (input.executionMode === PROVIDER_EXECUTION_MODE.BACKGROUND) return this.background.create(input);
-    const execution = this.prepareExecution(input);
-    if (!execution.adapter.createResponse) throw new Error(`Provider response execution is unavailable for ${execution.provider.provider_key}.`);
-    const requestId = this.createRequestRecord(execution);
-    input.onRequestCreated?.(requestId);
-    const startedAt = Date.now();
-    try {
-      const authProfile = execution.adapter.parseAuthProfile(execution.credential.secret);
-      const result = await execution.adapter.createResponse({
-        authProfile,
-        model: execution.provider.model,
-        prompt: execution.prompt,
-        instructions: execution.instructions,
-      });
-      this.recordObservedRateLimit(input.orgId, execution.provider, execution.provider.model, result.rateLimitState);
-      this.requestStore.markSucceeded({
-        orgId: input.orgId,
-        requestId,
-        responseText: result.text,
-        rawResponseJson: result.rawResponseJson,
-        outputCharCount: result.text.length,
-        externalResponseId: readProviderResponseId(result.rawResponseJson),
-        completedAt: new Date().toISOString(),
-      });
-      this.responseObserver.recordSuccess({
-        orgId: input.orgId,
-        provider: execution.provider,
-        requestId,
-        executionMode: execution.executionMode,
-        startedAt,
-        action: "response_created",
-      });
-      this.requestStore.recordUsage(input.orgId, execution.provider.id, execution.prompt.length, result.text.length);
-      return requestId;
-    } catch (error) {
-      this.responseObserver.recordFailure({
-        orgId: input.orgId,
-        provider: execution.provider,
-        requestId,
-        executionMode: execution.executionMode,
-        startedAt,
-        inputCharCount: execution.prompt.length,
-        error,
-      });
-      throw error;
-    }
-  }
-
-  async streamResponse(input: StreamProviderResponseInput, onEvent: (event: ProviderStreamRendererEvent) => void): Promise<string> {
-    const execution = this.prepareExecution(input);
-    const requestId = this.createRequestRecord(execution);
-    const startedAt = Date.now();
-    const rawEvents: string[] = [];
-    const textParts: string[] = [];
-    let providerResponseId: string | null = null;
-    try {
-      const authProfile = execution.adapter.parseAuthProfile(execution.credential.secret);
-      const result = await execution.adapter.streamResponse({
-        authProfile,
-        model: execution.provider.model,
-        prompt: execution.prompt,
-        instructions: execution.instructions,
-      });
-      this.recordObservedRateLimit(input.orgId, execution.provider, execution.provider.model, result.rateLimitState);
-      for await (const event of result.events) {
-        if (event.type === "error") throw new Error(event.textDelta ?? "Provider stream failed.");
-        rawEvents.push(event.rawEventJson);
-        if (event.providerResponseId) providerResponseId = event.providerResponseId;
-        if (event.textDelta) textParts.push(event.textDelta);
-        const responseText = textParts.join("");
-        const streamEventCount = rawEvents.length;
-        this.requestStore.markStreaming({
-          orgId: input.orgId,
-          requestId,
-          responseText,
-          rawResponseJson: JSON.stringify(rawEvents),
-          outputCharCount: responseText.length,
-          streamEventCount,
-          externalResponseId: providerResponseId,
-        });
-        onEvent({
-          requestId,
-          providerId: execution.provider.id,
-          providerKey: execution.provider.provider_key,
-          model: execution.provider.model,
-          streamEventType: event.type,
-          textDelta: event.textDelta,
-          responseText,
-          providerResponseId,
-          rawEventJson: event.rawEventJson,
-          streamEventCount,
-        });
-      }
-      const responseText = requireStreamText(textParts);
-      this.requestStore.markSucceeded({
-        orgId: input.orgId,
-        requestId,
-        responseText,
-        rawResponseJson: JSON.stringify(rawEvents),
-        outputCharCount: responseText.length,
-        externalResponseId: providerResponseId,
-        completedAt: new Date().toISOString(),
-      });
-      this.responseObserver.recordSuccess({
-        orgId: input.orgId,
-        provider: execution.provider,
-        requestId,
-        executionMode: execution.executionMode,
-        startedAt,
-        action: "response_streamed",
-      });
-      this.requestStore.recordUsage(input.orgId, execution.provider.id, execution.prompt.length, responseText.length);
-      return requestId;
-    } catch (error) {
-      this.responseObserver.recordFailure({
-        orgId: input.orgId,
-        provider: execution.provider,
-        requestId,
-        executionMode: execution.executionMode,
-        startedAt,
-        inputCharCount: execution.prompt.length,
-        error,
-      });
-      throw error;
-    }
-  }
-
-  async cancelResponse(input: CancelProviderResponseInput): Promise<void> {
-    const request = this.requestStore.loadCancellationRow(input.orgId, input.requestId);
-    if (request.state !== PROVIDER_REQUEST_STATE.PENDING && request.state !== PROVIDER_REQUEST_STATE.STREAMING) {
-      throw new Error(`Provider request cannot be cancelled from state ${request.state}.`);
-    }
-    const providerResponseId = input.providerResponseId?.trim() || request.external_response_id;
-    if (!providerResponseId) throw new Error("Provider response id is required.");
-    const provider = this.loadConfiguredProvider(input.orgId, request.provider_id);
-    const adapter = this.requireAdapter(provider.provider_key, provider.auth_type);
-    const credential = this.loadCredential(input.orgId, provider);
-    const authProfile = adapter.parseAuthProfile(credential.secret);
-    const result = await adapter.cancelResponse({ authProfile, responseId: providerResponseId });
-    this.recordObservedRateLimit(input.orgId, provider, provider.model, result.rateLimitState);
-    this.requestStore.markCancelled({
-      orgId: input.orgId,
-      requestId: input.requestId,
-      rawResponseJson: result.rawResponseJson,
-      externalResponseId: providerResponseId,
-      cancelledAt: new Date().toISOString(),
-    });
-    this.recordProviderHealth(provider.id, input.orgId, HEALTH_STATE_HEALTHY, null);
-    this.audit.record({
-      orgId: input.orgId,
-      entityType: "provider_request",
-      entityId: input.requestId,
-      actorType: "system",
-      actorId: null,
-      action: "response_cancelled",
-      payload: { providerKey: provider.provider_key, model: provider.model },
-    });
-  }
-
-  private prepareExecution(input: CreateProviderResponseInput | StreamProviderResponseInput): PreparedProviderExecution {
-    const prompt = input.prompt.trim();
-    if (!prompt) throw new Error("Prompt is required.");
-    const provider = this.loadConfiguredProvider(input.orgId, input.providerId);
-    const workspaceId = this.normalizeWorkspaceId(input.orgId, input.workspaceId ?? null);
-    const executionMode = input.executionMode ?? PROVIDER_EXECUTION_MODE.FOREGROUND;
-    this.enforcePolicy(input.orgId, provider, executionMode, workspaceId);
-    if (provider.auth_type !== PROVIDER_AUTH_TYPE.API_KEY) {
-      throw new Error("Provider response execution requires an API key adapter.");
-    }
-    if (!provider.model) throw new Error("Provider model is required.");
-    return {
-      orgId: input.orgId,
-      workspaceId,
-      prompt,
-      instructions: input.instructions?.trim() || null,
-      executionMode,
-      provider: { ...provider, model: provider.model },
-      adapter: this.requireAdapter(provider.provider_key, provider.auth_type),
-      credential: this.loadCredential(input.orgId, provider),
-    };
-  }
-
-  private createRequestRecord(execution: PreparedProviderExecution): string {
-    return this.requestStore.create({
-      orgId: execution.orgId,
-      provider: execution.provider,
-      model: execution.provider.model,
-      workspaceId: execution.workspaceId,
-      promptSha256: hashPrompt(execution.prompt),
-      inputCharCount: execution.prompt.length,
-      executionMode: execution.executionMode,
-      createdAt: new Date().toISOString(),
-    });
-  }
-
-  private enforcePolicy(orgId: string, provider: ProviderRow, executionMode: ProviderExecutionMode, workspaceId: string | null): void {
-    if (!Object.values(PROVIDER_EXECUTION_MODE).includes(executionMode)) throw new Error("Provider execution mode is invalid.");
-    if (!WORKSPACE_SCOPES.has(provider.workspace_scope)) throw new Error("Provider workspace scope is invalid.");
-    if (provider.workspace_scope === "workspace" && !workspaceId) {
-      throw new Error("Provider workspace scope requires a workspace context.");
-    }
-    if (executionMode === PROVIDER_EXECUTION_MODE.BACKGROUND && provider.data_policy === PROVIDER_DATA_POLICY.ZERO_DATA_RETENTION) {
-      throw new Error("Background execution conflicts with zero data retention policy.");
-    }
-    if (executionMode === PROVIDER_EXECUTION_MODE.BACKGROUND && !this.operations.isFeatureEnabled(orgId, FEATURE_FLAG_KEY.PROVIDER_BACKGROUND_EXECUTION)) {
-      throw new Error("Provider background execution is disabled by feature flag.");
-    }
-    if (executionMode === PROVIDER_EXECUTION_MODE.BACKGROUND && provider.background_enabled !== 1) {
-      throw new Error("Background execution is disabled for this provider policy.");
-    }
-    const window = currentProviderUsageWindow();
-    const usage = this.db.prepare(`
-      select request_count
-      from provider_usage_windows
-      where org_id = ? and provider_id = ? and window_start = ?
-    `).get(orgId, provider.id, window.start) as { request_count: number } | undefined;
-    const requestCount = usage?.request_count ?? 0;
-    if (requestCount >= provider.monthly_request_limit) throw new Error("Provider monthly request limit has been reached.");
-  }
-
-  private normalizeWorkspaceId(orgId: string, workspaceId: string | null): string | null {
-    const normalized = workspaceId?.trim() || null;
-    if (!normalized) return null;
-    const workspace = this.db.prepare("select id from workspaces where id = ? and org_id = ?")
-      .get(normalized, orgId) as { id: string } | undefined;
-    if (!workspace) throw new Error("Provider workspace context was not found.");
-    return normalized;
-  }
-
-  private loadConfiguredProvider(orgId: string, providerId: string): ProviderRow {
-    const provider = this.db.prepare(`
-      select id, provider_key, auth_type, model, credential_id, enabled, auth_state,
-        data_policy, background_enabled, monthly_request_limit, workspace_scope
-      from providers
-      where id = ? and org_id = ?
-    `).get(providerId, orgId) as ProviderRow | undefined;
-    if (!provider) throw new Error("Provider was not found.");
-    if (provider.enabled !== 1 || provider.auth_state !== AUTH_STATE_CONFIGURED) throw new Error("Provider credential is required.");
-    if (!provider.credential_id) throw new Error("Provider credential is required.");
-    return provider;
-  }
-
-  private loadCredential(orgId: string, provider: ProviderRow): { secret: string } {
-    if (!provider.credential_id) throw new Error("Provider credential is required.");
-    return {
-      secret: this.authBroker.loadProviderSecret({
-        orgId,
-        providerId: provider.id,
-        providerKey: provider.provider_key,
-        credentialId: provider.credential_id,
-      }),
-    };
-  }
-
-  private requireAdapter(providerKey: string, authType: string): ProviderAdapterRegistry[string] {
-    const adapter = this.adapters[providerKey];
-    if (!adapter) throw new Error(`Provider adapter is unavailable for ${providerKey}.`);
-    if (adapter.authType !== authType) throw new Error(`Provider adapter auth type mismatch for ${providerKey}.`);
-    return adapter;
-  }
-
-  private requireCatalogEntry(providerKey: string): (typeof PROVIDER_CATALOG)[number] {
-    const entry = PROVIDER_CATALOG.find((item) => item.key === providerKey);
-    if (!entry) throw new Error(`Provider catalog entry missing for ${providerKey}.`);
-    return entry;
   }
 
   private assertEmployee(orgId: string, employeeId: string): void {
@@ -566,55 +325,6 @@ export class ProviderService {
     );
     return { id, state, nonce, codeVerifierSha256, redirectUri, partition };
   }
-
-  private recordProviderHealth(providerId: string, orgId: string, healthState: string, error: string | null): void {
-    this.db.prepare(`
-      update providers
-      set health_state = ?, last_error = ?, last_checked_at = ?
-      where id = ? and org_id = ?
-    `).run(healthState, error, new Date().toISOString(), providerId, orgId);
-  }
-
-  private recordObservedRateLimit(
-    orgId: string,
-    provider: Pick<ProviderRow, "id" | "provider_key">,
-    model: string | null,
-    state: ProviderObservedRateLimitState | null,
-  ): void {
-    if (!state) return;
-    this.rateLimitRegistry.recordObservation({
-      orgId,
-      providerId: provider.id,
-      providerKey: provider.provider_key,
-      model,
-      state,
-    });
-  }
-}
-
-interface PreparedProviderExecution {
-  orgId: string;
-  workspaceId: string | null;
-  prompt: string;
-  instructions: string | null;
-  executionMode: ProviderExecutionMode;
-  provider: ProviderRow & { model: string };
-  adapter: ProviderAdapterRegistry[string];
-  credential: { secret: string };
-}
-
-interface ProviderRow {
-  id: string;
-  provider_key: string;
-  auth_type: ProviderAuthType;
-  model: string | null;
-  credential_id: string | null;
-  enabled: number;
-  auth_state: string;
-  data_policy: string;
-  background_enabled: number;
-  monthly_request_limit: number;
-  workspace_scope: string;
 }
 
 interface ProviderAuthSessionDraft {
