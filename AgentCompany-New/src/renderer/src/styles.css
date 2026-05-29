@@ -517,6 +517,8 @@ textarea.input { min-height: 84px; resize: vertical; line-height: 1.5; }
   border-bottom: 1px solid var(--border-soft);
 }
 .table-row:last-child { border-bottom: 0; }
+.table-row.clickable { cursor: pointer; }
+.table-row.clickable:hover { background: var(--hover); }
 
 .split-main { display: flex; flex-direction: row; min-height: 0; flex: 1; }
 .secondary-pane {

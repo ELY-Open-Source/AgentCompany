@@ -16,6 +16,8 @@ import {
   type WorkspaceRecord,
 } from "../../../shared/domain";
 import { NewTaskDialog } from "./NewTaskDialog";
+import { TaskDetailDialog } from "./work/TaskDetailDialog";
+import { canRun, latestTaskRun, nextStatus, prettyRunState, prettyStatus, providerFor, runTone } from "./work/task-helpers";
 import type { PageProps } from "./types";
 import { activeOrgId } from "./types";
 
@@ -40,6 +42,7 @@ export function WorkPage({ snapshot, actions }: PageProps) {
   const [newTaskOpen, setNewTaskOpen] = useState(false);
   const [priorityFilter, setPriorityFilter] = useState<TaskPriority | "all">("all");
   const [assigneeFilter, setAssigneeFilter] = useState<string>("all");
+  const [detailTaskId, setDetailTaskId] = useState<string | null>(null);
 
   const allTasks = useMemo(() => snapshot.tasks.filter((task) => task.orgId === orgId), [snapshot.tasks, orgId]);
   const tasks = useMemo(
@@ -70,6 +73,7 @@ export function WorkPage({ snapshot, actions }: PageProps) {
   const runTask = (task: TaskRecord) => {
     void actions.run(() => window.agentCompany.runTask({ orgId, taskId: task.id }));
   };
+  const detailTask = detailTaskId ? allTasks.find((task) => task.id === detailTaskId) ?? null : null;
 
   return (
     <div className="page-wide">
@@ -101,12 +105,34 @@ export function WorkPage({ snapshot, actions }: PageProps) {
           onAdvance={advance}
           onRun={runTask}
           onCreate={() => setNewTaskOpen(true)}
+          onOpen={(task) => setDetailTaskId(task.id)}
         />
       )}
-      {view === "list" && <ListView tasks={tasks} agents={agents} projects={projects} providers={providers} onRun={runTask} />}
+      {view === "list" && (
+        <ListView
+          tasks={tasks}
+          agents={agents}
+          projects={projects}
+          providers={providers}
+          onRun={runTask}
+          onOpen={(task) => setDetailTaskId(task.id)}
+        />
+      )}
       {view === "timeline" && <TimelineView tasks={tasks} goals={goals} />}
 
       <NewTaskDialog open={newTaskOpen} orgId={orgId} snapshot={snapshot} actions={actions} onClose={() => setNewTaskOpen(false)} />
+      <TaskDetailDialog
+        task={detailTask}
+        agents={agents}
+        projects={projects}
+        goals={goals}
+        workspaces={workspaces}
+        providers={providers}
+        taskRuns={taskRuns}
+        onClose={() => setDetailTaskId(null)}
+        onAdvance={advance}
+        onRun={runTask}
+      />
     </div>
   );
 }
@@ -177,6 +203,7 @@ function BoardView({
   onAdvance,
   onRun,
   onCreate,
+  onOpen,
 }: {
   tasks: TaskRecord[];
   agents: AgentRecord[];
@@ -188,6 +215,7 @@ function BoardView({
   onAdvance: (task: TaskRecord) => void;
   onRun: (task: TaskRecord) => void;
   onCreate: () => void;
+  onOpen: (task: TaskRecord) => void;
 }) {
   return (
     <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 12, minWidth: 0 }}>
@@ -213,6 +241,7 @@ function BoardView({
                 latestRun={latestTaskRun(task.id, taskRuns)}
                 onAdvance={() => onAdvance(task)}
                 onRun={() => onRun(task)}
+                onOpen={() => onOpen(task)}
               />
             ))}
           </div>
@@ -228,12 +257,14 @@ function ListView({
   projects,
   providers,
   onRun,
+  onOpen,
 }: {
   tasks: TaskRecord[];
   agents: AgentRecord[];
   projects: ProjectRecord[];
   providers: ProviderRecord[];
   onRun: (task: TaskRecord) => void;
+  onOpen: (task: TaskRecord) => void;
 }) {
   return (
     <div className="card" style={{ padding: 0, overflow: "hidden" }}>
@@ -251,7 +282,11 @@ function ListView({
         return (
           <div
             key={task.id}
-            className="table-row"
+            role="button"
+            tabIndex={0}
+            className="table-row clickable"
+            onClick={() => onOpen(task)}
+            onKeyDown={(event) => { if (event.key === "Enter") onOpen(task); }}
             style={{ gridTemplateColumns: "minmax(0, 3fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.2fr) 88px", borderBottom: last ? "none" : "1px solid var(--border-soft)" }}
           >
             <div className="row" style={{ gap: 8, minWidth: 0 }}>
@@ -271,9 +306,9 @@ function ListView({
                 <span style={{ color: "var(--text-4)" }}>—</span>
               )}
             </div>
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 4 }}>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 4 }} onClick={(event) => event.stopPropagation()}>
               {assignee && <IconButton icon="send" label={`Run ${task.title}`} onClick={() => onRun(task)} disabled={!canRun(provider)} />}
-              <IconButton icon="more" label="More" />
+              <IconButton icon="more" label={`Open ${task.title}`} onClick={() => onOpen(task)} />
             </div>
           </div>
         );
@@ -316,6 +351,7 @@ function TaskCard({
   latestRun,
   onAdvance,
   onRun,
+  onOpen,
 }: {
   task: TaskRecord;
   assignee: AgentRecord | null;
@@ -326,9 +362,14 @@ function TaskCard({
   latestRun: TaskRunRecord | null;
   onAdvance: () => void;
   onRun: () => void;
+  onOpen: () => void;
 }) {
   return (
     <div
+      role="button"
+      tabIndex={0}
+      onClick={onOpen}
+      onKeyDown={(event) => { if (event.key === "Enter") onOpen(); }}
       style={{
         background: "var(--panel)",
         border: "1px solid var(--border)",
@@ -337,6 +378,7 @@ function TaskCard({
         display: "flex",
         flexDirection: "column",
         gap: 10,
+        cursor: "pointer",
         opacity: task.status === "done" ? 0.7 : 1,
       }}
     >
@@ -362,7 +404,7 @@ function TaskCard({
         {workspace && <Pill>{workspace.name}</Pill>}
         {task.requiresFilesystem && <Pill>workspace</Pill>}
         {latestRun && <Pill tone={runTone(latestRun.state)}>{prettyRunState(latestRun.state)}</Pill>}
-        <div style={{ marginLeft: "auto", display: "flex", gap: 6, alignItems: "center" }}>
+        <div style={{ marginLeft: "auto", display: "flex", gap: 6, alignItems: "center" }} onClick={(event) => event.stopPropagation()}>
           {assignee && <Avatar name={assignee.name} size="sm" bot />}
           {assignee && <IconButton icon="send" label={`Run ${task.title}`} onClick={onRun} disabled={!canRun(provider)} />}
           {nextStatus(task.status) && <IconButton icon="check" label="Advance" onClick={onAdvance} />}
@@ -370,45 +412,6 @@ function TaskCard({
       </div>
     </div>
   );
-}
-
-function nextStatus(status: TaskStatus): TaskStatus | null {
-  if (status === TASK_STATUS.BACKLOG) return TASK_STATUS.IN_PROGRESS;
-  if (status === TASK_STATUS.IN_PROGRESS) return TASK_STATUS.REVIEW;
-  if (status === TASK_STATUS.REVIEW) return TASK_STATUS.DONE;
-  return null;
-}
-
-function prettyStatus(status: TaskStatus): string {
-  return status.replaceAll("_", " ");
-}
-
-function prettyRunState(state: string): string {
-  return state.replaceAll("_", " ");
-}
-
-function providerFor(assignee: AgentRecord | null, providers: ProviderRecord[]): ProviderRecord | null {
-  if (!assignee?.modelProviderId) return null;
-  return providers.find((provider) => provider.id === assignee.modelProviderId) ?? null;
-}
-
-function canRun(provider: ProviderRecord | null): boolean {
-  return provider?.enabled === true && provider.authState === "configured";
-}
-
-function latestTaskRun(taskId: string, taskRuns: TaskRunRecord[]): TaskRunRecord | null {
-  for (let index = taskRuns.length - 1; index >= 0; index -= 1) {
-    const run = taskRuns[index];
-    if (run?.taskId === taskId) return run;
-  }
-  return null;
-}
-
-function runTone(state: string): "amber" | "green" | "red" | undefined {
-  if (state === "running" || state === "queued") return "amber";
-  if (state === "completed") return "green";
-  if (state === "failed") return "red";
-  return undefined;
 }
 
 function capitalize(value: string): string {
