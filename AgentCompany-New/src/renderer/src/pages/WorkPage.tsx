@@ -1,12 +1,15 @@
 import { useMemo, useState } from "react";
 import { Avatar, Button, Icon, IconButton, Pill, Segmented } from "../shared/ui";
+import { MenuDivider, MenuLabel, MenuRow, Popover } from "../shared/Popover";
 import { TopbarActions } from "../shared/TopbarActions";
 import {
+  TASK_PRIORITY,
   TASK_STATUS,
   type AgentRecord,
   type GoalRecord,
   type ProviderRecord,
   type ProjectRecord,
+  type TaskPriority,
   type TaskRecord,
   type TaskRunRecord,
   type TaskStatus,
@@ -35,8 +38,23 @@ export function WorkPage({ snapshot, actions }: PageProps) {
   const orgId = activeOrgId(snapshot);
   const [view, setView] = useState<View>("board");
   const [newTaskOpen, setNewTaskOpen] = useState(false);
+  const [priorityFilter, setPriorityFilter] = useState<TaskPriority | "all">("all");
+  const [assigneeFilter, setAssigneeFilter] = useState<string>("all");
 
-  const tasks = useMemo(() => snapshot.tasks.filter((task) => task.orgId === orgId), [snapshot.tasks, orgId]);
+  const allTasks = useMemo(() => snapshot.tasks.filter((task) => task.orgId === orgId), [snapshot.tasks, orgId]);
+  const tasks = useMemo(
+    () =>
+      allTasks.filter((task) => {
+        if (priorityFilter !== "all" && task.priority !== priorityFilter) return false;
+        if (assigneeFilter !== "all" && task.assigneeAgentId !== assigneeFilter) return false;
+        return true;
+      }),
+    [allTasks, priorityFilter, assigneeFilter],
+  );
+  const assigneeCount = useMemo(
+    () => new Set(tasks.map((task) => task.assigneeAgentId).filter((id): id is string => id !== null)).size,
+    [tasks],
+  );
   const agents = useMemo(() => snapshot.agents.filter((agent) => agent.orgId === orgId), [snapshot.agents, orgId]);
   const projects = useMemo(() => snapshot.projects.filter((project) => project.orgId === orgId), [snapshot.projects, orgId]);
   const goals = useMemo(() => snapshot.goals.filter((goal) => goal.orgId === orgId), [snapshot.goals, orgId]);
@@ -57,12 +75,18 @@ export function WorkPage({ snapshot, actions }: PageProps) {
     <div className="page-wide">
       <TopbarActions>
         <Segmented value={view} onChange={setView} options={VIEW_OPTIONS} />
-        <Button tone="ghost"><Icon name="filter" size={13} /></Button>
+        <WorkFilter
+          agents={agents}
+          priority={priorityFilter}
+          assignee={assigneeFilter}
+          onPriority={setPriorityFilter}
+          onAssignee={setAssigneeFilter}
+        />
         <Button tone="primary" onClick={() => setNewTaskOpen(true)}><Icon name="plus" size={13} /> New task</Button>
       </TopbarActions>
       <h1 className="page-h1">Work</h1>
       <p className="page-sub">
-        {tasks.length} {tasks.length === 1 ? "task" : "tasks"} · {agents.length} {agents.length === 1 ? "assignee" : "assignees"}
+        {tasks.length} {tasks.length === 1 ? "task" : "tasks"} · {assigneeCount} {assigneeCount === 1 ? "assignee" : "assignees"}
       </p>
 
       {view === "board" && (
@@ -84,6 +108,61 @@ export function WorkPage({ snapshot, actions }: PageProps) {
 
       <NewTaskDialog open={newTaskOpen} orgId={orgId} snapshot={snapshot} actions={actions} onClose={() => setNewTaskOpen(false)} />
     </div>
+  );
+}
+
+function WorkFilter({
+  agents,
+  priority,
+  assignee,
+  onPriority,
+  onAssignee,
+}: {
+  agents: AgentRecord[];
+  priority: TaskPriority | "all";
+  assignee: string;
+  onPriority: (next: TaskPriority | "all") => void;
+  onAssignee: (next: string) => void;
+}) {
+  const active = priority !== "all" || assignee !== "all";
+  const priorities: ReadonlyArray<{ id: TaskPriority | "all"; label: string }> = [
+    { id: "all", label: "All priorities" },
+    { id: TASK_PRIORITY.HIGH, label: "High" },
+    { id: TASK_PRIORITY.NORMAL, label: "Normal" },
+    { id: TASK_PRIORITY.LOW, label: "Low" },
+  ];
+  return (
+    <Popover
+      trigger={({ toggle }) => (
+        <button type="button" className="button ghost" aria-label="Filter tasks" onClick={toggle}>
+          <Icon name="filter" size={13} color={active ? "var(--accent)" : "currentColor"} />
+        </button>
+      )}
+    >
+      {() => (
+        <>
+          <MenuLabel>Priority</MenuLabel>
+          {priorities.map((option) => (
+            <MenuRow key={option.id} active={priority === option.id} onClick={() => onPriority(option.id)}>
+              {option.label}
+              {priority === option.id && <span className="menu-check"><Icon name="check" size={13} /></span>}
+            </MenuRow>
+          ))}
+          <MenuDivider />
+          <MenuLabel>Assignee</MenuLabel>
+          <MenuRow active={assignee === "all"} onClick={() => onAssignee("all")}>
+            All assignees
+            {assignee === "all" && <span className="menu-check"><Icon name="check" size={13} /></span>}
+          </MenuRow>
+          {agents.map((agent) => (
+            <MenuRow key={agent.id} active={assignee === agent.id} onClick={() => onAssignee(agent.id)}>
+              {agent.name}
+              {assignee === agent.id && <span className="menu-check"><Icon name="check" size={13} /></span>}
+            </MenuRow>
+          ))}
+        </>
+      )}
+    </Popover>
   );
 }
 

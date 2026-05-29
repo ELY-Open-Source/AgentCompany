@@ -72,6 +72,51 @@
 .option-card .opt-title { font-size: 13.5px; font-weight: 540; }
 .option-card .opt-sub { font-size: 12px; color: var(--text-3); margin-top: 4px; }
 
+.popover-anchor { position: relative; display: inline-flex; }
+.popover-panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  z-index: 35;
+  min-width: 208px;
+  max-width: 280px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-md);
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.popover-panel.end { right: 0; }
+.popover-panel.start { left: 0; }
+.menu-label {
+  padding: 6px 8px 4px;
+  font-size: 11px;
+  font-weight: 540;
+  letter-spacing: 0.02em;
+  color: var(--text-3);
+}
+.menu-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text-2);
+  font-size: 13px;
+  text-align: left;
+  width: 100%;
+}
+.menu-row:hover { background: var(--hover); color: var(--text-1); }
+.menu-row.active { background: var(--panel-3); color: var(--text-1); font-weight: 540; }
+.menu-row.danger { color: var(--red); }
+.menu-row.danger:hover { background: rgba(210, 59, 59, 0.1); color: var(--red); }
+.menu-row .menu-check { margin-left: auto; color: var(--accent); display: inline-flex; }
+.menu-divider { height: 1px; background: var(--border-soft); margin: 4px 0; }
+
 ::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
