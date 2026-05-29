@@ -6,12 +6,27 @@ import {
   FILE_SCAN_STATE,
   RISK_LEVEL,
   ROLE_KEY,
-  type FileScanState,
 } from "../../shared/domain";
 import { createId } from "../../shared/ids";
 import { ApprovalService } from "./approval-service";
 import { AuditService } from "./audit-service";
-import { BoardInterventionService, parseBoardCommand } from "./board-intervention-service";
+import { BoardInterventionService } from "./board-intervention-service";
+import {
+  ALLOWED_SLASH_COMMANDS,
+  approvalRequester,
+  createThreadTitle,
+  firstToken,
+  parseApprovalDecisionTarget,
+  parseSlashInvocation,
+  retentionPolicy,
+  spaceName,
+  validateSlashInvocation,
+  type FileAttachmentRow,
+  type PrincipalRef,
+  type SlashInvocation,
+  type SpaceRow,
+  type ThreadRow,
+} from "./chat-service-internal";
 import { IdentityAccessService } from "./identity-access-service";
 import { buildChatMessageStructure } from "./chat-message-structure";
 import { ChatMessageMutationService } from "./chat-message-mutation-service";
@@ -28,36 +43,6 @@ const SPACE_TYPES = new Set<CreateChatSpaceInput["spaceType"]>([
   "direct",
 ]);
 const SPACE_VISIBILITIES = new Set<CreateChatSpaceInput["visibility"]>(["workspace", "restricted"]);
-const RETENTION_POLICIES = new Set(["standard_365d", "restricted_365d"]);
-
-interface FileAttachmentRow {
-  id: string;
-  sha256: string;
-  scan_state: FileScanState;
-  scan_labels_json: string;
-  storage_path: string;
-  owner_type: string;
-  owner_id: string | null;
-}
-
-interface SpaceRow {
-  id: string;
-  org_id: string;
-  visibility: string;
-  space_type: string;
-}
-
-interface ThreadRow {
-  id: string;
-  board_state: string;
-  controlled_by_type: "employee" | "agent" | "board" | null;
-  controlled_by_id: string | null;
-}
-
-interface PrincipalRef {
-  type: "employee" | "agent";
-  id: string;
-}
 
 export class ChatService {
   private readonly audit: AuditService;
@@ -511,74 +496,4 @@ export class ChatService {
       values (?, ?, ?, ?, ?)
     `).run(spaceId, principal.type, principal.id, role, "unmuted");
   }
-}
-
-interface SlashInvocation {
-  command: string;
-  args: string;
-}
-
-interface ApprovalRequester {
-  type: "employee" | "agent" | "system";
-  id: string | null;
-}
-
-const ALLOWED_SLASH_COMMANDS = new Set([
-  "agent",
-  "handoff",
-  "approve",
-  "deny",
-  "skill",
-  "runbook",
-  "file",
-  "escalate",
-  "board",
-]);
-
-function parseSlashInvocation(body: string): SlashInvocation | null {
-  const match = body.match(/^\/([a-z][a-z0-9_-]*)(?:\s+([\s\S]*))?$/i);
-  if (!match) return null;
-  return { command: match[1].toLowerCase(), args: match[2] ?? "" };
-}
-
-function validateSlashInvocation(slash: SlashInvocation): void {
-  if (slash.command === "escalate" && slash.args.trim().length === 0) {
-    throw new Error("Slash command /escalate requires details.");
-  }
-  if (slash.command === "approve" || slash.command === "deny") parseApprovalDecisionTarget(slash);
-  if (slash.command === "board") parseBoardCommand(slash.args);
-}
-
-function parseApprovalDecisionTarget(slash: SlashInvocation): string {
-  const approvalId = slash.args.trim().split(/\s+/, 1)[0] ?? "";
-  if (!approvalId) throw new Error(`Slash command /${slash.command} requires an approval id.`);
-  return approvalId;
-}
-
-function firstToken(value: string): string {
-  return value.trim().split(/\s+/, 1)[0] ?? "";
-}
-
-function approvalRequester(senderType: SendMessageInput["senderType"], sender: PrincipalRef | null): ApprovalRequester {
-  if (senderType === "system") return { type: "system", id: null };
-  if (!sender) throw new Error("Approval requester is missing.");
-  if (senderType === "agent") return { type: "agent", id: sender.id };
-  return { type: "employee", id: sender.id };
-}
-
-function spaceName(db: DatabaseSync, spaceId: string): string {
-  const row = db.prepare("select name from chat_spaces where id = ?").get(spaceId) as { name: string } | undefined;
-  if (!row) throw new Error("Chat space was not found.");
-  return row.name;
-}
-
-function createThreadTitle(body: string): string {
-  const firstLine = body.split(/\r?\n/, 1)[0].trim();
-  return firstLine.length > 80 ? `${firstLine.slice(0, 77)}...` : firstLine;
-}
-
-function retentionPolicy(value: string | undefined, visibility: CreateChatSpaceInput["visibility"]): string {
-  const policy = value ?? (visibility === "restricted" ? "restricted_365d" : "standard_365d");
-  if (!RETENTION_POLICIES.has(policy)) throw new Error("Chat retention policy is invalid.");
-  return policy;
 }
