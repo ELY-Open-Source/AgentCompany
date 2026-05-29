@@ -75,7 +75,6 @@ export function OrgSwitcher({ snapshot, activeOrgId, onSelect, onNew, onDelete }
               onAskDelete={() => setConfirmingDelete(org.id)}
               onCancelDelete={() => setConfirmingDelete(null)}
               onConfirmDelete={() => handleDelete(org.id)}
-              canDelete={orgs.length > 1}
             />
           ))}
           <div className="org-menu-divider" />
@@ -106,7 +105,6 @@ function OrgRow({
   onAskDelete,
   onCancelDelete,
   onConfirmDelete,
-  canDelete,
 }: {
   org: OrganizationRecord;
   active: boolean;
@@ -115,7 +113,6 @@ function OrgRow({
   onAskDelete: () => void;
   onCancelDelete: () => void;
   onConfirmDelete: () => void;
-  canDelete: boolean;
 }) {
   const initial = orgInitial(org.name);
   if (confirming) {
@@ -141,19 +138,17 @@ function OrgRow({
       <span className="brand-mark sm">{initial}</span>
       <span className="org-menu-name">{org.name}</span>
       {active && <Icon name="check" size={12} color="var(--text-1)" />}
-      {!active && canDelete && (
-        <span
-          role="button"
-          aria-label={`Delete ${org.name}`}
-          className="org-menu-delete"
-          onClick={(event) => {
-            event.stopPropagation();
-            onAskDelete();
-          }}
-        >
-          <Icon name="x" size={12} color="var(--text-3)" />
-        </span>
-      )}
+      <span
+        role="button"
+        aria-label={`Delete ${org.name}`}
+        className="org-menu-delete"
+        onClick={(event) => {
+          event.stopPropagation();
+          onAskDelete();
+        }}
+      >
+        <Icon name="x" size={12} color="var(--text-3)" />
+      </span>
     </button>
   );
 }

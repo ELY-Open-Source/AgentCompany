@@ -207,6 +207,7 @@ a { color: inherit; }
 }
 .org-menu-row:hover .org-menu-delete { opacity: 1; }
 .org-menu-delete:hover { background: var(--panel-3); }
+.org-menu-row.active .org-menu-delete:hover { background: var(--border-strong); }
 .org-menu-confirm-text { flex: 1; min-width: 0; font-size: 12.5px; color: var(--text-1); }
 .org-menu-confirm-hint { font-size: 11px; color: var(--text-3); margin-top: 2px; }
 .org-menu-confirm-yes {
