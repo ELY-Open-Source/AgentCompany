@@ -35,6 +35,12 @@ export function FilesPage({ snapshot, actions }: PageProps) {
   const pinnedFiles = files.filter((file) => file.pinned);
   const totalBytes = visibleFiles.reduce((sum, file) => sum + file.sizeBytes, 0);
 
+  const upload = () => {
+    void window.agentCompany.importFile({ orgId }).then((result) => {
+      if (!result.ok) throw new Error(result.error.message);
+    });
+  };
+
   return (
     <div style={{ display: "grid", gridTemplateColumns: "minmax(160px, 200px) minmax(0, 1fr)", gap: 24, height: "100%", minHeight: 0, padding: "28px 32px 0" }}>
       <FilesTree
@@ -57,7 +63,7 @@ export function FilesPage({ snapshot, actions }: PageProps) {
               { id: "list", label: "List" },
             ]}
           />
-          <Button tone="primary" onClick={() => void actions.run(() => window.agentCompany.importFile({ orgId }))}>
+          <Button tone="primary" onClick={upload}>
             <Icon name="upload" size={13} /> Upload
           </Button>
         </TopbarActions>

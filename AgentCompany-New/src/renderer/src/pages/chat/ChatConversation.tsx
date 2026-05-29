@@ -29,6 +29,7 @@ export function ChatConversation({
   attachmentFileId,
   currentEmployeeId,
   onAttachmentChange,
+  onAttach,
   onOpenThread,
   onApprove,
   onDecline,
@@ -51,6 +52,7 @@ export function ChatConversation({
   attachmentFileId: string;
   currentEmployeeId: string;
   onAttachmentChange: (next: string) => void;
+  onAttach: () => void;
   onOpenThread: (threadId: string) => void;
   onApprove: (approvalId: string) => void;
   onDecline: (approvalId: string) => void;
@@ -93,6 +95,7 @@ export function ChatConversation({
         files={files}
         attachmentFileId={attachmentFileId}
         onAttachmentChange={onAttachmentChange}
+        onAttach={onAttach}
         onSubmit={onSubmit}
         composerRef={composerRef}
       />

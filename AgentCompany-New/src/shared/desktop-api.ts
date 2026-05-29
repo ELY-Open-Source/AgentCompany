@@ -96,7 +96,7 @@ export interface DesktopApi {
   launchSocialLogin(input: LaunchSocialLoginInput): Promise<DesktopResult<null>>;
   createScheduledPost(input: CreateScheduledPostInput): Promise<DesktopResult<AppSnapshot>>;
   setScheduledPostState(input: SetScheduledPostStateInput): Promise<DesktopResult<AppSnapshot>>;
-  importFile(input: ImportFileInput): Promise<DesktopResult<AppSnapshot>>;
+  importFile(input: ImportFileInput): Promise<DesktopResult<string | null>>;
   pickDirectory(): Promise<DesktopResult<string | null>>;
   setFilePinned(input: SetFilePinnedInput): Promise<DesktopResult<AppSnapshot>>;
   createMigrationReport(input: CreateMigrationReportInput): Promise<DesktopResult<AppSnapshot>>;

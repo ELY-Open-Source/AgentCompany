@@ -224,6 +224,13 @@ export function ChatPage({ snapshot, actions }: PageProps) {
       actorId: employee.id,
     }));
 
+  const attachFile = () => {
+    void window.agentCompany.importFile({ orgId }).then((result) => {
+      if (!result.ok) throw new Error(result.error.message);
+      if (result.data) setAttachmentFileId(result.data);
+    });
+  };
+
   return (
     <div className="split-main">
       <ChatSidebar
@@ -255,6 +262,7 @@ export function ChatPage({ snapshot, actions }: PageProps) {
         attachmentFileId={attachmentFileId}
         currentEmployeeId={employee.id}
         onAttachmentChange={setAttachmentFileId}
+        onAttach={attachFile}
         onOpenThread={setOpenThreadId}
         onApprove={(approvalId) => decideApproval(approvalId, "approved")}
         onDecline={(approvalId) => decideApproval(approvalId, "declined")}

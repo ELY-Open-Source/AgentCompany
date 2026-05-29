@@ -188,9 +188,9 @@ export function registerIpcHandlers(deps: IpcDeps): void {
 
   ipcMain.handle(IPC_CHANNELS.importFile, async (_event, input) => {
     try {
-      await files.importFile(input);
-      deps.mainWindow.webContents.send(IPC_CHANNELS.rendererEvent, { type: "snapshot-changed" });
-      return ok(snapshot.load());
+      const fileId = await files.importFile(input);
+      if (fileId) deps.mainWindow.webContents.send(IPC_CHANNELS.rendererEvent, { type: "snapshot-changed" });
+      return ok(fileId);
     } catch (error) {
       return fail("file_import_failed", error instanceof Error ? error.message : String(error));
     }

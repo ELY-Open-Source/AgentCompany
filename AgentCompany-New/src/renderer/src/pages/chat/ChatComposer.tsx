@@ -8,6 +8,7 @@ export function ChatComposer({
   files,
   attachmentFileId,
   onAttachmentChange,
+  onAttach,
   onSubmit,
   composerRef,
 }: {
@@ -15,10 +16,12 @@ export function ChatComposer({
   files: FileObjectRecord[];
   attachmentFileId: string;
   onAttachmentChange: (next: string) => void;
+  onAttach: () => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   composerRef: MutableRefObject<HTMLTextAreaElement | null>;
 }) {
   const [slashOpen, setSlashOpen] = useState(false);
+  const attachment = files.find((file) => file.id === attachmentFileId) ?? null;
 
   const insert = (text: string) => {
     const node = composerRef.current;
@@ -61,19 +64,22 @@ export function ChatComposer({
           }}
         />
         <div className="row" style={{ paddingTop: 6, borderTop: "1px solid var(--border-soft)", gap: 4 }}>
-          <IconButton icon="attach" label="Attach" />
-          <select
-            className="input"
-            value={attachmentFileId}
-            onChange={(event) => onAttachmentChange(event.target.value)}
-            aria-label="File attachment"
-            style={{ maxWidth: 180, padding: "4px 8px", height: 28, fontSize: 12 }}
-            disabled={disabled}
-          >
-            <option value="">No attachment</option>
-            {files.map((file) => <option key={file.id} value={file.id}>{file.name}</option>)}
-          </select>
+          <IconButton icon="attach" label="Attach file" onClick={onAttach} disabled={disabled} />
           <IconButton icon="sparkle" label="Commands" onClick={() => setSlashOpen((open) => !open)} />
+          {attachment && (
+            <span className="pill" style={{ maxWidth: 220 }}>
+              <Icon name="file" size={11} />
+              <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{attachment.name}</span>
+              <button
+                type="button"
+                aria-label="Remove attachment"
+                onClick={() => onAttachmentChange("")}
+                style={{ display: "inline-flex", border: 0, background: "transparent", padding: 0, color: "var(--text-3)", cursor: "pointer" }}
+              >
+                <Icon name="x" size={11} />
+              </button>
+            </span>
+          )}
           <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6 }}>
             <span className="mono" style={{ fontSize: 11, color: "var(--text-3)" }}>⌘↵</span>
             <Button tone="primary" size="small" type="submit" disabled={disabled}><Icon name="send" size={12} /> Send</Button>
