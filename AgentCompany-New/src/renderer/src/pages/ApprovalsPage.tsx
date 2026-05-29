@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Avatar, Button, Icon, Pill } from "../shared/ui";
+import { Avatar, Button, Icon, IconButton, Pill } from "../shared/ui";
 import { TopbarActions } from "../shared/TopbarActions";
 import type {
   AgentRecord,
@@ -30,6 +30,7 @@ export function ApprovalsPage({ snapshot, actions }: PageProps) {
   const orgId = activeOrgId(snapshot);
   const employee = requireActiveEmployee(snapshot);
   const [filter, setFilter] = useState<RiskFilter>("all");
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   const approvals = useMemo(() => snapshot.approvals.filter((item) => item.orgId === orgId), [snapshot.approvals, orgId]);
   const employees = snapshot.employees.filter((item) => item.orgId === orgId);
@@ -43,13 +44,17 @@ export function ApprovalsPage({ snapshot, actions }: PageProps) {
   const declined7d = weeklyDecided.filter((approval) => approval.state === APPROVAL_STATE.DECLINED).length;
   const medianTime = computeMedianMinutes(weeklyDecided);
 
-  const decide = (approval: ApprovalRecord, state: "approved" | "declined") =>
+  const editing = editingId ? approvals.find((approval) => approval.id === editingId) ?? null : null;
+
+  const decide = (approval: ApprovalRecord, state: "approved" | "declined") => {
+    setEditingId(null);
     void actions.run(() => window.agentCompany.decideApproval({
       orgId,
       approvalId: approval.id,
       state,
       decidedByEmployeeId: employee.id,
     }));
+  };
 
   const approveAllLowRisk = () => {
     const lows = filteredPending.filter((approval) => approval.risk === RISK_LEVEL.LOW);
@@ -83,6 +88,7 @@ export function ApprovalsPage({ snapshot, actions }: PageProps) {
           isBot={approval.requestedByType === "agent"}
           onApprove={() => decide(approval, "approved")}
           onDecline={() => decide(approval, "declined")}
+          onEdit={() => setEditingId(approval.id)}
         />
       ))}
 
@@ -102,8 +108,68 @@ export function ApprovalsPage({ snapshot, actions }: PageProps) {
           </div>
         </>
       )}
+
+      <ApprovalDetailDialog
+        approval={editing}
+        requester={editing ? resolveRequester(editing, employees, agents) : ""}
+        onClose={() => setEditingId(null)}
+        onApprove={() => editing && decide(editing, "approved")}
+        onDecline={() => editing && decide(editing, "declined")}
+      />
     </div>
   );
+}
+
+function ApprovalDetailDialog({
+  approval,
+  requester,
+  onClose,
+  onApprove,
+  onDecline,
+}: {
+  approval: ApprovalRecord | null;
+  requester: string;
+  onClose: () => void;
+  onApprove: () => void;
+  onDecline: () => void;
+}) {
+  if (!approval) return null;
+  const tone = RISK_TONES[approval.risk];
+  if (!tone) throw new Error("Approval risk tone is missing.");
+  return (
+    <div className="modal-backdrop" role="presentation" onMouseDown={onClose}>
+      <div className="modal" role="dialog" aria-label={approval.title} onMouseDown={(event) => event.stopPropagation()}>
+        <div className="row" style={{ alignItems: "flex-start", gap: 10, marginBottom: 12 }}>
+          <h2 className="modal-title" style={{ margin: 0, flex: 1 }}>{approval.title}</h2>
+          <IconButton icon="x" label="Close" onClick={onClose} />
+        </div>
+        <div className="row" style={{ flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
+          <span style={{ fontSize: 11, color: tone.color, fontWeight: 540, letterSpacing: "0.02em" }}>{tone.label}</span>
+          <span style={{ color: "var(--text-4)" }}>·</span>
+          <Pill>{approval.kind}</Pill>
+        </div>
+        <p style={{ margin: "0 0 16px", color: "var(--text-2)", fontSize: 13, lineHeight: 1.55, whiteSpace: "pre-wrap" }}>
+          {approval.details}
+        </p>
+        <div style={{ display: "grid", gridTemplateColumns: "100px 1fr", gap: "10px 14px", fontSize: 12.5 }}>
+          <span style={{ color: "var(--text-3)" }}>Requested by</span>
+          <span>{requester}</span>
+          {approval.sourceEntityType && (<><span style={{ color: "var(--text-3)" }}>Source</span><span>{humanizeKind(approval.sourceEntityType)}</span></>)}
+          <span style={{ color: "var(--text-3)" }}>Requested</span>
+          <span>{formatRelative(approval.createdAt)}</span>
+        </div>
+        <div className="modal-actions">
+          <Button onClick={onDecline}>Decline</Button>
+          <Button tone="primary" onClick={onApprove}>Approve</Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function humanizeKind(value: string): string {
+  const spaced = value.replace(/_/g, " ");
+  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
 }
 
 function RiskMenu({ filter, onChange }: { filter: RiskFilter; onChange: (next: RiskFilter) => void }) {
@@ -140,12 +206,14 @@ function ApprovalRow({
   isBot,
   onApprove,
   onDecline,
+  onEdit,
 }: {
   approval: ApprovalRecord;
   requester: string;
   isBot: boolean;
   onApprove: () => void;
   onDecline: () => void;
+  onEdit: () => void;
 }) {
   const tone = RISK_TONES[approval.risk];
   if (!tone) throw new Error("Approval risk tone is missing.");
@@ -181,7 +249,8 @@ function ApprovalRow({
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end" }}>
         <Button tone="primary" onClick={onApprove}>Approve</Button>
-        <Button onClick={onDecline}>Decline</Button>
+        <Button onClick={onEdit}>Edit</Button>
+        <Button tone="ghost" onClick={onDecline}>Decline</Button>
       </div>
     </div>
   );
@@ -198,8 +267,8 @@ function DecidedRow({
   decider: string;
   last: boolean;
 }) {
-  const decidedTone = approval.state === APPROVAL_STATE.APPROVED ? "var(--green)" : "var(--text-3)";
-  const decidedLabel = approval.state === APPROVAL_STATE.APPROVED ? "Approved" : "Declined";
+  const approved = approval.state === APPROVAL_STATE.APPROVED;
+  const decidedLabel = approved ? "Approved" : "Declined";
   return (
     <div
       className="row"
@@ -210,7 +279,7 @@ function DecidedRow({
         borderBottom: last ? "none" : "1px solid var(--border-soft)",
       }}
     >
-      <Icon name="check" size={14} color={decidedTone} />
+      <Icon name={approved ? "check" : "x"} size={14} color={approved ? "var(--green)" : "var(--red)"} />
       <div style={{ flex: 1, fontWeight: 480, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{approval.title}</div>
       <Avatar name={requester} size="sm" bot />
       <div style={{ fontSize: 12, color: "var(--text-3)", width: 180, textAlign: "right", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
