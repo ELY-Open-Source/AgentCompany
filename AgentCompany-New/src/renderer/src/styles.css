@@ -520,6 +520,16 @@ textarea.input { min-height: 84px; resize: vertical; line-height: 1.5; }
 .table-row.clickable { cursor: pointer; }
 .table-row.clickable:hover { background: var(--hover); }
 
+.link-button {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
+  color: var(--text-3);
+}
+.link-button:hover { color: var(--text-1); }
+
 .split-main { display: flex; flex-direction: row; min-height: 0; flex: 1; }
 .secondary-pane {
   width: 240px;

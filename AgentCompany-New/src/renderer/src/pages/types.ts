@@ -4,10 +4,12 @@ import type {
   OrganizationRecord,
 } from "../../../shared/domain";
 import type { SnapshotActions } from "../app/useSnapshot";
+import type { RouteId } from "../shared/Shell";
 
 export interface PageProps {
   snapshot: AppSnapshot;
   actions: SnapshotActions;
+  navigate: (route: RouteId) => void;
 }
 
 export function activeOrgId(snapshot: AppSnapshot): string {

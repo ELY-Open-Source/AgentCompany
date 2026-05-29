@@ -30,7 +30,7 @@ export function App() {
     );
   }
 
-  const pageProps = { snapshot, actions };
+  const pageProps = { snapshot, actions, navigate: setRoute };
   const page = {
     home: <HomePage {...pageProps} />,
     team: <TeamPage {...pageProps} />,

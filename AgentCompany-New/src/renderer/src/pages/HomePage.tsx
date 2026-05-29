@@ -13,7 +13,7 @@ import { NewTaskDialog } from "./NewTaskDialog";
 import type { PageProps } from "./types";
 import { activeOrgId, formatTime, money, requireActiveEmployee, requireActiveOrganization } from "./types";
 
-export function HomePage({ snapshot, actions }: PageProps) {
+export function HomePage({ snapshot, actions, navigate }: PageProps) {
   const orgId = activeOrgId(snapshot);
   const organization = requireActiveOrganization(snapshot);
   const employee = requireActiveEmployee(snapshot);
@@ -66,12 +66,13 @@ export function HomePage({ snapshot, actions }: PageProps) {
             state: "approved",
             decidedByEmployeeId: employee.id,
           }))}
+          onOpen={() => navigate("approvals")}
         />
         <SpendCard providers={providers} totalBudgetCents={totalBudgetCents} capCents={budgetCapCents} agents={agents} />
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr)", gap: 12 }}>
-        <InProgressCard tasks={inProgressTasks} agents={agents} />
+        <InProgressCard tasks={inProgressTasks} agents={agents} onViewAll={() => navigate("work")} />
         <TeamCard agents={agents} employee={employee} />
         <GoalCard goal={primaryGoal} progress={goalProgress} organizationName={organization.name} />
       </div>
@@ -107,7 +108,9 @@ function TodayCard({
           const owner = agents.find((agent) => agent.id === task.assigneeAgentId);
           const ownerName = owner?.name ?? employee.displayName;
           const time = agendaTime(task, date);
-          const requiresApproval = approvals.some((approval) => approval.title === task.title);
+          const requiresApproval = approvals.some(
+            (approval) => approval.sourceEntityType === "task" && approval.sourceEntityId === task.id,
+          );
           return (
             <div key={task.id} className="row" style={{ gap: 12 }}>
               <span className="num mono" style={{ width: 36, fontSize: 12, color: "var(--text-3)" }}>{time}</span>
@@ -129,11 +132,13 @@ function WaitingCard({
   agents,
   employees,
   onApprove,
+  onOpen,
 }: {
   approvals: ApprovalRecord[];
   agents: AgentRecord[];
   employees: EmployeeRecord[];
   onApprove: (approvalId: string) => void;
+  onOpen: () => void;
 }) {
   return (
     <section className="card" style={{ padding: 18 }}>
@@ -152,7 +157,7 @@ function WaitingCard({
               </div>
               <div className="row" style={{ gap: 6 }}>
                 <Button tone="primary" size="small" onClick={() => onApprove(approval.id)}>Approve</Button>
-                <Button size="small">Open</Button>
+                <Button size="small" onClick={onOpen}>Open</Button>
               </div>
             </div>
           );
@@ -204,13 +209,20 @@ function SpendCard({
   );
 }
 
-function InProgressCard({ tasks, agents }: { tasks: TaskRecord[]; agents: AgentRecord[] }) {
+function InProgressCard({ tasks, agents, onViewAll }: { tasks: TaskRecord[]; agents: AgentRecord[]; onViewAll: () => void }) {
   const rows = tasks.slice(0, 4);
   return (
     <section className="card" style={{ padding: 18 }}>
       <div className="row" style={{ marginBottom: 14 }}>
         <span className="card-label">In progress</span>
-        <span style={{ marginLeft: "auto", fontSize: 11, color: "var(--text-3)" }}>{tasks.length} active</span>
+        <button
+          type="button"
+          className="link-button"
+          style={{ marginLeft: "auto", fontSize: 11 }}
+          onClick={onViewAll}
+        >
+          All work →
+        </button>
       </div>
       {rows.map((task, index) => {
         const owner = agents.find((agent) => agent.id === task.assigneeAgentId);
