@@ -28,6 +28,7 @@ export function ChatTimeline({
   onDecline,
   onEditMessage,
   onDeleteMessage,
+  onOpenFile,
 }: {
   rootMessages: ChatMessageRecord[];
   messagesInSpace: ChatMessageRecord[];
@@ -44,6 +45,7 @@ export function ChatTimeline({
   onDecline: (approvalId: string) => void;
   onEditMessage: (messageId: string, bodyMd: string) => void;
   onDeleteMessage: (messageId: string) => void;
+  onOpenFile: (fileId: string) => void;
 }) {
   const elements: ReactNode[] = [];
   let lastDay = "";
@@ -71,6 +73,7 @@ export function ChatTimeline({
         canModify={message.senderType === "employee" && message.senderId === currentEmployeeId && !message.deletedAt}
         onEdit={(bodyMd) => onEditMessage(message.id, bodyMd)}
         onDelete={() => onDeleteMessage(message.id)}
+        onOpenFile={onOpenFile}
       />,
     );
   });

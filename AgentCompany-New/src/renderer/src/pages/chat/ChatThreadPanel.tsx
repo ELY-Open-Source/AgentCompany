@@ -29,6 +29,7 @@ export function ChatThreadPanel({
   onClose,
   onSubmit,
   onBoardSubmit,
+  onOpenFile,
 }: {
   thread: ChatThreadRecord;
   rootMessage: ChatMessageRecord | null;
@@ -44,6 +45,7 @@ export function ChatThreadPanel({
   onClose: () => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   onBoardSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  onOpenFile: (fileId: string) => void;
 }) {
   return (
     <aside
@@ -87,6 +89,7 @@ export function ChatThreadPanel({
                 replyCount={0}
                 onOpenThread={null}
                 context={context}
+                onOpenFile={onOpenFile}
                 compact
               />
             </div>
@@ -103,6 +106,7 @@ export function ChatThreadPanel({
             replyCount={0}
             onOpenThread={null}
             context={context}
+            onOpenFile={onOpenFile}
             compact
           />
         ))}

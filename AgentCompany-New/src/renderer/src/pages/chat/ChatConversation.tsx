@@ -35,6 +35,7 @@ export function ChatConversation({
   onDecline,
   onEditMessage,
   onDeleteMessage,
+  onOpenFile,
   onSubmit,
   composerRef,
 }: {
@@ -58,6 +59,7 @@ export function ChatConversation({
   onDecline: (approvalId: string) => void;
   onEditMessage: (messageId: string, bodyMd: string) => void;
   onDeleteMessage: (messageId: string) => void;
+  onOpenFile: (fileId: string) => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   composerRef: MutableRefObject<HTMLTextAreaElement | null>;
 }) {
@@ -87,6 +89,7 @@ export function ChatConversation({
             onDecline={onDecline}
             onEditMessage={onEditMessage}
             onDeleteMessage={onDeleteMessage}
+            onOpenFile={onOpenFile}
           />
         )}
       </div>
@@ -156,7 +159,6 @@ function ConversationHeader({
         )}
         {!searchOpen && participants.length > 0 && <AvatarStack names={participants.slice(0, 5)} bot />}
         <IconButton icon="search" label="Search" onClick={toggleSearch} />
-        <IconButton icon="more" label="More" />
       </div>
     </header>
   );

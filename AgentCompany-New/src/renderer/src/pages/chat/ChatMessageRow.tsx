@@ -23,6 +23,7 @@ export function ChatMessageRow({
   canModify = false,
   onEdit,
   onDelete,
+  onOpenFile,
 }: {
   message: ChatMessageRecord;
   attachments: ChatAttachmentRecord[];
@@ -36,6 +37,7 @@ export function ChatMessageRow({
   canModify?: boolean;
   onEdit?: (bodyMd: string) => void;
   onDelete?: () => void;
+  onOpenFile?: (fileId: string) => void;
 }) {
   const [editing, setEditing] = useState(false);
   const name = senderName(message, context);
@@ -61,7 +63,7 @@ export function ChatMessageRow({
           {message.editedAt && !deleted && <span style={{ fontSize: 11, color: "var(--text-3)" }}>(edited)</span>}
           {canModify && !editing && (
             <span style={{ marginLeft: "auto", display: "flex", gap: 2 }}>
-              <IconButton icon="more" label="Edit message" size={13} onClick={() => setEditing(true)} />
+              <IconButton icon="edit" label="Edit message" size={13} onClick={() => setEditing(true)} />
               <IconButton icon="x" label="Delete message" size={13} onClick={onDelete} />
             </span>
           )}
@@ -98,7 +100,7 @@ export function ChatMessageRow({
             {messageFiles.map((file) => {
               const attachment = attachments.find((item) => item.messageId === message.id && item.fileId === file.id);
               const handoff = bot && attachment?.transferType === "handoff";
-              return <AttachmentCard key={file.id} file={file} handoff={handoff} />;
+              return <AttachmentCard key={file.id} file={file} handoff={handoff} onOpen={onOpenFile ? () => onOpenFile(file.id) : null} />;
             })}
           </div>
         )}
@@ -173,7 +175,8 @@ function mentionLabel(mention: ChatMentionRecord, context: MessageContext): stri
   throw new Error("Message mention target type is unsupported.");
 }
 
-function AttachmentCard({ file, handoff = false }: { file: FileObjectRecord; handoff?: boolean }) {
+function AttachmentCard({ file, handoff = false, onOpen }: { file: FileObjectRecord; handoff?: boolean; onOpen: (() => void) | null }) {
+  const canOpen = onOpen !== null && file.scanState === "approved";
   return (
     <div
       style={{
@@ -211,7 +214,7 @@ function AttachmentCard({ file, handoff = false }: { file: FileObjectRecord; han
         </div>
         <div style={{ fontSize: 11, color: "var(--text-3)" }}>{file.kind.toUpperCase()} · {file.sha256.slice(0, 8)}</div>
       </div>
-      <IconButton icon="arrowUpRight" label="Open" />
+      {canOpen && <IconButton icon="arrowUpRight" label={`Open ${file.name}`} onClick={onOpen ?? undefined} />}
     </div>
   );
 }
