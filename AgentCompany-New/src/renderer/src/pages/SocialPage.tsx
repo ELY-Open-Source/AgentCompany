@@ -1,5 +1,5 @@
 import { useMemo, useState, type FormEvent } from "react";
-import { Avatar, Button, Field, Icon, IconButton, Pill } from "../shared/ui";
+import { Avatar, Button, Field, Icon, Pill } from "../shared/ui";
 import { TopbarActions } from "../shared/TopbarActions";
 import { Dialog } from "../shared/Dialog";
 import {
@@ -288,7 +288,7 @@ function PostRow({
         </div>
         <div style={{ fontSize: 13, color: "var(--text-1)", lineHeight: 1.5, marginBottom: 8, whiteSpace: "pre-wrap" }}>{post.bodyMd}</div>
         <div className="row" style={{ gap: 6 }}>
-          <Avatar name={authorName} size="sm" bot={authorName !== "System"} />
+          <Avatar name={authorName} size="sm" bot={post.createdByEmployeeId === null} />
           <span style={{ fontSize: 11, color: "var(--text-3)" }}>By {authorName}</span>
         </div>
       </div>
@@ -298,7 +298,6 @@ function PostRow({
         {post.state !== "cancelled" && post.state !== "published" && (
           <Button size="small" tone="ghost" onClick={onCancel}>Cancel</Button>
         )}
-        <IconButton icon="more" label="More" />
       </div>
     </div>
   );
