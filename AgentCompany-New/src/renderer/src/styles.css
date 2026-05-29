@@ -61,6 +61,8 @@ a { color: inherit; }
   border-right: 1px solid var(--border-soft);
   background: var(--bg);
 }
+/* Clear the native macOS traffic lights that overlap the sidebar top. */
+.app-shell.is-mac .sidebar { padding-top: 34px; }
 .sidebar-org {
   display: flex;
   align-items: center;
@@ -292,6 +294,7 @@ a { color: inherit; }
 .crumb-sep { color: var(--text-4); }
 .topbar-actions { margin-left: auto; display: flex; align-items: center; gap: 6px; }
 .topbar-actions-slot { display: flex; align-items: center; gap: 6px; }
+.window-controls { display: flex; align-items: center; gap: 2px; padding-left: 6px; }
 
 .content {
   flex: 1;

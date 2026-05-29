@@ -73,8 +73,10 @@ export function Shell({
   const badges = computeBadges(snapshot, organization.id);
   const activeLabel = labelFor(route);
 
+  const isMac = window.agentCompany.platform === "darwin";
+
   return (
-    <div className="app-shell">
+    <div className={`app-shell ${isMac ? "is-mac" : ""}`.trim()}>
       <aside className="sidebar">
         <OrgSwitcher
           snapshot={snapshot}
@@ -128,11 +130,12 @@ export function Shell({
           <span className="crumb">{activeLabel}</span>
           <div className="topbar-actions">
             <span className="topbar-actions-slot" ref={setActionsSlot} />
-            {window.agentCompany.platform !== "darwin" && (
-              <>
+            {!isMac && (
+              <span className="window-controls">
                 <IconButton icon="minus" label="Minimize" onClick={() => void window.agentCompany.windowMinimize()} />
+                <IconButton icon="grid" label="Maximize" onClick={() => void window.agentCompany.windowMaximize()} />
                 <IconButton icon="x" label="Close" onClick={() => void window.agentCompany.windowClose()} />
-              </>
+              </span>
             )}
           </div>
         </header>
