@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
 import { Button, Icon, Segmented } from "../shared/ui";
 import { TopbarActions } from "../shared/TopbarActions";
-import type { FileObjectRecord } from "../../../shared/domain";
+import { FILE_SCAN_STATE, type FileObjectRecord, type FileScanState } from "../../../shared/domain";
+import { MenuLabel, MenuRow, Popover } from "../shared/Popover";
 import type { PageProps } from "./types";
 import { activeOrgId, formatBytes } from "./types";
 import { FilesTree } from "./files/FilesTree";
@@ -29,10 +30,12 @@ export function FilesPage({ snapshot, actions }: PageProps) {
   );
   const [section, setSection] = useState<Section>({ kind: "all" });
   const [view, setView] = useState<ViewMode>("list");
+  const [scanFilter, setScanFilter] = useState<FileScanState | "all">("all");
 
   const departments = collectDepartments(agents);
   const filesByAgent = collectAgentFiles(files, agents);
-  const visibleFiles = filterFiles(files, section, agents);
+  const sectionFiles = filterFiles(files, section, agents);
+  const visibleFiles = scanFilter === "all" ? sectionFiles : sectionFiles.filter((file) => file.scanState === scanFilter);
   const pinnedFiles = files.filter((file) => file.pinned);
   const totalBytes = visibleFiles.reduce((sum, file) => sum + file.sizeBytes, 0);
 
@@ -62,7 +65,7 @@ export function FilesPage({ snapshot, actions }: PageProps) {
 
       <div style={{ minWidth: 0, display: "flex", flexDirection: "column", minHeight: 0 }}>
         <TopbarActions>
-          <Button tone="ghost"><Icon name="filter" size={13} /></Button>
+          <FilesFilter scan={scanFilter} onScan={setScanFilter} />
           <Segmented<ViewMode>
             value={view}
             onChange={setView}
@@ -126,5 +129,40 @@ export function FilesPage({ snapshot, actions }: PageProps) {
         </div>
       </div>
     </div>
+  );
+}
+
+function FilesFilter({
+  scan,
+  onScan,
+}: {
+  scan: FileScanState | "all";
+  onScan: (next: FileScanState | "all") => void;
+}) {
+  const options: ReadonlyArray<{ id: FileScanState | "all"; label: string }> = [
+    { id: "all", label: "All files" },
+    { id: FILE_SCAN_STATE.APPROVED, label: "Clean" },
+    { id: FILE_SCAN_STATE.BLOCKED, label: "Blocked" },
+  ];
+  return (
+    <Popover
+      trigger={({ toggle }) => (
+        <button type="button" className="button ghost" aria-label="Filter files" onClick={toggle}>
+          <Icon name="filter" size={13} color={scan !== "all" ? "var(--accent)" : "currentColor"} />
+        </button>
+      )}
+    >
+      {() => (
+        <>
+          <MenuLabel>Scan status</MenuLabel>
+          {options.map((option) => (
+            <MenuRow key={option.id} active={scan === option.id} onClick={() => onScan(option.id)}>
+              {option.label}
+              {scan === option.id && <span className="menu-check"><Icon name="check" size={13} /></span>}
+            </MenuRow>
+          ))}
+        </>
+      )}
+    </Popover>
   );
 }
