@@ -2,6 +2,10 @@ import { useEffect, useRef, useState } from "react";
 import type { AppSnapshot, OrganizationRecord } from "../../../shared/domain";
 import { Icon } from "./Icon";
 
+function orgInitial(name: string): string {
+  return name.trim().charAt(0).toUpperCase();
+}
+
 interface OrgSwitcherProps {
   snapshot: AppSnapshot;
   activeOrgId: string;
@@ -29,7 +33,7 @@ export function OrgSwitcher({ snapshot, activeOrgId, onSelect, onNew, onDelete }
     return () => document.removeEventListener("mousedown", onDocClick);
   }, [open]);
 
-  const initial = active.name.trim().charAt(0).toUpperCase() || "A";
+  const initial = orgInitial(active.name);
   const orgs = snapshot.organizations;
 
   const handleSelect = (orgId: string) => {
@@ -113,7 +117,7 @@ function OrgRow({
   onConfirmDelete: () => void;
   canDelete: boolean;
 }) {
-  const initial = org.name.trim().charAt(0).toUpperCase() || "A";
+  const initial = orgInitial(org.name);
   if (confirming) {
     return (
       <div className="org-menu-row confirm">
