@@ -10,7 +10,7 @@ import type {
   ChatThreadRecord,
   FileObjectRecord,
 } from "../../../../shared/domain";
-import { formatTime } from "../types";
+import { auditEventLabel, formatTime } from "../types";
 import { ChatMessageRow } from "./ChatMessageRow";
 import { senderName, type MessageContext } from "./chat-helpers";
 
@@ -241,7 +241,7 @@ function AuditReplay({ events }: { events: AuditEventRecord[] }) {
           >
             <span className="mono" style={{ fontSize: 11, color: "var(--text-3)", flexShrink: 0 }}>{formatTime(event.createdAt)}</span>
             <span style={{ fontSize: 12, color: "var(--text-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-              {event.entityType}.{event.action}
+              {auditEventLabel(event.entityType, event.action)}
             </span>
           </div>
         ))}

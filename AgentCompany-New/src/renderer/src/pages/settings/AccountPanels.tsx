@@ -1,6 +1,6 @@
 import { Avatar, Pill } from "../../shared/ui";
 import type { AuditEventRecord, EmployeeRecord } from "../../../../shared/domain";
-import { formatRelative } from "../types";
+import { formatRelative, humanizeToken } from "../types";
 
 export function ProfilePanel({ employee }: { employee: EmployeeRecord }) {
   return (
@@ -43,7 +43,7 @@ export function NotificationsPanel({ events, employee }: { events: AuditEventRec
               style={{ padding: "12px 18px", borderBottom: index === visible.length - 1 ? "none" : "1px solid var(--border-soft)" }}
             >
               <Pill>{event.entityType.replaceAll("_", " ")}</Pill>
-              <span style={{ flex: 1, fontWeight: 480, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{event.action}</span>
+              <span style={{ flex: 1, fontWeight: 480, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{humanizeToken(event.action)}</span>
               <span style={{ color: "var(--text-3)", fontSize: 12 }}>{formatRelative(event.createdAt)}</span>
             </div>
           ))}
@@ -68,7 +68,7 @@ export function SecurityPanel({ events }: { events: AuditEventRecord[] }) {
               style={{ padding: "12px 18px", borderBottom: index === security.length - 1 ? "none" : "1px solid var(--border-soft)" }}
             >
               <Pill tone="amber">{event.entityType.replaceAll("_", " ")}</Pill>
-              <span style={{ flex: 1, fontWeight: 480, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{event.action}</span>
+              <span style={{ flex: 1, fontWeight: 480, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{humanizeToken(event.action)}</span>
               <span style={{ color: "var(--text-3)", fontSize: 12 }}>{formatRelative(event.createdAt)}</span>
             </div>
           ))}
