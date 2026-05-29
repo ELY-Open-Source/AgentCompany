@@ -35,6 +35,7 @@ export const IPC_CHANNELS = {
   createScheduledPost: "agentcompany:create-scheduled-post",
   setScheduledPostState: "agentcompany:set-scheduled-post-state",
   importFile: "agentcompany:import-file",
+  pickDirectory: "agentcompany:pick-directory",
   setFilePinned: "agentcompany:set-file-pinned",
   createMigrationReport: "agentcompany:create-migration-report",
   createRollbackSnapshot: "agentcompany:create-rollback-snapshot",

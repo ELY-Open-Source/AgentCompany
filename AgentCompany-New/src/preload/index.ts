@@ -43,6 +43,7 @@ const api: DesktopApi = {
   createScheduledPost: (input) => invoke(IPC_CHANNELS.createScheduledPost, input),
   setScheduledPostState: (input) => invoke(IPC_CHANNELS.setScheduledPostState, input),
   importFile: (input) => invoke(IPC_CHANNELS.importFile, input),
+  pickDirectory: () => invoke(IPC_CHANNELS.pickDirectory),
   setFilePinned: (input) => invoke(IPC_CHANNELS.setFilePinned, input),
   createMigrationReport: (input) => invoke(IPC_CHANNELS.createMigrationReport, input),
   createRollbackSnapshot: (input) => invoke(IPC_CHANNELS.createRollbackSnapshot, input),

@@ -1,4 +1,4 @@
-import { ipcMain, shell, type BrowserWindow } from "electron";
+import { dialog, ipcMain, shell, type BrowserWindow } from "electron";
 import type { DatabaseConnection } from "../database/connection";
 import { IPC_CHANNELS } from "../../shared/ipc";
 import { fail, ok, type DesktopResult } from "../../shared/result";
@@ -193,6 +193,16 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       return ok(snapshot.load());
     } catch (error) {
       return fail("file_import_failed", error instanceof Error ? error.message : String(error));
+    }
+  });
+
+  ipcMain.handle(IPC_CHANNELS.pickDirectory, async () => {
+    try {
+      const result = await dialog.showOpenDialog(deps.mainWindow, { properties: ["openDirectory", "createDirectory"] });
+      if (result.canceled || result.filePaths.length === 0) return ok(null);
+      return ok(result.filePaths[0]);
+    } catch (error) {
+      return fail("pick_directory_failed", error instanceof Error ? error.message : String(error));
     }
   });
 

@@ -312,6 +312,11 @@ function authBadge(authType: string): string {
 }
 
 function CompanyStep({ draft, onChange, onBack, onNext }: StepProps) {
+  const chooseWorkspace = () => {
+    void window.agentCompany.pickDirectory().then((result) => {
+      if (result.ok && result.data) onChange({ workspacePath: result.data });
+    });
+  };
   return (
     <div className="form-grid">
       <h2 className="page-h1">Company</h2>
@@ -325,7 +330,10 @@ function CompanyStep({ draft, onChange, onBack, onNext }: StepProps) {
         <textarea className="input" value={draft.companyDescription} onChange={(event) => onChange({ companyDescription: event.target.value })} required />
       </Field>
       <Field label="Workspace path (optional)">
-        <input className="input" value={draft.workspacePath} onChange={(event) => onChange({ workspacePath: event.target.value })} />
+        <div className="row" style={{ gap: 6 }}>
+          <input className="input" value={draft.workspacePath} onChange={(event) => onChange({ workspacePath: event.target.value })} placeholder="Choose a folder for agent artifacts" />
+          <Button tone="ghost" onClick={chooseWorkspace}><Icon name="folder" size={13} /> Choose</Button>
+        </div>
       </Field>
       <Actions onBack={onBack} onNext={onNext} />
     </div>
