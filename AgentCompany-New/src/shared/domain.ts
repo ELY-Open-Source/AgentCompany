@@ -1,4 +1,15 @@
-import type { BoardInterventionRecord as BoardInterventionRecordModel, ChatThreadBoardState as ChatThreadBoardStateModel } from "./board-domain";
+import type { BoardInterventionRecord as BoardInterventionRecordModel } from "./board-domain";
+import type {
+  ChatSpaceRecord,
+  ChatMessageRecord,
+  ChatMembershipRecord,
+  ChatThreadRecord,
+  ChatAttachmentRecord,
+  ChatMentionRecord,
+  ChatSlashInvocationRecord,
+  ChatPresenceRecord,
+  ChatReadStateRecord,
+} from "./chat-domain";
 import type { AuditReplayRunRecord } from "./audit-domain";
 import type { ComplianceExportRecord, LegalHoldRecord, RetentionFreezeRecord } from "./compliance-domain";
 import type { AccessDecisionRecord, EmployeeIdentityRecord, RoleGrantRecord, ServiceIdentityRecord } from "./identity-domain";
@@ -171,94 +182,17 @@ export interface ApprovalRecord {
   decidedAt: string | null;
 }
 
-export interface ChatSpaceRecord {
-  id: string;
-  orgId: string;
-  spaceType: string;
-  name: string;
-  topic: string;
-  visibility: string;
-  retentionPolicy: string;
-  createdAt: string;
-}
-
-export interface ChatMessageRecord {
-  id: string;
-  orgId: string;
-  spaceId: string;
-  threadId: string | null;
-  senderType: "employee" | "agent" | "board" | "system";
-  senderId: string | null;
-  bodyMd: string;
-  bodyStructuredJson: string;
-  deliveryState: string;
-  createdAt: string;
-  editedAt: string | null;
-  deletedAt: string | null;
-}
-
-export interface ChatMembershipRecord {
-  spaceId: string;
-  principalType: "employee" | "agent";
-  principalId: string;
-  role: string;
-  muteState: string;
-}
-
-export interface ChatThreadRecord {
-  id: string;
-  orgId: string;
-  spaceId: string;
-  rootMessageId: string | null;
-  title: string;
-  state: string;
-  boardState: ChatThreadBoardStateModel;
-  controlledByType: "employee" | "agent" | "board" | null;
-  controlledById: string | null;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface ChatAttachmentRecord {
-  messageId: string;
-  fileId: string;
-  transferType: string;
-  checksum: string;
-  previewKey: string | null;
-}
-
-export interface ChatMentionRecord {
-  messageId: string;
-  targetType: "employee" | "agent" | "board" | "org_group";
-  targetId: string;
-  offsetStart: number;
-  offsetEnd: number;
-}
-
-export interface ChatSlashInvocationRecord {
-  id: string;
-  messageId: string;
-  command: string;
-  argsJson: string;
-  resultRef: string | null;
-  createdAt: string;
-}
-
-export interface ChatPresenceRecord {
-  principalType: string;
-  principalId: string;
-  status: string;
-  statusText: string;
-  lastSeenAt: string;
-}
-
-export interface ChatReadStateRecord {
-  orgId: string;
-  employeeId: string;
-  spaceId: string;
-  lastReadMessageId: string | null;
-  lastReadAt: string;
-}
+export type {
+  ChatSpaceRecord,
+  ChatMessageRecord,
+  ChatMembershipRecord,
+  ChatThreadRecord,
+  ChatAttachmentRecord,
+  ChatMentionRecord,
+  ChatSlashInvocationRecord,
+  ChatPresenceRecord,
+  ChatReadStateRecord,
+};
 
 export interface FileObjectRecord {
   id: string;
