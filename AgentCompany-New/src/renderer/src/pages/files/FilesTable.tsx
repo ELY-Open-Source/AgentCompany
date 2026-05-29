@@ -1,4 +1,5 @@
 import { Avatar, IconButton, Pill } from "../../shared/ui";
+import { MenuRow, Popover } from "../../shared/Popover";
 import type {
   AgentRecord,
   EmployeeRecord,
@@ -16,12 +17,14 @@ export function FilesTable({
   grants,
   employees,
   agents,
+  onOpen,
   onTogglePin,
 }: {
   files: FileObjectRecord[];
   grants: FileAccessGrantRecord[];
   employees: EmployeeRecord[];
   agents: AgentRecord[];
+  onOpen: (file: FileObjectRecord) => void;
   onTogglePin: (file: FileObjectRecord) => void;
 }) {
   return (
@@ -36,6 +39,7 @@ export function FilesTable({
           owner={resolveOwnerName(file, employees, agents)}
           grantCount={fileGrantCount(file.id, grants)}
           last={index === files.length - 1}
+          onOpen={() => onOpen(file)}
           onTogglePin={() => onTogglePin(file)}
         />
       ))}
@@ -48,17 +52,24 @@ function FileRow({
   owner,
   grantCount,
   last,
+  onOpen,
   onTogglePin,
 }: {
   file: FileObjectRecord;
   owner: string;
   grantCount: number;
   last: boolean;
+  onOpen: () => void;
   onTogglePin: () => void;
 }) {
+  const canOpen = file.scanState === "approved";
   return (
     <div
-      className="table-row"
+      className={`table-row ${canOpen ? "clickable" : ""}`.trim()}
+      role={canOpen ? "button" : undefined}
+      tabIndex={canOpen ? 0 : undefined}
+      onClick={canOpen ? onOpen : undefined}
+      onKeyDown={canOpen ? (event) => { if (event.key === "Enter") onOpen(); } : undefined}
       style={{ gridTemplateColumns: ROW_COLUMNS, borderBottom: last ? "none" : "1px solid var(--border-soft)" }}
     >
       <div className="row" style={{ gap: 10, minWidth: 0 }}>
@@ -77,12 +88,19 @@ function FileRow({
         <span style={{ color: "var(--text-2)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{owner}</span>
       </div>
       <div className="row" style={{ gap: 6, minWidth: 0 }}>
-        <Pill tone={file.scanState === "approved" ? "green" : "red"}>{file.scanState === "approved" ? "Clean" : "Blocked"}</Pill>
+        <Pill tone={canOpen ? "green" : "red"}>{canOpen ? "Clean" : "Blocked"}</Pill>
         <span className="mono" style={{ color: "var(--text-3)", fontSize: 11 }}>{grantCount}</span>
       </div>
       <div style={{ color: "var(--text-3)", fontSize: 12 }}>{formatRelative(file.updatedAt ?? file.createdAt)}</div>
-      <div style={{ textAlign: "right" }}>
-        <IconButton icon={file.pinned ? "pin" : "more"} label={file.pinned ? "Unpin" : "More"} onClick={onTogglePin} />
+      <div style={{ textAlign: "right" }} onClick={(event) => event.stopPropagation()}>
+        <Popover trigger={({ toggle }) => <IconButton icon="more" label={`Actions for ${file.name}`} onClick={toggle} />}>
+          {(close) => (
+            <>
+              {canOpen && <MenuRow onClick={() => { onOpen(); close(); }}>Open</MenuRow>}
+              <MenuRow onClick={() => { onTogglePin(); close(); }}>{file.pinned ? "Unpin" : "Pin"}</MenuRow>
+            </>
+          )}
+        </Popover>
       </div>
     </div>
   );

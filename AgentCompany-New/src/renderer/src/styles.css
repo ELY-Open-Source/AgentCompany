@@ -519,6 +519,8 @@ textarea.input { min-height: 84px; resize: vertical; line-height: 1.5; }
 .table-row:last-child { border-bottom: 0; }
 .table-row.clickable { cursor: pointer; }
 .table-row.clickable:hover { background: var(--hover); }
+.clickable-card { transition: border-color 0.1s ease; }
+.clickable-card:hover { border-color: var(--border-strong); }
 
 .link-button {
   border: 0;

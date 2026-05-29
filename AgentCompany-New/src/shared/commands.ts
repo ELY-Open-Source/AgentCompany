@@ -248,6 +248,11 @@ export interface ImportFileInput {
   orgId: string;
 }
 
+export interface OpenFileInput {
+  orgId: string;
+  fileId: string;
+}
+
 export interface CreateMigrationReportInput {
   orgId: string;
   sourceDatabasePath: string;

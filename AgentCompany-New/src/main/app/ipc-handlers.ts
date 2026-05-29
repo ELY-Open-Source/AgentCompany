@@ -196,6 +196,15 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     }
   });
 
+  ipcMain.handle(IPC_CHANNELS.openFile, async (_event, input) => {
+    try {
+      await files.openFile(input);
+      return ok(null);
+    } catch (error) {
+      return fail("file_open_failed", error instanceof Error ? error.message : String(error));
+    }
+  });
+
   ipcMain.handle(IPC_CHANNELS.pickDirectory, async () => {
     try {
       const result = await dialog.showOpenDialog(deps.mainWindow, { properties: ["openDirectory", "createDirectory"] });

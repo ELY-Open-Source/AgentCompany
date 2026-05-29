@@ -2,8 +2,8 @@ import { createHash } from "node:crypto";
 import { copyFileSync, mkdirSync, readFileSync, statSync } from "node:fs";
 import { basename, extname, join } from "node:path";
 import type { DatabaseSync } from "node:sqlite";
-import { dialog } from "electron";
-import type { ImportFileInput } from "../../shared/commands";
+import { dialog, shell } from "electron";
+import type { ImportFileInput, OpenFileInput } from "../../shared/commands";
 import { FILE_SCAN_STATE, type FileScanState } from "../../shared/domain";
 import { createId } from "../../shared/ids";
 import { AuditService } from "./audit-service";
@@ -115,6 +115,16 @@ export class FileService {
       throw error;
     }
     return id;
+  }
+
+  async openFile(input: OpenFileInput): Promise<void> {
+    const row = this.db.prepare(
+      "select storage_path as storagePath, scan_state as scanState from file_objects where id = ? and org_id = ?",
+    ).get(input.fileId, input.orgId) as { storagePath: string; scanState: string } | undefined;
+    if (!row) throw new Error("File was not found.");
+    if (row.scanState !== FILE_SCAN_STATE.APPROVED) throw new Error("Blocked files cannot be opened.");
+    const failure = await shell.openPath(row.storagePath);
+    if (failure) throw new Error(failure);
   }
 
   setPinned(orgId: string, fileId: string, pinned: boolean): void {

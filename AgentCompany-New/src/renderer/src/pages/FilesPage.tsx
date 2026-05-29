@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { Button, Icon, Segmented } from "../shared/ui";
 import { TopbarActions } from "../shared/TopbarActions";
+import type { FileObjectRecord } from "../../../shared/domain";
 import type { PageProps } from "./types";
 import { activeOrgId, formatBytes } from "./types";
 import { FilesTree } from "./files/FilesTree";
@@ -40,6 +41,13 @@ export function FilesPage({ snapshot, actions }: PageProps) {
       if (!result.ok) throw new Error(result.error.message);
     });
   };
+  const openFile = (file: FileObjectRecord) => {
+    void window.agentCompany.openFile({ orgId, fileId: file.id }).then((result) => {
+      if (!result.ok) throw new Error(result.error.message);
+    });
+  };
+  const togglePin = (file: FileObjectRecord) =>
+    void actions.run(() => window.agentCompany.setFilePinned({ orgId, fileId: file.id, pinned: !file.pinned }));
 
   return (
     <div style={{ display: "grid", gridTemplateColumns: "minmax(160px, 200px) minmax(0, 1fr)", gap: 24, height: "100%", minHeight: 0, padding: "28px 32px 0" }}>
@@ -83,7 +91,8 @@ export function FilesPage({ snapshot, actions }: PageProps) {
                     file={file}
                     ownerName={resolveOwnerName(file, employees, agents)}
                     grantCount={fileGrantCount(file.id, fileAccessGrants)}
-                    onUnpin={() => void actions.run(() => window.agentCompany.setFilePinned({ orgId, fileId: file.id, pinned: false }))}
+                    onOpen={() => openFile(file)}
+                    onUnpin={() => togglePin(file)}
                   />
                 ))}
               </div>
@@ -101,7 +110,8 @@ export function FilesPage({ snapshot, actions }: PageProps) {
               grants={fileAccessGrants}
               employees={employees}
               agents={agents}
-              onTogglePin={(file) => void actions.run(() => window.agentCompany.setFilePinned({ orgId, fileId: file.id, pinned: !file.pinned }))}
+              onOpen={openFile}
+              onTogglePin={togglePin}
             />
           ) : (
             <FilesGrid
@@ -109,7 +119,8 @@ export function FilesPage({ snapshot, actions }: PageProps) {
               grants={fileAccessGrants}
               employees={employees}
               agents={agents}
-              onTogglePin={(file) => void actions.run(() => window.agentCompany.setFilePinned({ orgId, fileId: file.id, pinned: !file.pinned }))}
+              onOpen={openFile}
+              onTogglePin={togglePin}
             />
           )}
         </div>

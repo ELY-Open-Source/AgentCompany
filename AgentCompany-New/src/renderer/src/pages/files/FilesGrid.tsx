@@ -14,12 +14,14 @@ export function FilesGrid({
   grants,
   employees,
   agents,
+  onOpen,
   onTogglePin,
 }: {
   files: FileObjectRecord[];
   grants: FileAccessGrantRecord[];
   employees: EmployeeRecord[];
   agents: AgentRecord[];
+  onOpen: (file: FileObjectRecord) => void;
   onTogglePin: (file: FileObjectRecord) => void;
 }) {
   return (
@@ -30,6 +32,7 @@ export function FilesGrid({
           file={file}
           ownerName={resolveOwnerName(file, employees, agents)}
           grantCount={fileGrantCount(file.id, grants)}
+          onOpen={() => onOpen(file)}
           onUnpin={() => onTogglePin(file)}
         />
       ))}
@@ -41,15 +44,23 @@ export function PinnedCard({
   file,
   ownerName,
   grantCount,
+  onOpen,
   onUnpin,
 }: {
   file: FileObjectRecord;
   ownerName: string;
   grantCount: number;
+  onOpen: () => void;
   onUnpin: () => void;
 }) {
+  const canOpen = file.scanState === "approved";
   return (
     <div
+      className={canOpen ? "clickable-card" : ""}
+      role={canOpen ? "button" : undefined}
+      tabIndex={canOpen ? 0 : undefined}
+      onClick={canOpen ? onOpen : undefined}
+      onKeyDown={canOpen ? (event) => { if (event.key === "Enter") onOpen(); } : undefined}
       style={{
         border: "1px solid var(--border)",
         borderRadius: 10,
@@ -59,6 +70,7 @@ export function PinnedCard({
         flexDirection: "column",
         gap: 10,
         minWidth: 0,
+        cursor: canOpen ? "pointer" : "default",
       }}
     >
       <div className="row" style={{ gap: 10 }}>
@@ -66,7 +78,7 @@ export function PinnedCard({
         <button
           type="button"
           aria-label={file.pinned ? "Unpin" : "Pin"}
-          onClick={onUnpin}
+          onClick={(event) => { event.stopPropagation(); onUnpin(); }}
           style={{ marginLeft: "auto", padding: 4, border: 0, background: "transparent", color: file.pinned ? "var(--accent)" : "var(--text-4)", cursor: "pointer" }}
         >
           <Icon name="pin" size={14} />
