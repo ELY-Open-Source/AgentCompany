@@ -86,13 +86,14 @@ export const AGENT_TOOLS: ToolDefinition[] = [
   },
   {
     name: "send_message",
-    description: "Post a short coordination message to a company channel (general, product, or engineering) so the team and the operator can follow the work.",
+    description: "Post a coordination message to a company channel so teammates and the operator can follow the work. Use the channel that matches the work: 'engineering' for engineering, 'product' for product/design, otherwise 'general'. Reply inside a thread by passing its thread_id (start a new thread by omitting it). Name the teammate you are addressing so the conversation reads as a real handoff.",
     parameters: {
       type: "object",
       additionalProperties: false,
       properties: {
-        channel: { type: "string", description: "Channel name, e.g. 'general'." },
-        body: { type: "string", description: "The message to post." },
+        channel: { type: "string", description: "Channel: 'engineering', 'product', or 'general'." },
+        body: { type: "string", description: "The message. Name the teammate you are addressing (assigning to, or reporting back to)." },
+        thread_id: { type: "string", description: "Reply inside an existing thread — pass the thread_id a prior send_message returned. Omit to start a new thread." },
       },
       required: ["channel", "body"],
     },
@@ -190,6 +191,7 @@ function writeDeliverableTool(deps: AgentToolDeps, ctx: AgentToolContext, args: 
 function sendMessageTool(deps: AgentToolDeps, ctx: AgentToolContext, args: JsonRecord): string {
   const channel = requireString(args.channel, "channel");
   const body = requireString(args.body, "body");
+  const threadId = optionalString(args.thread_id);
   const space = deps.db.prepare(
     "select id from chat_spaces where org_id = ? and lower(name) = lower(?) and space_type <> 'direct' limit 1",
   ).get(ctx.orgId, channel) as { id: string } | undefined;
@@ -197,13 +199,14 @@ function sendMessageTool(deps: AgentToolDeps, ctx: AgentToolContext, args: JsonR
   const messageId = deps.chat.sendMessage({
     orgId: ctx.orgId,
     spaceId: space.id,
-    threadId: null,
+    threadId,
     senderType: "agent",
     senderId: ctx.agent.id,
     bodyMd: body,
     attachmentFileIds: [],
   });
-  return `Posted to #${channel} (message_id=${messageId}).`;
+  const row = deps.db.prepare("select thread_id from chat_messages where id = ?").get(messageId) as { thread_id: string };
+  return `Posted to #${channel} (message_id=${messageId}, thread_id=${row.thread_id}).`;
 }
 
 function resolveAgentByName(db: DatabaseSync, orgId: string, name: string): string | null {

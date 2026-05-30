@@ -187,6 +187,7 @@ export class TaskExecutionService {
             skillRuntimeSnapshot,
             isManager: !agent.manager_agent_id,
             hasReports: this.agentHasReports(orgId, agent.id),
+            managerName: this.agentName(orgId, agent.manager_agent_id),
           }),
           toolContext,
         },
@@ -385,6 +386,12 @@ export class TaskExecutionService {
     return Boolean(row);
   }
 
+  private agentName(orgId: string, agentId: string | null): string | null {
+    if (!agentId) return null;
+    const row = this.db.prepare("select name from agents where id = ? and org_id = ?").get(agentId, orgId) as { name: string } | undefined;
+    return row?.name ?? null;
+  }
+
   private completeRun(orgId: string, runId: string, providerRequestId: string): void {
     this.db.prepare(`
       update task_runs
@@ -474,8 +481,9 @@ export class TaskExecutionService {
 function buildAgentInstructions(agent: TaskExecutionAgentRow): string {
   return [
     `You are ${agent.name}, ${agent.title || agent.role} (${agent.department}, ${agent.role_level}) operating an autonomous AI company.`,
-    "You act by calling tools: hire_agent staffs your team, create_task delegates work and assigns it by agent name, update_task_status tracks progress, write_deliverable produces real files in the company workspace, and send_message posts coordination updates to a company channel (general, product, engineering).",
-    "Take concrete action with the tools instead of only describing a plan. Post a brief coordination message to #general with send_message so the team and the operator can follow your decisions. When your team is staffed, the work is delegated, the first operating deliverable is written, and you have posted your update, give a brief closing summary with no further tool calls.",
+    "You act by calling tools: hire_agent staffs your team, create_task delegates work and assigns it by agent name, update_task_status tracks progress, write_deliverable produces real files in the company workspace, and send_message posts coordination messages to a channel.",
+    "Communicate like a real team, not a status board. Post to the channel that matches the work — 'engineering' for engineering, 'product' for product or design, otherwise 'general' — instead of putting everything in #general. When you hand work to a teammate, post the assignment naming that teammate; when you finish work for someone, post your result naming the person who assigned it. To keep a hand-off as one conversation, reply in the same thread by passing the thread_id a previous send_message returned.",
+    "Take concrete action with the tools instead of only describing a plan. When the work is done and you have posted your coordination message, give a brief closing summary with no further tool calls.",
   ].join("\n");
 }
 
@@ -490,6 +498,7 @@ function buildTaskPrompt(input: {
   skillRuntimeSnapshot: SkillRuntimeSnapshotRow | null;
   isManager: boolean;
   hasReports: boolean;
+  managerName: string | null;
 }): string {
   const lines = [
     "Execute this AgentCompany task.",
@@ -501,6 +510,7 @@ function buildTaskPrompt(input: {
     `Risk: ${input.task.risk}`,
     `Requires filesystem: ${input.task.requires_filesystem === 1 ? "yes" : "no"}`,
     `Assignee: ${input.agent.name} (${input.agent.role})`,
+    ...(input.managerName ? [`Reports to: ${input.managerName}`] : []),
     `Provider: ${input.provider.label} ${input.provider.model ?? input.agent.model_id ?? ""}`.trim(),
     `Execution context: ${input.isolation.executionContextId}`,
     `Service identity: ${input.isolation.serviceIdentityId}`,
@@ -531,10 +541,14 @@ function buildTaskPrompt(input: {
   if (input.isManager && !input.hasReports) {
     lines.push(
       "",
-      "Your team is currently empty. Hire 3-5 direct reports for the roles this goal needs (hire_agent), create and assign their first tasks (create_task), write the initial operating plan into the workspace (write_deliverable), and post a kickoff update to #general (send_message). Then summarize.",
+      "Your team is currently empty. Hire 3-5 direct reports for the roles this goal needs (hire_agent), create and assign their first tasks (create_task), and write the initial operating plan into the workspace (write_deliverable). Then, for EACH report, send_message to that report's department channel (engineering, product, or general) naming the report and the work you assigned them — start a new thread per report and note the thread_id it returns. Post the company-wide kickoff to #general. Then summarize.",
     );
   } else {
-    lines.push("", "Complete this task: do the work, write your output as real files with write_deliverable, post a brief progress update to #general with send_message, update the task status when done, and summarize.");
+    const manager = input.managerName ?? "your manager";
+    lines.push(
+      "",
+      `Complete this task: do the work, write your output as real files with write_deliverable, then send_message to your department channel (engineering, product, or general) reporting your progress and completion and naming ${manager} so the hand-off is visible — reply in the assignment thread if you were given a thread_id. Update the task status when done, and summarize.`,
+    );
   }
   return lines.join("\n");
 }
