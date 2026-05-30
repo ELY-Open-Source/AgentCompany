@@ -385,3 +385,48 @@ a { color: inherit; }
   gap: 2px;
   min-height: 0;
 }
+
+/* Hierarchical org chart: a real reporting tree with connector lines. */
+.org-tree { display: inline-block; min-width: 100%; text-align: center; margin-top: 18px; }
+.org-tree ul {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  margin: 0;
+  padding: 22px 0 0 0;
+  list-style: none;
+}
+.org-tree li {
+  position: relative;
+  padding: 22px 8px 0 8px;
+  list-style: none;
+}
+.org-tree li::before, .org-tree li::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 50%;
+  width: 50%;
+  height: 22px;
+  border-top: 1px solid var(--border-strong);
+}
+.org-tree li::after {
+  right: auto;
+  left: 50%;
+  border-left: 1px solid var(--border-strong);
+}
+.org-tree li:only-child::before, .org-tree li:only-child::after { display: none; }
+.org-tree li:only-child { padding-top: 22px; }
+.org-tree li:first-child::before, .org-tree li:last-child::after { border: 0 none; }
+.org-tree li:last-child::before { border-right: 1px solid var(--border-strong); }
+.org-tree ul ul::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 0;
+  height: 22px;
+  border-left: 1px solid var(--border-strong);
+}
+.org-tree > ul { padding-top: 0; }
+.org-tree > ul > li:only-child { padding-top: 0; }

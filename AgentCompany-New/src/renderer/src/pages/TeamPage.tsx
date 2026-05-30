@@ -81,27 +81,9 @@ export function TeamPage({ snapshot, actions }: PageProps) {
         {" "}{agents.length} {agents.length === 1 ? "agent" : "agents"}
       </p>
 
-      <section className="card" style={{ padding: 32, marginBottom: 28 }}>
+      <section className="card" style={{ padding: 32, marginBottom: 28, overflowX: "auto" }}>
         <div className="section-label">Org</div>
-        {employees[0] ? (
-          <div style={{ display: "flex", justifyContent: "center", marginTop: 18, marginBottom: 12 }}>
-            <OrgCard name={employees[0].displayName} role={employees[0].role} human />
-          </div>
-        ) : null}
-        {agents.length > 0 && <OrgConnector slots={agents.length} />}
-        <div
-          style={{
-            display: "flex",
-            flexWrap: "wrap",
-            gap: 14,
-            marginTop: 18,
-            justifyContent: "center",
-          }}
-        >
-          {agents.map((agent) => (
-            <OrgCard key={agent.id} name={agent.name} role={agent.role} />
-          ))}
-        </div>
+        <OrgChart boardChair={employees[0] ?? null} agents={agents} />
       </section>
 
       <div className="section-label" style={{ marginBottom: 10 }}>Roster</div>
@@ -210,27 +192,50 @@ function OrgCard({ name, role, human = false }: { name: string; role: string; hu
   );
 }
 
-function OrgConnector({ slots }: { slots: number }) {
-  if (slots <= 1) {
-    return (
-      <svg width="100%" height="36" style={{ display: "block", marginTop: 18 }} aria-hidden="true">
-        <line x1="50%" x2="50%" y1="0" y2="36" stroke="var(--border-strong)" strokeWidth="1" />
-      </svg>
-    );
-  }
-  const count = Math.min(4, slots);
-  const step = 100 / (count * 2);
-  const positions = Array.from({ length: count }, (_, i) => step * (2 * i + 1));
-  const left = positions[0];
-  const right = positions[positions.length - 1];
+function OrgChart({ boardChair, agents }: { boardChair: EmployeeRecord | null; agents: AgentRecord[] }) {
+  const childrenByManager = useMemo(() => {
+    const known = new Set(agents.map((agent) => agent.id));
+    const map = new Map<string, AgentRecord[]>();
+    for (const agent of agents) {
+      // Agents whose manager is missing (or the top-level CEO) hang off the root.
+      const key = agent.managerAgentId && known.has(agent.managerAgentId) ? agent.managerAgentId : "__root__";
+      const list = map.get(key) ?? [];
+      list.push(agent);
+      map.set(key, list);
+    }
+    return map;
+  }, [agents]);
+
+  const roots = childrenByManager.get("__root__") ?? [];
+  if (!boardChair && roots.length === 0) return null;
+
   return (
-    <svg width="100%" height="36" style={{ display: "block", marginTop: 18 }} aria-hidden="true">
-      <line x1="50%" x2="50%" y1="0" y2="14" stroke="var(--border-strong)" strokeWidth="1" />
-      <line x1={`${left}%`} x2={`${right}%`} y1="14" y2="14" stroke="var(--border-strong)" strokeWidth="1" />
-      {positions.map((pos) => (
-        <line key={pos} x1={`${pos}%`} x2={`${pos}%`} y1="14" y2="36" stroke="var(--border-strong)" strokeWidth="1" />
-      ))}
-    </svg>
+    <div className="org-tree">
+      <ul>
+        <li>
+          {boardChair ? <OrgCard name={boardChair.displayName} role={boardChair.role} human /> : <OrgCard name="Org" role="Reports" />}
+          {roots.length > 0 && (
+            <ul>
+              {roots.map((agent) => <OrgNode key={agent.id} agent={agent} childrenByManager={childrenByManager} />)}
+            </ul>
+          )}
+        </li>
+      </ul>
+    </div>
+  );
+}
+
+function OrgNode({ agent, childrenByManager }: { agent: AgentRecord; childrenByManager: Map<string, AgentRecord[]> }) {
+  const reports = childrenByManager.get(agent.id) ?? [];
+  return (
+    <li>
+      <OrgCard name={agent.name} role={agent.title || agent.role} />
+      {reports.length > 0 && (
+        <ul>
+          {reports.map((report) => <OrgNode key={report.id} agent={report} childrenByManager={childrenByManager} />)}
+        </ul>
+      )}
+    </li>
   );
 }
 
