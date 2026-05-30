@@ -154,6 +154,38 @@ export async function runCopilotTurn(input: ProviderToolTurnInput): Promise<Agen
   return { ...parsed, rawResponseJson: JSON.stringify(response.data) };
 }
 
+// ---- Custom OpenAI-compatible endpoint (base URL + key) ----
+
+export async function runCustomOpenAiTurn(input: ProviderToolTurnInput): Promise<AgentTurnResult> {
+  if (!input.credential.baseUrl) throw new Error("Custom OpenAI-compatible provider is missing its base URL.");
+  const body: JsonRecord = {
+    model: input.model,
+    messages: toChatMessages(input.instructions, input.messages),
+    tools: chatToolDefs(input.tools),
+    tool_choice: "auto",
+    stream: false,
+  };
+  const response = await postJson(`${input.credential.baseUrl}/chat/completions`, { authorization: `Bearer ${requireApiKey(input.credential, "Custom OpenAI-compatible provider")}` }, body);
+  const parsed = parseChatChoice(response.data);
+  return { ...parsed, rawResponseJson: JSON.stringify(response.data) };
+}
+
+// ---- Custom Anthropic-compatible endpoint (base URL + key) ----
+
+export async function runCustomAnthropicTurn(input: ProviderToolTurnInput): Promise<AgentTurnResult> {
+  if (!input.credential.baseUrl) throw new Error("Custom Anthropic-compatible provider is missing its base URL.");
+  const body: JsonRecord = {
+    model: input.model,
+    max_tokens: 4096,
+    tools: anthropicToolDefs(input.tools),
+    messages: toAnthropicMessages(input.messages),
+    ...(input.instructions ? { system: input.instructions } : {}),
+  };
+  const response = await postJson(`${input.credential.baseUrl}/v1/messages`, { "x-api-key": requireApiKey(input.credential, "Custom Anthropic-compatible provider"), "anthropic-version": "2023-06-01" }, body);
+  const parsed = parseAnthropicContent(response.data);
+  return { ...parsed, rawResponseJson: JSON.stringify(response.data) };
+}
+
 // ---- Google Antigravity (OAuth, Gemini Code Assist, SSE) ----
 
 export async function runAntigravityTurn(input: ProviderToolTurnInput): Promise<AgentTurnResult> {

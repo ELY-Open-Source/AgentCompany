@@ -6,6 +6,8 @@ import {
   runClaudeProTurn,
   runCodexTurn,
   runCopilotTurn,
+  runCustomAnthropicTurn,
+  runCustomOpenAiTurn,
   runOpenAiResponsesTurn,
 } from "./turns";
 
@@ -22,6 +24,8 @@ const TURNS: Record<string, ToolTurnFn> = {
   "github-copilot": runCopilotTurn,
   "google-antigravity": runAntigravityTurn,
   "claude-pro": runClaudeProTurn,
+  "custom-openai": runCustomOpenAiTurn,
+  "custom-anthropic": runCustomAnthropicTurn,
 };
 
 export function supportsToolTurn(providerKey: string): boolean {

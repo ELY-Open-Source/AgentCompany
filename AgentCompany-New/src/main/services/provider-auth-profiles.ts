@@ -7,7 +7,9 @@ export type ProviderAuthProfile =
   | { type: "account_token"; accessToken: string }
   | { type: "azure_openai"; baseUrl: string; deployment: string; apiKey: string }
   | { type: "aws_bedrock"; region: string; accessKeyId: string; secretAccessKey: string; sessionToken: string | null }
-  | { type: "vertex_ai"; projectId: string; region: string; serviceAccountJson: string };
+  | { type: "vertex_ai"; projectId: string; region: string; serviceAccountJson: string }
+  | { type: "openai_compat"; baseUrl: string; apiKey: string }
+  | { type: "anthropic_compat"; baseUrl: string; apiKey: string };
 
 export function parseApiKey(secret: string): ProviderAuthProfile {
   return { type: "api_key", apiKey: nonEmptySecret(secret, "API key") };
@@ -69,6 +71,26 @@ export function parseVertexProfile(secret: string): ProviderAuthProfile {
     region: requiredString(parsed.region, "Vertex region"),
     serviceAccountJson,
   };
+}
+
+export function parseOpenAiCompatProfile(secret: string): ProviderAuthProfile {
+  const parsed = parseCloudSecret(secret);
+  return { type: "openai_compat", baseUrl: normalizedEndpointUrl(requiredString(parsed.baseUrl, "Base URL"), "Base URL"), apiKey: requiredString(parsed.secret, "API key") };
+}
+
+export function parseAnthropicCompatProfile(secret: string): ProviderAuthProfile {
+  const parsed = parseCloudSecret(secret);
+  return { type: "anthropic_compat", baseUrl: normalizedEndpointUrl(requiredString(parsed.baseUrl, "Base URL"), "Base URL"), apiKey: requiredString(parsed.secret, "API key") };
+}
+
+export function requireOpenAiCompatProfile(profile: ProviderAuthProfile): Extract<ProviderAuthProfile, { type: "openai_compat" }> {
+  if (profile.type !== "openai_compat") throw new Error("OpenAI-compatible profile is required.");
+  return profile;
+}
+
+export function requireAnthropicCompatProfile(profile: ProviderAuthProfile): Extract<ProviderAuthProfile, { type: "anthropic_compat" }> {
+  if (profile.type !== "anthropic_compat") throw new Error("Anthropic-compatible profile is required.");
+  return profile;
 }
 
 export function requireApiKeyProfile(profile: ProviderAuthProfile, label: string): Extract<ProviderAuthProfile, { type: "api_key" }> {
@@ -137,5 +159,11 @@ function nonEmptySecret(secret: string, label: string): string {
 function normalizedHttpsUrl(value: string, label: string): string {
   const url = new URL(value);
   if (url.protocol !== "https:") throw new Error(`${label} must use HTTPS.`);
+  return url.toString().replace(/\/+$/, "");
+}
+
+function normalizedEndpointUrl(value: string, label: string): string {
+  const url = new URL(value);
+  if (url.protocol !== "https:" && url.protocol !== "http:") throw new Error(`${label} must be an http(s) URL.`);
   return url.toString().replace(/\/+$/, "");
 }

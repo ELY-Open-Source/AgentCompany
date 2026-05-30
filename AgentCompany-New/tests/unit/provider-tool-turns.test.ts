@@ -126,7 +126,7 @@ describe("antigravity (gemini) encoding", () => {
 
 describe("tool-turn router", () => {
   test("supports every agent-capable provider and rejects cloud-only ones", () => {
-    for (const key of ["openai", "anthropic", "xai", "groq", "mistral", "cerebras", "openrouter", "gpt-account", "github-copilot", "google-antigravity", "claude-pro"]) {
+    for (const key of ["openai", "anthropic", "xai", "groq", "mistral", "cerebras", "openrouter", "gpt-account", "github-copilot", "google-antigravity", "claude-pro", "custom-openai", "custom-anthropic"]) {
       expect(supportsToolTurn(key)).toBe(true);
       expect(typeof selectToolTurn(key)).toBe("function");
     }

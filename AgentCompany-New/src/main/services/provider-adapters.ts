@@ -5,14 +5,18 @@ import {
   parseAccessToken,
   parseAccountToken,
   parseApiKey,
+  parseAnthropicCompatProfile,
   parseAzureProfile,
   parseBedrockProfile,
+  parseOpenAiCompatProfile,
   parseVertexProfile,
   requireAccessTokenProfile,
   requireAccountTokenProfile,
+  requireAnthropicCompatProfile,
   requireApiKeyProfile,
   requireAzureProfile,
   requireBedrockProfile,
+  requireOpenAiCompatProfile,
   requireVertexProfile,
   type ProviderAuthProfile,
 } from "./provider-auth-profiles";
@@ -327,6 +331,42 @@ export const providerAdapters: ProviderAdapterRegistry = {
     retrieveResponse: retrieveUnsupported("Vertex AI"),
     checkHealth: async (input) => {
       requireVertexProfile(input.authProfile);
+      return healthy(null);
+    },
+  },
+  "custom-openai": {
+    providerKey: "custom-openai",
+    authType: PROVIDER_AUTH_TYPE.CLOUD,
+    authorize: authorizeWithParser(parseOpenAiCompatProfile),
+    refresh: refreshUnsupported("Custom OpenAI-compatible endpoint"),
+    revoke: revokeLocalProfile((profile) => { requireOpenAiCompatProfile(profile); }),
+    parseAuthProfile: parseOpenAiCompatProfile,
+    listModels: () => listStaticModels("custom-openai"),
+    getRateLimitState: providerRateLimitUnknown,
+    streamResponse: streamUnsupported("Custom OpenAI-compatible endpoint"),
+    cancelResponse: cancelUnsupported("Custom OpenAI-compatible endpoint"),
+    createBackgroundResponse: backgroundUnsupported("Custom OpenAI-compatible endpoint"),
+    retrieveResponse: retrieveUnsupported("Custom OpenAI-compatible endpoint"),
+    checkHealth: async (input) => {
+      requireOpenAiCompatProfile(input.authProfile);
+      return healthy(null);
+    },
+  },
+  "custom-anthropic": {
+    providerKey: "custom-anthropic",
+    authType: PROVIDER_AUTH_TYPE.CLOUD,
+    authorize: authorizeWithParser(parseAnthropicCompatProfile),
+    refresh: refreshUnsupported("Custom Anthropic-compatible endpoint"),
+    revoke: revokeLocalProfile((profile) => { requireAnthropicCompatProfile(profile); }),
+    parseAuthProfile: parseAnthropicCompatProfile,
+    listModels: () => listStaticModels("custom-anthropic"),
+    getRateLimitState: providerRateLimitUnknown,
+    streamResponse: streamUnsupported("Custom Anthropic-compatible endpoint"),
+    cancelResponse: cancelUnsupported("Custom Anthropic-compatible endpoint"),
+    createBackgroundResponse: backgroundUnsupported("Custom Anthropic-compatible endpoint"),
+    retrieveResponse: retrieveUnsupported("Custom Anthropic-compatible endpoint"),
+    checkHealth: async (input) => {
+      requireAnthropicCompatProfile(input.authProfile);
       return healthy(null);
     },
   },

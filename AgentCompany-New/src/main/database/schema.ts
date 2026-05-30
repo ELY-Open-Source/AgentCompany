@@ -35,6 +35,7 @@ import { auditEventImmutabilitySchema } from "./migrations/033-audit-event-immut
 import { providerAuthSessionsSchema } from "./migrations/034-provider-auth-sessions";
 import { taskRunIsolationSchema } from "./migrations/035-task-run-isolation";
 import { additionalConnectorsSchema } from "./migrations/036-additional-connectors";
+import { customProvidersSchema } from "./migrations/037-custom-providers";
 
 interface Migration {
   version: number;
@@ -79,6 +80,7 @@ const MIGRATIONS: Migration[] = [
   { version: 34, name: "provider_auth_sessions", sql: providerAuthSessionsSchema },
   { version: 35, name: "task_run_isolation", sql: taskRunIsolationSchema },
   { version: 36, name: "additional_connectors", sql: additionalConnectorsSchema },
+  { version: 37, name: "custom_providers", sql: customProvidersSchema },
 ];
 
 const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;

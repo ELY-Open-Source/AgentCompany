@@ -35,6 +35,8 @@ const PROVIDER_SECRET_SAMPLES: Record<string, string> = {
     region: "us-central1",
     secret: JSON.stringify({ client_email: "agent@acme.iam.gserviceaccount.com", private_key: "key" }),
   }),
+  "custom-openai": JSON.stringify({ baseUrl: "https://api.example.com/v1", secret: "sk-custom" }),
+  "custom-anthropic": JSON.stringify({ baseUrl: "https://llm.example.com", secret: "sk-custom" }),
 };
 
 function createConnection(): DatabaseConnection {

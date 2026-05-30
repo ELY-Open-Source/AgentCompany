@@ -39,6 +39,16 @@ export interface TurnCredential {
   accountId?: string;
   projectId?: string;
   enterpriseUrl?: string | null;
+  /** Base URL for Azure and custom OpenAI/Anthropic-compatible endpoints. */
+  baseUrl?: string;
+  deployment?: string;
+  /** AWS Bedrock. */
+  region?: string;
+  accessKeyId?: string;
+  secretAccessKey?: string;
+  sessionToken?: string | null;
+  /** Vertex AI service-account JSON. */
+  serviceAccountJson?: string;
 }
 
 export interface ProviderToolTurnInput {

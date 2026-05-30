@@ -8,7 +8,7 @@
 import { PROVIDER_AUTH_TYPE } from "../../../shared/domain";
 import type { AuthBrokerService } from "../auth-broker-service";
 import { loadCredential, type ProviderRow } from "../provider-internal";
-import { parseApiKey, requireApiKeyProfile } from "../provider-auth-profiles";
+import { parseAnthropicCompatProfile, parseApiKey, parseOpenAiCompatProfile, requireAnthropicCompatProfile, requireApiKeyProfile, requireOpenAiCompatProfile } from "../provider-auth-profiles";
 import type { TurnCredential } from "../provider-tool-turn";
 import type { OAuthCredentials } from "../oauth/oauth-types";
 import { refreshCodex } from "../oauth/openai-codex-flow";
@@ -55,6 +55,21 @@ function refreshOAuth(providerKey: string, creds: StoredOAuth): Promise<OAuthCre
   }
 }
 
+function resolveCloudCredential(providerKey: string, secret: string): TurnCredential {
+  switch (providerKey) {
+    case "custom-openai": {
+      const profile = requireOpenAiCompatProfile(parseOpenAiCompatProfile(secret));
+      return { apiKey: profile.apiKey, baseUrl: profile.baseUrl };
+    }
+    case "custom-anthropic": {
+      const profile = requireAnthropicCompatProfile(parseAnthropicCompatProfile(secret));
+      return { apiKey: profile.apiKey, baseUrl: profile.baseUrl };
+    }
+    default:
+      throw new Error(`${providerKey} does not support agent execution.`);
+  }
+}
+
 function toTurnCredential(creds: StoredOAuth | OAuthCredentials): TurnCredential {
   const enterpriseUrl = creds.enterpriseUrl;
   return {
@@ -73,6 +88,9 @@ export async function resolveTurnCredential(deps: {
   const secret = loadCredential(deps.authBroker, deps.orgId, deps.provider).secret;
   if (deps.provider.auth_type === PROVIDER_AUTH_TYPE.API_KEY) {
     return { apiKey: requireApiKeyProfile(parseApiKey(secret), deps.provider.provider_key).apiKey };
+  }
+  if (deps.provider.auth_type === PROVIDER_AUTH_TYPE.CLOUD) {
+    return resolveCloudCredential(deps.provider.provider_key, secret);
   }
   const creds = parseStoredOAuth(secret);
   if (Date.now() < creds.expires) return toTurnCredential(creds);

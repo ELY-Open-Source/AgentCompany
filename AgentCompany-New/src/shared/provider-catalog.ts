@@ -128,6 +128,24 @@ const RAW_CATALOG: Omit<ProviderCatalogEntry, "models">[] = [
     signInUrl: null,
     credentialHelp: "Provide GCP project id, region, and a service-account JSON key with aiplatform.user role.",
   },
+  {
+    key: "custom-openai",
+    label: "Custom OpenAI-compatible",
+    authType: PROVIDER_AUTH_TYPE.CLOUD,
+    defaultModel: null,
+    capabilityTags: ["custom", "openai-compatible"],
+    signInUrl: null,
+    credentialHelp: "Set the base URL (ending in /v1) and an API key for any OpenAI Chat Completions–compatible endpoint, then enter the model id.",
+  },
+  {
+    key: "custom-anthropic",
+    label: "Custom Anthropic-compatible",
+    authType: PROVIDER_AUTH_TYPE.CLOUD,
+    defaultModel: null,
+    capabilityTags: ["custom", "anthropic-compatible"],
+    signInUrl: null,
+    credentialHelp: "Set the base URL and an API key for any Anthropic Messages–compatible endpoint, then enter the model id.",
+  },
 ];
 
 export const PROVIDER_CATALOG: ProviderCatalogEntry[] = RAW_CATALOG.map((entry) => ({
