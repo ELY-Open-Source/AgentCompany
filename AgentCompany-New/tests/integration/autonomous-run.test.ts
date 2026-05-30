@@ -96,6 +96,18 @@ describe("autonomous bootstrap run", () => {
 
     const run = state.taskRuns.find((r) => r.id === claimed!.id);
     expect(run?.state).toBe("completed");
+
+    // Stage 4 heartbeat: the CEO-delegated task (assigned to a hired, heartbeat-enabled
+    // agent, with no run yet) is enqueued exactly once for autonomous execution.
+    const enqueued = taskExecution.enqueueHeartbeatRuns();
+    expect(enqueued).toHaveLength(1);
+    const queued = connection.db.prepare("select task_id, state, trigger from task_runs where id = ?").get(enqueued[0]) as { task_id: string; state: string; trigger: string };
+    expect(queued.task_id).toBe(delegated!.id);
+    expect(queued.state).toBe("queued");
+    expect(queued.trigger).toBe("heartbeat");
+    // Idempotent: the delegated task now has a run, so it is not enqueued again.
+    expect(taskExecution.enqueueHeartbeatRuns()).toEqual([]);
+
     connection.close();
   });
 });

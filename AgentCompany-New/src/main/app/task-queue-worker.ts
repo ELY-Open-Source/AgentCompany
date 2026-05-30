@@ -48,8 +48,14 @@ export function startTaskQueueWorker(input: TaskQueueWorkerInput): () => void {
     if (running) return;
     running = true;
     try {
+      const enqueued = input.connection.transaction(() => taskExecution.enqueueHeartbeatRuns());
       const claimed = claimNextQueuedRun(input.connection);
-      if (!claimed) return;
+      if (!claimed) {
+        if (enqueued.length > 0 && !input.mainWindow.isDestroyed()) {
+          input.mainWindow.webContents.send(IPC_CHANNELS.rendererEvent, { type: "snapshot-changed" });
+        }
+        return;
+      }
       try {
         await taskExecution.executeRun(claimed.org_id, claimed.id);
       } catch {

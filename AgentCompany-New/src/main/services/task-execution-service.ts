@@ -10,6 +10,7 @@ import { runAgentLoop } from "./agent-run-loop";
 import type { AgentToolContext } from "./agent-tools";
 
 const TASK_RUN_STATE = {
+  QUEUED: "queued",
   RUNNING: "running",
   COMPLETED: "completed",
   FAILED: "failed",
@@ -39,6 +40,7 @@ interface TaskExecutionAgentRow {
   role_level: string;
   model_provider_id: string | null;
   model_id: string | null;
+  manager_agent_id: string | null;
 }
 
 interface TaskExecutionProviderRow {
@@ -180,6 +182,7 @@ export class TaskExecutionService {
             workspace,
             isolation,
             skillRuntimeSnapshot,
+            isManager: !agent.manager_agent_id,
             hasReports: this.agentHasReports(orgId, agent.id),
           }),
           toolContext,
@@ -241,7 +244,7 @@ export class TaskExecutionService {
   private requireAssignedAgent(orgId: string, task: TaskExecutionTaskRow): TaskExecutionAgentRow {
     if (!task.assignee_agent_id) throw new Error("Task requires an assigned agent.");
     const agent = this.db.prepare(`
-      select id, name, role, department, title, role_level, model_provider_id, model_id
+      select id, name, role, department, title, role_level, model_provider_id, model_id, manager_agent_id
       from agents
       where id = ? and org_id = ?
     `).get(task.assignee_agent_id, orgId) as TaskExecutionAgentRow | undefined;
@@ -310,6 +313,65 @@ export class TaskExecutionService {
       action: "started",
       payload: { taskId, agentId, providerId, trigger: "manual", executionContextId: isolation.executionContextId, serviceIdentityId: isolation.serviceIdentityId },
     });
+    return runId;
+  }
+
+  /**
+   * Heartbeat: enqueues one run per actionable assigned task of a
+   * heartbeat-enabled agent with an enabled provider that has not run yet, so
+   * CEO-delegated work starts on its own. Each task is enqueued at most once
+   * (guarded by existing runs), preventing runaway re-execution.
+   */
+  enqueueHeartbeatRuns(): string[] {
+    const rows = this.db.prepare(`
+      select t.id as task_id, t.org_id as org_id
+      from tasks t
+      join agents a on a.id = t.assignee_agent_id and a.org_id = t.org_id
+      join providers p on p.id = a.model_provider_id and p.org_id = t.org_id
+      where t.status in ('backlog', 'in_progress')
+        and a.heartbeat_enabled = 1
+        and a.lifecycle = 'active'
+        and p.enabled = 1
+        and not exists (select 1 from task_runs r where r.task_id = t.id)
+    `).all() as Array<{ task_id: string; org_id: string }>;
+    const created: string[] = [];
+    for (const row of rows) {
+      try {
+        created.push(this.enqueueRun(row.org_id, row.task_id));
+      } catch {
+        // Skip tasks that cannot be prepared yet (e.g. provider not fully configured).
+      }
+    }
+    return created;
+  }
+
+  private enqueueRun(orgId: string, taskId: string): string {
+    const task = this.requireTask(orgId, taskId);
+    const agent = this.requireAssignedAgent(orgId, task);
+    const provider = this.requireAgentProvider(orgId, agent);
+    const workspace = this.workspace(task.workspace_id);
+    const isolation = this.createIsolationContext(orgId, task, agent, provider, workspace);
+    const runId = createId("run");
+    const now = new Date().toISOString();
+    this.db.prepare(`
+      insert into task_runs(
+        id, org_id, task_id, agent_id, provider_id, provider_request_id,
+        execution_context_id, service_identity_id, workspace_mount_json, secret_scope_json,
+        trigger, state, created_at, started_at, completed_at, error_message
+      ) values (?, ?, ?, ?, ?, null, ?, ?, ?, ?, 'heartbeat', ?, ?, null, null, null)
+    `).run(
+      runId,
+      orgId,
+      task.id,
+      agent.id,
+      provider.id,
+      isolation.executionContextId,
+      isolation.serviceIdentityId,
+      isolation.workspaceMountJson,
+      isolation.secretScopeJson,
+      TASK_RUN_STATE.QUEUED,
+      now,
+    );
     return runId;
   }
 
@@ -422,6 +484,7 @@ function buildTaskPrompt(input: {
   workspace: WorkspaceRow | null;
   isolation: TaskRunIsolation;
   skillRuntimeSnapshot: SkillRuntimeSnapshotRow | null;
+  isManager: boolean;
   hasReports: boolean;
 }): string {
   const lines = [
@@ -461,13 +524,13 @@ function buildTaskPrompt(input: {
       `Skill revisions: ${input.skillRuntimeSnapshot.source_revision_ids}`,
     );
   }
-  if (!input.hasReports) {
+  if (input.isManager && !input.hasReports) {
     lines.push(
       "",
       "Your team is currently empty. Hire 3-5 direct reports for the roles this goal needs (hire_agent), create and assign their first tasks (create_task), and write the initial operating plan into the workspace (write_deliverable). Then summarize.",
     );
   } else {
-    lines.push("", "Deliver completed work: make decisions, delegate or update tasks, and write real files with write_deliverable where appropriate.");
+    lines.push("", "Complete this task: do the work, write your output as real files with write_deliverable, update the task status when done, and summarize.");
   }
   return lines.join("\n");
 }
