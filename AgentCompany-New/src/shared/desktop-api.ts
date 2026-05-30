@@ -14,6 +14,9 @@ import type {
   CreateLegalHoldInput,
   CreateMigrationReportInput,
   CheckProviderHealthInput,
+  StartProviderOAuthInput,
+  StartProviderOAuthResult,
+  CancelProviderOAuthInput,
   MarkChatSpaceReadInput,
   CreateOrganizationInput,
   CreateProviderResponseInput,
@@ -58,9 +61,21 @@ import type {
 } from "./commands";
 import type { ProviderStreamRendererEvent } from "./provider-request-domain";
 
+export type ProviderOAuthPhase = "authorize" | "progress" | "active" | "error" | "cancelled";
+
+export interface ProviderOAuthEvent {
+  type: "provider-oauth";
+  providerKey: string;
+  phase: ProviderOAuthPhase;
+  url?: string;
+  instructions?: string;
+  message?: string;
+}
+
 export type RendererEvent =
   | { type: "snapshot-changed" }
-  | { type: "provider-response-stream"; event: ProviderStreamRendererEvent };
+  | { type: "provider-response-stream"; event: ProviderStreamRendererEvent }
+  | ProviderOAuthEvent;
 
 export interface DesktopApi {
   loadSnapshot(): Promise<DesktopResult<AppSnapshot>>;
@@ -85,6 +100,8 @@ export interface DesktopApi {
   saveProviderCredential(input: SaveProviderCredentialInput): Promise<DesktopResult<AppSnapshot>>;
   revokeProviderCredential(input: RevokeProviderCredentialInput): Promise<DesktopResult<AppSnapshot>>;
   launchProviderSignIn(input: LaunchProviderSignInInput): Promise<DesktopResult<null>>;
+  startProviderOAuth(input: StartProviderOAuthInput): Promise<DesktopResult<StartProviderOAuthResult>>;
+  cancelProviderOAuth(input: CancelProviderOAuthInput): Promise<DesktopResult<null>>;
   checkProviderHealth(input: CheckProviderHealthInput): Promise<DesktopResult<AppSnapshot>>;
   updateProviderPolicy(input: UpdateProviderPolicyInput): Promise<DesktopResult<AppSnapshot>>;
   openExternalUrl(url: string): Promise<DesktopResult<null>>;

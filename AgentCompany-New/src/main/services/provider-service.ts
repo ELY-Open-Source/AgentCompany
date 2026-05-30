@@ -96,6 +96,7 @@ export class ProviderService {
       providerKey: provider.provider_key,
       authType: provider.auth_type,
       employeeId: input.employeeId ?? null,
+      secret,
     });
     const authProfile = this.authBroker.createProviderProfile({
       orgId: input.orgId,
@@ -263,9 +264,15 @@ export class ProviderService {
     providerKey: string;
     authType: ProviderAuthType;
     employeeId: string | null;
+    secret: string;
   }): { sourceType: string; sourceRef: string | null } {
     if (input.authType !== PROVIDER_AUTH_TYPE.OAUTH_PKCE && input.authType !== PROVIDER_AUTH_TYPE.ACCOUNT_SUBSCRIPTION) {
       return { sourceType: "manual_secret", sourceRef: null };
+    }
+    // Credentials obtained through the native OAuth login arrive as a JSON
+    // object; they are authenticated by the flow itself and need no paste session.
+    if (input.secret.trim().startsWith("{")) {
+      return { sourceType: "provider_oauth_login", sourceRef: null };
     }
     if (!input.employeeId) throw new Error("Provider sign-in employee is required.");
     const session = this.db.prepare(`

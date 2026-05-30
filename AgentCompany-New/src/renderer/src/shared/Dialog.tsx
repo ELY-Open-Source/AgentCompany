@@ -8,6 +8,7 @@ export function Dialog({
   submitLabel,
   onClose,
   onSubmit,
+  hideSubmit = false,
 }: {
   title: string;
   open: boolean;
@@ -15,6 +16,7 @@ export function Dialog({
   submitLabel: string;
   onClose: () => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  hideSubmit?: boolean;
 }) {
   if (!open) return null;
   return (
@@ -23,8 +25,8 @@ export function Dialog({
         <h2 className="modal-title">{title}</h2>
         <div style={{ display: "grid", gap: 12 }}>{children}</div>
         <div className="modal-actions">
-          <Button tone="ghost" onClick={onClose}>Cancel</Button>
-          <Button tone="primary" type="submit">{submitLabel}</Button>
+          <Button tone="ghost" onClick={onClose}>{hideSubmit ? "Close" : "Cancel"}</Button>
+          {!hideSubmit && <Button tone="primary" type="submit">{submitLabel}</Button>}
         </div>
       </form>
     </div>

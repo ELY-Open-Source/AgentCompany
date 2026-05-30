@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { Button, Field, Pill } from "../../shared/ui";
 import { Dialog } from "../../shared/Dialog";
+import { ProviderOAuthConnect } from "../../shared/ProviderOAuthConnect";
 import type {
   AgentRecord,
   ProviderCatalogEntry,
@@ -41,19 +42,19 @@ type WorkspaceScope = "organization" | "workspace";
 
 export function ProvidersPanel({ orgId, employeeId, providers, authProfiles, catalog, agents, workspaces, providerRateLimits, providerRequests, actions }: ProvidersPanelProps) {
   const [active, setActive] = useState<ProviderRecord | null>(null);
-  const [signInLaunched, setSignInLaunched] = useState(false);
   const connected = providers.filter((provider) => provider.enabled);
   const available = providers.filter((provider) => !provider.enabled);
   const activeCatalogEntry = active ? catalog.find((entry) => entry.key === active.providerKey) ?? null : null;
+  const activeIsOAuth =
+    activeCatalogEntry?.authType === "oauth_pkce" || activeCatalogEntry?.authType === "account_subscription";
 
   const close = () => {
     setActive(null);
-    setSignInLaunched(false);
   };
 
   const save = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!active || !activeCatalogEntry) return;
+    if (!active || !activeCatalogEntry || activeIsOAuth) return;
     const form = new FormData(event.currentTarget);
     const secret = composeSecret(activeCatalogEntry, form);
     void actions.run(() => window.agentCompany.saveProviderCredential({
@@ -63,12 +64,6 @@ export function ProvidersPanel({ orgId, employeeId, providers, authProfiles, cat
       model: String(form.get("model") ?? "").trim() || null,
       employeeId,
     })).then((result) => { if (result) close(); });
-  };
-
-  const launchSignIn = () => {
-    if (!active) return;
-    setSignInLaunched(true);
-    void actions.run(() => window.agentCompany.launchProviderSignIn({ orgId, providerId: active.id, employeeId }));
   };
 
   return (
@@ -124,16 +119,22 @@ export function ProvidersPanel({ orgId, employeeId, providers, authProfiles, cat
         title={active ? `Connect ${active.label}` : "Connect provider"}
         open={Boolean(active)}
         submitLabel="Save"
+        hideSubmit={activeIsOAuth}
         onClose={close}
         onSubmit={save}
       >
         {active && activeCatalogEntry && (
-          <ProviderConnectFields
-            provider={active}
-            entry={activeCatalogEntry}
-            signInLaunched={signInLaunched}
-            onLaunchSignIn={launchSignIn}
-          />
+          activeIsOAuth ? (
+            <ProviderOAuthFields
+              orgId={orgId}
+              employeeId={employeeId}
+              provider={active}
+              entry={activeCatalogEntry}
+              onConnected={() => { void actions.reload(); close(); }}
+            />
+          ) : (
+            <ProviderConnectFields provider={active} entry={activeCatalogEntry} />
+          )
         )}
       </Dialog>
     </div>
@@ -274,13 +275,9 @@ function ProviderPolicyRow({
 function ProviderConnectFields({
   provider,
   entry,
-  signInLaunched,
-  onLaunchSignIn,
 }: {
   provider: ProviderRecord;
   entry: ProviderCatalogEntry;
-  signInLaunched: boolean;
-  onLaunchSignIn: () => void;
 }) {
   if (entry.authType === "api_key") {
     return (
@@ -291,22 +288,46 @@ function ProviderConnectFields({
       </>
     );
   }
-  if (entry.authType === "oauth_pkce" || entry.authType === "account_subscription") {
-    return (
-      <>
-        <p style={{ fontSize: 12.5, color: "var(--text-3)", lineHeight: 1.5, margin: 0 }}>{entry.credentialHelp}</p>
-        <div className="row" style={{ gap: 8 }}>
-          <Button tone={signInLaunched ? "ghost" : "primary"} onClick={onLaunchSignIn}>
-            {signInLaunched ? "Re-open sign-in window" : `Open ${entry.label} sign-in`}
-          </Button>
-          {entry.signInUrl && <span className="mono" style={{ fontSize: 11, color: "var(--text-3)" }}>{entry.signInUrl}</span>}
-        </div>
-        <Field label="Access token"><input className="input" name="secret" type="password" required /></Field>
-        <ModelPicker entry={entry} provider={provider} />
-      </>
-    );
-  }
   return <CloudFieldsForm entry={entry} provider={provider} />;
+}
+
+function ProviderOAuthFields({
+  orgId,
+  employeeId,
+  provider,
+  entry,
+  onConnected,
+}: {
+  orgId: string;
+  employeeId: string;
+  provider: ProviderRecord;
+  entry: ProviderCatalogEntry;
+  onConnected: () => void;
+}) {
+  const [model, setModel] = useState(provider.model ?? entry.defaultModel ?? entry.models[0]?.id ?? "");
+  return (
+    <>
+      <p style={{ fontSize: 12.5, color: "var(--text-3)", lineHeight: 1.5, margin: 0 }}>{entry.credentialHelp}</p>
+      <Field label="Default model">
+        {entry.models.length ? (
+          <select className="input" value={model} onChange={(event) => setModel(event.target.value)}>
+            {entry.models.map((option) => (
+              <option key={option.id} value={option.id}>{option.name}</option>
+            ))}
+          </select>
+        ) : (
+          <input className="input" value={model} onChange={(event) => setModel(event.target.value)} />
+        )}
+      </Field>
+      <ProviderOAuthConnect
+        key={entry.key}
+        providerKey={entry.key}
+        label={entry.label}
+        buildInput={() => ({ providerKey: entry.key, orgId, providerId: provider.id, employeeId, model })}
+        onComplete={() => onConnected()}
+      />
+    </>
+  );
 }
 
 function ModelPicker({ entry, provider }: { entry: ProviderCatalogEntry; provider: ProviderRecord }) {

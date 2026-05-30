@@ -14,11 +14,30 @@ export function parseApiKey(secret: string): ProviderAuthProfile {
 }
 
 export function parseAccessToken(secret: string): ProviderAuthProfile {
-  return { type: "access_token", accessToken: nonEmptySecret(secret, "Access token") };
+  return { type: "access_token", accessToken: oauthAccessToken(secret, "Access token") };
 }
 
 export function parseAccountToken(secret: string): ProviderAuthProfile {
-  return { type: "account_token", accessToken: nonEmptySecret(secret, "Account token") };
+  return { type: "account_token", accessToken: oauthAccessToken(secret, "Account token") };
+}
+
+/**
+ * Accepts either a raw token string or the JSON credential object produced by
+ * the native OAuth login flow, returning the usable access token.
+ */
+function oauthAccessToken(secret: string, label: string): string {
+  const value = nonEmptySecret(secret, label);
+  if (!value.startsWith("{")) return value;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(value);
+  } catch {
+    throw new Error(`${label} credential must be a token or JSON.`);
+  }
+  if (isRecord(parsed) && typeof parsed.access === "string" && parsed.access.trim()) {
+    return parsed.access.trim();
+  }
+  throw new Error(`${label} credential is missing an access token.`);
 }
 
 export function parseAzureProfile(secret: string): ProviderAuthProfile {

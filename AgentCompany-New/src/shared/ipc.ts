@@ -21,6 +21,8 @@ export const IPC_CHANNELS = {
   saveProviderCredential: "agentcompany:save-provider-credential",
   revokeProviderCredential: "agentcompany:revoke-provider-credential",
   launchProviderSignIn: "agentcompany:launch-provider-sign-in",
+  startProviderOAuth: "agentcompany:start-provider-oauth",
+  cancelProviderOAuth: "agentcompany:cancel-provider-oauth",
   checkProviderHealth: "agentcompany:check-provider-health",
   updateProviderPolicy: "agentcompany:update-provider-policy",
   openExternalUrl: "agentcompany:open-external-url",

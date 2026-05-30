@@ -44,8 +44,8 @@ const RAW_CATALOG: Omit<ProviderCatalogEntry, "models">[] = [
     authType: PROVIDER_AUTH_TYPE.OAUTH_PKCE,
     defaultModel: "claude-opus-4-5",
     capabilityTags: ["account", "coding"],
-    signInUrl: "https://github.com/login",
-    credentialHelp: "Sign in, then copy the personal access token (scope copilot) from github.com → Settings → Developer settings.",
+    signInUrl: "https://github.com/login/device",
+    credentialHelp: "Sign in with the GitHub device code shown here — no token to copy.",
   },
   {
     key: "google-antigravity",
@@ -54,7 +54,7 @@ const RAW_CATALOG: Omit<ProviderCatalogEntry, "models">[] = [
     defaultModel: "claude-sonnet-4-5",
     capabilityTags: ["account", "coding"],
     signInUrl: "https://antigravity.google/",
-    credentialHelp: "Sign in to Antigravity, then paste the session token shown in the dashboard.",
+    credentialHelp: "Sign in with your Google account in the browser; AgentCompany finishes the handshake.",
   },
   {
     key: "gpt-account",
@@ -63,7 +63,7 @@ const RAW_CATALOG: Omit<ProviderCatalogEntry, "models">[] = [
     defaultModel: "gpt-5.3-codex",
     capabilityTags: ["codex", "subscription"],
     signInUrl: "https://chatgpt.com/codex",
-    credentialHelp: "Sign in to ChatGPT Plus/Pro, then paste the session access token from chatgpt.com/codex/settings.",
+    credentialHelp: "Sign in to ChatGPT Plus/Pro in the browser; AgentCompany finishes the handshake.",
   },
   {
     key: "azure-openai",

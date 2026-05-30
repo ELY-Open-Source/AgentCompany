@@ -197,7 +197,7 @@ describe("provider service", () => {
     expect(launched).toMatchObject({
       providerId: copilotProviderId,
       label: "GitHub Copilot",
-      signInUrl: "https://github.com/login",
+      signInUrl: "https://github.com/login/device",
       partition: `persist:agentcompany-provider-${copilotProviderId}`,
     });
     expect(state.providerAuthSessions[0]).toMatchObject({

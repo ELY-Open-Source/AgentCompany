@@ -5,6 +5,7 @@ import {
   type ProviderCatalogEntry,
 } from "../../../shared/domain";
 import { Button, Field, Icon, IconButton, Pill } from "../shared/ui";
+import { ProviderOAuthConnect } from "../shared/ProviderOAuthConnect";
 import type { SnapshotActions } from "./useSnapshot";
 
 type Step = "welcome" | "provider" | "company" | "mode" | "mission";
@@ -244,7 +245,6 @@ function ProviderStep({
   const selected = providers.find((entry) => entry.key === draft.providerKey) ?? providers[0];
   if (!selected) throw new Error("No provider available for onboarding.");
   const isOAuthLike = selected.authType === "oauth_pkce" || selected.authType === "account_subscription";
-  const secretLabel = isOAuthLike ? "Access token" : "API key";
 
   return (
     <div className="form-grid">
@@ -275,26 +275,25 @@ function ProviderStep({
       {selected.credentialHelp && (
         <div style={{ fontSize: 12.5, color: "var(--text-3)", lineHeight: 1.5 }}>{selected.credentialHelp}</div>
       )}
-      {isOAuthLike && selected.signInUrl && (
-        <div className="row" style={{ gap: 8 }}>
-          <Button
-            tone="primary"
-            onClick={() => void window.agentCompany.openExternalUrl(selected.signInUrl ?? "")}
-          >
-            Open {selected.label} sign-in
-          </Button>
-          <span className="mono" style={{ fontSize: 11, color: "var(--text-3)" }}>{selected.signInUrl}</span>
-        </div>
-      )}
-      <Field label={secretLabel}>
-        <input
-          className="input"
-          type="password"
-          autoComplete="off"
-          value={draft.providerSecret}
-          onChange={(event) => onChange({ providerSecret: event.target.value })}
+      {isOAuthLike ? (
+        <ProviderOAuthConnect
+          key={selected.key}
+          providerKey={selected.key}
+          label={selected.label}
+          buildInput={() => ({ providerKey: selected.key })}
+          onComplete={(secret) => onChange({ providerSecret: secret ?? "" })}
         />
-      </Field>
+      ) : (
+        <Field label="API key">
+          <input
+            className="input"
+            type="password"
+            autoComplete="off"
+            value={draft.providerSecret}
+            onChange={(event) => onChange({ providerSecret: event.target.value })}
+          />
+        </Field>
+      )}
       <Field label="Model">
         {selected.models.length ? (
           <select

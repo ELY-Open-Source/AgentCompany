@@ -8,6 +8,7 @@ import { OrganizationService } from "../services/organization-service";
 import { ApprovalService } from "../services/approval-service";
 import { ChatService } from "../services/chat-service";
 import { ProviderService } from "../services/provider-service";
+import { ProviderOAuthService } from "../services/provider-oauth-service";
 import { SkillService } from "../services/skill-service";
 import { SocialService } from "../services/social-service";
 import { FileService } from "../services/file-service";
@@ -34,6 +35,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
   const approvals = new ApprovalService(deps.connection.db);
   const chat = new ChatService(deps.connection.db);
   const providers = new ProviderService(deps.connection.db);
+  const providerOAuth = new ProviderOAuthService();
   const skills = new SkillService(deps.connection.db, deps.artifactRoot);
   const taskExecution = new TaskExecutionService(deps.connection.db, providers, skills);
   const social = new SocialService(deps.connection.db);
@@ -127,6 +129,44 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     } catch (error) {
       return fail("provider_sign_in_failed", error instanceof Error ? error.message : String(error));
     }
+  });
+  ipcMain.handle(IPC_CHANNELS.startProviderOAuth, async (_event, input) => {
+    const emit = (event: Record<string, unknown>) =>
+      deps.mainWindow.webContents.send(IPC_CHANNELS.rendererEvent, { type: "provider-oauth", providerKey: input.providerKey, ...event });
+    try {
+      const secret = await providerOAuth.run(
+        { providerKey: input.providerKey, enterpriseDomain: input.enterpriseDomain ?? null },
+        {
+          onAuth: ({ url, instructions }) => {
+            void shell.openExternal(url);
+            emit({ phase: "authorize", url, instructions });
+          },
+          onProgress: (message) => emit({ phase: "progress", message }),
+        },
+      );
+      if (input.orgId && input.providerId && input.employeeId) {
+        providers.saveCredential({
+          orgId: input.orgId,
+          providerId: input.providerId,
+          secret,
+          model: input.model ?? null,
+          employeeId: input.employeeId,
+        });
+        emit({ phase: "active" });
+        deps.mainWindow.webContents.send(IPC_CHANNELS.rendererEvent, { type: "snapshot-changed" });
+        return ok({ secret: null });
+      }
+      emit({ phase: "active" });
+      return ok({ secret });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      emit({ phase: message === "Login cancelled" ? "cancelled" : "error", message });
+      return fail("provider_oauth_failed", message);
+    }
+  });
+  ipcMain.handle(IPC_CHANNELS.cancelProviderOAuth, (_event, input) => {
+    providerOAuth.cancel(input.providerKey);
+    return ok(null);
   });
   ipcMain.handle(IPC_CHANNELS.openExternalUrl, async (_event, url: string) => {
     try {
