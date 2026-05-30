@@ -24,6 +24,7 @@ export const IPC_CHANNELS = {
   startProviderOAuth: "agentcompany:start-provider-oauth",
   cancelProviderOAuth: "agentcompany:cancel-provider-oauth",
   checkProviderHealth: "agentcompany:check-provider-health",
+  listProviderModels: "agentcompany:list-provider-models",
   updateProviderPolicy: "agentcompany:update-provider-policy",
   openExternalUrl: "agentcompany:open-external-url",
   createProviderResponse: "agentcompany:create-provider-response",

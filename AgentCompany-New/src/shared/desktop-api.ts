@@ -1,5 +1,6 @@
 import type { DesktopResult } from "./result";
 import type { AppSnapshot, SearchResultRecord } from "./domain";
+import type { ProviderModelEntry } from "./provider-models";
 import type {
   BindSkillInput,
   BootstrapOnboardingInput,
@@ -14,6 +15,7 @@ import type {
   CreateLegalHoldInput,
   CreateMigrationReportInput,
   CheckProviderHealthInput,
+  ListProviderModelsInput,
   StartProviderOAuthInput,
   StartProviderOAuthResult,
   CancelProviderOAuthInput,
@@ -103,6 +105,7 @@ export interface DesktopApi {
   startProviderOAuth(input: StartProviderOAuthInput): Promise<DesktopResult<StartProviderOAuthResult>>;
   cancelProviderOAuth(input: CancelProviderOAuthInput): Promise<DesktopResult<null>>;
   checkProviderHealth(input: CheckProviderHealthInput): Promise<DesktopResult<AppSnapshot>>;
+  listProviderModels(input: ListProviderModelsInput): Promise<DesktopResult<ProviderModelEntry[]>>;
   updateProviderPolicy(input: UpdateProviderPolicyInput): Promise<DesktopResult<AppSnapshot>>;
   openExternalUrl(url: string): Promise<DesktopResult<null>>;
   createProviderResponse(input: CreateProviderResponseInput): Promise<DesktopResult<AppSnapshot>>;

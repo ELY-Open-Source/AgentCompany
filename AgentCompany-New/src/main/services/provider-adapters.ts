@@ -35,6 +35,10 @@ import {
   type ProviderRevokeHandler,
 } from "./provider-auth-lifecycle";
 import { getJson, postEventStream, postJson, type JsonRecord } from "./provider-http";
+import { fetchAnthropicModels, fetchOpenAiModels } from "./provider-models-fetch";
+
+const ANTHROPIC_VERSION = "2023-06-01";
+const CLAUDE_PRO_BETA = "claude-code-20250219,oauth-2025-04-20,fine-grained-tool-streaming-2025-05-14";
 import {
   cancelUnsupported,
   mapAnthropicMessageStream,
@@ -124,7 +128,9 @@ export const providerAdapters: ProviderAdapterRegistry = {
     refresh: refreshUnsupported("OpenAI API key"),
     revoke: revokeLocalProfile((profile) => { requireApiKeyProfile(profile, "OpenAI"); }),
     parseAuthProfile: parseApiKey,
-    listModels: () => listStaticModels("openai"),
+    listModels: (ctx) => fetchOpenAiModels("https://api.openai.com/v1/models", {
+      authorization: `Bearer ${requireApiKeyProfile(ctx.authProfile, "OpenAI").apiKey}`,
+    }),
     getRateLimitState: providerRateLimitUnknown,
     checkHealth: (input) => checkOpenAiHealth(input.authProfile, "https://api.openai.com/v1/models"),
     async streamResponse(input) {
@@ -202,7 +208,10 @@ export const providerAdapters: ProviderAdapterRegistry = {
     refresh: refreshUnsupported("Anthropic API key"),
     revoke: revokeLocalProfile((profile) => { requireApiKeyProfile(profile, "Anthropic"); }),
     parseAuthProfile: parseApiKey,
-    listModels: () => listStaticModels("anthropic"),
+    listModels: (ctx) => fetchAnthropicModels("https://api.anthropic.com/v1/models", {
+      "x-api-key": requireApiKeyProfile(ctx.authProfile, "Anthropic").apiKey,
+      "anthropic-version": ANTHROPIC_VERSION,
+    }),
     getRateLimitState: providerRateLimitUnknown,
     async checkHealth(input) {
       const profile = requireApiKeyProfile(input.authProfile, "Anthropic");
@@ -278,7 +287,14 @@ export const providerAdapters: ProviderAdapterRegistry = {
   "github-copilot": browserTokenAdapter("github-copilot", PROVIDER_AUTH_TYPE.OAUTH_PKCE),
   "google-antigravity": browserTokenAdapter("google-antigravity", PROVIDER_AUTH_TYPE.OAUTH_PKCE),
   "gpt-account": browserTokenAdapter("gpt-account", PROVIDER_AUTH_TYPE.ACCOUNT_SUBSCRIPTION),
-  "claude-pro": browserTokenAdapter("claude-pro", PROVIDER_AUTH_TYPE.OAUTH_PKCE),
+  "claude-pro": {
+    ...browserTokenAdapter("claude-pro", PROVIDER_AUTH_TYPE.OAUTH_PKCE),
+    listModels: (ctx) => fetchAnthropicModels("https://api.anthropic.com/v1/models", {
+      authorization: `Bearer ${requireAccessTokenProfile(ctx.authProfile).accessToken}`,
+      "anthropic-version": ANTHROPIC_VERSION,
+      "anthropic-beta": CLAUDE_PRO_BETA,
+    }),
+  },
   "azure-openai": {
     providerKey: "azure-openai",
     authType: PROVIDER_AUTH_TYPE.CLOUD,
@@ -341,7 +357,10 @@ export const providerAdapters: ProviderAdapterRegistry = {
     refresh: refreshUnsupported("Custom OpenAI-compatible endpoint"),
     revoke: revokeLocalProfile((profile) => { requireOpenAiCompatProfile(profile); }),
     parseAuthProfile: parseOpenAiCompatProfile,
-    listModels: () => listStaticModels("custom-openai"),
+    listModels: (ctx) => {
+      const profile = requireOpenAiCompatProfile(ctx.authProfile);
+      return fetchOpenAiModels(`${profile.baseUrl}/models`, { authorization: `Bearer ${profile.apiKey}` });
+    },
     getRateLimitState: providerRateLimitUnknown,
     streamResponse: streamUnsupported("Custom OpenAI-compatible endpoint"),
     cancelResponse: cancelUnsupported("Custom OpenAI-compatible endpoint"),
@@ -359,7 +378,13 @@ export const providerAdapters: ProviderAdapterRegistry = {
     refresh: refreshUnsupported("Custom Anthropic-compatible endpoint"),
     revoke: revokeLocalProfile((profile) => { requireAnthropicCompatProfile(profile); }),
     parseAuthProfile: parseAnthropicCompatProfile,
-    listModels: () => listStaticModels("custom-anthropic"),
+    listModels: (ctx) => {
+      const profile = requireAnthropicCompatProfile(ctx.authProfile);
+      return fetchAnthropicModels(`${profile.baseUrl}/v1/models`, {
+        "x-api-key": profile.apiKey,
+        "anthropic-version": ANTHROPIC_VERSION,
+      });
+    },
     getRateLimitState: providerRateLimitUnknown,
     streamResponse: streamUnsupported("Custom Anthropic-compatible endpoint"),
     cancelResponse: cancelUnsupported("Custom Anthropic-compatible endpoint"),
@@ -419,7 +444,9 @@ function openAiCompatibleAdapter({
     refresh: refreshUnsupported(`${label} API key`),
     revoke: revokeLocalProfile((profile) => { requireApiKeyProfile(profile, label); }),
     parseAuthProfile: parseApiKey,
-    listModels: () => listStaticModels(providerKey),
+    listModels: (ctx) => fetchOpenAiModels(healthUrl, {
+      authorization: `Bearer ${requireApiKeyProfile(ctx.authProfile, label).apiKey}`,
+    }),
     getRateLimitState: providerRateLimitUnknown,
     checkHealth: (input) => checkOpenAiHealth(input.authProfile, healthUrl),
     async streamResponse(input) {

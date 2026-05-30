@@ -1,6 +1,7 @@
 import type { DatabaseSync } from "node:sqlite";
 import { createHash, randomBytes } from "node:crypto";
-import type { CancelProviderResponseInput, LaunchProviderSignInInput, RevokeProviderCredentialInput, SaveProviderCredentialInput, StreamProviderResponseInput, UpdateProviderPolicyInput } from "../../shared/commands";
+import type { CancelProviderResponseInput, LaunchProviderSignInInput, ListProviderModelsInput, RevokeProviderCredentialInput, SaveProviderCredentialInput, StreamProviderResponseInput, UpdateProviderPolicyInput } from "../../shared/commands";
+import type { ProviderModelEntry } from "../../shared/provider-models";
 import { PROVIDER_AUTH_TYPE, PROVIDER_DATA_POLICY, type ProviderAuthType } from "../../shared/domain";
 import type { ProviderStreamRendererEvent } from "../../shared/provider-request-domain";
 import { AuditService } from "./audit-service";
@@ -158,6 +159,27 @@ export class ProviderService {
       action: "credential_revoked",
       payload: { providerKey: provider.provider_key },
     });
+  }
+
+  /**
+   * Fetches the live model catalog from the provider. Onboarding passes the
+   * just-typed (or just-authorized) credential as `secret`; settings passes a
+   * stored provider reference and the secret is decrypted server-side. Either
+   * way the credential never round-trips through the renderer's persisted state.
+   */
+  async listModels(input: ListProviderModelsInput): Promise<ProviderModelEntry[]> {
+    if (typeof input.secret === "string") {
+      const entry = requireCatalogEntry(input.providerKey);
+      const adapter = requireAdapter(this.adapters, input.providerKey, entry.authType);
+      const authProfile = adapter.parseAuthProfile(input.secret);
+      return adapter.listModels({ authProfile, model: null });
+    }
+    if (!input.orgId || !input.providerId) throw new Error("A credential is required to list provider models.");
+    const provider = loadConfiguredProvider(this.db, input.orgId, input.providerId);
+    const adapter = requireAdapter(this.adapters, provider.provider_key, provider.auth_type);
+    const credential = loadCredential(this.authBroker, input.orgId, provider);
+    const authProfile = adapter.parseAuthProfile(credential.secret);
+    return adapter.listModels({ authProfile, model: provider.model });
   }
 
   async checkHealth(orgId: string, providerId: string): Promise<void> {

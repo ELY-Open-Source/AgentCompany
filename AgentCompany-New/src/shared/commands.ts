@@ -210,6 +210,15 @@ export interface CheckProviderHealthInput {
   providerId: string;
 }
 
+export interface ListProviderModelsInput {
+  providerKey: string;
+  /** A just-typed/authorized credential (onboarding or the connect-new dialog). */
+  secret?: string;
+  /** A stored provider whose secret is decrypted server-side (settings refresh). */
+  orgId?: string;
+  providerId?: string;
+}
+
 export interface UpdateProviderPolicyInput {
   orgId: string;
   providerId: string;

@@ -87,11 +87,20 @@ describe("provider contracts", () => {
     }))).toThrow("Azure base URL must use HTTPS.");
   });
 
+  // Providers with no enumerable models endpoint keep returning the curated
+  // catalog; the rest fetch live (covered offline by provider-models-fetch.test).
+  const CURATED_MODEL_PROVIDERS = new Set([
+    "github-copilot", "google-antigravity", "gpt-account", "azure-openai", "aws-bedrock", "vertex-ai",
+  ]);
+
   test("exposes model listing and rate limit adapter contracts", async () => {
     for (const provider of PROVIDER_CATALOG) {
       const adapter = providerAdapters[provider.key];
       const authProfile = adapter.parseAuthProfile(PROVIDER_SECRET_SAMPLES[provider.key]);
-      await expect(adapter.listModels({ authProfile, model: provider.defaultModel })).resolves.toEqual(provider.models);
+      expect(typeof adapter.listModels).toBe("function");
+      if (CURATED_MODEL_PROVIDERS.has(provider.key)) {
+        await expect(adapter.listModels({ authProfile, model: provider.defaultModel })).resolves.toEqual(provider.models);
+      }
       await expect(adapter.getRateLimitState({ authProfile, model: provider.defaultModel })).resolves.toBeNull();
       expect(typeof adapter.streamResponse).toBe("function");
       expect(typeof adapter.cancelResponse).toBe("function");

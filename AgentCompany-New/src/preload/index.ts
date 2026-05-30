@@ -32,6 +32,7 @@ const api: DesktopApi = {
   startProviderOAuth: (input) => invoke(IPC_CHANNELS.startProviderOAuth, input),
   cancelProviderOAuth: (input) => invoke(IPC_CHANNELS.cancelProviderOAuth, input),
   checkProviderHealth: (input) => invoke(IPC_CHANNELS.checkProviderHealth, input),
+  listProviderModels: (input) => invoke(IPC_CHANNELS.listProviderModels, input),
   updateProviderPolicy: (input) => invoke(IPC_CHANNELS.updateProviderPolicy, input),
   openExternalUrl: (url) => invoke(IPC_CHANNELS.openExternalUrl, url),
   createProviderResponse: (input) => invoke(IPC_CHANNELS.createProviderResponse, input),

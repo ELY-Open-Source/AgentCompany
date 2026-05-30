@@ -297,6 +297,33 @@ function ProviderCredentialFields({
 }) {
   const isOAuthLike = selected.authType === "oauth_pkce" || selected.authType === "account_subscription";
   const isCustom = Boolean(selected.customEndpoint);
+  const [fetched, setFetched] = useState<ProviderCatalogEntry["models"] | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  const models = fetched ?? selected.models;
+  const canLoad = isCustom ? Boolean(draft.providerBaseUrl.trim() && draft.providerSecret.trim()) : Boolean(draft.providerSecret.trim());
+
+  const loadModels = async (secret: string) => {
+    setLoading(true);
+    setLoadError(null);
+    const result = await window.agentCompany.listProviderModels({ providerKey: selected.key, secret });
+    setLoading(false);
+    if (!result.ok) {
+      setLoadError(result.error.message);
+      return;
+    }
+    setFetched(result.data);
+    if (result.data[0]) onChange({ providerModel: result.data[0].id });
+  };
+
+  const loadTypedModels = () => {
+    const secret = isCustom
+      ? JSON.stringify({ baseUrl: draft.providerBaseUrl.trim(), secret: draft.providerSecret.trim() })
+      : draft.providerSecret.trim();
+    void loadModels(secret);
+  };
+
   return (
     <div className="provider-inline-form">
       {selected.credentialHelp && (
@@ -308,7 +335,10 @@ function ProviderCredentialFields({
           providerKey={selected.key}
           label={selected.label}
           buildInput={() => ({ providerKey: selected.key })}
-          onComplete={(secret) => onChange({ providerSecret: secret ?? "" })}
+          onComplete={(secret) => {
+            onChange({ providerSecret: secret ?? "" });
+            if (secret) void loadModels(secret);
+          }}
         />
       ) : isCustom ? (
         <>
@@ -341,14 +371,20 @@ function ProviderCredentialFields({
           />
         </Field>
       )}
+      {!isOAuthLike && (
+        <Button tone="ghost" onClick={loadTypedModels} disabled={!canLoad || loading}>
+          {loading ? "Loading models…" : fetched ? "Reload models" : "Load models"}
+        </Button>
+      )}
+      {loadError && <div style={{ color: "var(--red)", fontSize: 12 }}>{loadError}</div>}
       <Field label="Model">
-        {selected.models.length ? (
+        {models.length ? (
           <select
             className="input"
             value={draft.providerModel}
             onChange={(event) => onChange({ providerModel: event.target.value })}
           >
-            {selected.models.map((model) => (
+            {models.map((model) => (
               <option key={model.id} value={model.id}>{model.name}</option>
             ))}
           </select>

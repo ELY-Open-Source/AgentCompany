@@ -122,6 +122,13 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       return fail("provider_health_failed", error instanceof Error ? error.message : String(error));
     }
   });
+  ipcMain.handle(IPC_CHANNELS.listProviderModels, async (_event, input) => {
+    try {
+      return ok(await providers.listModels(input));
+    } catch (error) {
+      return fail("provider_models_failed", error instanceof Error ? error.message : String(error));
+    }
+  });
   ipcMain.handle(IPC_CHANNELS.launchProviderSignIn, (_event, input) => {
     try {
       providers.launchSignInWindow(input);
