@@ -1,7 +1,8 @@
 import { useMemo, useState, type FormEvent } from "react";
-import { Avatar, Button, Field, Icon, IconButton, Pill } from "../shared/ui";
+import { Avatar, Button, Field, Icon, IconButton } from "../shared/ui";
 import { TopbarActions } from "../shared/TopbarActions";
 import { Dialog } from "../shared/Dialog";
+import { OrgChartTree } from "./team/OrgChartTree";
 import type { AgentRecord, EmployeeRecord, ProviderRecord } from "../../../shared/domain";
 import type { PageProps } from "./types";
 import { activeOrgId, money } from "./types";
@@ -81,9 +82,9 @@ export function TeamPage({ snapshot, actions }: PageProps) {
         {" "}{agents.length} {agents.length === 1 ? "agent" : "agents"}
       </p>
 
-      <section className="card" style={{ padding: 32, marginBottom: 28, overflowX: "auto" }}>
+      <section className="card" style={{ padding: 32, marginBottom: 28 }}>
         <div className="section-label">Org</div>
-        <OrgChart boardChair={employees[0] ?? null} agents={agents} />
+        <OrgChartTree boardChair={employees[0] ?? null} agents={agents} onSelectAgent={setEditAgentId} />
       </section>
 
       <div className="section-label" style={{ marginBottom: 10 }}>Roster</div>
@@ -164,80 +165,6 @@ export function TeamPage({ snapshot, actions }: PageProps) {
   );
 }
 
-function OrgCard({ name, role, human = false }: { name: string; role: string; human?: boolean }) {
-  return (
-    <div
-      style={{
-        width: 220,
-        border: "1px solid var(--border)",
-        borderRadius: 12,
-        padding: "14px 14px 12px",
-        background: "var(--panel)",
-        display: "flex",
-        flexDirection: "column",
-        gap: 10,
-      }}
-    >
-      <div className="row">
-        <Avatar name={name} bot={!human} />
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 13, fontWeight: 540, letterSpacing: "-0.01em", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{name}</div>
-          <div style={{ fontSize: 11, color: "var(--text-3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{role}</div>
-        </div>
-      </div>
-      <div>
-        {human ? <Pill>Human</Pill> : <Pill tone="violet" dot>Agent</Pill>}
-      </div>
-    </div>
-  );
-}
-
-function OrgChart({ boardChair, agents }: { boardChair: EmployeeRecord | null; agents: AgentRecord[] }) {
-  const childrenByManager = useMemo(() => {
-    const known = new Set(agents.map((agent) => agent.id));
-    const map = new Map<string, AgentRecord[]>();
-    for (const agent of agents) {
-      // Agents whose manager is missing (or the top-level CEO) hang off the root.
-      const key = agent.managerAgentId && known.has(agent.managerAgentId) ? agent.managerAgentId : "__root__";
-      const list = map.get(key) ?? [];
-      list.push(agent);
-      map.set(key, list);
-    }
-    return map;
-  }, [agents]);
-
-  const roots = childrenByManager.get("__root__") ?? [];
-  if (!boardChair && roots.length === 0) return null;
-
-  return (
-    <div className="org-tree">
-      <ul>
-        <li>
-          {boardChair ? <OrgCard name={boardChair.displayName} role={boardChair.role} human /> : <OrgCard name="Org" role="Reports" />}
-          {roots.length > 0 && (
-            <ul>
-              {roots.map((agent) => <OrgNode key={agent.id} agent={agent} childrenByManager={childrenByManager} />)}
-            </ul>
-          )}
-        </li>
-      </ul>
-    </div>
-  );
-}
-
-function OrgNode({ agent, childrenByManager }: { agent: AgentRecord; childrenByManager: Map<string, AgentRecord[]> }) {
-  const reports = childrenByManager.get(agent.id) ?? [];
-  return (
-    <li>
-      <OrgCard name={agent.name} role={agent.title || agent.role} />
-      {reports.length > 0 && (
-        <ul>
-          {reports.map((report) => <OrgNode key={report.id} agent={report} childrenByManager={childrenByManager} />)}
-        </ul>
-      )}
-    </li>
-  );
-}
 
 interface RosterEntry {
   id: string;

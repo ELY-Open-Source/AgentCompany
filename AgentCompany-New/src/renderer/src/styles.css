@@ -386,47 +386,39 @@ a { color: inherit; }
   min-height: 0;
 }
 
-/* Hierarchical org chart: a real reporting tree with connector lines. */
-.org-tree { display: inline-block; min-width: 100%; text-align: center; margin-top: 18px; }
-.org-tree ul {
-  position: relative;
+/* Hierarchical org chart: nodes are absolutely positioned by a layout pass,
+   connectors are drawn in an SVG underlay (see OrgChartTree). */
+.org-scroll { overflow-x: auto; overflow-y: hidden; }
+.org-node-card {
+  position: absolute;
   display: flex;
-  justify-content: center;
-  margin: 0;
-  padding: 22px 0 0 0;
-  list-style: none;
+  align-items: center;
+  gap: 10px;
+  padding: 0 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--panel);
+  box-shadow: var(--shadow-sm);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.12s ease, box-shadow 0.12s ease;
 }
-.org-tree li {
-  position: relative;
-  padding: 22px 8px 0 8px;
-  list-style: none;
+.org-node-card:hover:not(:disabled) { border-color: var(--border-strong); box-shadow: var(--shadow-md); }
+.org-node-card:disabled { cursor: default; }
+.org-node-card.human { border-color: var(--amber); background: var(--amber-soft); }
+.org-node-text { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.org-node-name {
+  font-size: 12.5px;
+  font-weight: 560;
+  letter-spacing: -0.01em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-.org-tree li::before, .org-tree li::after {
-  content: "";
-  position: absolute;
-  top: 0;
-  right: 50%;
-  width: 50%;
-  height: 22px;
-  border-top: 1px solid var(--border-strong);
+.org-node-role {
+  font-size: 11px;
+  color: var(--text-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-.org-tree li::after {
-  right: auto;
-  left: 50%;
-  border-left: 1px solid var(--border-strong);
-}
-.org-tree li:only-child::before, .org-tree li:only-child::after { display: none; }
-.org-tree li:only-child { padding-top: 22px; }
-.org-tree li:first-child::before, .org-tree li:last-child::after { border: 0 none; }
-.org-tree li:last-child::before { border-right: 1px solid var(--border-strong); }
-.org-tree ul ul::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 50%;
-  width: 0;
-  height: 22px;
-  border-left: 1px solid var(--border-strong);
-}
-.org-tree > ul { padding-top: 0; }
-.org-tree > ul > li:only-child { padding-top: 0; }
