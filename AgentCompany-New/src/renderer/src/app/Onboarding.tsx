@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useState, type FormEvent } from "react";
+import { Fragment, useEffect, useMemo, useState, type FormEvent } from "react";
 import {
   PROVIDER_AUTH_TYPE,
   type AppSnapshot,
@@ -328,6 +328,15 @@ function ProviderCredentialFields({
     void loadModels(secret);
   };
 
+  // Curated providers (no live endpoint) show their fixed dropdown once a
+  // credential is present; seed the selection with the provider default.
+  const showCuratedList = !live && hasCredential && selected.models.length > 0;
+  useEffect(() => {
+    if (showCuratedList && !draft.providerModel) {
+      onChange({ providerModel: selected.defaultModel ?? selected.models[0].id });
+    }
+  }, [showCuratedList, draft.providerModel, selected, onChange]);
+
   return (
     <div className="provider-inline-form">
       {selected.credentialHelp && (
@@ -383,13 +392,13 @@ function ProviderCredentialFields({
       {loadError && <div style={{ color: "var(--red)", fontSize: 12 }}>{loadError}</div>}
       {hasCredential && (
         <Field label="Model">
-          {fetched ? (
+          {fetched || showCuratedList ? (
             <select
               className="input"
               value={draft.providerModel}
               onChange={(event) => onChange({ providerModel: event.target.value })}
             >
-              {fetched.map((model) => (
+              {(fetched ?? selected.models).map((model) => (
                 <option key={model.id} value={model.id}>{model.name}</option>
               ))}
             </select>

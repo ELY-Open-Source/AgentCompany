@@ -25,6 +25,7 @@ const ANTHROPIC_MODELS: ProviderModelEntry[] = [
 
 export const PROVIDER_MODELS: Record<string, ProviderModelEntry[]> = {
   openai: [
+    { id: "gpt-5.5", name: "GPT-5.5" },
     { id: "gpt-5.4-pro", name: "GPT-5.4 Pro" },
     { id: "gpt-5.4", name: "GPT-5.4" },
     { id: "gpt-5.4-mini", name: "GPT-5.4 mini" },
@@ -109,6 +110,7 @@ export const PROVIDER_MODELS: Record<string, ProviderModelEntry[]> = {
     { id: "claude-sonnet-4.5", name: "Claude Sonnet 4.5" },
     { id: "claude-sonnet-4", name: "Claude Sonnet 4" },
     { id: "claude-haiku-4.5", name: "Claude Haiku 4.5" },
+    { id: "gpt-5.5", name: "GPT-5.5" },
     { id: "gpt-5.4", name: "GPT-5.4" },
     { id: "gpt-5.4-mini", name: "GPT-5.4 mini" },
     { id: "gpt-5.3-codex", name: "GPT-5.3 Codex" },
@@ -140,6 +142,7 @@ export const PROVIDER_MODELS: Record<string, ProviderModelEntry[]> = {
     { id: "gpt-oss-120b-medium", name: "GPT-OSS 120B Medium" },
   ],
   "gpt-account": [
+    { id: "gpt-5.5", name: "GPT-5.5" },
     { id: "gpt-5.4", name: "GPT-5.4" },
     { id: "gpt-5.4-mini", name: "GPT-5.4 Mini" },
     { id: "gpt-5.3-codex", name: "GPT-5.3 Codex" },
@@ -151,6 +154,7 @@ export const PROVIDER_MODELS: Record<string, ProviderModelEntry[]> = {
     { id: "gpt-5.1-codex-mini", name: "GPT-5.1 Codex Mini" },
   ],
   "azure-openai": [
+    { id: "gpt-5.5", name: "GPT-5.5" },
     { id: "gpt-5.4", name: "GPT-5.4" },
     { id: "gpt-5.4-mini", name: "GPT-5.4 mini" },
     { id: "gpt-5.3-codex", name: "GPT-5.3 Codex" },
