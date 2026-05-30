@@ -12,8 +12,12 @@ import { PROVIDER_CATALOG } from "../../src/shared/provider-catalog";
 const PROVIDER_SECRET_SAMPLES: Record<string, string> = {
   openai: "sk-live-provider",
   anthropic: "sk-live-provider",
+  "claude-pro": "claude-session-token",
   xai: "sk-live-provider",
   groq: "sk-live-provider",
+  mistral: "sk-live-provider",
+  cerebras: "csk-live-provider",
+  openrouter: "sk-or-live-provider",
   "github-copilot": "ghu_live_provider",
   "google-antigravity": "antigravity-session",
   "gpt-account": "chatgpt-session",

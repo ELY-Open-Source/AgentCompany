@@ -253,9 +253,28 @@ export const providerAdapters: ProviderAdapterRegistry = {
     endpoint: "https://api.groq.com/openai/v1/chat/completions",
     healthUrl: "https://api.groq.com/openai/v1/models",
   }),
+  mistral: openAiCompatibleAdapter({
+    providerKey: "mistral",
+    label: "Mistral",
+    endpoint: "https://api.mistral.ai/v1/chat/completions",
+    healthUrl: "https://api.mistral.ai/v1/models",
+  }),
+  cerebras: openAiCompatibleAdapter({
+    providerKey: "cerebras",
+    label: "Cerebras",
+    endpoint: "https://api.cerebras.ai/v1/chat/completions",
+    healthUrl: "https://api.cerebras.ai/v1/models",
+  }),
+  openrouter: openAiCompatibleAdapter({
+    providerKey: "openrouter",
+    label: "OpenRouter",
+    endpoint: "https://openrouter.ai/api/v1/chat/completions",
+    healthUrl: "https://openrouter.ai/api/v1/models",
+  }),
   "github-copilot": browserTokenAdapter("github-copilot", PROVIDER_AUTH_TYPE.OAUTH_PKCE),
   "google-antigravity": browserTokenAdapter("google-antigravity", PROVIDER_AUTH_TYPE.OAUTH_PKCE),
   "gpt-account": browserTokenAdapter("gpt-account", PROVIDER_AUTH_TYPE.ACCOUNT_SUBSCRIPTION),
+  "claude-pro": browserTokenAdapter("claude-pro", PROVIDER_AUTH_TYPE.OAUTH_PKCE),
   "azure-openai": {
     providerKey: "azure-openai",
     authType: PROVIDER_AUTH_TYPE.CLOUD,
