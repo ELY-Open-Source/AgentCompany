@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Avatar } from "../../shared/ui";
 import type { AgentRecord, EmployeeRecord } from "../../../../shared/domain";
 
@@ -7,6 +7,9 @@ const NODE_H = 64;
 const H_GAP = 24;
 const V_GAP = 44;
 const LEVEL_H = NODE_H + V_GAP;
+const ZOOM_MIN = 0.4;
+const ZOOM_MAX = 1.6;
+const ZOOM_STEP = 0.15;
 
 interface LayoutNode {
   id: string;
@@ -44,12 +47,53 @@ export function OrgChartTree({
 }) {
   const layout = useMemo(() => buildLayout(boardChair, agents), [boardChair, agents]);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const scaleRef = useRef(1);
+  const pendingCenter = useRef<{ cx: number; cy: number } | null>(null);
+  const [scale, setScale] = useState(1);
   const rootX = layout?.root.x ?? 0;
+
+  // Zoom while keeping the current viewport center fixed.
+  const zoomTo = useCallback((next: number) => {
+    const clamped = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.round(next * 100) / 100));
+    const el = scrollRef.current;
+    if (el) {
+      pendingCenter.current = {
+        cx: (el.scrollLeft + el.clientWidth / 2) / scaleRef.current,
+        cy: (el.scrollTop + el.clientHeight / 2) / scaleRef.current,
+      };
+    }
+    scaleRef.current = clamped;
+    setScale(clamped);
+  }, []);
+
+  // Ctrl/Cmd + wheel zooms (non-passive so we can prevent the browser zoom).
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const onWheel = (event: WheelEvent) => {
+      if (!(event.ctrlKey || event.metaKey)) return;
+      event.preventDefault();
+      zoomTo(scaleRef.current - Math.sign(event.deltaY) * ZOOM_STEP);
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, [zoomTo]);
+
+  // After a zoom re-render, restore the captured center point.
+  useEffect(() => {
+    const el = scrollRef.current;
+    const center = pendingCenter.current;
+    if (el && center) {
+      el.scrollLeft = center.cx * scale - el.clientWidth / 2;
+      el.scrollTop = center.cy * scale - el.clientHeight / 2;
+      pendingCenter.current = null;
+    }
+  }, [scale]);
 
   // Open the chart looking at the top of the company, not a wall of whitespace.
   useEffect(() => {
     const el = scrollRef.current;
-    if (el) el.scrollLeft = Math.max(0, rootX - el.clientWidth / 2);
+    if (el) el.scrollLeft = Math.max(0, rootX * scaleRef.current - el.clientWidth / 2);
   }, [rootX]);
 
   if (!layout) return null;
@@ -58,29 +102,38 @@ export function OrgChartTree({
   const edges = collectEdges(root);
 
   return (
-    <div ref={scrollRef} className="org-scroll">
-      <div className="org-canvas" style={{ position: "relative", width, height, margin: "20px auto 4px" }}>
-        <svg width={width} height={height} style={{ position: "absolute", inset: 0, pointerEvents: "none" }} aria-hidden="true">
-          {edges.map((edge, index) => (
-            <path key={index} d={elbow(edge)} stroke="var(--border-strong)" fill="none" strokeWidth={1} />
-          ))}
-        </svg>
-        {nodes.map((node) => (
-          <button
-            key={node.id}
-            type="button"
-            className={`org-node-card ${node.human ? "human" : ""}`.trim()}
-            style={{ left: node.x - NODE_W / 2, top: node.y, width: NODE_W, height: NODE_H }}
-            onClick={() => { if (node.agentId) onSelectAgent(node.agentId); }}
-            disabled={!node.agentId}
-          >
-            <Avatar name={node.name} bot={!node.human} size="sm" />
-            <span className="org-node-text">
-              <span className="org-node-name">{node.name}</span>
-              <span className="org-node-role">{node.role}</span>
-            </span>
-          </button>
-        ))}
+    <div className="org-chart">
+      <div className="org-zoom">
+        <button type="button" className="org-zoom-btn" aria-label="Zoom out" disabled={scale <= ZOOM_MIN} onClick={() => zoomTo(scale - ZOOM_STEP)}>−</button>
+        <button type="button" className="org-zoom-label" aria-label="Reset zoom" onClick={() => zoomTo(1)}>{Math.round(scale * 100)}%</button>
+        <button type="button" className="org-zoom-btn" aria-label="Zoom in" disabled={scale >= ZOOM_MAX} onClick={() => zoomTo(scale + ZOOM_STEP)}>+</button>
+      </div>
+      <div className="org-scroll" ref={scrollRef}>
+        <div className="org-sizer" style={{ width: width * scale, height: height * scale }}>
+          <div className="org-canvas" style={{ width, height, transform: `scale(${scale})`, transformOrigin: "0 0" }}>
+            <svg width={width} height={height} style={{ position: "absolute", inset: 0, pointerEvents: "none" }} aria-hidden="true">
+              {edges.map((edge, index) => (
+                <path key={index} d={elbow(edge)} stroke="var(--border-strong)" fill="none" strokeWidth={1} />
+              ))}
+            </svg>
+            {nodes.map((node) => (
+              <button
+                key={node.id}
+                type="button"
+                className={`org-node-card ${node.human ? "human" : ""}`.trim()}
+                style={{ left: node.x - NODE_W / 2, top: node.y, width: NODE_W, height: NODE_H }}
+                onClick={() => { if (node.agentId) onSelectAgent(node.agentId); }}
+                disabled={!node.agentId}
+              >
+                <Avatar name={node.name} bot={!node.human} size="sm" />
+                <span className="org-node-text">
+                  <span className="org-node-name">{node.name}</span>
+                  <span className="org-node-role">{node.role}</span>
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   );
