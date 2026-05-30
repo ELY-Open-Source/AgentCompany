@@ -2,6 +2,7 @@ import type { DatabaseSync } from "node:sqlite";
 import { RISK_LEVEL, TASK_PRIORITY, TASK_STATUS, type RiskLevel } from "../../shared/domain";
 import type { OrganizationService } from "./organization-service";
 import { writeDeliverable } from "./deliverable-writer";
+import { recordWorkspaceFile } from "./files/file-object-store";
 import type { JsonRecord } from "./provider-http";
 import type { ToolCall, ToolDefinition } from "./provider-tool-turn";
 
@@ -93,7 +94,7 @@ export function dispatchAgentTool(deps: AgentToolDeps, ctx: AgentToolContext, ca
       case "update_task_status":
         return updateTaskStatus(deps, ctx, call.arguments);
       case "write_deliverable":
-        return writeDeliverableTool(ctx, call.arguments);
+        return writeDeliverableTool(deps, ctx, call.arguments);
       default:
         return `ERROR: unknown tool "${call.name}".`;
     }
@@ -154,11 +155,18 @@ function updateTaskStatus(deps: AgentToolDeps, ctx: AgentToolContext, args: Json
   return `Task ${taskId} moved to ${status}.`;
 }
 
-function writeDeliverableTool(ctx: AgentToolContext, args: JsonRecord): string {
+function writeDeliverableTool(deps: AgentToolDeps, ctx: AgentToolContext, args: JsonRecord): string {
   if (!ctx.workspace) throw new Error("No workspace is bound to this task; cannot write deliverables.");
   const path = requireString(args.path, "path");
   const content = typeof args.content === "string" ? args.content : "";
   const written = writeDeliverable({ workspaceRoot: ctx.workspace.localPath, relativePath: path, content });
+  recordWorkspaceFile(deps.db, {
+    orgId: ctx.orgId,
+    ownerType: "agent",
+    ownerId: ctx.agent.id,
+    workspaceRoot: ctx.workspace.localPath,
+    relativePath: written,
+  });
   return `Wrote deliverable ${written} (${content.length} chars).`;
 }
 

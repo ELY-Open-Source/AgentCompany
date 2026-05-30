@@ -94,6 +94,13 @@ describe("autonomous bootstrap run", () => {
     expect(existsSync(deliverable)).toBe(true);
     expect(readFileSync(deliverable, "utf8")).toContain("OrbitOps Operating Plan");
 
+    // The deliverable is registered as a file object owned by the writing agent,
+    // so it appears on the Files page (previously it only existed on disk).
+    const ceo = state.agents.find((a) => a.orgId === orgId && a.name === "CEO");
+    const planFile = state.files.find((f) => f.orgId === orgId && f.name === "operating-plan.md");
+    expect(planFile).toBeTruthy();
+    expect(planFile).toMatchObject({ ownerType: "agent", ownerId: ceo?.id, kind: "md", scanState: "approved" });
+
     const run = state.taskRuns.find((r) => r.id === claimed!.id);
     expect(run?.state).toBe("completed");
 
