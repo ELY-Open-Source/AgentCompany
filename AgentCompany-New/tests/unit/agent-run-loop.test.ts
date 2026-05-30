@@ -1,0 +1,135 @@
+import { existsSync, mkdirSync, readFileSync } from "node:fs";
+import { randomUUID } from "node:crypto";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { describe, expect, test } from "vitest";
+import { DatabaseConnection } from "../../src/main/database/connection";
+import { OrganizationService } from "../../src/main/services/organization-service";
+import { runAgentLoop } from "../../src/main/services/agent-run-loop";
+import type { AgentToolContext } from "../../src/main/services/agent-tools";
+import type { AgentTurnResult, ToolCall } from "../../src/main/services/provider-tool-turn";
+
+interface ScriptedTurn {
+  text: string;
+  toolCalls: ToolCall[];
+}
+
+function fakeProvider(script: ScriptedTurn[]) {
+  let index = 0;
+  return {
+    runToolTurn: async (): Promise<AgentTurnResult & { requestId: string }> => {
+      const turn = script[index] ?? { text: "done", toolCalls: [] };
+      index += 1;
+      return { text: turn.text, toolCalls: turn.toolCalls, rawResponseJson: "{}", requestId: `req_${index}` };
+    },
+  };
+}
+
+function call(name: string, args: Record<string, unknown>): ToolCall {
+  return { id: `call_${randomUUID()}`, name, arguments: args };
+}
+
+describe("agent run loop (real tool dispatch)", () => {
+  test("the CEO hires, creates a task, writes a deliverable, then converges", async () => {
+    const connection = new DatabaseConnection(join(tmpdir(), `ac-loop-${randomUUID()}.db`));
+    const organization = new OrganizationService(connection.db);
+    const workspaceRoot = join(tmpdir(), `ac-ws-${randomUUID()}`);
+    mkdirSync(workspaceRoot, { recursive: true });
+
+    let orgId = "";
+    let ceoId = "";
+    let providerId = "";
+    const workspaceId = "wsp_test";
+    connection.transaction(() => {
+      orgId = organization.createOrganization({
+        organizationName: "OrbitOps", employeeName: "Yang", mission: "Run an AI company.", goal: "Win customers.",
+      });
+      providerId = (connection.db.prepare("select id from providers where org_id = ? and provider_key = 'openai'").get(orgId) as { id: string }).id;
+      connection.db.prepare(`
+        insert into workspaces(id, org_id, name, local_path, repo_url, repo_ref, project_id, is_primary, created_at, updated_at)
+        values (?, ?, 'Default Workspace', ?, '', '', null, 1, datetime('now'), datetime('now'))
+      `).run(workspaceId, orgId, workspaceRoot);
+      ceoId = organization.createAgent({
+        orgId, name: "CEO", role: "CEO", title: "Chief Executive Officer", department: "Executive",
+        modelProviderId: providerId, modelId: "gpt-5.4", budgetCents: 25000, managerAgentId: null,
+        roleLevel: "c_suite", workspaceId,
+      });
+    });
+
+    const toolContext: AgentToolContext = {
+      orgId,
+      agent: { id: ceoId, modelProviderId: providerId, modelId: "gpt-5.4" },
+      taskProjectId: null,
+      taskGoalId: null,
+      workspace: { id: workspaceId, localPath: workspaceRoot },
+    };
+
+    const script: ScriptedTurn[] = [
+      { text: "Staffing the team.", toolCalls: [
+        call("hire_agent", { name: "Alex Rivera", role: "Growth Marketer", department: "Marketing" }),
+        call("hire_agent", { name: "Sam Lee", role: "Operations Lead", department: "Operations" }),
+      ] },
+      { text: "Delegating.", toolCalls: [
+        call("create_task", { title: "Build the booking site", description: "Ship a landing + booking flow.", assignee_agent_name: "Alex Rivera" }),
+      ] },
+      { text: "Writing the plan.", toolCalls: [
+        call("write_deliverable", { path: "plan/operating-plan.md", content: "# Operating Plan\n\n1. Validate demand.\n2. Launch booking site.\n" }),
+      ] },
+      { text: "Team staffed, work delegated, plan written.", toolCalls: [] },
+    ];
+
+    const result = await runAgentLoop(
+      { providers: fakeProvider(script), tools: { db: connection.db, organization } },
+      { orgId, providerId, workspaceId, instructions: "You are the CEO.", initialUserTurn: "Start the company.", toolContext },
+    );
+
+    expect(result.iterations).toBe(4);
+    expect(result.toolCallCount).toBe(4);
+    expect(result.finalText).toContain("Team staffed");
+
+    const agentNames = (connection.db.prepare("select name from agents where org_id = ? order by name").all(orgId) as Array<{ name: string }>).map((r) => r.name);
+    expect(agentNames).toEqual(["Alex Rivera", "CEO", "Sam Lee"]);
+
+    const task = connection.db.prepare("select title, assignee_agent_id from tasks where org_id = ?").get(orgId) as { title: string; assignee_agent_id: string } | undefined;
+    expect(task?.title).toBe("Build the booking site");
+    const alexId = (connection.db.prepare("select id from agents where org_id = ? and name = 'Alex Rivera'").get(orgId) as { id: string }).id;
+    expect(task?.assignee_agent_id).toBe(alexId);
+
+    const deliverablePath = join(workspaceRoot, "plan", "operating-plan.md");
+    expect(existsSync(deliverablePath)).toBe(true);
+    expect(readFileSync(deliverablePath, "utf8")).toContain("Operating Plan");
+
+    connection.close();
+  });
+
+  test("rejects deliverable paths that escape the workspace", async () => {
+    const connection = new DatabaseConnection(join(tmpdir(), `ac-loop2-${randomUUID()}.db`));
+    const organization = new OrganizationService(connection.db);
+    const workspaceRoot = join(tmpdir(), `ac-ws2-${randomUUID()}`);
+    mkdirSync(workspaceRoot, { recursive: true });
+    let orgId = "";
+    let ceoId = "";
+    let providerId = "";
+    connection.transaction(() => {
+      orgId = organization.createOrganization({ organizationName: "OrbitOps", employeeName: "Yang", mission: "m", goal: "g" });
+      providerId = (connection.db.prepare("select id from providers where org_id = ? and provider_key = 'openai'").get(orgId) as { id: string }).id;
+      ceoId = organization.createAgent({ orgId, name: "CEO", role: "CEO", department: "Executive", modelProviderId: providerId, modelId: "gpt-5.4", budgetCents: 25000, managerAgentId: null });
+    });
+    const ctx: AgentToolContext = {
+      orgId, agent: { id: ceoId, modelProviderId: providerId, modelId: "gpt-5.4" },
+      taskProjectId: null, taskGoalId: null, workspace: { id: "wsp", localPath: workspaceRoot },
+    };
+    const script: ScriptedTurn[] = [
+      { text: "escape", toolCalls: [call("write_deliverable", { path: "../escape.txt", content: "x" })] },
+      { text: "done", toolCalls: [] },
+    ];
+    const result = await runAgentLoop(
+      { providers: fakeProvider(script), tools: { db: connection.db, organization } },
+      { orgId, providerId, workspaceId: null, instructions: "i", initialUserTurn: "u", toolContext: ctx },
+    );
+    // The tool returns an error string to the model; nothing is written outside the root.
+    expect(existsSync(join(workspaceRoot, "..", "escape.txt"))).toBe(false);
+    expect(result.toolCallCount).toBe(1);
+    connection.close();
+  });
+});

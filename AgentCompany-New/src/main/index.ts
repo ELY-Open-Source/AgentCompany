@@ -5,6 +5,7 @@ import { DatabaseConnection } from "./database/connection";
 import { createMainWindow } from "./app/create-window";
 import { registerIpcHandlers } from "./app/ipc-handlers";
 import { startProviderBackgroundWorker } from "./app/provider-background-worker";
+import { startTaskQueueWorker } from "./app/task-queue-worker";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const hasSingleInstanceLock = app.requestSingleInstanceLock();
@@ -31,6 +32,10 @@ app.whenReady().then(() => {
     db: connection.db,
     mainWindow: win,
   });
+  const autonomousExecution = process.env.AGENTCOMPANY_NEW_AUTORUN !== "0";
+  const stopTaskQueueWorker = autonomousExecution
+    ? startTaskQueueWorker({ connection, mainWindow: win })
+    : () => {};
 
   app.on("second-instance", () => {
     if (win.isMinimized()) win.restore();
@@ -39,6 +44,7 @@ app.whenReady().then(() => {
 
   app.on("before-quit", () => {
     stopProviderBackgroundWorker();
+    stopTaskQueueWorker();
     connection.close();
   });
 });

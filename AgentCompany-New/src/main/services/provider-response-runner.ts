@@ -12,6 +12,8 @@ import type { ProviderRateLimitRegistry } from "./provider-rate-limit-registry";
 import type { ProviderRequestStore } from "./provider-request-store";
 import type { ProviderResponseObserver } from "./provider-response-observer";
 import { hashPrompt, readProviderResponseId, requireStreamText } from "./provider-response-utils";
+import { requireApiKeyProfile } from "./provider-auth-profiles";
+import { selectToolTurn, type AgentTurnMessage, type AgentTurnResult, type ToolDefinition, type ToolTurnFn } from "./provider-tool-turn";
 import {
   HEALTH_STATE_HEALTHY,
   WORKSPACE_SCOPES,
@@ -37,6 +39,8 @@ export interface ProviderResponseRunnerDeps {
   responseObserver: ProviderResponseObserver;
   requestStore: ProviderRequestStore;
   background: ProviderBackgroundService;
+  /** Test-injectable override for the provider's tool-use HTTP turn. */
+  toolTurn?: ToolTurnFn;
 }
 
 export class ProviderResponseRunner {
@@ -85,6 +89,72 @@ export class ProviderResponseRunner {
         executionMode: execution.executionMode,
         startedAt,
         inputCharCount: execution.prompt.length,
+        error,
+      });
+      throw error;
+    }
+  }
+
+  async runToolTurn(input: {
+    orgId: string;
+    providerId: string;
+    workspaceId: string | null;
+    instructions: string | null;
+    messages: AgentTurnMessage[];
+    tools: ToolDefinition[];
+  }): Promise<AgentTurnResult & { requestId: string }> {
+    const provider = loadConfiguredProvider(this.deps.db, input.orgId, input.providerId);
+    const workspaceId = this.normalizeWorkspaceId(input.orgId, input.workspaceId ?? null);
+    this.enforcePolicy(input.orgId, provider, PROVIDER_EXECUTION_MODE.FOREGROUND, workspaceId);
+    if (provider.auth_type !== PROVIDER_AUTH_TYPE.API_KEY) throw new Error("Agent tool execution requires an API-key provider.");
+    const model = provider.model;
+    if (!model) throw new Error("Provider model is required.");
+    const owner: ProviderRow & { model: string } = { ...provider, model };
+    const adapter = requireAdapter(this.deps.adapters, provider.provider_key, provider.auth_type);
+    const turn = this.deps.toolTurn ?? selectToolTurn(provider.provider_key);
+    const credential = loadCredential(this.deps.authBroker, input.orgId, provider);
+    const apiKey = requireApiKeyProfile(adapter.parseAuthProfile(credential.secret), provider.provider_key).apiKey;
+    const promptChars = JSON.stringify(input.messages).length;
+    const requestId = this.deps.requestStore.create({
+      orgId: input.orgId,
+      provider: owner,
+      model,
+      workspaceId,
+      promptSha256: hashPrompt(JSON.stringify(input.messages)),
+      inputCharCount: promptChars,
+      executionMode: PROVIDER_EXECUTION_MODE.FOREGROUND,
+      createdAt: new Date().toISOString(),
+    });
+    const startedAt = Date.now();
+    try {
+      const result = await turn({ apiKey, model, instructions: input.instructions, messages: input.messages, tools: input.tools });
+      this.deps.requestStore.markSucceeded({
+        orgId: input.orgId,
+        requestId,
+        responseText: result.text,
+        rawResponseJson: result.rawResponseJson,
+        outputCharCount: result.text.length,
+        externalResponseId: readProviderResponseId(result.rawResponseJson),
+        completedAt: new Date().toISOString(),
+      });
+      this.deps.responseObserver.recordSuccess({
+        orgId: input.orgId,
+        provider: owner,
+        requestId,
+        executionMode: PROVIDER_EXECUTION_MODE.FOREGROUND,
+        startedAt,
+        action: "response_created",
+      });
+      this.deps.requestStore.recordUsage(input.orgId, provider.id, promptChars, result.text.length);
+      return { ...result, requestId };
+    } catch (error) {
+      this.deps.responseObserver.recordFailure({
+        orgId: input.orgId,
+        provider: owner,
+        requestId,
+        executionMode: PROVIDER_EXECUTION_MODE.FOREGROUND,
+        startedAt,
+        inputCharCount: promptChars,
         error,
       });
       throw error;

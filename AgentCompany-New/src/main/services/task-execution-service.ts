@@ -1,10 +1,13 @@
 import type { DatabaseSync } from "node:sqlite";
 import type { RunTaskInput } from "../../shared/commands";
-import { APPROVAL_STATE, PROVIDER_EXECUTION_MODE, RISK_LEVEL } from "../../shared/domain";
+import { APPROVAL_STATE, RISK_LEVEL } from "../../shared/domain";
 import { createId } from "../../shared/ids";
 import { AuditService } from "./audit-service";
 import { ProviderService } from "./provider-service";
+import { OrganizationService } from "./organization-service";
 import { SkillService } from "./skill-service";
+import { runAgentLoop } from "./agent-run-loop";
+import type { AgentToolContext } from "./agent-tools";
 
 const TASK_RUN_STATE = {
   RUNNING: "running",
@@ -82,8 +85,19 @@ interface TaskRunIsolation {
   secretScopeJson: string;
 }
 
+interface RunRow {
+  task_id: string;
+  agent_id: string;
+  provider_id: string;
+  execution_context_id: string;
+  service_identity_id: string;
+  workspace_mount_json: string;
+  secret_scope_json: string;
+}
+
 export class TaskExecutionService {
   private readonly audit: AuditService;
+  private readonly organization: OrganizationService;
 
   constructor(
     private readonly db: DatabaseSync,
@@ -91,6 +105,7 @@ export class TaskExecutionService {
     private readonly skills: SkillService = new SkillService(db, ""),
   ) {
     this.audit = new AuditService(db);
+    this.organization = new OrganizationService(db);
   }
 
   async runTask(input: RunTaskInput): Promise<string> {
@@ -101,35 +116,79 @@ export class TaskExecutionService {
     const workspace = this.workspace(task.workspace_id);
     const isolation = this.createIsolationContext(input.orgId, task, agent, provider, workspace);
     const runId = this.createRun(input.orgId, task.id, agent.id, provider.id, isolation);
+    return this.executeAgentRun({ orgId: input.orgId, runId, task, agent, provider, workspace, isolation });
+  }
+
+  /**
+   * Executes an existing `running` task_run (claimed by the autonomous queue
+   * worker). System-initiated, so it does not re-gate on the manual execution
+   * approval — the operator configured the company to run autonomously.
+   */
+  async executeRun(orgId: string, runId: string): Promise<string> {
+    const run = this.db.prepare(`
+      select task_id, agent_id, provider_id, execution_context_id, service_identity_id, workspace_mount_json, secret_scope_json
+      from task_runs where id = ? and org_id = ?
+    `).get(runId, orgId) as RunRow | undefined;
+    if (!run) throw new Error("Task run was not found.");
+    const task = this.requireTask(orgId, run.task_id);
+    const agent = this.requireAssignedAgent(orgId, task);
+    const provider = this.requireAgentProvider(orgId, agent);
+    const workspace = this.workspace(task.workspace_id);
+    const isolation: TaskRunIsolation = {
+      executionContextId: run.execution_context_id,
+      serviceIdentityId: run.service_identity_id,
+      workspaceMountJson: run.workspace_mount_json,
+      secretScopeJson: run.secret_scope_json,
+    };
+    return this.executeAgentRun({ orgId, runId, task, agent, provider, workspace, isolation });
+  }
+
+  private async executeAgentRun(args: {
+    orgId: string;
+    runId: string;
+    task: TaskExecutionTaskRow;
+    agent: TaskExecutionAgentRow;
+    provider: TaskExecutionProviderRow;
+    workspace: WorkspaceRow | null;
+    isolation: TaskRunIsolation;
+  }): Promise<string> {
+    const { orgId, runId, task, agent, provider, workspace, isolation } = args;
     let providerRequestId: string | null = null;
     let skillRuntimeSnapshot: SkillRuntimeSnapshotRow | null = null;
-
     try {
-      skillRuntimeSnapshot = this.resolveSkillRuntimeSnapshot(input.orgId, agent.id, runId);
-      const requestId = await this.providers.createResponse({
-        orgId: input.orgId,
-        providerId: provider.id,
-        workspaceId: task.workspace_id,
-        prompt: buildTaskPrompt({
-          task,
-          agent,
-          provider,
-          project: this.project(task.project_id),
-          goal: this.goal(task.goal_id),
-          workspace,
-          isolation,
-          skillRuntimeSnapshot,
-        }),
-        instructions: buildAgentInstructions(agent),
-        executionMode: PROVIDER_EXECUTION_MODE.FOREGROUND,
-        onRequestCreated: (requestId) => {
-          providerRequestId = requestId;
-          this.linkProviderRequest(input.orgId, runId, requestId);
+      skillRuntimeSnapshot = this.resolveSkillRuntimeSnapshot(orgId, agent.id, runId);
+      const toolContext: AgentToolContext = {
+        orgId,
+        agent: { id: agent.id, modelProviderId: agent.model_provider_id, modelId: agent.model_id },
+        taskProjectId: task.project_id,
+        taskGoalId: task.goal_id,
+        workspace: workspace ? { id: workspace.id, localPath: workspace.local_path } : null,
+      };
+      const result = await runAgentLoop(
+        { providers: this.providers, tools: { db: this.db, organization: this.organization } },
+        {
+          orgId,
+          providerId: provider.id,
+          workspaceId: task.workspace_id,
+          instructions: buildAgentInstructions(agent),
+          initialUserTurn: buildTaskPrompt({
+            task,
+            agent,
+            provider,
+            project: this.project(task.project_id),
+            goal: this.goal(task.goal_id),
+            workspace,
+            isolation,
+            skillRuntimeSnapshot,
+            hasReports: this.agentHasReports(orgId, agent.id),
+          }),
+          toolContext,
         },
-      });
-      this.completeRun(input.orgId, runId, requestId);
+      );
+      providerRequestId = result.lastRequestId;
+      this.completeRun(orgId, runId, result.lastRequestId);
       this.audit.record({
-        orgId: input.orgId,
+        orgId,
         entityType: "task_run",
         entityId: runId,
         actorType: "system",
@@ -139,7 +198,9 @@ export class TaskExecutionService {
           taskId: task.id,
           agentId: agent.id,
           providerId: provider.id,
-          providerRequestId: requestId,
+          providerRequestId: result.lastRequestId,
+          iterations: result.iterations,
+          toolCalls: result.toolCallCount,
           executionContextId: isolation.executionContextId,
           serviceIdentityId: isolation.serviceIdentityId,
           skillRuntimeSnapshotId: skillRuntimeSnapshot?.id ?? null,
@@ -148,9 +209,9 @@ export class TaskExecutionService {
       return runId;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      this.failRun(input.orgId, runId, providerRequestId, message);
+      this.failRun(orgId, runId, providerRequestId, message);
       this.audit.record({
-        orgId: input.orgId,
+        orgId,
         entityType: "task_run",
         entityId: runId,
         actorType: "system",
@@ -252,9 +313,10 @@ export class TaskExecutionService {
     return runId;
   }
 
-  private linkProviderRequest(orgId: string, runId: string, providerRequestId: string): void {
-    this.db.prepare("update task_runs set provider_request_id = ? where id = ? and org_id = ?")
-      .run(providerRequestId, runId, orgId);
+  private agentHasReports(orgId: string, agentId: string): boolean {
+    const row = this.db.prepare("select 1 from agents where org_id = ? and manager_agent_id = ? and lifecycle = 'active' limit 1")
+      .get(orgId, agentId);
+    return Boolean(row);
   }
 
   private completeRun(orgId: string, runId: string, providerRequestId: string): void {
@@ -345,10 +407,9 @@ export class TaskExecutionService {
 
 function buildAgentInstructions(agent: TaskExecutionAgentRow): string {
   return [
-    `You are ${agent.name}, ${agent.title || agent.role}.`,
-    `Department: ${agent.department}.`,
-    `Role level: ${agent.role_level}.`,
-    "Return an auditable execution result with concrete output and next action.",
+    `You are ${agent.name}, ${agent.title || agent.role} (${agent.department}, ${agent.role_level}) operating an autonomous AI company.`,
+    "You act by calling tools: hire_agent staffs your team, create_task delegates work and assigns it by agent name, update_task_status tracks progress, and write_deliverable produces real files in the company workspace.",
+    "Take concrete action with the tools instead of only describing a plan. When your team is staffed, the work is delegated, and the first operating deliverable is written, give a brief closing summary with no further tool calls.",
   ].join("\n");
 }
 
@@ -361,6 +422,7 @@ function buildTaskPrompt(input: {
   workspace: WorkspaceRow | null;
   isolation: TaskRunIsolation;
   skillRuntimeSnapshot: SkillRuntimeSnapshotRow | null;
+  hasReports: boolean;
 }): string {
   const lines = [
     "Execute this AgentCompany task.",
@@ -399,6 +461,13 @@ function buildTaskPrompt(input: {
       `Skill revisions: ${input.skillRuntimeSnapshot.source_revision_ids}`,
     );
   }
-  lines.push("", "Deliverable: completed work, decisions made, evidence needed, and next action.");
+  if (!input.hasReports) {
+    lines.push(
+      "",
+      "Your team is currently empty. Hire 3-5 direct reports for the roles this goal needs (hire_agent), create and assign their first tasks (create_task), and write the initial operating plan into the workspace (write_deliverable). Then summarize.",
+    );
+  } else {
+    lines.push("", "Deliver completed work: make decisions, delegate or update tasks, and write real files with write_deliverable where appropriate.");
+  }
   return lines.join("\n");
 }

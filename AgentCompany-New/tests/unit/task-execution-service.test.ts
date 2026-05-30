@@ -7,7 +7,8 @@ import { DatabaseConnection } from "../../src/main/database/connection";
 import { ApprovalService } from "../../src/main/services/approval-service";
 import { OrganizationService } from "../../src/main/services/organization-service";
 import { ProviderService } from "../../src/main/services/provider-service";
-import { providerAdapters, type ProviderAdapterRegistry } from "../../src/main/services/provider-adapters";
+import { providerAdapters } from "../../src/main/services/provider-adapters";
+import type { AgentTurnResult, ProviderToolTurnInput } from "../../src/main/services/provider-tool-turn";
 import { SkillService } from "../../src/main/services/skill-service";
 import { SnapshotService } from "../../src/main/services/snapshot-service";
 import { TaskExecutionService } from "../../src/main/services/task-execution-service";
@@ -33,21 +34,12 @@ describe("task execution service", () => {
     const organization = new OrganizationService(connection.db);
     const snapshot = new SnapshotService(connection.db);
     let capturedPrompt = "";
-    const adapters: ProviderAdapterRegistry = {
-      ...providerAdapters,
-      openai: {
-        ...providerAdapters.openai,
-        createResponse: async ({ prompt, model }) => {
-          capturedPrompt = prompt;
-          return {
-            text: `executed:${model}`,
-            rawResponseJson: JSON.stringify({ id: "resp-task-1" }),
-            rateLimitState: null,
-          };
-        },
-      },
+    const fakeToolTurn = async (input: ProviderToolTurnInput): Promise<AgentTurnResult> => {
+      const first = input.messages[0];
+      if (first?.role === "user") capturedPrompt = first.text;
+      return { text: "executed:gpt-5.4", toolCalls: [], rawResponseJson: JSON.stringify({ id: "resp-task-1" }) };
     };
-    const providers = new ProviderService(connection.db, adapters, testVault);
+    const providers = new ProviderService(connection.db, providerAdapters, testVault, undefined, fakeToolTurn);
     const skills = new SkillService(connection.db, join(tmpdir(), `agentcompany-task-skills-${randomUUID()}`));
     const execution = new TaskExecutionService(connection.db, providers);
     const skillDir = join(tmpdir(), `agentcompany-task-skill-${randomUUID()}`);
@@ -149,18 +141,12 @@ describe("task execution service", () => {
     const organization = new OrganizationService(connection.db);
     const approvals = new ApprovalService(connection.db);
     const snapshot = new SnapshotService(connection.db);
-    const adapters: ProviderAdapterRegistry = {
-      ...providerAdapters,
-      openai: {
-        ...providerAdapters.openai,
-        createResponse: async ({ model }) => ({
-          text: `executed:${model}`,
-          rawResponseJson: JSON.stringify({ id: "resp-task-approved" }),
-          rateLimitState: null,
-        }),
-      },
-    };
-    const providers = new ProviderService(connection.db, adapters, testVault);
+    const fakeToolTurn = async (): Promise<AgentTurnResult> => ({
+      text: "executed:gpt-5.4",
+      toolCalls: [],
+      rawResponseJson: JSON.stringify({ id: "resp-task-approved" }),
+    });
+    const providers = new ProviderService(connection.db, providerAdapters, testVault, undefined, fakeToolTurn);
     const execution = new TaskExecutionService(connection.db, providers);
     let orgId = "";
     let employeeId = "";
@@ -231,16 +217,10 @@ describe("task execution service", () => {
     const connection = createConnection();
     const organization = new OrganizationService(connection.db);
     const snapshot = new SnapshotService(connection.db);
-    const adapters: ProviderAdapterRegistry = {
-      ...providerAdapters,
-      openai: {
-        ...providerAdapters.openai,
-        createResponse: async () => {
-          throw new Error("provider rejected task");
-        },
-      },
+    const fakeToolTurn = async (): Promise<AgentTurnResult> => {
+      throw new Error("provider rejected task");
     };
-    const providers = new ProviderService(connection.db, adapters, testVault);
+    const providers = new ProviderService(connection.db, providerAdapters, testVault, undefined, fakeToolTurn);
     const execution = new TaskExecutionService(connection.db, providers);
     let orgId = "";
     let taskId = "";
@@ -282,7 +262,7 @@ describe("task execution service", () => {
     await expect(execution.runTask({ orgId, taskId })).rejects.toThrow("provider rejected task");
     const state = snapshot.load();
     const run = state.taskRuns[0];
-    const request = state.providerRequests.find((item) => item.id === run?.providerRequestId);
+    const request = state.providerRequests.find((item) => item.state === "failed");
 
     expect(run).toMatchObject({ taskId, state: "failed", errorMessage: "provider rejected task" });
     expect(request).toMatchObject({ state: "failed", errorMessage: "provider rejected task" });

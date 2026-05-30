@@ -14,6 +14,7 @@ import { ProviderResponseObserver } from "./provider-response-observer";
 import { ProviderRequestStore } from "./provider-request-store";
 import { ProviderResponseRunner, type ProviderResponseCreateInput } from "./provider-response-runner";
 import { launchProviderSignInWindow, type LaunchProviderSignInWindowInput } from "./provider-sign-in-window";
+import type { ToolTurnFn } from "./provider-tool-turn";
 import {
   AUTH_STATE_CONFIGURED,
   AUTH_STATE_REVOKED,
@@ -48,6 +49,7 @@ export class ProviderService {
     private readonly adapters: ProviderAdapterRegistry = providerAdapters,
     vault: ProviderSecretVault = new SecretVault(),
     private readonly launchSignIn: (input: LaunchProviderSignInWindowInput) => void = launchProviderSignInWindow,
+    toolTurn?: ToolTurnFn,
   ) {
     this.audit = new AuditService(db);
     this.authBroker = new AuthBrokerService(db, vault);
@@ -66,6 +68,7 @@ export class ProviderService {
       responseObserver: this.responseObserver,
       requestStore: this.requestStore,
       background: this.background,
+      toolTurn,
     });
   }
 
@@ -79,6 +82,10 @@ export class ProviderService {
 
   cancelResponse(input: CancelProviderResponseInput): Promise<void> {
     return this.runner.cancelResponse(input);
+  }
+
+  runToolTurn(input: Parameters<ProviderResponseRunner["runToolTurn"]>[0]): ReturnType<ProviderResponseRunner["runToolTurn"]> {
+    return this.runner.runToolTurn(input);
   }
 
   saveCredential(input: SaveProviderCredentialInput): void {

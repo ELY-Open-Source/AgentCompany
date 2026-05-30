@@ -13,6 +13,7 @@ test("onboards, hires, and creates work in the Electron shell", async () => {
     env: {
       ...process.env,
       AGENTCOMPANY_NEW_PROFILE_DIR: profileDir,
+      AGENTCOMPANY_NEW_AUTORUN: "0",
     },
   });
 
