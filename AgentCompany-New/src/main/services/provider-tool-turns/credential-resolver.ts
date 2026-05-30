@@ -8,7 +8,20 @@
 import { PROVIDER_AUTH_TYPE } from "../../../shared/domain";
 import type { AuthBrokerService } from "../auth-broker-service";
 import { loadCredential, type ProviderRow } from "../provider-internal";
-import { parseAnthropicCompatProfile, parseApiKey, parseOpenAiCompatProfile, requireAnthropicCompatProfile, requireApiKeyProfile, requireOpenAiCompatProfile } from "../provider-auth-profiles";
+import {
+  parseAnthropicCompatProfile,
+  parseApiKey,
+  parseAzureProfile,
+  parseBedrockProfile,
+  parseOpenAiCompatProfile,
+  parseVertexProfile,
+  requireAnthropicCompatProfile,
+  requireApiKeyProfile,
+  requireAzureProfile,
+  requireBedrockProfile,
+  requireOpenAiCompatProfile,
+  requireVertexProfile,
+} from "../provider-auth-profiles";
 import type { TurnCredential } from "../provider-tool-turn";
 import type { OAuthCredentials } from "../oauth/oauth-types";
 import { refreshCodex } from "../oauth/openai-codex-flow";
@@ -64,6 +77,18 @@ function resolveCloudCredential(providerKey: string, secret: string): TurnCreden
     case "custom-anthropic": {
       const profile = requireAnthropicCompatProfile(parseAnthropicCompatProfile(secret));
       return { apiKey: profile.apiKey, baseUrl: profile.baseUrl };
+    }
+    case "azure-openai": {
+      const profile = requireAzureProfile(parseAzureProfile(secret));
+      return { apiKey: profile.apiKey, baseUrl: profile.baseUrl, deployment: profile.deployment };
+    }
+    case "aws-bedrock": {
+      const profile = requireBedrockProfile(parseBedrockProfile(secret));
+      return { region: profile.region, accessKeyId: profile.accessKeyId, secretAccessKey: profile.secretAccessKey, sessionToken: profile.sessionToken };
+    }
+    case "vertex-ai": {
+      const profile = requireVertexProfile(parseVertexProfile(secret));
+      return { projectId: profile.projectId, region: profile.region, serviceAccountJson: profile.serviceAccountJson };
     }
     default:
       throw new Error(`${providerKey} does not support agent execution.`);

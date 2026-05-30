@@ -84,6 +84,49 @@ export function antigravityRequestBody(input: {
   return { project: input.projectId, model: input.model, request, requestType: "agent", userAgent: "antigravity", requestId: input.requestId };
 }
 
+/** The Vertex AI generateContent body (Gemini, no Antigravity wrapper). */
+export function vertexRequestBody(input: {
+  model: string;
+  instructions: string | null;
+  messages: AgentTurnMessage[];
+  tools: ToolDefinition[];
+}): JsonRecord {
+  const body: JsonRecord = { contents: toGeminiContents(input.model, input.messages) };
+  if (input.instructions) body.systemInstruction = { parts: [{ text: input.instructions }] };
+  if (input.tools.length > 0) {
+    body.tools = geminiToolDefs(input.model, input.tools);
+    body.toolConfig = { functionCallingConfig: { mode: "AUTO" } };
+  }
+  return body;
+}
+
+function partsToResult(parts: unknown[]): { text: string[]; toolCalls: ToolCall[] } {
+  const text: string[] = [];
+  const toolCalls: ToolCall[] = [];
+  let counter = 0;
+  for (const part of parts) {
+    if (!isRecord(part)) continue;
+    if (typeof part.text === "string" && part.thought !== true) text.push(part.text);
+    else if (isRecord(part.functionCall)) {
+      const fc = part.functionCall;
+      const name = typeof fc.name === "string" ? fc.name : "";
+      if (!name) continue;
+      const id = typeof fc.id === "string" && fc.id ? fc.id : `${name}_${(counter += 1)}`;
+      toolCalls.push({ id, name, arguments: isRecord(fc.args) ? fc.args : {} });
+    }
+  }
+  return { text, toolCalls };
+}
+
+/** Parse a non-streaming Gemini generateContent response (Vertex). */
+export function parseGeminiResponse(data: JsonRecord): { text: string; toolCalls: ToolCall[] } {
+  const candidates = Array.isArray(data.candidates) ? data.candidates : [];
+  const content = candidates.length > 0 && isRecord(candidates[0]) && isRecord(candidates[0].content) ? candidates[0].content : null;
+  const parts = content && Array.isArray(content.parts) ? content.parts : [];
+  const result = partsToResult(parts);
+  return { text: result.text.join("").trim(), toolCalls: result.toolCalls };
+}
+
 export async function accumulateGeminiStream(messages: AsyncIterable<ProviderEventStreamMessage>): Promise<AgentTurnResult> {
   const raw: string[] = [];
   const textParts: string[] = [];

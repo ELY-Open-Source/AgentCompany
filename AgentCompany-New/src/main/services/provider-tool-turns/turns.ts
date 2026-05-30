@@ -9,7 +9,10 @@ import type { AgentTurnMessage, AgentTurnResult, ProviderToolTurnInput, TurnCred
 import { accumulateResponsesStream, parseResponsesOutput, responsesToolDefs, toResponsesInput } from "./responses-format";
 import { anthropicToolDefs, parseAnthropicContent, toAnthropicMessages } from "./anthropic-format";
 import { chatToolDefs, parseChatChoice, toChatMessages } from "./chat-format";
-import { accumulateGeminiStream, antigravityRequestBody } from "./gemini-format";
+import { accumulateGeminiStream, antigravityRequestBody, parseGeminiResponse, vertexRequestBody } from "./gemini-format";
+import { bedrockToolConfig, parseBedrockOutput, toBedrockMessages } from "./bedrock-format";
+import { signAwsRequest } from "./aws-sigv4";
+import { getGcpAccessToken } from "./gcp-auth";
 import { COPILOT_HEADERS, copilotBaseUrl } from "../oauth/github-copilot-flow";
 
 const ANTIGRAVITY_VERSION = "1.21.9";
@@ -205,4 +208,60 @@ export async function runAntigravityTurn(input: ProviderToolTurnInput): Promise<
     "User-Agent": `antigravity/${ANTIGRAVITY_VERSION} darwin/arm64`,
   }, body);
   return accumulateGeminiStream(response.messages);
+}
+
+// ---- Azure OpenAI (Chat Completions at the resource deployment) ----
+
+export async function runAzureTurn(input: ProviderToolTurnInput): Promise<AgentTurnResult> {
+  const apiKey = requireApiKey(input.credential, "Azure OpenAI");
+  if (!input.credential.baseUrl) throw new Error("Azure OpenAI credential is missing its base URL.");
+  if (!input.credential.deployment) throw new Error("Azure OpenAI credential is missing its deployment name.");
+  const body: JsonRecord = {
+    model: input.credential.deployment,
+    messages: toChatMessages(input.instructions, input.messages),
+    tools: chatToolDefs(input.tools),
+    tool_choice: "auto",
+    stream: false,
+  };
+  const url = `${input.credential.baseUrl}/openai/deployments/${input.credential.deployment}/chat/completions?api-version=2024-10-21`;
+  const response = await postJson(url, { "api-key": apiKey }, body);
+  const parsed = parseChatChoice(response.data);
+  return { ...parsed, rawResponseJson: JSON.stringify(response.data) };
+}
+
+// ---- AWS Bedrock (Converse API, SigV4) ----
+
+export async function runBedrockTurn(input: ProviderToolTurnInput): Promise<AgentTurnResult> {
+  const { region, accessKeyId, secretAccessKey, sessionToken } = input.credential;
+  if (!region || !accessKeyId || !secretAccessKey) throw new Error("AWS Bedrock credential is incomplete.");
+  const converse: JsonRecord = {
+    messages: toBedrockMessages(input.messages),
+    inferenceConfig: { maxTokens: 4096 },
+    toolConfig: bedrockToolConfig(input.tools),
+    ...(input.instructions ? { system: [{ text: input.instructions }] } : {}),
+  };
+  const bodyString = JSON.stringify(converse);
+  const signed = signAwsRequest({
+    method: "POST",
+    host: `bedrock-runtime.${region}.amazonaws.com`,
+    rawPath: `/model/${input.model}/converse`,
+    body: bodyString,
+    signer: { region, service: "bedrock", accessKeyId, secretAccessKey, sessionToken },
+  });
+  const response = await postJson(signed.url, signed.headers, converse);
+  const parsed = parseBedrockOutput(response.data);
+  return { ...parsed, rawResponseJson: JSON.stringify(response.data) };
+}
+
+// ---- Google Vertex AI (Gemini generateContent, service-account auth) ----
+
+export async function runVertexTurn(input: ProviderToolTurnInput): Promise<AgentTurnResult> {
+  const { projectId, region, serviceAccountJson } = input.credential;
+  if (!projectId || !region || !serviceAccountJson) throw new Error("Vertex AI credential is incomplete.");
+  const token = await getGcpAccessToken(serviceAccountJson);
+  const body = vertexRequestBody({ model: input.model, instructions: input.instructions, messages: input.messages, tools: input.tools });
+  const url = `https://${region}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${region}/publishers/google/models/${input.model}:generateContent`;
+  const response = await postJson(url, { authorization: `Bearer ${token}` }, body);
+  const parsed = parseGeminiResponse(response.data);
+  return { ...parsed, rawResponseJson: JSON.stringify(response.data) };
 }

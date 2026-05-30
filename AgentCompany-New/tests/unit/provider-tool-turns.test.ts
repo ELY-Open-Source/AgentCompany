@@ -8,6 +8,9 @@ import { accumulateResponsesStream, parseResponsesOutput, toResponsesInput } fro
 import { parseChatChoice, toChatMessages } from "../../src/main/services/provider-tool-turns/chat-format";
 import { parseAnthropicContent, toAnthropicMessages } from "../../src/main/services/provider-tool-turns/anthropic-format";
 import { accumulateGeminiStream, antigravityRequestBody } from "../../src/main/services/provider-tool-turns/gemini-format";
+import { bedrockToolConfig, parseBedrockOutput, toBedrockMessages } from "../../src/main/services/provider-tool-turns/bedrock-format";
+import { parseGeminiResponse, vertexRequestBody } from "../../src/main/services/provider-tool-turns/gemini-format";
+import { signAwsRequest } from "../../src/main/services/provider-tool-turns/aws-sigv4";
 import { selectToolTurn, supportsToolTurn } from "../../src/main/services/provider-tool-turns/router";
 import { resolveTurnCredential } from "../../src/main/services/provider-tool-turns/credential-resolver";
 import { DatabaseConnection } from "../../src/main/database/connection";
@@ -124,16 +127,57 @@ describe("antigravity (gemini) encoding", () => {
   });
 });
 
+describe("bedrock converse encoding", () => {
+  test("encodes toolUse/toolResult and the tool config", () => {
+    expect(toBedrockMessages(CONVO)).toEqual([
+      { role: "user", content: [{ text: "do it" }] },
+      { role: "assistant", content: [{ text: "calling" }, { toolUse: { toolUseId: "c1", name: "hire_agent", input: { name: "Sam" } } }] },
+      { role: "user", content: [{ toolResult: { toolUseId: "c1", content: [{ text: "ok" }] } }] },
+    ]);
+    expect(bedrockToolConfig([{ name: "f", description: "d", parameters: { type: "object" } }])).toEqual({
+      tools: [{ toolSpec: { name: "f", description: "d", inputSchema: { json: { type: "object" } } } }],
+      toolChoice: { auto: {} },
+    });
+  });
+
+  test("parses the converse output", () => {
+    const data = { output: { message: { content: [{ text: "ok" }, { toolUse: { toolUseId: "t1", name: "f", input: { x: 1 } } }] } } };
+    expect(parseBedrockOutput(data)).toEqual({ text: "ok", toolCalls: [{ id: "t1", name: "f", arguments: { x: 1 } }] });
+  });
+});
+
+describe("vertex (gemini) encoding", () => {
+  test("builds a generateContent body with tools and parses the response", () => {
+    const body = vertexRequestBody({ model: "gemini-2.5-pro", instructions: "sys", messages: CONVO, tools: [{ name: "f", description: "d", parameters: { type: "object" } }] });
+    expect((body.systemInstruction as JsonRecord).parts).toEqual([{ text: "sys" }]);
+    expect(body.tools).toEqual([{ functionDeclarations: [{ name: "f", description: "d", parametersJsonSchema: { type: "object" } }] }]);
+    const parsed = parseGeminiResponse({ candidates: [{ content: { parts: [{ text: "hi" }, { functionCall: { name: "f", args: { x: 1 }, id: "v1" } }] } }] });
+    expect(parsed).toEqual({ text: "hi", toolCalls: [{ id: "v1", name: "f", arguments: { x: 1 } }] });
+  });
+});
+
+describe("aws sigv4", () => {
+  test("encodes the model path and emits a SigV4 authorization header", () => {
+    const signed = signAwsRequest({
+      method: "POST",
+      host: "bedrock-runtime.us-east-1.amazonaws.com",
+      rawPath: "/model/anthropic.claude-sonnet-4-5-v1:0/converse",
+      body: "{}",
+      signer: { region: "us-east-1", service: "bedrock", accessKeyId: "AKIA", secretAccessKey: "secret" },
+    });
+    expect(signed.url).toContain("/model/anthropic.claude-sonnet-4-5-v1%3A0/converse");
+    expect(signed.headers.Authorization).toMatch(/^AWS4-HMAC-SHA256 Credential=AKIA\/\d{8}\/us-east-1\/bedrock\/aws4_request, SignedHeaders=host;x-amz-content-sha256;x-amz-date, Signature=[0-9a-f]{64}$/);
+  });
+});
+
 describe("tool-turn router", () => {
-  test("supports every agent-capable provider and rejects cloud-only ones", () => {
-    for (const key of ["openai", "anthropic", "xai", "groq", "mistral", "cerebras", "openrouter", "gpt-account", "github-copilot", "google-antigravity", "claude-pro", "custom-openai", "custom-anthropic"]) {
+  test("supports every agent-capable provider (incl. cloud and custom) and rejects unknown ones", () => {
+    for (const key of ["openai", "anthropic", "xai", "groq", "mistral", "cerebras", "openrouter", "gpt-account", "github-copilot", "google-antigravity", "claude-pro", "custom-openai", "custom-anthropic", "azure-openai", "aws-bedrock", "vertex-ai"]) {
       expect(supportsToolTurn(key)).toBe(true);
       expect(typeof selectToolTurn(key)).toBe("function");
     }
-    for (const key of ["azure-openai", "aws-bedrock", "vertex-ai"]) {
-      expect(supportsToolTurn(key)).toBe(false);
-      expect(() => selectToolTurn(key)).toThrow();
-    }
+    expect(supportsToolTurn("not-a-provider")).toBe(false);
+    expect(() => selectToolTurn("not-a-provider")).toThrow();
   });
 });
 

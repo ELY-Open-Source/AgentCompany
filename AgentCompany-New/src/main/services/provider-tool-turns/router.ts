@@ -3,12 +3,15 @@ import {
   makeChatCompletionsTurn,
   runAnthropicTurn,
   runAntigravityTurn,
+  runAzureTurn,
+  runBedrockTurn,
   runClaudeProTurn,
   runCodexTurn,
   runCopilotTurn,
   runCustomAnthropicTurn,
   runCustomOpenAiTurn,
   runOpenAiResponsesTurn,
+  runVertexTurn,
 } from "./turns";
 
 /** Provider key -> the tool-use turn function that drives the agent loop. */
@@ -26,6 +29,9 @@ const TURNS: Record<string, ToolTurnFn> = {
   "claude-pro": runClaudeProTurn,
   "custom-openai": runCustomOpenAiTurn,
   "custom-anthropic": runCustomAnthropicTurn,
+  "azure-openai": runAzureTurn,
+  "aws-bedrock": runBedrockTurn,
+  "vertex-ai": runVertexTurn,
 };
 
 export function supportsToolTurn(providerKey: string): boolean {
