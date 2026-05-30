@@ -354,21 +354,43 @@ function ProviderOAuthFields({
 }
 
 function ModelPicker({ entry, provider }: { entry: ProviderCatalogEntry; provider: ProviderRecord }) {
-  const defaultValue = provider.model ?? entry.defaultModel ?? entry.models[0]?.id ?? "";
-  if (entry.models.length === 0) {
-    return (
-      <Field label="Default model">
-        <input className="input" name="model" defaultValue={defaultValue} />
-      </Field>
-    );
-  }
+  const [fetched, setFetched] = useState<ProviderCatalogEntry["models"] | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [value, setValue] = useState(provider.model ?? entry.defaultModel ?? entry.models[0]?.id ?? "");
+  const models = fetched ?? entry.models;
+  const connected = Boolean(provider.credentialId) && provider.enabled && provider.authState === "configured";
+
+  const refresh = async () => {
+    setLoading(true);
+    setError(null);
+    const result = await window.agentCompany.listProviderModels({ providerKey: entry.key, orgId: provider.orgId, providerId: provider.id });
+    setLoading(false);
+    if (!result.ok) {
+      setError(result.error.message);
+      return;
+    }
+    setFetched(result.data);
+    if (result.data[0] && !result.data.some((model) => model.id === value)) setValue(result.data[0].id);
+  };
+
   return (
     <Field label="Default model">
-      <select className="input" name="model" defaultValue={defaultValue}>
-        {entry.models.map((model) => (
-          <option key={model.id} value={model.id}>{model.name}</option>
-        ))}
-      </select>
+      {models.length ? (
+        <select className="input" name="model" value={value} onChange={(event) => setValue(event.target.value)}>
+          {models.map((model) => (
+            <option key={model.id} value={model.id}>{model.name}</option>
+          ))}
+        </select>
+      ) : (
+        <input className="input" name="model" value={value} onChange={(event) => setValue(event.target.value)} />
+      )}
+      {connected && (
+        <button type="button" className="button ghost" style={{ marginTop: 6 }} disabled={loading} onClick={refresh}>
+          {loading ? "Loading models…" : "Refresh models"}
+        </button>
+      )}
+      {error && <div style={{ color: "var(--red)", fontSize: 12, marginTop: 4 }}>{error}</div>}
     </Field>
   );
 }
