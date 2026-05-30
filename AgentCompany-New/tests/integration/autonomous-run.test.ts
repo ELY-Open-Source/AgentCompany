@@ -33,6 +33,7 @@ function scriptedCeo(): (input: ProviderToolTurnInput) => Promise<AgentTurnResul
     ] },
     { text: "Writing the plan.", toolCalls: [
       call("write_deliverable", { path: "plan/operating-plan.md", content: "# OrbitOps Operating Plan\n\n- Validate demand\n- Launch booking site\n" }),
+      call("send_message", { channel: "general", body: "Kickoff: team staffed, plan written, booking site delegated to Mara." }),
     ] },
     { text: "Team staffed, work delegated, plan written.", toolCalls: [] },
   ];
@@ -100,6 +101,12 @@ describe("autonomous bootstrap run", () => {
     const planFile = state.files.find((f) => f.orgId === orgId && f.name === "operating-plan.md");
     expect(planFile).toBeTruthy();
     expect(planFile).toMatchObject({ ownerType: "agent", ownerId: ceo?.id, kind: "md", scanState: "approved" });
+
+    // The CEO posts a coordination message, so the Messages channel is populated.
+    const general = state.chatSpaces.find((s) => s.orgId === orgId && s.name === "general");
+    const kickoff = state.chatMessages.find((m) => m.orgId === orgId && m.spaceId === general?.id);
+    expect(kickoff).toMatchObject({ senderType: "agent", senderId: ceo?.id });
+    expect(kickoff?.bodyMd).toContain("team staffed");
 
     const run = state.taskRuns.find((r) => r.id === claimed!.id);
     expect(run?.state).toBe("completed");

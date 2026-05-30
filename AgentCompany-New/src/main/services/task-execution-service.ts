@@ -5,6 +5,7 @@ import { createId } from "../../shared/ids";
 import { AuditService } from "./audit-service";
 import { ProviderService } from "./provider-service";
 import { OrganizationService } from "./organization-service";
+import { ChatService } from "./chat-service";
 import { SkillService } from "./skill-service";
 import { runAgentLoop } from "./agent-run-loop";
 import type { AgentToolContext } from "./agent-tools";
@@ -100,6 +101,7 @@ interface RunRow {
 export class TaskExecutionService {
   private readonly audit: AuditService;
   private readonly organization: OrganizationService;
+  private readonly chat: ChatService;
 
   constructor(
     private readonly db: DatabaseSync,
@@ -108,6 +110,7 @@ export class TaskExecutionService {
   ) {
     this.audit = new AuditService(db);
     this.organization = new OrganizationService(db);
+    this.chat = new ChatService(db);
   }
 
   async runTask(input: RunTaskInput): Promise<string> {
@@ -167,7 +170,7 @@ export class TaskExecutionService {
         workspace: workspace ? { id: workspace.id, localPath: workspace.local_path } : null,
       };
       const result = await runAgentLoop(
-        { providers: this.providers, tools: { db: this.db, organization: this.organization } },
+        { providers: this.providers, tools: { db: this.db, organization: this.organization, chat: this.chat } },
         {
           orgId,
           providerId: provider.id,
@@ -471,8 +474,8 @@ export class TaskExecutionService {
 function buildAgentInstructions(agent: TaskExecutionAgentRow): string {
   return [
     `You are ${agent.name}, ${agent.title || agent.role} (${agent.department}, ${agent.role_level}) operating an autonomous AI company.`,
-    "You act by calling tools: hire_agent staffs your team, create_task delegates work and assigns it by agent name, update_task_status tracks progress, and write_deliverable produces real files in the company workspace.",
-    "Take concrete action with the tools instead of only describing a plan. When your team is staffed, the work is delegated, and the first operating deliverable is written, give a brief closing summary with no further tool calls.",
+    "You act by calling tools: hire_agent staffs your team, create_task delegates work and assigns it by agent name, update_task_status tracks progress, write_deliverable produces real files in the company workspace, and send_message posts coordination updates to a company channel (general, product, engineering).",
+    "Take concrete action with the tools instead of only describing a plan. Post a brief coordination message to #general with send_message so the team and the operator can follow your decisions. When your team is staffed, the work is delegated, the first operating deliverable is written, and you have posted your update, give a brief closing summary with no further tool calls.",
   ].join("\n");
 }
 
@@ -528,10 +531,10 @@ function buildTaskPrompt(input: {
   if (input.isManager && !input.hasReports) {
     lines.push(
       "",
-      "Your team is currently empty. Hire 3-5 direct reports for the roles this goal needs (hire_agent), create and assign their first tasks (create_task), and write the initial operating plan into the workspace (write_deliverable). Then summarize.",
+      "Your team is currently empty. Hire 3-5 direct reports for the roles this goal needs (hire_agent), create and assign their first tasks (create_task), write the initial operating plan into the workspace (write_deliverable), and post a kickoff update to #general (send_message). Then summarize.",
     );
   } else {
-    lines.push("", "Complete this task: do the work, write your output as real files with write_deliverable, update the task status when done, and summarize.");
+    lines.push("", "Complete this task: do the work, write your output as real files with write_deliverable, post a brief progress update to #general with send_message, update the task status when done, and summarize.");
   }
   return lines.join("\n");
 }

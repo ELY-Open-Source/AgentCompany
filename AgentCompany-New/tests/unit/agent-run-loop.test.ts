@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { describe, expect, test } from "vitest";
 import { DatabaseConnection } from "../../src/main/database/connection";
 import { OrganizationService } from "../../src/main/services/organization-service";
+import { ChatService } from "../../src/main/services/chat-service";
 import { runAgentLoop } from "../../src/main/services/agent-run-loop";
 import type { AgentToolContext } from "../../src/main/services/agent-tools";
 import type { AgentTurnResult, ToolCall } from "../../src/main/services/provider-tool-turn";
@@ -74,17 +75,18 @@ describe("agent run loop (real tool dispatch)", () => {
       ] },
       { text: "Writing the plan.", toolCalls: [
         call("write_deliverable", { path: "plan/operating-plan.md", content: "# Operating Plan\n\n1. Validate demand.\n2. Launch booking site.\n" }),
+        call("send_message", { channel: "general", body: "Team staffed and the operating plan is live. Booking site is next." }),
       ] },
       { text: "Team staffed, work delegated, plan written.", toolCalls: [] },
     ];
 
     const result = await runAgentLoop(
-      { providers: fakeProvider(script), tools: { db: connection.db, organization } },
+      { providers: fakeProvider(script), tools: { db: connection.db, organization, chat: new ChatService(connection.db) } },
       { orgId, providerId, workspaceId, instructions: "You are the CEO.", initialUserTurn: "Start the company.", toolContext },
     );
 
     expect(result.iterations).toBe(4);
-    expect(result.toolCallCount).toBe(4);
+    expect(result.toolCallCount).toBe(5);
     expect(result.finalText).toContain("Team staffed");
 
     const agentNames = (connection.db.prepare("select name from agents where org_id = ? order by name").all(orgId) as Array<{ name: string }>).map((r) => r.name);
@@ -98,6 +100,15 @@ describe("agent run loop (real tool dispatch)", () => {
     const deliverablePath = join(workspaceRoot, "plan", "operating-plan.md");
     expect(existsSync(deliverablePath)).toBe(true);
     expect(readFileSync(deliverablePath, "utf8")).toContain("Operating Plan");
+
+    // The CEO's coordination message lands in #general so the channel is no longer blank.
+    const generalSpaceId = (connection.db.prepare("select id from chat_spaces where org_id = ? and name = 'general'").get(orgId) as { id: string }).id;
+    const messages = connection.db.prepare(
+      "select sender_type, sender_id, body_md, space_id from chat_messages where org_id = ?",
+    ).all(orgId) as Array<{ sender_type: string; sender_id: string; body_md: string; space_id: string }>;
+    expect(messages).toHaveLength(1);
+    expect(messages[0]).toMatchObject({ sender_type: "agent", sender_id: ceoId, space_id: generalSpaceId });
+    expect(messages[0]?.body_md).toContain("operating plan is live");
 
     connection.close();
   });
@@ -124,7 +135,7 @@ describe("agent run loop (real tool dispatch)", () => {
       { text: "done", toolCalls: [] },
     ];
     const result = await runAgentLoop(
-      { providers: fakeProvider(script), tools: { db: connection.db, organization } },
+      { providers: fakeProvider(script), tools: { db: connection.db, organization, chat: new ChatService(connection.db) } },
       { orgId, providerId, workspaceId: null, instructions: "i", initialUserTurn: "u", toolContext: ctx },
     );
     // The tool returns an error string to the model; nothing is written outside the root.

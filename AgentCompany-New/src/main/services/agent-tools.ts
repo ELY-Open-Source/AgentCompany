@@ -1,6 +1,7 @@
 import type { DatabaseSync } from "node:sqlite";
 import { RISK_LEVEL, TASK_PRIORITY, TASK_STATUS, type RiskLevel } from "../../shared/domain";
 import type { OrganizationService } from "./organization-service";
+import type { ChatService } from "./chat-service";
 import { writeDeliverable } from "./deliverable-writer";
 import { recordWorkspaceFile } from "./files/file-object-store";
 import type { JsonRecord } from "./provider-http";
@@ -21,6 +22,7 @@ export interface AgentToolContext {
 export interface AgentToolDeps {
   db: DatabaseSync;
   organization: OrganizationService;
+  chat: ChatService;
 }
 
 /** The tools the acting agent may call during a run. */
@@ -82,6 +84,19 @@ export const AGENT_TOOLS: ToolDefinition[] = [
       required: ["path", "content"],
     },
   },
+  {
+    name: "send_message",
+    description: "Post a short coordination message to a company channel (general, product, or engineering) so the team and the operator can follow the work.",
+    parameters: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        channel: { type: "string", description: "Channel name, e.g. 'general'." },
+        body: { type: "string", description: "The message to post." },
+      },
+      required: ["channel", "body"],
+    },
+  },
 ];
 
 export function dispatchAgentTool(deps: AgentToolDeps, ctx: AgentToolContext, call: ToolCall): string {
@@ -95,6 +110,8 @@ export function dispatchAgentTool(deps: AgentToolDeps, ctx: AgentToolContext, ca
         return updateTaskStatus(deps, ctx, call.arguments);
       case "write_deliverable":
         return writeDeliverableTool(deps, ctx, call.arguments);
+      case "send_message":
+        return sendMessageTool(deps, ctx, call.arguments);
       default:
         return `ERROR: unknown tool "${call.name}".`;
     }
@@ -168,6 +185,25 @@ function writeDeliverableTool(deps: AgentToolDeps, ctx: AgentToolContext, args: 
     relativePath: written,
   });
   return `Wrote deliverable ${written} (${content.length} chars).`;
+}
+
+function sendMessageTool(deps: AgentToolDeps, ctx: AgentToolContext, args: JsonRecord): string {
+  const channel = requireString(args.channel, "channel");
+  const body = requireString(args.body, "body");
+  const space = deps.db.prepare(
+    "select id from chat_spaces where org_id = ? and lower(name) = lower(?) and space_type <> 'direct' limit 1",
+  ).get(ctx.orgId, channel) as { id: string } | undefined;
+  if (!space) throw new Error(`No channel named "${channel}".`);
+  const messageId = deps.chat.sendMessage({
+    orgId: ctx.orgId,
+    spaceId: space.id,
+    threadId: null,
+    senderType: "agent",
+    senderId: ctx.agent.id,
+    bodyMd: body,
+    attachmentFileIds: [],
+  });
+  return `Posted to #${channel} (message_id=${messageId}).`;
 }
 
 function resolveAgentByName(db: DatabaseSync, orgId: string, name: string): string | null {
