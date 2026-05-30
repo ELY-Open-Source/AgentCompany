@@ -125,6 +125,25 @@ export class AuthBrokerService {
     return this.vault.decryptSecret(Buffer.from(row.ciphertext));
   }
 
+  /**
+   * Re-encrypts a refreshed OAuth credential into its existing credential row,
+   * keeping the same credential id (and active auth profile) so request-time
+   * token refresh persists without re-binding the provider.
+   */
+  updateProviderSecret(input: { orgId: string; providerKey: string; credentialId: string; secret: string }): void {
+    const secret = input.secret.trim();
+    if (!secret) throw new Error("Credential is required.");
+    const displayHint = credentialDisplayHint(secret);
+    const result = this.db.prepare(`
+      update credentials
+      set ciphertext = ?, display_hint = ?
+      where id = ? and org_id = ? and provider_key = ?
+    `).run(this.vault.encryptSecret(secret), displayHint, input.credentialId, input.orgId, input.providerKey);
+    if (result.changes === 0) throw new Error("Provider credential was not found.");
+    this.db.prepare("update provider_auth_profiles set display_hint = ? where credential_id = ? and org_id = ?")
+      .run(displayHint, input.credentialId, input.orgId);
+  }
+
   revokeProviderProfile(input: RevokeProviderAuthProfileInput): void {
     const row = this.db.prepare(`
       select id, credential_id

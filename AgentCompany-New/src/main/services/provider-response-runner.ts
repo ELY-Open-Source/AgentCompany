@@ -12,8 +12,9 @@ import type { ProviderRateLimitRegistry } from "./provider-rate-limit-registry";
 import type { ProviderRequestStore } from "./provider-request-store";
 import type { ProviderResponseObserver } from "./provider-response-observer";
 import { hashPrompt, readProviderResponseId, requireStreamText } from "./provider-response-utils";
-import { requireApiKeyProfile } from "./provider-auth-profiles";
-import { selectToolTurn, type AgentTurnMessage, type AgentTurnResult, type ToolDefinition, type ToolTurnFn } from "./provider-tool-turn";
+import { type AgentTurnMessage, type AgentTurnResult, type ToolDefinition, type ToolTurnFn } from "./provider-tool-turn";
+import { selectToolTurn, supportsToolTurn } from "./provider-tool-turns/router";
+import { resolveTurnCredential } from "./provider-tool-turns/credential-resolver";
 import {
   HEALTH_STATE_HEALTHY,
   WORKSPACE_SCOPES,
@@ -106,14 +107,14 @@ export class ProviderResponseRunner {
     const provider = loadConfiguredProvider(this.deps.db, input.orgId, input.providerId);
     const workspaceId = this.normalizeWorkspaceId(input.orgId, input.workspaceId ?? null);
     this.enforcePolicy(input.orgId, provider, PROVIDER_EXECUTION_MODE.FOREGROUND, workspaceId);
-    if (provider.auth_type !== PROVIDER_AUTH_TYPE.API_KEY) throw new Error("Agent tool execution requires an API-key provider.");
+    if (!supportsToolTurn(provider.provider_key)) {
+      throw new Error("Agent execution is not available for this provider; assign the agent an OpenAI, Anthropic, xAI, Groq, Mistral, Cerebras, OpenRouter, GPT account, GitHub Copilot, Google Antigravity, or Claude Pro provider.");
+    }
     const model = provider.model;
     if (!model) throw new Error("Provider model is required.");
     const owner: ProviderRow & { model: string } = { ...provider, model };
-    const adapter = requireAdapter(this.deps.adapters, provider.provider_key, provider.auth_type);
     const turn = this.deps.toolTurn ?? selectToolTurn(provider.provider_key);
-    const credential = loadCredential(this.deps.authBroker, input.orgId, provider);
-    const apiKey = requireApiKeyProfile(adapter.parseAuthProfile(credential.secret), provider.provider_key).apiKey;
+    const credential = await resolveTurnCredential({ authBroker: this.deps.authBroker, orgId: input.orgId, provider });
     const promptChars = JSON.stringify(input.messages).length;
     const requestId = this.deps.requestStore.create({
       orgId: input.orgId,
@@ -127,7 +128,7 @@ export class ProviderResponseRunner {
     });
     const startedAt = Date.now();
     try {
-      const result = await turn({ apiKey, model, instructions: input.instructions, messages: input.messages, tools: input.tools });
+      const result = await turn({ credential, model, instructions: input.instructions, messages: input.messages, tools: input.tools });
       this.deps.requestStore.markSucceeded({
         orgId: input.orgId,
         requestId,

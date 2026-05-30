@@ -76,6 +76,24 @@ async function exchangeCode(code: string, verifier: string): Promise<{ access: s
   return { access: json.access_token, refresh: json.refresh_token, expires: Date.now() + json.expires_in * 1000 };
 }
 
+/** Refresh an expired Codex access token using the long-lived refresh token. */
+export async function refreshCodex(refreshToken: string): Promise<OAuthCredentials> {
+  const response = await fetch(TOKEN_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ grant_type: "refresh_token", refresh_token: refreshToken, client_id: CLIENT_ID }),
+  });
+  const text = await response.text();
+  if (!response.ok) throw new Error(`Codex token refresh failed: ${response.status} ${text}`);
+  const json = JSON.parse(text) as { access_token?: unknown; refresh_token?: unknown; expires_in?: unknown };
+  if (typeof json.access_token !== "string" || typeof json.refresh_token !== "string" || typeof json.expires_in !== "number") {
+    throw new Error("Codex token refresh response was missing required fields.");
+  }
+  const accountId = extractAccountId(json.access_token);
+  if (!accountId) throw new Error("Could not read the ChatGPT account id from the refreshed token.");
+  return { access: json.access_token, refresh: json.refresh_token, expires: Date.now() + json.expires_in * 1000, accountId };
+}
+
 export const openaiCodexFlow: OAuthFlow = {
   providerKey: "gpt-account",
   async login(callbacks: OAuthLoginCallbacks): Promise<OAuthCredentials> {

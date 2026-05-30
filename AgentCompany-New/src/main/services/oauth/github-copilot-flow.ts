@@ -9,7 +9,7 @@ import type { OAuthCredentials, OAuthFlow, OAuthLoginCallbacks } from "./oauth-t
 
 // Decoded from the published GitHub Copilot client id used by the official CLI.
 const CLIENT_ID = "Iv1.b507a08c87ecfe98";
-const COPILOT_HEADERS = {
+export const COPILOT_HEADERS = {
   "User-Agent": "GitHubCopilotChat/0.35.0",
   "Editor-Version": "vscode/1.107.0",
   "Editor-Plugin-Version": "copilot-chat/0.35.0",
@@ -177,7 +177,7 @@ export async function refreshGitHubCopilotToken(githubToken: string, enterpriseD
   };
 }
 
-function copilotBaseUrl(token: string, enterpriseDomain?: string | null): string {
+export function copilotBaseUrl(token: string, enterpriseDomain?: string | null): string {
   const match = token.match(/proxy-ep=([^;]+)/);
   if (match) return `https://${match[1].replace(/^proxy\./, "api.")}`;
   if (enterpriseDomain) return `https://copilot-api.${enterpriseDomain}`;

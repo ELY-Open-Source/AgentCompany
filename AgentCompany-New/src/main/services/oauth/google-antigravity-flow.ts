@@ -99,6 +99,23 @@ async function discoverProject(accessToken: string): Promise<string> {
   return DEFAULT_PROJECT_ID;
 }
 
+/** Refresh an expired Antigravity access token, retaining the project id. */
+export async function refreshAntigravity(refreshToken: string, projectId: string): Promise<OAuthCredentials> {
+  const response = await fetch(TOKEN_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ client_id: CLIENT_ID, client_secret: CLIENT_SECRET, refresh_token: refreshToken, grant_type: "refresh_token" }),
+  });
+  const text = await response.text();
+  if (!response.ok) throw new Error(`Antigravity token refresh failed: ${response.status} ${text}`);
+  const json = JSON.parse(text) as { access_token?: unknown; refresh_token?: unknown; expires_in?: unknown };
+  if (typeof json.access_token !== "string" || typeof json.expires_in !== "number") {
+    throw new Error("Antigravity token refresh response was missing required fields.");
+  }
+  const refresh = typeof json.refresh_token === "string" && json.refresh_token ? json.refresh_token : refreshToken;
+  return { access: json.access_token, refresh, expires: Date.now() + json.expires_in * 1000 - 5 * 60 * 1000, projectId };
+}
+
 export const antigravityFlow: OAuthFlow = {
   providerKey: "google-antigravity",
   async login(callbacks: OAuthLoginCallbacks): Promise<OAuthCredentials> {

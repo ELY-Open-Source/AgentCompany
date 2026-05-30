@@ -53,6 +53,22 @@ async function exchangeCode(code: string, state: string, verifier: string): Prom
   return { access: json.access_token, refresh: json.refresh_token, expires: Date.now() + json.expires_in * 1000 - 5 * 60 * 1000 };
 }
 
+/** Refresh an expired Claude Pro/Max access token. */
+export async function refreshClaudePro(refreshToken: string): Promise<OAuthCredentials> {
+  const response = await fetch(TOKEN_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({ grant_type: "refresh_token", client_id: CLIENT_ID, refresh_token: refreshToken }),
+  });
+  const text = await response.text();
+  if (!response.ok) throw new Error(`Claude token refresh failed: ${response.status} ${text}`);
+  const json = JSON.parse(text) as { access_token?: unknown; refresh_token?: unknown; expires_in?: unknown };
+  if (typeof json.access_token !== "string" || typeof json.refresh_token !== "string" || typeof json.expires_in !== "number") {
+    throw new Error("Claude token refresh response was missing required fields.");
+  }
+  return { access: json.access_token, refresh: json.refresh_token, expires: Date.now() + json.expires_in * 1000 - 5 * 60 * 1000 };
+}
+
 export const anthropicClaudeFlow: OAuthFlow = {
   providerKey: "claude-pro",
   async login(callbacks: OAuthLoginCallbacks): Promise<OAuthCredentials> {

@@ -332,7 +332,8 @@ export class TaskExecutionService {
         and a.heartbeat_enabled = 1
         and a.lifecycle = 'active'
         and p.enabled = 1
-        and not exists (select 1 from task_runs r where r.task_id = t.id)
+        and not exists (select 1 from task_runs r where r.task_id = t.id and r.state in ('queued', 'running', 'completed'))
+        and (select count(*) from task_runs r where r.task_id = t.id) < 3
     `).all() as Array<{ task_id: string; org_id: string }>;
     const created: string[] = [];
     for (const row of rows) {
