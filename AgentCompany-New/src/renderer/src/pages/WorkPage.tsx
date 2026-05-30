@@ -399,14 +399,13 @@ function TaskCard({
         </div>
       </div>
       <div className="row" style={{ flexWrap: "wrap", gap: 6 }}>
-        {project ? <Pill>{project.name}</Pill> : <Pill>{capitalize(task.risk)}</Pill>}
-        {goal && <Pill tone="violet">{truncate(goal.title, 20)}</Pill>}
-        {workspace && <Pill>{workspace.name}</Pill>}
-        {task.requiresFilesystem && <Pill>workspace</Pill>}
+        {project ? <Pill>{truncate(project.name, 22)}</Pill> : <Pill>{capitalize(task.risk)}</Pill>}
+        {goal && <Pill tone="violet">{truncate(goal.title, 18)}</Pill>}
+        {workspace && <Pill>{truncate(workspace.name, 18)}</Pill>}
         {latestRun && <Pill tone={runTone(latestRun.state)}>{prettyRunState(latestRun.state)}</Pill>}
-        <div style={{ marginLeft: "auto", display: "flex", gap: 6, alignItems: "center" }} onClick={(event) => event.stopPropagation()}>
+        <div style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center" }} onClick={(event) => event.stopPropagation()}>
           {assignee && <Avatar name={assignee.name} size="sm" bot />}
-          {assignee && <IconButton icon="send" label={`Run ${task.title}`} onClick={onRun} disabled={!canRun(provider)} />}
+          {assignee && <IconButton icon="send" label={canRun(provider) ? `Run ${task.title}` : "Connect a provider to run"} onClick={onRun} disabled={!canRun(provider)} />}
           {nextStatus(task.status) && <IconButton icon="check" label="Advance" onClick={onAdvance} />}
         </div>
       </div>

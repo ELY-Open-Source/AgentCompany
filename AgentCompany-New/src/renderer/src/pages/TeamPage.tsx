@@ -98,7 +98,7 @@ export function TeamPage({ snapshot, actions }: PageProps) {
             justifyContent: "center",
           }}
         >
-          {agents.slice(0, 4).map((agent) => (
+          {agents.map((agent) => (
             <OrgCard key={agent.id} name={agent.name} role={agent.role} />
           ))}
         </div>
