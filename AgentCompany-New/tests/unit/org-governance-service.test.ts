@@ -85,7 +85,13 @@ describe("org governance service", () => {
     let orgId = "";
 
     connection.transaction(() => {
-      orgId = createOrganization(organization);
+      orgId = organization.createOrganization({
+        organizationName: "Acme Operations",
+        employeeName: "Dana Lee",
+        mission: "Coordinate agents with auditable approvals.",
+        goal: "Ship a verified control plane.",
+        autoApproveHires: false,
+      });
       organization.createAgent({
         orgId,
         name: "Ada",

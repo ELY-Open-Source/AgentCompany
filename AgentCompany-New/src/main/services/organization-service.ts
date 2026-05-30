@@ -1,5 +1,5 @@
 import type { DatabaseSync } from "node:sqlite";
-import { APPROVAL_STATE, RISK_LEVEL, TASK_STATUS } from "../../shared/domain";
+import { APPROVAL_STATE, RISK_LEVEL, TASK_STATUS, type ApprovalState } from "../../shared/domain";
 import { PROVIDER_CATALOG } from "../../shared/provider-catalog";
 import { createId } from "../../shared/ids";
 import type { CreateAgentInput, CreateOrganizationInput, CreateTaskInput, UpdateAgentInput } from "../../shared/commands";
@@ -187,6 +187,8 @@ export class OrganizationService {
     this.identityAccess.createAgentServiceIdentity(input.orgId, id, input.name, now);
     if (hiringPolicy.reviewRequired) {
       const approvalId = createId("app");
+      const autoApprove = this.autonomy(input.orgId).autoApproveHires;
+      const decision = this.approvalDecision(input.orgId, autoApprove, now);
       this.db.prepare(`
         insert into approvals(
           id, org_id, kind, title, details, risk, requested_by_type,
@@ -203,12 +205,12 @@ export class OrganizationService {
         null,
         "agent",
         id,
-        APPROVAL_STATE.PENDING,
-        null,
+        decision.state,
+        decision.decidedBy,
         now,
-        null,
+        decision.decidedAt,
       );
-      this.governance.routeApproval({ orgId: input.orgId, approvalId, kind: "agent_hire", risk: RISK_LEVEL.MEDIUM });
+      this.settleApproval(input.orgId, approvalId, "agent_hire", RISK_LEVEL.MEDIUM, autoApprove);
     }
     return id;
   }
@@ -276,6 +278,8 @@ export class OrganizationService {
     if (approvalRequired) {
       const approvalId = createId("app");
       const approvalKind = policy.approvalRequired ? "task_risk" : "task_execution";
+      const autoApprove = this.autonomy(input.orgId).executionMode === "ai_ceo";
+      const decision = this.approvalDecision(input.orgId, autoApprove, now);
       this.db.prepare(`
         insert into approvals(
           id, org_id, kind, title, details, risk, requested_by_type,
@@ -292,12 +296,12 @@ export class OrganizationService {
         null,
         "task",
         id,
-        APPROVAL_STATE.PENDING,
-        null,
+        decision.state,
+        decision.decidedBy,
         now,
-        null,
+        decision.decidedAt,
       );
-      this.governance.routeApproval({ orgId: input.orgId, approvalId, kind: approvalKind, risk: RISK_LEVEL.HIGH });
+      this.settleApproval(input.orgId, approvalId, approvalKind, RISK_LEVEL.HIGH, autoApprove);
     }
     this.audit.record({
       orgId: input.orgId,
@@ -309,6 +313,47 @@ export class OrganizationService {
       payload: { status: TASK_STATUS.BACKLOG, policyRuleId: policy.matchedRuleId },
     });
     return id;
+  }
+
+  /**
+   * Reads the org's autonomy settings. In `ai_ceo` mode the CEO runs without
+   * the operator approving each task; `autoApproveHires` clears hire reviews.
+   */
+  private autonomy(orgId: string): { executionMode: string; autoApproveHires: boolean } {
+    const row = this.db.prepare("select execution_mode, auto_approve_hires from organizations where id = ?")
+      .get(orgId) as { execution_mode: string; auto_approve_hires: number } | undefined;
+    if (!row) throw new Error("Organization was not found.");
+    return { executionMode: row.execution_mode, autoApproveHires: row.auto_approve_hires === 1 };
+  }
+
+  /** The decision recorded on an approval: pending, or auto-approved by the board chair. */
+  private approvalDecision(orgId: string, autoApprove: boolean, now: string): { state: ApprovalState; decidedBy: string | null; decidedAt: string | null } {
+    if (!autoApprove) return { state: APPROVAL_STATE.PENDING, decidedBy: null, decidedAt: null };
+    return { state: APPROVAL_STATE.APPROVED, decidedBy: this.boardChairEmployeeId(orgId), decidedAt: now };
+  }
+
+  /** Routes a pending approval to its decider, or records the auto-approval in the audit trail. */
+  private settleApproval(orgId: string, approvalId: string, kind: string, risk: typeof RISK_LEVEL[keyof typeof RISK_LEVEL], autoApproved: boolean): void {
+    if (!autoApproved) {
+      this.governance.routeApproval({ orgId, approvalId, kind, risk });
+      return;
+    }
+    this.audit.record({
+      orgId,
+      entityType: "approval",
+      entityId: approvalId,
+      actorType: "system",
+      actorId: null,
+      action: "approved",
+      payload: { kind, auto: true },
+    });
+  }
+
+  private boardChairEmployeeId(orgId: string): string {
+    const row = this.db.prepare("select id from employees where org_id = ? order by created_at asc limit 1")
+      .get(orgId) as { id: string } | undefined;
+    if (!row) throw new Error("Organization has no employee to record the approval decision.");
+    return row.id;
   }
 
   private verifyOptionalOrgEntity(table: "agents" | "goals" | "workspaces", id: string | null, orgId: string, label: string): void {

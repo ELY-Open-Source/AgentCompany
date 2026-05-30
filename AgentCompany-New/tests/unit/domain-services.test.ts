@@ -73,6 +73,7 @@ describe("domain services", () => {
         employeeName: "Dana Lee",
         mission: "Coordinate agents with auditable approvals.",
         goal: "Ship a verified control plane.",
+        executionMode: "ai_cofounder",
       });
       organization.createTask({
         orgId,
@@ -95,6 +96,44 @@ describe("domain services", () => {
     expect(state.approvalAssignments).toHaveLength(1);
     expect(state.approvals[0]?.state).toBe("pending");
     expect(state.approvals[0]).toMatchObject({ sourceEntityType: "task", sourceEntityId: state.tasks[0]?.id });
+    connection.close();
+  });
+
+  test("ai ceo mode auto-approves high risk work without operator review", () => {
+    const connection = createConnection();
+    const organization = new OrganizationService(connection.db);
+    const snapshot = new SnapshotService(connection.db);
+    let orgId = "";
+
+    connection.transaction(() => {
+      orgId = organization.createOrganization({
+        organizationName: "Autonomy Inc",
+        employeeName: "Robin Park",
+        mission: "Run the company autonomously.",
+        goal: "Ship without manual gates.",
+        executionMode: "ai_ceo",
+      });
+      organization.createTask({
+        orgId,
+        title: "Production deploy",
+        description: "Deploy a high-risk change.",
+        status: TASK_STATUS.BACKLOG,
+        assigneeAgentId: null,
+        risk: RISK_LEVEL.HIGH,
+        projectId: null,
+        goalId: null,
+        workspaceId: null,
+        priority: "normal",
+        requiresFilesystem: false,
+      });
+    });
+
+    const state = snapshot.load();
+    const employeeId = state.employees.find((employee) => employee.orgId === orgId)?.id;
+    expect(state.approvals).toHaveLength(1);
+    expect(state.approvals[0]?.state).toBe("approved");
+    expect(state.approvals[0]?.decidedByEmployeeId).toBe(employeeId);
+    expect(state.approvalAssignments).toHaveLength(0);
     connection.close();
   });
 

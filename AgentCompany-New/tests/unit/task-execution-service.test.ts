@@ -160,6 +160,7 @@ describe("task execution service", () => {
         employeeName: "Dana Lee",
         mission: "Coordinate agents with auditable approvals.",
         goal: "Ship a verified control plane.",
+        executionMode: "ai_cofounder",
       });
       employeeId = (connection.db.prepare("select id from employees where org_id = ?").get(orgId) as { id: string }).id;
       const providerId = openAiProviderId(connection, orgId);
