@@ -98,6 +98,7 @@ describe("provider contracts", () => {
       const adapter = providerAdapters[provider.key];
       const authProfile = adapter.parseAuthProfile(PROVIDER_SECRET_SAMPLES[provider.key]);
       expect(typeof adapter.listModels).toBe("function");
+      expect(provider.supportsLiveModels).toBe(!CURATED_MODEL_PROVIDERS.has(provider.key));
       if (CURATED_MODEL_PROVIDERS.has(provider.key)) {
         await expect(adapter.listModels({ authProfile, model: provider.defaultModel })).resolves.toEqual(provider.models);
       }

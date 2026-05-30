@@ -292,6 +292,10 @@ export interface ProviderCatalogEntry {
   signInUrl: string | null;
   credentialHelp: string;
   models: ProviderCatalogModel[];
+  /** True when the provider exposes a real models endpoint we can fetch from.
+   * When false (e.g. the Codex subscription, which has no enumerable list), the
+   * UI offers a free-text model id instead of a fixed dropdown. */
+  supportsLiveModels: boolean;
   /** Set for user-configured OpenAI/Anthropic-compatible endpoints: the UI
    * collects a base URL + API key + model instead of a fixed provider form. */
   customEndpoint?: "openai" | "anthropic";

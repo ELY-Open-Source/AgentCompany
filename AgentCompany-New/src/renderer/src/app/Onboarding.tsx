@@ -297,6 +297,7 @@ function ProviderCredentialFields({
 }) {
   const isOAuthLike = selected.authType === "oauth_pkce" || selected.authType === "account_subscription";
   const isCustom = Boolean(selected.customEndpoint);
+  const live = selected.supportsLiveModels;
   const [fetched, setFetched] = useState<ProviderCatalogEntry["models"] | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -340,7 +341,7 @@ function ProviderCredentialFields({
           buildInput={() => ({ providerKey: selected.key })}
           onComplete={(secret) => {
             onChange({ providerSecret: secret ?? "" });
-            if (secret) void loadModels(secret);
+            if (secret && live) void loadModels(secret);
           }}
         />
       ) : isCustom ? (
@@ -374,7 +375,7 @@ function ProviderCredentialFields({
           />
         </Field>
       )}
-      {!isOAuthLike && (
+      {!isOAuthLike && live && (
         <Button tone="ghost" onClick={loadTypedModels} disabled={!hasCredential || loading}>
           {loading ? "Getting models…" : fetched ? "Reload models" : "Get models"}
         </Button>
@@ -396,7 +397,7 @@ function ProviderCredentialFields({
             <input
               className="input"
               value={draft.providerModel}
-              placeholder={isOAuthLike ? "Loading…" : "Click “Get models”, or type a model id"}
+              placeholder={modelPlaceholder(live, isOAuthLike, loading)}
               onChange={(event) => onChange({ providerModel: event.target.value })}
             />
           )}
@@ -404,6 +405,12 @@ function ProviderCredentialFields({
       )}
     </div>
   );
+}
+
+function modelPlaceholder(live: boolean, isOAuthLike: boolean, loading: boolean): string {
+  if (!live) return "Type the model id (e.g. gpt-5.5)";
+  if (loading || isOAuthLike) return "Loading…";
+  return "Click “Get models”, or type a model id";
 }
 
 function authBadge(authType: string): string {

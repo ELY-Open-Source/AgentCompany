@@ -359,7 +359,7 @@ function ModelPicker({ entry, provider }: { entry: ProviderCatalogEntry; provide
   const [error, setError] = useState<string | null>(null);
   const [value, setValue] = useState(provider.model ?? entry.defaultModel ?? entry.models[0]?.id ?? "");
   const models = fetched ?? entry.models;
-  const connected = Boolean(provider.credentialId) && provider.enabled && provider.authState === "configured";
+  const connected = entry.supportsLiveModels && Boolean(provider.credentialId) && provider.enabled && provider.authState === "configured";
 
   const refresh = async () => {
     setLoading(true);

@@ -1,7 +1,7 @@
 import { PROVIDER_AUTH_TYPE, type ProviderCatalogEntry } from "./domain";
 import { listProviderModels } from "./provider-models";
 
-const RAW_CATALOG: Omit<ProviderCatalogEntry, "models">[] = [
+const RAW_CATALOG: Omit<ProviderCatalogEntry, "models" | "supportsLiveModels">[] = [
   {
     key: "openai",
     label: "OpenAI",
@@ -150,7 +150,19 @@ const RAW_CATALOG: Omit<ProviderCatalogEntry, "models">[] = [
   },
 ];
 
+// Providers with no enumerable models endpoint: the Codex subscription and the
+// browser-token / cloud connectors. Their model id is entered as free text.
+const CURATED_MODEL_PROVIDERS = new Set([
+  "github-copilot",
+  "google-antigravity",
+  "gpt-account",
+  "azure-openai",
+  "aws-bedrock",
+  "vertex-ai",
+]);
+
 export const PROVIDER_CATALOG: ProviderCatalogEntry[] = RAW_CATALOG.map((entry) => ({
   ...entry,
   models: listProviderModels(entry.key),
+  supportsLiveModels: !CURATED_MODEL_PROVIDERS.has(entry.key),
 }));
