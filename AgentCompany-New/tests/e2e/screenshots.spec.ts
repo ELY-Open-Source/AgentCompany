@@ -21,6 +21,7 @@ test("captures every page for visual review", async () => {
     await page.getByRole("button", { name: "Get started" }).click();
     await page.screenshot({ path: join(outDir, "01-onboarding-provider.png"), fullPage: false });
     await page.getByLabel("API key").fill("local-dev-key");
+    await page.getByLabel("Model").fill("gpt-5.4");
     await page.getByRole("button", { name: "Continue" }).click();
 
     await page.getByLabel("Company name").fill("OrbitOps");

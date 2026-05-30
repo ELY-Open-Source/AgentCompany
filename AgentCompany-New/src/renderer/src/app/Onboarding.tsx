@@ -60,7 +60,7 @@ export function Onboarding({
     providerKey: firstProvider.key,
     providerSecret: "",
     providerBaseUrl: "",
-    providerModel: firstProvider.defaultModel ?? firstProvider.models[0]?.id ?? "",
+    providerModel: "",
     goalTitle: "",
     goalDescription: "",
   });
@@ -159,7 +159,7 @@ export function Onboarding({
           <div className="row" style={{ gap: 10 }}>
             <Icon name="bot" size={16} />
             <strong style={{ fontSize: 13 }}>{selectedProvider.label}</strong>
-            <Pill tone="violet">{draft.providerModel}</Pill>
+            {draft.providerModel && <Pill tone="violet">{draft.providerModel}</Pill>}
           </div>
           <div style={{ marginTop: 10, fontSize: 12, color: "var(--text-3)" }}>
             We never embed the key in the build. Credentials encrypt locally via OS-protected storage.
@@ -264,7 +264,7 @@ function ProviderStep({
               className={`option-card ${draft.providerKey === provider.key ? "active" : ""}`.trim()}
               onClick={() => onChange({
                 providerKey: provider.key,
-                providerModel: provider.defaultModel ?? provider.models[0]?.id ?? "",
+                providerModel: "",
                 providerSecret: "",
                 providerBaseUrl: "",
               })}
@@ -301,8 +301,11 @@ function ProviderCredentialFields({
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
 
-  const models = fetched ?? selected.models;
-  const canLoad = isCustom ? Boolean(draft.providerBaseUrl.trim() && draft.providerSecret.trim()) : Boolean(draft.providerSecret.trim());
+  const hasCredential = isOAuthLike
+    ? Boolean(draft.providerSecret.trim())
+    : isCustom
+      ? Boolean(draft.providerBaseUrl.trim() && draft.providerSecret.trim())
+      : Boolean(draft.providerSecret.trim());
 
   const loadModels = async (secret: string) => {
     setLoading(true);
@@ -347,7 +350,7 @@ function ProviderCredentialFields({
               className="input"
               value={draft.providerBaseUrl}
               placeholder={selected.customEndpoint === "openai" ? "https://host/v1" : "https://host"}
-              onChange={(event) => onChange({ providerBaseUrl: event.target.value })}
+              onChange={(event) => onChange({ providerBaseUrl: event.target.value, providerModel: "" })}
             />
           </Field>
           <Field label="API key">
@@ -356,7 +359,7 @@ function ProviderCredentialFields({
               type="password"
               autoComplete="off"
               value={draft.providerSecret}
-              onChange={(event) => onChange({ providerSecret: event.target.value })}
+              onChange={(event) => onChange({ providerSecret: event.target.value, providerModel: "" })}
             />
           </Field>
         </>
@@ -367,31 +370,38 @@ function ProviderCredentialFields({
             type="password"
             autoComplete="off"
             value={draft.providerSecret}
-            onChange={(event) => onChange({ providerSecret: event.target.value })}
+            onChange={(event) => onChange({ providerSecret: event.target.value, providerModel: "" })}
           />
         </Field>
       )}
       {!isOAuthLike && (
-        <Button tone="ghost" onClick={loadTypedModels} disabled={!canLoad || loading}>
-          {loading ? "Loading models…" : fetched ? "Reload models" : "Load models"}
+        <Button tone="ghost" onClick={loadTypedModels} disabled={!hasCredential || loading}>
+          {loading ? "Getting models…" : fetched ? "Reload models" : "Get models"}
         </Button>
       )}
       {loadError && <div style={{ color: "var(--red)", fontSize: 12 }}>{loadError}</div>}
-      <Field label="Model">
-        {models.length ? (
-          <select
-            className="input"
-            value={draft.providerModel}
-            onChange={(event) => onChange({ providerModel: event.target.value })}
-          >
-            {models.map((model) => (
-              <option key={model.id} value={model.id}>{model.name}</option>
-            ))}
-          </select>
-        ) : (
-          <input className="input" value={draft.providerModel} onChange={(event) => onChange({ providerModel: event.target.value })} />
-        )}
-      </Field>
+      {hasCredential && (
+        <Field label="Model">
+          {fetched ? (
+            <select
+              className="input"
+              value={draft.providerModel}
+              onChange={(event) => onChange({ providerModel: event.target.value })}
+            >
+              {fetched.map((model) => (
+                <option key={model.id} value={model.id}>{model.name}</option>
+              ))}
+            </select>
+          ) : (
+            <input
+              className="input"
+              value={draft.providerModel}
+              placeholder={isOAuthLike ? "Loading…" : "Click “Get models”, or type a model id"}
+              onChange={(event) => onChange({ providerModel: event.target.value })}
+            />
+          )}
+        </Field>
+      )}
     </div>
   );
 }
