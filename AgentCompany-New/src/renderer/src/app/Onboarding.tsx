@@ -1,4 +1,4 @@
-import { useMemo, useState, type FormEvent } from "react";
+import { Fragment, useMemo, useState, type FormEvent } from "react";
 import {
   PROVIDER_AUTH_TYPE,
   type AppSnapshot,
@@ -249,8 +249,6 @@ function ProviderStep({
 }) {
   const selected = providers.find((entry) => entry.key === draft.providerKey) ?? providers[0];
   if (!selected) throw new Error("No provider available for onboarding.");
-  const isOAuthLike = selected.authType === "oauth_pkce" || selected.authType === "account_subscription";
-  const isCustom = Boolean(selected.customEndpoint);
 
   return (
     <div className="form-grid">
@@ -260,25 +258,47 @@ function ProviderStep({
       </p>
       <div className="option-grid">
         {providers.map((provider) => (
-          <button
-            key={provider.key}
-            type="button"
-            className={`option-card ${draft.providerKey === provider.key ? "active" : ""}`.trim()}
-            onClick={() => onChange({
-              providerKey: provider.key,
-              providerModel: provider.defaultModel ?? provider.models[0]?.id ?? "",
-              providerSecret: "",
-              providerBaseUrl: "",
-            })}
-          >
-            <div className="row">
-              <div className="opt-title" style={{ flex: 1 }}>{provider.label}</div>
-              <Pill tone="violet">{authBadge(provider.authType)}</Pill>
-            </div>
-            <div className="opt-sub">{provider.capabilityTags.join(" · ") || authBadge(provider.authType)}</div>
-          </button>
+          <Fragment key={provider.key}>
+            <button
+              type="button"
+              className={`option-card ${draft.providerKey === provider.key ? "active" : ""}`.trim()}
+              onClick={() => onChange({
+                providerKey: provider.key,
+                providerModel: provider.defaultModel ?? provider.models[0]?.id ?? "",
+                providerSecret: "",
+                providerBaseUrl: "",
+              })}
+            >
+              <div className="row">
+                <div className="opt-title" style={{ flex: 1 }}>{provider.label}</div>
+                <Pill tone="violet">{authBadge(provider.authType)}</Pill>
+              </div>
+              <div className="opt-sub">{provider.capabilityTags.join(" · ") || authBadge(provider.authType)}</div>
+            </button>
+            {provider.key === selected.key && (
+              <ProviderCredentialFields selected={selected} draft={draft} onChange={onChange} />
+            )}
+          </Fragment>
         ))}
       </div>
+      <Actions onBack={onBack} onNext={onNext} />
+    </div>
+  );
+}
+
+function ProviderCredentialFields({
+  selected,
+  draft,
+  onChange,
+}: {
+  selected: ProviderCatalogEntry;
+  draft: Draft;
+  onChange: (patch: Partial<Draft>) => void;
+}) {
+  const isOAuthLike = selected.authType === "oauth_pkce" || selected.authType === "account_subscription";
+  const isCustom = Boolean(selected.customEndpoint);
+  return (
+    <div className="provider-inline-form">
       {selected.credentialHelp && (
         <div style={{ fontSize: 12.5, color: "var(--text-3)", lineHeight: 1.5 }}>{selected.credentialHelp}</div>
       )}
@@ -336,7 +356,6 @@ function ProviderStep({
           <input className="input" value={draft.providerModel} onChange={(event) => onChange({ providerModel: event.target.value })} />
         )}
       </Field>
-      <Actions onBack={onBack} onNext={onNext} />
     </div>
   );
 }

@@ -89,6 +89,15 @@
 .option-card.active { border-color: var(--text-1); box-shadow: inset 0 0 0 1px var(--text-1); }
 .option-card .opt-title { font-size: 13.5px; font-weight: 540; }
 .option-card .opt-sub { font-size: 12px; color: var(--text-3); margin-top: 4px; }
+.provider-inline-form {
+  display: grid;
+  gap: 12px;
+  padding: 14px 16px 16px;
+  margin: 2px 0 6px 12px;
+  border-left: 2px solid var(--text-1);
+  border-radius: 0 var(--r-sm) var(--r-sm) 0;
+  background: var(--panel-2);
+}
 
 .popover-anchor { position: relative; display: inline-flex; }
 .popover-panel {
