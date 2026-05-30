@@ -417,7 +417,7 @@ function ProviderCredentialFields({
 }
 
 function modelPlaceholder(live: boolean, isOAuthLike: boolean, loading: boolean): string {
-  if (!live) return "Type the model id (e.g. gpt-5.5)";
+  if (!live) return "Enter the model id";
   if (loading || isOAuthLike) return "Loading…";
   return "Click “Get models”, or type a model id";
 }

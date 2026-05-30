@@ -150,8 +150,10 @@ const RAW_CATALOG: Omit<ProviderCatalogEntry, "models" | "supportsLiveModels">[]
   },
 ];
 
-// Providers with no enumerable models endpoint: the Codex subscription and the
-// browser-token / cloud connectors. Their model id is entered as free text.
+// Providers with no enumerable models endpoint: the Codex subscription, the
+// browser-token / cloud connectors, and user-configured custom endpoints whose
+// model id is entered by hand. The UI offers a fixed dropdown (when a curated
+// list exists) or a free-text model id instead of a live fetch.
 const CURATED_MODEL_PROVIDERS = new Set([
   "github-copilot",
   "google-antigravity",
@@ -159,6 +161,8 @@ const CURATED_MODEL_PROVIDERS = new Set([
   "azure-openai",
   "aws-bedrock",
   "vertex-ai",
+  "custom-openai",
+  "custom-anthropic",
 ]);
 
 export const PROVIDER_CATALOG: ProviderCatalogEntry[] = RAW_CATALOG.map((entry) => ({

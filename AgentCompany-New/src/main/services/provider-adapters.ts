@@ -357,10 +357,7 @@ export const providerAdapters: ProviderAdapterRegistry = {
     refresh: refreshUnsupported("Custom OpenAI-compatible endpoint"),
     revoke: revokeLocalProfile((profile) => { requireOpenAiCompatProfile(profile); }),
     parseAuthProfile: parseOpenAiCompatProfile,
-    listModels: (ctx) => {
-      const profile = requireOpenAiCompatProfile(ctx.authProfile);
-      return fetchOpenAiModels(`${profile.baseUrl}/models`, { authorization: `Bearer ${profile.apiKey}` });
-    },
+    listModels: () => listStaticModels("custom-openai"),
     getRateLimitState: providerRateLimitUnknown,
     streamResponse: streamUnsupported("Custom OpenAI-compatible endpoint"),
     cancelResponse: cancelUnsupported("Custom OpenAI-compatible endpoint"),
@@ -378,13 +375,7 @@ export const providerAdapters: ProviderAdapterRegistry = {
     refresh: refreshUnsupported("Custom Anthropic-compatible endpoint"),
     revoke: revokeLocalProfile((profile) => { requireAnthropicCompatProfile(profile); }),
     parseAuthProfile: parseAnthropicCompatProfile,
-    listModels: (ctx) => {
-      const profile = requireAnthropicCompatProfile(ctx.authProfile);
-      return fetchAnthropicModels(`${profile.baseUrl}/v1/models`, {
-        "x-api-key": profile.apiKey,
-        "anthropic-version": ANTHROPIC_VERSION,
-      });
-    },
+    listModels: () => listStaticModels("custom-anthropic"),
     getRateLimitState: providerRateLimitUnknown,
     streamResponse: streamUnsupported("Custom Anthropic-compatible endpoint"),
     cancelResponse: cancelUnsupported("Custom Anthropic-compatible endpoint"),

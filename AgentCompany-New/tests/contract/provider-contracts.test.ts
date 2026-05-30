@@ -91,6 +91,7 @@ describe("provider contracts", () => {
   // catalog; the rest fetch live (covered offline by provider-models-fetch.test).
   const CURATED_MODEL_PROVIDERS = new Set([
     "github-copilot", "google-antigravity", "gpt-account", "azure-openai", "aws-bedrock", "vertex-ai",
+    "custom-openai", "custom-anthropic",
   ]);
 
   test("exposes model listing and rate limit adapter contracts", async () => {
