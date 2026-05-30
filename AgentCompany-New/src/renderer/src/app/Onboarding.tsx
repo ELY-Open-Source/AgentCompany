@@ -18,6 +18,7 @@ interface Draft {
   executionMode: "ai_ceo" | "ai_cofounder";
   providerKey: string;
   providerSecret: string;
+  providerBaseUrl: string;
   providerModel: string;
   goalTitle: string;
   goalDescription: string;
@@ -43,7 +44,7 @@ export function Onboarding({
   onCompleted: () => void;
 }) {
   const availableProviders = useMemo(
-    () => snapshot.providerCatalog.filter((entry) => entry.authType !== PROVIDER_AUTH_TYPE.CLOUD),
+    () => snapshot.providerCatalog.filter((entry) => entry.authType !== PROVIDER_AUTH_TYPE.CLOUD || Boolean(entry.customEndpoint)),
     [snapshot.providerCatalog],
   );
   const firstProvider = availableProviders[0];
@@ -58,6 +59,7 @@ export function Onboarding({
     executionMode: "ai_ceo",
     providerKey: firstProvider.key,
     providerSecret: "",
+    providerBaseUrl: "",
     providerModel: firstProvider.defaultModel ?? firstProvider.models[0]?.id ?? "",
     goalTitle: "",
     goalDescription: "",
@@ -93,6 +95,9 @@ export function Onboarding({
     }
     setSubmitting(true);
     setError(null);
+    const providerSecret = selectedProvider.customEndpoint
+      ? JSON.stringify({ baseUrl: draft.providerBaseUrl.trim(), secret: draft.providerSecret.trim() })
+      : draft.providerSecret.trim();
     const result = await window.agentCompany.bootstrapOnboarding({
       companyName: draft.companyName.trim(),
       companyDescription: draft.companyDescription.trim(),
@@ -104,7 +109,7 @@ export function Onboarding({
       goalTitle: draft.goalTitle.trim(),
       goalDescription: draft.goalDescription.trim(),
       providerKey: draft.providerKey,
-      providerSecret: draft.providerSecret.trim(),
+      providerSecret,
       providerModel: draft.providerModel.trim(),
     });
     setSubmitting(false);
@@ -245,6 +250,7 @@ function ProviderStep({
   const selected = providers.find((entry) => entry.key === draft.providerKey) ?? providers[0];
   if (!selected) throw new Error("No provider available for onboarding.");
   const isOAuthLike = selected.authType === "oauth_pkce" || selected.authType === "account_subscription";
+  const isCustom = Boolean(selected.customEndpoint);
 
   return (
     <div className="form-grid">
@@ -262,6 +268,7 @@ function ProviderStep({
               providerKey: provider.key,
               providerModel: provider.defaultModel ?? provider.models[0]?.id ?? "",
               providerSecret: "",
+              providerBaseUrl: "",
             })}
           >
             <div className="row">
@@ -283,6 +290,26 @@ function ProviderStep({
           buildInput={() => ({ providerKey: selected.key })}
           onComplete={(secret) => onChange({ providerSecret: secret ?? "" })}
         />
+      ) : isCustom ? (
+        <>
+          <Field label="Base URL">
+            <input
+              className="input"
+              value={draft.providerBaseUrl}
+              placeholder={selected.customEndpoint === "openai" ? "https://host/v1" : "https://host"}
+              onChange={(event) => onChange({ providerBaseUrl: event.target.value })}
+            />
+          </Field>
+          <Field label="API key">
+            <input
+              className="input"
+              type="password"
+              autoComplete="off"
+              value={draft.providerSecret}
+              onChange={(event) => onChange({ providerSecret: event.target.value })}
+            />
+          </Field>
+        </>
       ) : (
         <Field label="API key">
           <input
@@ -434,8 +461,9 @@ function validateProvider(draft: Draft, providers: ProviderCatalogEntry[]): stri
   if (!draft.providerKey) return "Pick a provider.";
   const selected = providers.find((entry) => entry.key === draft.providerKey);
   if (!selected) return "Provider is no longer available.";
+  if (selected.customEndpoint && !draft.providerBaseUrl.trim()) return "Base URL is required.";
   if (!draft.providerSecret.trim()) {
-    return selected.authType === "api_key" ? "API key is required." : "Access token is required.";
+    return selected.authType === "api_key" || selected.customEndpoint ? "API key is required." : "Access token is required.";
   }
   if (!draft.providerModel.trim()) return "Model is required.";
   return null;

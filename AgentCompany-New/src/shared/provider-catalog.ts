@@ -136,6 +136,7 @@ const RAW_CATALOG: Omit<ProviderCatalogEntry, "models">[] = [
     capabilityTags: ["custom", "openai-compatible"],
     signInUrl: null,
     credentialHelp: "Set the base URL (ending in /v1) and an API key for any OpenAI Chat Completions–compatible endpoint, then enter the model id.",
+    customEndpoint: "openai",
   },
   {
     key: "custom-anthropic",
@@ -145,6 +146,7 @@ const RAW_CATALOG: Omit<ProviderCatalogEntry, "models">[] = [
     capabilityTags: ["custom", "anthropic-compatible"],
     signInUrl: null,
     credentialHelp: "Set the base URL and an API key for any Anthropic Messages–compatible endpoint, then enter the model id.",
+    customEndpoint: "anthropic",
   },
 ];
 

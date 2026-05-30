@@ -292,6 +292,9 @@ export interface ProviderCatalogEntry {
   signInUrl: string | null;
   credentialHelp: string;
   models: ProviderCatalogModel[];
+  /** Set for user-configured OpenAI/Anthropic-compatible endpoints: the UI
+   * collects a base URL + API key + model instead of a fixed provider form. */
+  customEndpoint?: "openai" | "anthropic";
 }
 
 export interface SkillDefinitionRecord {

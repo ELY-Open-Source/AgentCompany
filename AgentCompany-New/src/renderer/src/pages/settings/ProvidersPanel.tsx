@@ -288,7 +288,30 @@ function ProviderConnectFields({
       </>
     );
   }
+  if (entry.customEndpoint) {
+    return <CompatFieldsForm entry={entry} provider={provider} />;
+  }
   return <CloudFieldsForm entry={entry} provider={provider} />;
+}
+
+function CompatFieldsForm({ entry, provider }: { entry: ProviderCatalogEntry; provider: ProviderRecord }) {
+  const [baseUrl, setBaseUrl] = useState("");
+  return (
+    <>
+      <p style={{ fontSize: 12.5, color: "var(--text-3)", lineHeight: 1.5, margin: 0 }}>{entry.credentialHelp}</p>
+      <Field label="Base URL">
+        <input
+          className="input"
+          name="cloudBaseUrl"
+          value={baseUrl}
+          placeholder={entry.customEndpoint === "openai" ? "https://host/v1" : "https://host"}
+          onChange={(event) => setBaseUrl(event.target.value)}
+        />
+      </Field>
+      <Field label="API key"><input className="input" name="secret" type="password" required /></Field>
+      <ModelPicker entry={entry} provider={provider} />
+    </>
+  );
 }
 
 function ProviderOAuthFields({
