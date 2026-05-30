@@ -360,7 +360,7 @@ function ProviderCredentialFields({
               className="input"
               value={draft.providerBaseUrl}
               placeholder={selected.customEndpoint === "openai" ? "https://host/v1" : "https://host"}
-              onChange={(event) => onChange({ providerBaseUrl: event.target.value, providerModel: "" })}
+              onChange={(event) => onChange({ providerBaseUrl: event.target.value })}
             />
           </Field>
           <Field label="API key">
@@ -369,7 +369,7 @@ function ProviderCredentialFields({
               type="password"
               autoComplete="off"
               value={draft.providerSecret}
-              onChange={(event) => onChange({ providerSecret: event.target.value, providerModel: "" })}
+              onChange={(event) => onChange({ providerSecret: event.target.value })}
             />
           </Field>
         </>
@@ -390,7 +390,7 @@ function ProviderCredentialFields({
         </Button>
       )}
       {loadError && <div style={{ color: "var(--red)", fontSize: 12 }}>{loadError}</div>}
-      {hasCredential && (
+      {(hasCredential || isCustom) && (
         <Field label="Model">
           {fetched || showCuratedList ? (
             <select
