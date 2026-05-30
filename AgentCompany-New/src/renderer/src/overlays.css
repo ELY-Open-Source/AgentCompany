@@ -47,7 +47,9 @@
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  /* `safe` keeps short steps centered but aligns to the top when the content
+     overflows, so the first provider card is never clipped/unreachable. */
+  justify-content: safe center;
   padding: 48px;
   background: var(--panel);
 }
@@ -92,10 +94,10 @@
 .provider-inline-form {
   display: grid;
   gap: 12px;
-  padding: 14px 16px 16px;
-  margin: 2px 0 6px 12px;
-  border-left: 2px solid var(--text-1);
-  border-radius: 0 var(--r-sm) var(--r-sm) 0;
+  padding: 16px;
+  margin: 2px 0 6px;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-md);
   background: var(--panel-2);
 }
 
