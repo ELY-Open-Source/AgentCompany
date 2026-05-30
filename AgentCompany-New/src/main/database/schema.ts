@@ -36,6 +36,8 @@ import { providerAuthSessionsSchema } from "./migrations/034-provider-auth-sessi
 import { taskRunIsolationSchema } from "./migrations/035-task-run-isolation";
 import { additionalConnectorsSchema } from "./migrations/036-additional-connectors";
 import { customProvidersSchema } from "./migrations/037-custom-providers";
+import { providerAuthProfileCascadeSchema } from "./migrations/038-provider-auth-profile-cascade";
+import { auditImmutabilityOrgTeardownSchema } from "./migrations/039-audit-immutability-org-teardown";
 
 interface Migration {
   version: number;
@@ -81,6 +83,8 @@ const MIGRATIONS: Migration[] = [
   { version: 35, name: "task_run_isolation", sql: taskRunIsolationSchema },
   { version: 36, name: "additional_connectors", sql: additionalConnectorsSchema },
   { version: 37, name: "custom_providers", sql: customProvidersSchema },
+  { version: 38, name: "provider_auth_profile_cascade", sql: providerAuthProfileCascadeSchema },
+  { version: 39, name: "audit_immutability_org_teardown", sql: auditImmutabilityOrgTeardownSchema },
 ];
 
 const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;
