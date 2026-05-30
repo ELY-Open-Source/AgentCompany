@@ -117,14 +117,13 @@ function OrgRow({
   const initial = orgInitial(org.name);
   if (confirming) {
     return (
-      <div className="org-menu-row confirm">
-        <span className="brand-mark sm">{initial}</span>
-        <div className="org-menu-confirm-text">
-          <div>Delete {org.name}?</div>
-          <div className="org-menu-confirm-hint">All agents, work, chats, files removed.</div>
+      <div className="org-menu-confirm">
+        <div className="org-menu-confirm-title">Delete “{org.name}”?</div>
+        <div className="org-menu-confirm-hint">All agents, work, chats, and files are permanently removed.</div>
+        <div className="org-menu-confirm-actions">
+          <button type="button" className="org-menu-confirm-no" onClick={onCancelDelete}>Cancel</button>
+          <button type="button" className="org-menu-confirm-yes" onClick={onConfirmDelete}>Delete</button>
         </div>
-        <button type="button" className="org-menu-confirm-yes" onClick={onConfirmDelete}>Delete</button>
-        <button type="button" className="org-menu-confirm-no" onClick={onCancelDelete}>Cancel</button>
       </div>
     );
   }
