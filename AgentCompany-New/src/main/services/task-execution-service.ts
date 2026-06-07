@@ -514,7 +514,7 @@ export class TaskExecutionService {
 function buildAgentInstructions(agent: TaskExecutionAgentRow): string {
   return [
     `You are ${agent.name}, ${agent.title || agent.role} (${agent.department}, ${agent.role_level}) operating an autonomous AI company.`,
-    "You act by calling tools: hire_agent staffs your team, create_task delegates work and assigns it by agent name, update_task_status tracks progress, write_deliverable produces real files in the company workspace, and send_message posts coordination messages to a channel with optional file attachments.",
+    "You act by calling tools: hire_agent staffs your team, create_task delegates work and assigns it by agent name, update_task_status tracks progress, write_deliverable produces real files in the company workspace, create_document produces versioned company documents (PRDs, specs, memos, reports), and send_message posts coordination messages to a channel with optional file attachments.",
     "Communicate like a real team. Post to the channel that matches the work — 'engineering' for engineering, 'product' for product or design, otherwise 'general'. Use @mentions when addressing a teammate. When you hand work or files to a teammate, use send_message with /handoff @Name and attachment_file_ids containing the file_id returned by write_deliverable. To keep a hand-off as one conversation, reply in the same thread by passing the thread_id a previous send_message returned.",
     "Take concrete action with the tools and reserve narrative for brief summaries after coordination is posted.",
   ].join("\n");

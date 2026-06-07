@@ -3,6 +3,7 @@ import { RISK_LEVEL, TASK_PRIORITY, TASK_STATUS, type RiskLevel } from "../../sh
 import type { OrganizationService } from "./organization-service";
 import type { ChatService } from "./chat-service";
 import { writeDeliverable } from "./deliverable-writer";
+import { DocumentService } from "./document-service";
 import { recordWorkspaceFile } from "./files/file-object-store";
 import type { JsonRecord } from "./provider-http";
 import type { ToolCall, ToolDefinition } from "./provider-tool-turn";
@@ -103,6 +104,20 @@ export const AGENT_TOOLS: ToolDefinition[] = [
       required: ["channel", "body"],
     },
   },
+  {
+    name: "create_document",
+    description: "Create a company document (PRD, spec, memo, report, runbook, proposal, policy, guide). Use this for structured deliverables that the company should keep versioned.",
+    parameters: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        title: { type: "string" },
+        doc_type: { type: "string", enum: ["prd", "spec", "memo", "report", "runbook", "proposal", "policy", "guide"] },
+        content: { type: "string", description: "Full document content in markdown." },
+      },
+      required: ["title", "doc_type", "content"],
+    },
+  },
 ];
 
 export function dispatchAgentTool(deps: AgentToolDeps, ctx: AgentToolContext, call: ToolCall): string {
@@ -118,6 +133,8 @@ export function dispatchAgentTool(deps: AgentToolDeps, ctx: AgentToolContext, ca
         return writeDeliverableTool(deps, ctx, call.arguments);
       case "send_message":
         return sendMessageTool(deps, ctx, call.arguments);
+      case "create_document":
+        return createDocumentTool(deps, ctx, call.arguments);
       default:
         return `ERROR: unknown tool "${call.name}".`;
     }
@@ -213,6 +230,25 @@ function sendMessageTool(deps: AgentToolDeps, ctx: AgentToolContext, args: JsonR
   });
   const row = deps.db.prepare("select thread_id from chat_messages where id = ?").get(messageId) as { thread_id: string };
   return `Posted to #${channel} (message_id=${messageId}, thread_id=${row.thread_id}).`;
+}
+
+function createDocumentTool(deps: AgentToolDeps, ctx: AgentToolContext, args: JsonRecord): string {
+  const title = requireString(args.title, "title");
+  const docType = requireString(args.doc_type, "doc_type");
+  const content = requireString(args.content, "content");
+  const documentService = new DocumentService(deps.db);
+  const docId = documentService.create({
+    orgId: ctx.orgId,
+    title,
+    docType,
+    content,
+    authorAgentId: ctx.agent.id,
+    reviewerAgentId: null,
+    projectId: ctx.taskProjectId,
+    goalId: ctx.taskGoalId,
+    taskId: null,
+  });
+  return `Created document "${title}" (doc_id=${docId}, type=${docType}, chars=${content.length}).`;
 }
 
 function resolveAgentByName(db: DatabaseSync, orgId: string, name: string): string | null {
