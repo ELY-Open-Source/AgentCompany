@@ -66,13 +66,10 @@ function errorText(data: JsonRecord): string {
 
 /**
  * Accumulate a Responses SSE stream (Codex/Copilot) into the final result. The
- * authoritative output arrives on the completion event's `response.output`; the
- * incremental events are accumulated only as a fallback.
+ * result is accepted from the completion event's `response.output`.
  */
 export async function accumulateResponsesStream(messages: AsyncIterable<ProviderEventStreamMessage>): Promise<AgentTurnResult> {
   const raw: string[] = [];
-  const textParts: string[] = [];
-  const calls = new Map<string, { id: string; name: string; args: string }>();
   for await (const message of messages) {
     raw.push(message.rawData);
     const type = eventType(message);
@@ -84,23 +81,8 @@ export async function accumulateResponsesStream(messages: AsyncIterable<Provider
         const parsed = parseResponsesOutput(response);
         return { text: parsed.text, toolCalls: parsed.toolCalls, rawResponseJson: JSON.stringify(raw) };
       }
-      break;
-    }
-    if (type === "response.output_text.delta" && typeof message.data.delta === "string") {
-      textParts.push(message.data.delta);
-    } else if (type === "response.output_item.added" && isRecord(message.data.item) && message.data.item.type === "function_call") {
-      const item = message.data.item;
-      const key = typeof item.id === "string" ? item.id : typeof item.call_id === "string" ? item.call_id : "";
-      const id = typeof item.call_id === "string" ? item.call_id : key;
-      if (key) calls.set(key, { id, name: typeof item.name === "string" ? item.name : "", args: typeof item.arguments === "string" ? item.arguments : "" });
-    } else if (type === "response.function_call_arguments.delta" && typeof message.data.item_id === "string" && typeof message.data.delta === "string") {
-      const entry = calls.get(message.data.item_id);
-      if (entry) entry.args += message.data.delta;
-    } else if (type === "response.function_call_arguments.done" && typeof message.data.item_id === "string" && typeof message.data.arguments === "string") {
-      const entry = calls.get(message.data.item_id);
-      if (entry) entry.args = message.data.arguments;
+      throw new Error("Responses completion event was missing response.output.");
     }
   }
-  const toolCalls = [...calls.values()].filter((entry) => entry.name).map((entry) => ({ id: entry.id, name: entry.name, arguments: parseArguments(entry.args) }));
-  return { text: textParts.join("").trim(), toolCalls, rawResponseJson: JSON.stringify(raw) };
+  throw new Error("Responses stream ended before a completion event.");
 }

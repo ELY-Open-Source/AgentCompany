@@ -83,7 +83,6 @@ function CompatFieldsForm({ entry, provider }: { entry: ProviderCatalogEntry; pr
           className="input"
           name="cloudBaseUrl"
           value={baseUrl}
-          placeholder={entry.customEndpoint === "openai" ? "https://host/v1" : "https://host"}
           onChange={(event) => setBaseUrl(event.target.value)}
         />
       </Field>

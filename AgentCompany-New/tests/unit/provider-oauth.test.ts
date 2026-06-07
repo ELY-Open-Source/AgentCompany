@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { describe, expect, test } from "vitest";
 import { interpretPollResponse } from "../../src/main/services/oauth/github-copilot-flow";
 import { extractAccountId } from "../../src/main/services/oauth/openai-codex-flow";
-import { readProjectId } from "../../src/main/services/oauth/google-antigravity-flow";
+import { readProjectId, resolveAntigravityClientSecret } from "../../src/main/services/oauth/google-antigravity-flow";
 import { generatePkce } from "../../src/main/services/oauth/pkce";
 import { parseAccessToken, parseAccountToken } from "../../src/main/services/provider-auth-profiles";
 
@@ -54,6 +54,16 @@ describe("antigravity project discovery", () => {
   test("returns null when no project is present", () => {
     expect(readProjectId({})).toBeNull();
     expect(readProjectId({ cloudaicompanionProject: {} })).toBeNull();
+  });
+});
+
+describe("antigravity oauth configuration", () => {
+  test("reads the client secret from runtime environment", () => {
+    expect(resolveAntigravityClientSecret({ AGENTCOMPANY_GOOGLE_ANTIGRAVITY_CLIENT_SECRET: " live-secret " })).toBe("live-secret");
+  });
+
+  test("requires an explicit client secret", () => {
+    expect(() => resolveAntigravityClientSecret({})).toThrow("AGENTCOMPANY_GOOGLE_ANTIGRAVITY_CLIENT_SECRET");
   });
 });
 

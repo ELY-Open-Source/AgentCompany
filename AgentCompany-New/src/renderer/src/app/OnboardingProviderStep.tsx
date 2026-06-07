@@ -127,7 +127,6 @@ function ProviderCredentialFields({
             <input
               className="input"
               value={draft.providerBaseUrl}
-              placeholder={selected.customEndpoint === "openai" ? "https://host/v1" : "https://host"}
               onChange={(event) => onChange({ providerBaseUrl: event.target.value })}
             />
           </Field>
@@ -174,7 +173,6 @@ function ProviderCredentialFields({
             <input
               className="input"
               value={draft.providerModel}
-              placeholder={modelPlaceholder(live, isOAuthLike, loading)}
               onChange={(event) => onChange({ providerModel: event.target.value })}
             />
           )}
@@ -191,12 +189,6 @@ function Actions({ onBack, onNext }: { onBack: () => void; onNext: () => void })
       <Button tone="primary" onClick={onNext}>Continue</Button>
     </div>
   );
-}
-
-function modelPlaceholder(live: boolean, isOAuthLike: boolean, loading: boolean): string {
-  if (!live) return "Enter the model id";
-  if (loading || isOAuthLike) return "Loading...";
-  return "Click Get models, or type a model id";
 }
 
 function authBadge(authType: string): string {

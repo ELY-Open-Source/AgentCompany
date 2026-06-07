@@ -150,7 +150,6 @@ function ConversationHeader({
             className="input"
             autoFocus
             aria-label="Search messages"
-            placeholder="Search messages"
             value={query}
             onChange={(event) => onQueryChange(event.target.value)}
             onKeyDown={(event) => { if (event.key === "Escape") toggleSearch(); }}

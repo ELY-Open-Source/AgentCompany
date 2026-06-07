@@ -254,7 +254,7 @@ function CompanyStep({ draft, onChange, onBack, onNext }: StepProps) {
       </Field>
       <Field label="Workspace path (optional)">
         <div className="row" style={{ gap: 6 }}>
-          <input className="input" value={draft.workspacePath} onChange={(event) => onChange({ workspacePath: event.target.value })} placeholder="Choose a folder for agent artifacts" />
+          <input className="input" value={draft.workspacePath} onChange={(event) => onChange({ workspacePath: event.target.value })} />
           <Button tone="ghost" onClick={chooseWorkspace}><Icon name="folder" size={13} /> Choose</Button>
         </div>
       </Field>
