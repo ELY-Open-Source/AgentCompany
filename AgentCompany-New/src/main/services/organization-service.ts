@@ -226,11 +226,13 @@ export class OrganizationService {
         .get(input.modelProviderId, input.orgId) as { id: string } | undefined;
       if (!provider) throw new Error("Agent provider was not found.");
     }
+    const department = input.department.trim();
+    const budgetCents = Math.max(0, Math.round(input.budgetCents));
     const result = this.db.prepare(`
       update agents
-      set role = ?, title = ?, role_level = ?, model_provider_id = ?, model_id = ?
+      set role = ?, title = ?, role_level = ?, department = ?, budget_cents = ?, model_provider_id = ?, model_id = ?
       where id = ? and org_id = ?
-    `).run(role, input.title.trim() || role, input.roleLevel.trim() || "staff", input.modelProviderId, input.modelId, input.agentId, input.orgId);
+    `).run(role, input.title.trim() || role, input.roleLevel.trim() || "staff", department || "General", budgetCents, input.modelProviderId, input.modelId, input.agentId, input.orgId);
     if (result.changes === 0) throw new Error("Agent update failed.");
     this.audit.record({
       orgId: input.orgId,

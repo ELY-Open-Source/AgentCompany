@@ -83,6 +83,8 @@ export function TeamPage({ snapshot, actions }: PageProps) {
       role: text(form, "role"),
       title: text(form, "title") || text(form, "role"),
       roleLevel: text(form, "roleLevel") || "staff",
+      department: text(form, "department") || editingAgent.department,
+      budgetCents: Math.max(0, Math.round(Number(text(form, "budget")) * 100)),
       modelProviderId: optional(form, "modelProviderId"),
       modelId: optional(form, "modelId"),
     })).then((result) => { if (result) setEditAgentId(null); });
@@ -163,6 +165,8 @@ export function TeamPage({ snapshot, actions }: PageProps) {
         <Dialog key={editingAgent.id} title={`Edit ${editingAgent.name}`} open submitLabel="Save" onClose={() => setEditAgentId(null)} onSubmit={submitEdit}>
           <Field label="Role"><input className="input" name="role" defaultValue={editingAgent.role} required /></Field>
           <Field label="Title"><input className="input" name="title" defaultValue={editingAgent.title} /></Field>
+          <Field label="Department"><input className="input" name="department" defaultValue={editingAgent.department} required /></Field>
+          <Field label="Monthly budget"><input className="input" name="budget" type="number" min="0" step="1" defaultValue={editingAgent.budgetCents / 100} /></Field>
           <Field label="Provider">
             <select className="input" name="modelProviderId" defaultValue={editingAgent.modelProviderId ?? ""}>
               <option value="">Unassigned</option>

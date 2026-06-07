@@ -71,7 +71,7 @@ export function WorkspacePanel({
       <div className="card" style={{ padding: 18 }}>
         <div className="row" style={{ marginBottom: 12 }}>
           <div className="section-label">Workspaces</div>
-          <Button tone="ghost" onClick={() => setCreateOpen(true)} style={{ marginLeft: "auto" }}><Icon name="plus" size={13} /> Add</Button>
+          <span style={{ marginLeft: "auto" }}><Button tone="ghost" onClick={() => setCreateOpen(true)}><Icon name="plus" size={13} /> Add</Button></span>
         </div>
         {workspaces.map((workspace) => (
           <div key={workspace.id} className="row" style={{ padding: "8px 0", borderBottom: "1px solid var(--border-soft)" }}>
@@ -92,7 +92,10 @@ export function WorkspacePanel({
         <Field label="Local path">
           <div className="row" style={{ gap: 6 }}>
             <input className="input" name="localPath" required style={{ flex: 1 }} />
-            <Button tone="ghost" onClick={(e) => { const form = (e.target as HTMLElement).closest("form"); if (form) void chooseDirectory(form); }}>
+            <Button tone="ghost" onClick={() => {
+              const form = document.querySelector<HTMLFormElement>("form:has([name='localPath'])");
+              if (form) void chooseDirectory(form);
+            }}>
               <Icon name="folder" size={13} /> Browse
             </Button>
           </div>

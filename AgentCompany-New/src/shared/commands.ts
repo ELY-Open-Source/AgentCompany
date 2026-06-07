@@ -42,6 +42,8 @@ export interface UpdateAgentInput {
   role: string;
   title: string;
   roleLevel: string;
+  department: string;
+  budgetCents: number;
   modelProviderId: string | null;
   modelId: string | null;
 }
