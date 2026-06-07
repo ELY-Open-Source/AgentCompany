@@ -9,9 +9,17 @@ import type {
   CreateAgentInput,
   UpdateAgentInput,
   CreateApprovalInput,
+  CreateAutomationRuleInput,
+  CreateDocumentInput,
   CreateGoalInput,
+  CreateKnowledgeEntryInput,
   CreateProjectInput,
   CreateWorkspaceInput,
+  DeleteAutomationRuleInput,
+  DeleteDocumentInput,
+  DeleteKnowledgeEntryInput,
+  UpdateAutomationRuleInput,
+  UpdateDocumentInput,
   CreateAuditReplayInput,
   CreateChatSpaceInput,
   CreateComplianceExportInput,
@@ -96,6 +104,14 @@ export interface DesktopApi {
   createGoal(input: CreateGoalInput): Promise<DesktopResult<AppSnapshot>>;
   createProject(input: CreateProjectInput): Promise<DesktopResult<AppSnapshot>>;
   createWorkspace(input: CreateWorkspaceInput): Promise<DesktopResult<AppSnapshot>>;
+  createDocument(input: CreateDocumentInput): Promise<DesktopResult<AppSnapshot>>;
+  updateDocument(input: UpdateDocumentInput): Promise<DesktopResult<AppSnapshot>>;
+  deleteDocument(input: DeleteDocumentInput): Promise<DesktopResult<AppSnapshot>>;
+  createKnowledgeEntry(input: CreateKnowledgeEntryInput): Promise<DesktopResult<AppSnapshot>>;
+  deleteKnowledgeEntry(input: DeleteKnowledgeEntryInput): Promise<DesktopResult<AppSnapshot>>;
+  createAutomationRule(input: CreateAutomationRuleInput): Promise<DesktopResult<AppSnapshot>>;
+  updateAutomationRule(input: UpdateAutomationRuleInput): Promise<DesktopResult<AppSnapshot>>;
+  deleteAutomationRule(input: DeleteAutomationRuleInput): Promise<DesktopResult<AppSnapshot>>;
   createApproval(input: CreateApprovalInput): Promise<DesktopResult<AppSnapshot>>;
   decideApproval(input: DecideApprovalInput): Promise<DesktopResult<AppSnapshot>>;
   syncEmployeeIdentity(input: SyncEmployeeIdentityInput): Promise<DesktopResult<AppSnapshot>>;

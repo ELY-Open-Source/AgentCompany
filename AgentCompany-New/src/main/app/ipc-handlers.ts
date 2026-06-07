@@ -22,6 +22,9 @@ import { SdlcService } from "../services/sdlc-service";
 import { AuditService } from "../services/audit-service";
 import { RollbackService } from "../services/rollback-service";
 import { TaskExecutionService } from "../services/task-execution-service";
+import { DocumentService } from "../services/document-service";
+import { KnowledgeService } from "../services/knowledge-service";
+import { AutomationService } from "../services/automation-service";
 
 export interface IpcDeps {
   connection: DatabaseConnection;
@@ -48,6 +51,9 @@ export function registerIpcHandlers(deps: IpcDeps): void {
   const sdlc = new SdlcService(deps.connection.db);
   const audit = new AuditService(deps.connection.db);
   const rollback = new RollbackService(deps.connection.db);
+  const documents = new DocumentService(deps.connection.db);
+  const knowledge = new KnowledgeService(deps.connection.db);
+  const automation = new AutomationService(deps.connection.db);
   const onboarding = new OnboardingService({
     db: deps.connection.db,
     saveProviderCredential: (input) => providers.saveCredential(input),
@@ -104,6 +110,14 @@ export function registerIpcHandlers(deps: IpcDeps): void {
   ipcMain.handle(IPC_CHANNELS.createGoal, (_event, input) => mutate(() => organization.createGoal(input)));
   ipcMain.handle(IPC_CHANNELS.createProject, (_event, input) => mutate(() => organization.createProject(input)));
   ipcMain.handle(IPC_CHANNELS.createWorkspace, (_event, input) => mutate(() => organization.createWorkspace(input)));
+  ipcMain.handle(IPC_CHANNELS.createDocument, (_event, input) => mutate(() => documents.create(input)));
+  ipcMain.handle(IPC_CHANNELS.updateDocument, (_event, input) => mutate(() => documents.update(input)));
+  ipcMain.handle(IPC_CHANNELS.deleteDocument, (_event, input) => mutate(() => documents.delete(input)));
+  ipcMain.handle(IPC_CHANNELS.createKnowledgeEntry, (_event, input) => mutate(() => knowledge.create(input)));
+  ipcMain.handle(IPC_CHANNELS.deleteKnowledgeEntry, (_event, input) => mutate(() => knowledge.delete(input)));
+  ipcMain.handle(IPC_CHANNELS.createAutomationRule, (_event, input) => mutate(() => automation.create(input)));
+  ipcMain.handle(IPC_CHANNELS.updateAutomationRule, (_event, input) => mutate(() => automation.update(input)));
+  ipcMain.handle(IPC_CHANNELS.deleteAutomationRule, (_event, input) => mutate(() => automation.delete(input)));
   ipcMain.handle(IPC_CHANNELS.createApproval, (_event, input) => mutate(() => approvals.create(input)));
   ipcMain.handle(IPC_CHANNELS.decideApproval, (_event, input) => mutate(() => approvals.decide(input)));
   ipcMain.handle(IPC_CHANNELS.syncEmployeeIdentity, (_event, input) => mutate(() => identityAccess.syncEmployeeIdentity(input)));

@@ -383,6 +383,51 @@ export interface MigrationReportRecord {
   createdAt: string;
 }
 
+export interface DocumentRecord {
+  id: string;
+  orgId: string;
+  title: string;
+  docType: string;
+  content: string;
+  status: string;
+  authorAgentId: string | null;
+  reviewerAgentId: string | null;
+  projectId: string | null;
+  goalId: string | null;
+  taskId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface KnowledgeEntryRecord {
+  id: string;
+  orgId: string;
+  topic: string;
+  category: string;
+  content: string;
+  importance: string;
+  sourceType: string;
+  sourceId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AutomationRuleRecord {
+  id: string;
+  orgId: string;
+  name: string;
+  triggerEvent: string;
+  conditionJson: string;
+  actionType: string;
+  actionConfigJson: string;
+  priority: number;
+  enabled: boolean;
+  lastFiredAt: string | null;
+  fireCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface AppSnapshot {
   activeOrgId: string | null;
   organizations: OrganizationRecord[];
@@ -439,4 +484,7 @@ export interface AppSnapshot {
   sdlcReviewAgents: SdlcReviewAgentRecord[]; sdlcReviewRuns: SdlcReviewRunRecord[]; evalSuites: EvalSuiteRecord[]; evalCases: EvalCaseRecord[]; evalRuns: EvalRunRecord[]; prBotGates: PrBotGateRecord[];
   auditReplayRuns: AuditReplayRunRecord[];
   auditEvents: AuditEventRecord[];
+  documents: DocumentRecord[];
+  knowledgeEntries: KnowledgeEntryRecord[];
+  automationRules: AutomationRuleRecord[];
 }
