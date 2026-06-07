@@ -9,6 +9,9 @@ import { ChatPage } from "../pages/ChatPage";
 import { FilesPage } from "../pages/FilesPage";
 import { ApprovalsPage } from "../pages/ApprovalsPage";
 import { SocialPage } from "../pages/SocialPage";
+import { DocumentsPage } from "../pages/DocumentsPage";
+import { KnowledgePage } from "../pages/KnowledgePage";
+import { AutomationPage } from "../pages/AutomationPage";
 import { SettingsPage } from "../pages/SettingsPage";
 
 export function App() {
@@ -37,6 +40,9 @@ export function App() {
     work: <WorkPage {...pageProps} />,
     chat: <ChatPage {...pageProps} />,
     files: <FilesPage {...pageProps} />,
+    docs: <DocumentsPage {...pageProps} />,
+    knowledge: <KnowledgePage {...pageProps} />,
+    automation: <AutomationPage {...pageProps} />,
     approvals: <ApprovalsPage {...pageProps} />,
     social: <SocialPage {...pageProps} />,
     settings: <SettingsPage {...pageProps} />,
