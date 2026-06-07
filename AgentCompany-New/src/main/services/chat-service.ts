@@ -138,6 +138,9 @@ export class ChatService {
     recordChatMentions(this.db, id, mentions);
     const slashResultRef = slash ? this.executeSlashCommand(input, space, sender, mentions, attachments, slash, id, threadId, now) : null;
     if (slash) this.recordSlashInvocation(id, slash, slashResultRef, now);
+    if (!slash || slash.command !== "agent") {
+      this.wakeAgentMentions(input, mentions, id, threadId, now);
+    }
     this.handoffs.record({
       orgId: input.orgId,
       spaceId: input.spaceId,
@@ -356,6 +359,19 @@ export class ChatService {
       insert into chat_slash_invocations(id, message_id, command, args_json, result_ref, created_at)
       values (?, ?, ?, ?, ?, ?)
     `).run(createId("slash"), messageId, slash.command, JSON.stringify({ raw: slash.args }), resultRef, now);
+  }
+
+  private wakeAgentMentions(input: SendMessageInput, mentions: ResolvedMention[], messageId: string, threadId: string, now: string): void {
+    const agentMentions = mentions.filter(
+      (m) => m.target.type === "agent" && !(input.senderType === "agent" && input.senderId === m.target.id),
+    );
+    for (const mention of agentMentions) {
+      try {
+        this.agentWake.wakeFromMention(input, mention.target.id, messageId, threadId, now);
+      } catch {
+        // Agent may lack an enabled provider or service identity; skip silently.
+      }
+    }
   }
 
   private requireSpace(orgId: string, spaceId: string): SpaceRow {

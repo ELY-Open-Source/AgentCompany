@@ -35,6 +35,27 @@ export class ChatAgentWakeService {
     this.organization = new OrganizationService(db);
   }
 
+  wakeFromMention(input: SendMessageInput, agentId: string, messageId: string, threadId: string, now: string): AgentWakeResult {
+    const agent = this.requireRunnableAgent(input.orgId, agentId);
+    const workspace = this.workspaceForAgent(input.orgId, agent.workspace_id);
+    const taskId = this.organization.createTask({
+      orgId: input.orgId,
+      title: `Chat reply: ${agent.name}`,
+      description: this.mentionTaskDescription(input, messageId, threadId),
+      status: TASK_STATUS.BACKLOG,
+      assigneeAgentId: agent.id,
+      risk: RISK_LEVEL.LOW,
+      projectId: workspace?.project_id ?? null,
+      goalId: workspace?.goal_id ?? null,
+      workspaceId: workspace?.id ?? null,
+      priority: TASK_PRIORITY.HIGH,
+      requiresFilesystem: false,
+    });
+    const runId = this.createQueuedRun({ orgId: input.orgId, taskId, agent, workspace, messageId, threadId, now });
+    this.recordPresence(agent.id, { command: "mention", args: "" }, now);
+    return { targetId: agent.id, taskId, runId };
+  }
+
   wakeFromSlash(input: SendMessageInput, mentions: ResolvedMention[], slash: SlashInvocation, messageId: string, threadId: string, now: string): AgentWakeResult {
     const targetId = this.requireAgentMention(mentions);
     const agent = this.requireRunnableAgent(input.orgId, targetId);
@@ -168,6 +189,17 @@ export class ChatAgentWakeService {
     const details = slash.args.replace(/^@[^\s]+\s*/, "").trim();
     const title = details || `reply as ${agentName}`;
     return `Chat mention: ${title.length > 64 ? `${title.slice(0, 61)}...` : title}`;
+  }
+
+  private mentionTaskDescription(input: SendMessageInput, messageId: string, threadId: string): string {
+    return [
+      `Source message: ${messageId}`,
+      `Source thread: ${threadId}`,
+      `Source space: ${input.spaceId}`,
+      `Sender: ${input.senderType}${input.senderId ? `:${input.senderId}` : ""}`,
+      "",
+      "You were @mentioned in a chat message. Read the thread context, then reply in the source thread with send_message and pass the thread_id above.",
+    ].join("\n");
   }
 
   private taskDescription(input: SendMessageInput, slash: SlashInvocation, messageId: string, threadId: string): string {
