@@ -18,6 +18,8 @@ function optional(form: FormData, key: string): string | null {
 export function TeamPage({ snapshot, actions }: PageProps) {
   const orgId = activeOrgId(snapshot);
   const [hireOpen, setHireOpen] = useState(false);
+  const [hireProviderId, setHireProviderId] = useState("");
+  const [hireModelId, setHireModelId] = useState("");
   const [editAgentId, setEditAgentId] = useState<string | null>(null);
   const [filter, setFilter] = useState<"all" | "human" | "agent">("all");
 
@@ -27,24 +29,45 @@ export function TeamPage({ snapshot, actions }: PageProps) {
     () => snapshot.providers.filter((provider) => provider.orgId === orgId && provider.enabled),
     [snapshot.providers, orgId],
   );
+  const workspaces = useMemo(() => snapshot.workspaces.filter((workspace) => workspace.orgId === orgId), [snapshot.workspaces, orgId]);
+  const primaryWorkspace = useMemo(
+    () => workspaces.find((workspace) => workspace.isPrimary) ?? workspaces[0] ?? null,
+    [workspaces],
+  );
+
+  const openHireDialog = () => {
+    const provider = providers[0] ?? null;
+    setHireProviderId(provider?.id ?? "");
+    setHireModelId(provider?.model ?? "");
+    setHireOpen(true);
+  };
+
+  const updateHireProvider = (providerId: string) => {
+    const provider = providers.find((item) => item.id === providerId) ?? null;
+    setHireProviderId(providerId);
+    setHireModelId(provider?.model ?? "");
+  };
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
+    const selectedProvider = providers.find((provider) => provider.id === hireProviderId) ?? null;
+    const modelId = selectedProvider ? hireModelId.trim() || selectedProvider.model : null;
     void actions.run(() => window.agentCompany.createAgent({
       orgId,
       name: text(form, "name"),
       role: text(form, "role"),
       department: text(form, "department"),
-      modelProviderId: optional(form, "modelProviderId"),
-      modelId: optional(form, "modelId"),
+      modelProviderId: selectedProvider?.id ?? null,
+      modelId,
       budgetCents: Math.max(0, Math.round(Number(text(form, "budget")) * 100)),
       managerAgentId: optional(form, "managerAgentId"),
       title: text(form, "title") || text(form, "role"),
       roleLevel: text(form, "roleLevel") || "staff",
-      modelStrategy: text(form, "modelId") ? "explicit" : "pooled",
-      heartbeatEnabled: false,
-      heartbeatIntervalSec: 0,
+      modelStrategy: selectedProvider ? "explicit" : "pooled",
+      workspaceId: primaryWorkspace?.id ?? null,
+      heartbeatEnabled: Boolean(selectedProvider),
+      heartbeatIntervalSec: selectedProvider ? 120 : 0,
     })).then((result) => { if (result) setHireOpen(false); });
   };
 
@@ -73,7 +96,7 @@ export function TeamPage({ snapshot, actions }: PageProps) {
         <Button tone="ghost" onClick={() => cycleFilter(filter, setFilter)} title="Filter">
           <Icon name="filter" size={13} /> {filterLabel(filter)}
         </Button>
-        <Button tone="primary" onClick={() => setHireOpen(true)}><Icon name="plus" size={13} /> Hire</Button>
+        <Button tone="primary" onClick={openHireDialog}><Icon name="plus" size={13} /> Hire</Button>
       </TopbarActions>
       <h1 className="page-h1">Team</h1>
       <p className="page-sub">
@@ -111,13 +134,13 @@ export function TeamPage({ snapshot, actions }: PageProps) {
         <Field label="Title"><input className="input" name="title" /></Field>
         <Field label="Department"><input className="input" name="department" required /></Field>
         <Field label="Provider">
-          <select className="input" name="modelProviderId">
+          <select className="input" name="modelProviderId" value={hireProviderId} onChange={(event) => updateHireProvider(event.currentTarget.value)}>
             <option value="">Unassigned</option>
             {providers.map((provider) => <option key={provider.id} value={provider.id}>{provider.label}</option>)}
           </select>
         </Field>
         <Field label="Model">
-          <input className="input" name="modelId" list="agent-model-suggestions" />
+          <input className="input" name="modelId" list="agent-model-suggestions" value={hireModelId} onChange={(event) => setHireModelId(event.currentTarget.value)} />
         </Field>
         <Field label="Monthly budget"><input className="input" name="budget" type="number" min="0" step="1" defaultValue="250" /></Field>
         <Field label="Seniority">

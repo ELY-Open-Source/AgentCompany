@@ -42,6 +42,31 @@ test("onboards, hires, and creates work in the Electron shell", async () => {
     await page.getByLabel("Monthly budget").fill("250");
     await page.locator(".modal").getByRole("button", { name: "Hire" }).click();
     await expect(page.getByText("Alex Chen").first()).toBeVisible();
+    const hiredAgent = await page.evaluate(async () => {
+      const api = (window as unknown as { agentCompany: { loadSnapshot: () => Promise<unknown> } }).agentCompany;
+      const result = await api.loadSnapshot() as {
+        ok: true;
+        data: {
+          agents: Array<{ name: string; modelProviderId: string | null; modelId: string | null; workspaceId: string | null; heartbeatEnabled: boolean; heartbeatIntervalSec: number }>;
+          workspaces: Array<{ id: string; isPrimary: boolean }>;
+        };
+      };
+      const agent = result.data.agents.find((item) => item.name === "Alex Chen");
+      const primaryWorkspace = result.data.workspaces.find((item) => item.isPrimary) ?? null;
+      return {
+        modelProviderId: agent?.modelProviderId ?? null,
+        modelId: agent?.modelId ?? null,
+        workspaceId: agent?.workspaceId ?? null,
+        heartbeatEnabled: agent?.heartbeatEnabled ?? false,
+        heartbeatIntervalSec: agent?.heartbeatIntervalSec ?? 0,
+        primaryWorkspaceId: primaryWorkspace?.id ?? null,
+      };
+    });
+    expect(hiredAgent.modelProviderId).toBeTruthy();
+    expect(hiredAgent.modelId).toBe("gpt-5.4");
+    expect(hiredAgent.workspaceId).toBe(hiredAgent.primaryWorkspaceId);
+    expect(hiredAgent.heartbeatEnabled).toBe(true);
+    expect(hiredAgent.heartbeatIntervalSec).toBe(120);
     await page.getByRole("button", { name: "Settings" }).click();
     await page.getByRole("button", { name: "Members" }).click();
     await expect(page.getByText("Identity & Access")).toBeVisible();
