@@ -128,7 +128,7 @@ export function WorkPage({ snapshot, actions }: PageProps) {
           onOpen={(task) => setDetailTaskId(task.id)}
         />
       )}
-      {view === "timeline" && <TimelineView tasks={tasks} goals={goals} />}
+      {view === "timeline" && <TimelineView tasks={tasks} goals={goals} projects={projects} />}
 
       <GoalDialog open={newGoalOpen} orgId={orgId} agents={agents} actions={actions} onClose={() => setNewGoalOpen(false)} />
       <ProjectDialog open={newProjectOpen} orgId={orgId} goals={goals} agents={agents} actions={actions} onClose={() => setNewProjectOpen(false)} />
@@ -329,7 +329,8 @@ function ListView({
   );
 }
 
-function TimelineView({ tasks, goals }: { tasks: TaskRecord[]; goals: GoalRecord[] }) {
+function TimelineView({ tasks, goals, projects }: { tasks: TaskRecord[]; goals: GoalRecord[]; projects: ProjectRecord[] }) {
+  const unlinked = tasks.filter((t) => !t.goalId);
   return (
     <div className="card" style={{ padding: 18 }}>
       <div className="section-label">By goal</div>
@@ -337,6 +338,7 @@ function TimelineView({ tasks, goals }: { tasks: TaskRecord[]; goals: GoalRecord
         const linked = tasks.filter((task) => task.goalId === goal.id);
         const done = linked.filter((task) => task.status === TASK_STATUS.DONE).length;
         const pct = linked.length === 0 ? 0 : Math.round((done / linked.length) * 100);
+        const goalProjects = projects.filter((p) => p.goalId === goal.id);
         return (
           <div key={goal.id} style={{ padding: "12px 0", borderBottom: "1px solid var(--border-soft)" }}>
             <div className="row">
@@ -346,9 +348,30 @@ function TimelineView({ tasks, goals }: { tasks: TaskRecord[]; goals: GoalRecord
             <div style={{ marginTop: 8, height: 3, background: "var(--panel-3)", borderRadius: 2, overflow: "hidden" }}>
               <div style={{ width: `${pct}%`, height: "100%", background: "var(--text-1)" }} />
             </div>
+            {goalProjects.length > 0 && (
+              <div style={{ marginTop: 8, display: "flex", gap: 6, flexWrap: "wrap" }}>
+                {goalProjects.map((p) => {
+                  const projectTasks = linked.filter((t) => t.projectId === p.id);
+                  const projectDone = projectTasks.filter((t) => t.status === TASK_STATUS.DONE).length;
+                  return (
+                    <Pill key={p.id}>
+                      {truncate(p.name, 24)} {projectDone}/{projectTasks.length}
+                    </Pill>
+                  );
+                })}
+              </div>
+            )}
           </div>
         );
       })}
+      {unlinked.length > 0 && (
+        <div style={{ padding: "12px 0" }}>
+          <div className="row">
+            <span style={{ fontWeight: 540, color: "var(--text-3)" }}>Unlinked tasks</span>
+            <span className="num" style={{ marginLeft: "auto", color: "var(--text-3)" }}>{unlinked.length}</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
