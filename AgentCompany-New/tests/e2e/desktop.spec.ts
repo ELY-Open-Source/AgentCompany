@@ -34,6 +34,10 @@ test("onboards, hires, and creates work in the Electron shell", async () => {
     await page.getByRole("button", { name: "Launch" }).click();
 
     await expect(page.getByRole("button", { name: /Acme Operations/ })).toBeVisible();
+    await page.getByRole("button", { name: "Work", exact: true }).click();
+    await expect(page.getByText("Projects", { exact: true })).toBeVisible();
+    await expect(page.getByText("Execution plan: Ship a verified control plane").first()).toBeVisible();
+    await expect(page.getByText("#execution-plan-ship-a-verified-control-plane").first()).toBeVisible();
     await page.getByRole("button", { name: "Team" }).click();
     await page.getByRole("button", { name: "Hire" }).click();
     await page.getByLabel("Name").fill("Alex Chen");

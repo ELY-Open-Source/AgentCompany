@@ -9,6 +9,7 @@ import { PROVIDER_CATALOG } from "../../shared/provider-catalog";
 import { createId } from "../../shared/ids";
 import { AuditService } from "./audit-service";
 import { OrganizationService } from "./organization-service";
+import { ChatService } from "./chat-service";
 
 interface OnboardingServiceDeps {
   db: DatabaseSync;
@@ -18,10 +19,12 @@ interface OnboardingServiceDeps {
 export class OnboardingService {
   private readonly audit: AuditService;
   private readonly organization: OrganizationService;
+  private readonly chat: ChatService;
 
   constructor(private readonly deps: OnboardingServiceDeps) {
     this.audit = new AuditService(deps.db);
     this.organization = new OrganizationService(deps.db);
+    this.chat = new ChatService(deps.db);
   }
 
   bootstrap(input: BootstrapOnboardingInput): BootstrapOnboardingSummary {
@@ -65,6 +68,7 @@ export class OnboardingService {
     });
     const goalId = this.createGoal(orgId, ceoAgentId, input, now);
     const projectId = this.createProject(orgId, goalId, ceoAgentId, input, now);
+    this.createProjectChatSpace(orgId, projectName(input));
     if (workspaceId) this.bindWorkspaceToProject(workspaceId, projectId, now);
     const taskId = this.createKickoffTask(orgId, goalId, projectId, workspaceId, ceoAgentId, input, now);
     const runId = this.createTaskRun(orgId, taskId, ceoAgentId, providerId, workspaceId, now);
@@ -143,7 +147,7 @@ export class OnboardingService {
       projectId,
       orgId,
       goalId,
-      `Execution plan: ${input.goalTitle.trim()}`,
+      projectName(input),
       input.companyDescription.trim(),
       ceoAgentId,
       "in_progress",
@@ -151,6 +155,16 @@ export class OnboardingService {
       now,
     );
     return projectId;
+  }
+
+  private createProjectChatSpace(orgId: string, name: string): string {
+    return this.chat.createSpace({
+      orgId,
+      spaceType: "project",
+      name: projectSpaceName(name),
+      topic: name,
+      visibility: "workspace",
+    });
   }
 
   private bindWorkspaceToProject(workspaceId: string, projectId: string, now: string): void {
@@ -249,4 +263,13 @@ export class OnboardingService {
       "Read the bound workspace, create the first operating plan, delegate work, and route decisions through approvals and messages.",
     ].filter((line) => line.length > 0).join("\n\n");
   }
+}
+
+function projectName(input: BootstrapOnboardingInput): string {
+  return `Execution plan: ${input.goalTitle.trim()}`;
+}
+
+function projectSpaceName(name: string): string {
+  const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 48).replace(/-+$/g, "");
+  return slug || "project";
 }

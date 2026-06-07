@@ -17,6 +17,7 @@ import {
 } from "../../../shared/domain";
 import { NewTaskDialog } from "./NewTaskDialog";
 import { TaskDetailDialog } from "./work/TaskDetailDialog";
+import { ProjectOverview } from "./work/ProjectOverview";
 import { canRun, latestTaskRun, nextStatus, prettyRunState, prettyStatus, providerFor, runTone } from "./work/task-helpers";
 import type { PageProps } from "./types";
 import { activeOrgId } from "./types";
@@ -64,6 +65,7 @@ export function WorkPage({ snapshot, actions }: PageProps) {
   const workspaces = useMemo(() => snapshot.workspaces.filter((workspace) => workspace.orgId === orgId), [snapshot.workspaces, orgId]);
   const providers = useMemo(() => snapshot.providers.filter((provider) => provider.orgId === orgId), [snapshot.providers, orgId]);
   const taskRuns = useMemo(() => snapshot.taskRuns.filter((run) => run.orgId === orgId), [snapshot.taskRuns, orgId]);
+  const chatSpaces = useMemo(() => snapshot.chatSpaces.filter((space) => space.orgId === orgId), [snapshot.chatSpaces, orgId]);
 
   const advance = (task: TaskRecord) => {
     const next = nextStatus(task.status);
@@ -92,6 +94,8 @@ export function WorkPage({ snapshot, actions }: PageProps) {
       <p className="page-sub">
         {tasks.length} {tasks.length === 1 ? "task" : "tasks"} · {assigneeCount} {assigneeCount === 1 ? "assignee" : "assignees"}
       </p>
+
+      <ProjectOverview projects={projects} tasks={allTasks} agents={agents} workspaces={workspaces} chatSpaces={chatSpaces} />
 
       {view === "board" && (
         <BoardView

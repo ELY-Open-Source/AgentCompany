@@ -617,6 +617,10 @@ describe("domain services", () => {
     expect(state.workspaces).toHaveLength(1);
     expect(state.goals[0]?.status).toBe("active");
     expect(state.projects[0]?.leadAgentId).toBe(state.agents[0]?.id);
+    const projectRoom = state.chatSpaces.find((space) => space.spaceType === "project" && space.topic === state.projects[0]?.name);
+    expect(projectRoom).toMatchObject({ name: "execution-plan-ship-a-verified-control-plane", visibility: "workspace" });
+    expect(state.chatMemberships).toContainEqual(expect.objectContaining({ spaceId: projectRoom?.id, principalType: "employee" }));
+    expect(state.chatMemberships).toContainEqual(expect.objectContaining({ spaceId: projectRoom?.id, principalType: "agent", principalId: state.agents[0]?.id }));
     expect(state.tasks[0]?.assigneeAgentId).toBe(state.agents[0]?.id);
     expect(state.taskRuns[0]?.trigger).toBe("bootstrap");
     expect(state.taskRuns[0]?.executionContextId).toMatch(/^ctx_/);
