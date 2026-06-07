@@ -89,6 +89,11 @@ interface TaskRunIsolation {
   secretScopeJson: string;
 }
 
+interface ChatContextBlock {
+  threadId: string;
+  transcript: string;
+}
+
 interface RunRow {
   task_id: string;
   agent_id: string;
@@ -170,6 +175,7 @@ export class TaskExecutionService {
         taskGoalId: task.goal_id,
         workspace: workspace ? { id: workspace.id, localPath: workspace.local_path } : null,
       };
+      const chatContext = this.loadChatContext(orgId, isolation);
       const result = await runAgentLoop(
         { providers: this.providers, tools: { db: this.db, organization: this.organization, chat: this.chat } },
         {
@@ -189,6 +195,7 @@ export class TaskExecutionService {
             isManager: !agent.manager_agent_id,
             hasReports: this.agentHasReports(orgId, agent.id),
             managerName: this.agentName(orgId, agent.manager_agent_id),
+            chatContext,
           }),
           toolContext,
         },
@@ -381,6 +388,31 @@ export class TaskExecutionService {
     return runId;
   }
 
+  private loadChatContext(orgId: string, isolation: TaskRunIsolation): ChatContextBlock | null {
+    let scope: { sourceMessageId?: string; sourceThreadId?: string };
+    try {
+      scope = JSON.parse(isolation.secretScopeJson);
+    } catch {
+      return null;
+    }
+    if (!scope.sourceThreadId) return null;
+    const messages = this.db.prepare(`
+      select m.body_md, m.sender_type, m.sender_id,
+             coalesce(a.name, e.display_name, m.sender_type) as sender_name
+      from chat_messages m
+      left join agents a on a.id = m.sender_id and m.sender_type = 'agent'
+      left join employees e on e.id = m.sender_id and m.sender_type = 'employee'
+      where m.thread_id = ? and m.org_id = ?
+      order by m.created_at asc
+      limit 20
+    `).all(scope.sourceThreadId, orgId) as Array<{ body_md: string; sender_type: string; sender_name: string }>;
+    if (messages.length === 0) return null;
+    return {
+      threadId: scope.sourceThreadId,
+      transcript: messages.map((m) => `[${m.sender_name}]: ${m.body_md}`).join("\n"),
+    };
+  }
+
   private agentHasReports(orgId: string, agentId: string): boolean {
     const row = this.db.prepare("select 1 from agents where org_id = ? and manager_agent_id = ? and lifecycle = 'active' limit 1")
       .get(orgId, agentId);
@@ -500,6 +532,7 @@ function buildTaskPrompt(input: {
   isManager: boolean;
   hasReports: boolean;
   managerName: string | null;
+  chatContext: ChatContextBlock | null;
 }): string {
   const lines = [
     "Execute this AgentCompany task.",
@@ -537,6 +570,15 @@ function buildTaskPrompt(input: {
       "",
       `Tool allowlist: ${input.skillRuntimeSnapshot.tools_manifest}`,
       `Skill revisions: ${input.skillRuntimeSnapshot.source_revision_ids}`,
+    );
+  }
+  if (input.chatContext) {
+    lines.push(
+      "",
+      "Chat thread you are replying to:",
+      input.chatContext.transcript,
+      "",
+      `Reply in this thread by passing thread_id="${input.chatContext.threadId}" to send_message.`,
     );
   }
   if (input.isManager && !input.hasReports) {
