@@ -39,6 +39,7 @@ import { customProvidersSchema } from "./migrations/037-custom-providers";
 import { providerAuthProfileCascadeSchema } from "./migrations/038-provider-auth-profile-cascade";
 import { auditImmutabilityOrgTeardownSchema } from "./migrations/039-audit-immutability-org-teardown";
 import { documentsKnowledgeAutomationSchema } from "./migrations/040-documents-knowledge-automation";
+import { taskSubtasksDeleteSchema } from "./migrations/041-task-subtasks-delete";
 
 interface Migration {
   version: number;
@@ -87,6 +88,7 @@ const MIGRATIONS: Migration[] = [
   { version: 38, name: "provider_auth_profile_cascade", sql: providerAuthProfileCascadeSchema },
   { version: 39, name: "audit_immutability_org_teardown", sql: auditImmutabilityOrgTeardownSchema },
   { version: 40, name: "documents_knowledge_automation", sql: documentsKnowledgeAutomationSchema },
+  { version: 41, name: "task_subtasks_delete", sql: taskSubtasksDeleteSchema },
 ];
 
 const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;

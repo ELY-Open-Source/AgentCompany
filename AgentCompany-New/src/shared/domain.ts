@@ -105,6 +105,7 @@ export interface TaskRecord {
   goalId: string | null;
   workspaceId: string | null;
   priority: TaskPriority;
+  parentTaskId: string | null;
   requiresFilesystem: boolean;
   createdAt: string;
   updatedAt: string;

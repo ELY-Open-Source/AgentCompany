@@ -90,6 +90,22 @@ export interface RunTaskInput {
   taskId: string;
 }
 
+export interface UpdateTaskInput {
+  orgId: string;
+  taskId: string;
+  title: string;
+  description: string;
+  assigneeAgentId: string | null;
+  risk: RiskLevel;
+  priority: TaskPriority;
+  parentTaskId: string | null;
+}
+
+export interface DeleteTaskInput {
+  orgId: string;
+  taskId: string;
+}
+
 export interface CreateGoalInput {
   orgId: string;
   title: string;

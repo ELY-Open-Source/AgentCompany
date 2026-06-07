@@ -17,9 +17,11 @@ import type {
   CreateWorkspaceInput,
   DeleteAutomationRuleInput,
   DeleteDocumentInput,
+  DeleteTaskInput,
   DeleteKnowledgeEntryInput,
   UpdateAutomationRuleInput,
   UpdateDocumentInput,
+  UpdateTaskInput,
   CreateAuditReplayInput,
   CreateChatSpaceInput,
   CreateComplianceExportInput,
@@ -99,6 +101,8 @@ export interface DesktopApi {
   createAgent(input: CreateAgentInput): Promise<DesktopResult<AppSnapshot>>;
   updateAgent(input: UpdateAgentInput): Promise<DesktopResult<AppSnapshot>>;
   createTask(input: CreateTaskInput): Promise<DesktopResult<AppSnapshot>>;
+  updateTask(input: UpdateTaskInput): Promise<DesktopResult<AppSnapshot>>;
+  deleteTask(input: DeleteTaskInput): Promise<DesktopResult<AppSnapshot>>;
   updateTaskStatus(input: UpdateTaskStatusInput): Promise<DesktopResult<AppSnapshot>>;
   runTask(input: RunTaskInput): Promise<DesktopResult<AppSnapshot>>;
   createGoal(input: CreateGoalInput): Promise<DesktopResult<AppSnapshot>>;

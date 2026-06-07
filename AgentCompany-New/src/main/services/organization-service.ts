@@ -2,7 +2,7 @@ import type { DatabaseSync } from "node:sqlite";
 import { APPROVAL_STATE, RISK_LEVEL, TASK_STATUS, type ApprovalState } from "../../shared/domain";
 import { PROVIDER_CATALOG } from "../../shared/provider-catalog";
 import { createId } from "../../shared/ids";
-import type { CreateAgentInput, CreateGoalInput, CreateOrganizationInput, CreateProjectInput, CreateTaskInput, CreateWorkspaceInput, UpdateAgentInput } from "../../shared/commands";
+import type { CreateAgentInput, CreateGoalInput, CreateOrganizationInput, CreateProjectInput, CreateTaskInput, CreateWorkspaceInput, DeleteTaskInput, UpdateAgentInput, UpdateTaskInput } from "../../shared/commands";
 import { AuditService } from "./audit-service";
 import { PolicyService } from "./policy-service";
 import { IdentityAccessService } from "./identity-access-service";
@@ -443,6 +443,43 @@ export class OrganizationService {
       payload: { name: input.name.trim() },
     });
     return id;
+  }
+
+  updateTask(input: UpdateTaskInput): void {
+    const now = new Date().toISOString();
+    if (input.assigneeAgentId) this.verifyOptionalOrgEntity("agents", input.assigneeAgentId, input.orgId, "Assignee agent");
+    if (input.parentTaskId) {
+      const parent = this.db.prepare("select id from tasks where id = ? and org_id = ?").get(input.parentTaskId, input.orgId);
+      if (!parent) throw new Error("Parent task was not found.");
+    }
+    const result = this.db.prepare(`
+      update tasks set title = ?, description = ?, assignee_agent_id = ?, risk = ?, priority = ?, parent_task_id = ?, updated_at = ?
+      where id = ? and org_id = ?
+    `).run(input.title.trim(), input.description.trim(), input.assigneeAgentId, input.risk, input.priority, input.parentTaskId, now, input.taskId, input.orgId);
+    if (result.changes === 0) throw new Error("Task was not found.");
+    this.audit.record({
+      orgId: input.orgId,
+      entityType: "task",
+      entityId: input.taskId,
+      actorType: "employee",
+      actorId: null,
+      action: "updated",
+      payload: { title: input.title.trim() },
+    });
+  }
+
+  deleteTask(input: DeleteTaskInput): void {
+    const result = this.db.prepare("delete from tasks where id = ? and org_id = ?").run(input.taskId, input.orgId);
+    if (result.changes === 0) throw new Error("Task was not found.");
+    this.audit.record({
+      orgId: input.orgId,
+      entityType: "task",
+      entityId: input.taskId,
+      actorType: "employee",
+      actorId: null,
+      action: "deleted",
+      payload: {},
+    });
   }
 
   updateTaskStatus(orgId: string, taskId: string, status: string): void {

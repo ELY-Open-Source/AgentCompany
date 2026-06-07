@@ -96,6 +96,8 @@ export function registerIpcHandlers(deps: IpcDeps): void {
   ipcMain.handle(IPC_CHANNELS.createAgent, (_event, input) => mutate(() => organization.createAgent(input)));
   ipcMain.handle(IPC_CHANNELS.updateAgent, (_event, input) => mutate(() => organization.updateAgent(input)));
   ipcMain.handle(IPC_CHANNELS.createTask, (_event, input) => mutate(() => organization.createTask(input)));
+  ipcMain.handle(IPC_CHANNELS.updateTask, (_event, input) => mutate(() => organization.updateTask(input)));
+  ipcMain.handle(IPC_CHANNELS.deleteTask, (_event, input) => mutate(() => organization.deleteTask(input)));
   ipcMain.handle(IPC_CHANNELS.updateTaskStatus, (_event, input) => mutate(() => organization.updateTaskStatus(input.orgId, input.taskId, input.status)));
   ipcMain.handle(IPC_CHANNELS.runTask, async (_event, input) => {
     try {

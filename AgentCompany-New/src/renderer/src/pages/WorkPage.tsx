@@ -141,6 +141,11 @@ export function WorkPage({ snapshot, actions }: PageProps) {
         workspaces={workspaces}
         providers={providers}
         taskRuns={taskRuns}
+        allTasks={allTasks}
+        approvals={snapshot.approvals.filter((a) => a.orgId === orgId)}
+        auditEvents={snapshot.auditEvents.filter((e) => e.orgId === orgId)}
+        orgId={orgId}
+        actions={actions}
         onClose={() => setDetailTaskId(null)}
         onAdvance={advance}
         onRun={runTask}
