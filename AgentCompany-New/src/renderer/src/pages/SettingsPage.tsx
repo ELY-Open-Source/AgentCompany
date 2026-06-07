@@ -123,7 +123,7 @@ export function SettingsPage({ snapshot, actions }: PageProps) {
       </aside>
       <div className="main" style={{ flex: 1, minWidth: 0 }}>
         <div className="content">
-          {tab === "workspace" && <WorkspacePanel organization={organization} workspaces={workspaces} />}
+          {tab === "workspace" && <WorkspacePanel organization={organization} workspaces={workspaces} projects={snapshot.projects.filter((p) => p.orgId === orgId)} orgId={orgId} actions={actions} />}
           {tab === "members" && (
             <MembersPanel
               employees={employees}

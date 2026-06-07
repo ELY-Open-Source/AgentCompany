@@ -1,13 +1,51 @@
-import type { OrganizationRecord, WorkspaceRecord } from "../../../../shared/domain";
-import { Pill } from "../../shared/ui";
+import { useState, type FormEvent } from "react";
+import type { OrganizationRecord, ProjectRecord, WorkspaceRecord } from "../../../../shared/domain";
+import { Button, Field, Icon, Pill } from "../../shared/ui";
+import { Dialog } from "../../shared/Dialog";
+import type { SnapshotActions } from "../../app/useSnapshot";
+
+function text(form: FormData, key: string): string {
+  return String(form.get(key) ?? "").trim();
+}
+
+function optional(form: FormData, key: string): string | null {
+  return text(form, key) || null;
+}
 
 export function WorkspacePanel({
   organization,
   workspaces,
+  projects,
+  orgId,
+  actions,
 }: {
   organization: OrganizationRecord;
   workspaces: WorkspaceRecord[];
+  projects: ProjectRecord[];
+  orgId: string;
+  actions: SnapshotActions;
 }) {
+  const [createOpen, setCreateOpen] = useState(false);
+
+  const chooseDirectory = async (form: HTMLFormElement) => {
+    const result = await window.agentCompany.pickDirectory();
+    if (result.ok && result.data) {
+      const input = form.elements.namedItem("localPath") as HTMLInputElement | null;
+      if (input) input.value = result.data;
+    }
+  };
+
+  const submit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    void actions.run(() => window.agentCompany.createWorkspace({
+      orgId,
+      name: text(form, "name"),
+      localPath: text(form, "localPath"),
+      projectId: optional(form, "projectId"),
+    })).then((result) => { if (result) setCreateOpen(false); });
+  };
+
   return (
     <div className="page">
       <h1 className="page-h1">Workspace</h1>
@@ -30,22 +68,42 @@ export function WorkspacePanel({
         </div>
       </div>
 
-      {workspaces.length > 0 && (
-        <div className="card" style={{ padding: 18 }}>
-          <div className="section-label" style={{ marginBottom: 12 }}>Workspaces</div>
-          {workspaces.map((workspace) => (
-            <div key={workspace.id} className="row" style={{ padding: "8px 0", borderBottom: "1px solid var(--border-soft)" }}>
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontWeight: 540 }}>{workspace.name}</div>
-                <div style={{ fontSize: 12, color: "var(--text-3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{workspace.localPath}</div>
-              </div>
-              <div style={{ marginLeft: "auto" }}>
-                {workspace.isPrimary ? <Pill tone="violet">Primary</Pill> : <Pill>Secondary</Pill>}
-              </div>
-            </div>
-          ))}
+      <div className="card" style={{ padding: 18 }}>
+        <div className="row" style={{ marginBottom: 12 }}>
+          <div className="section-label">Workspaces</div>
+          <Button tone="ghost" onClick={() => setCreateOpen(true)} style={{ marginLeft: "auto" }}><Icon name="plus" size={13} /> Add</Button>
         </div>
-      )}
+        {workspaces.map((workspace) => (
+          <div key={workspace.id} className="row" style={{ padding: "8px 0", borderBottom: "1px solid var(--border-soft)" }}>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontWeight: 540 }}>{workspace.name}</div>
+              <div style={{ fontSize: 12, color: "var(--text-3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{workspace.localPath}</div>
+            </div>
+            <div style={{ marginLeft: "auto" }}>
+              {workspace.isPrimary ? <Pill tone="violet">Primary</Pill> : <Pill>Secondary</Pill>}
+            </div>
+          </div>
+        ))}
+        {workspaces.length === 0 && <div style={{ fontSize: 13, color: "var(--text-3)" }}>No workspaces configured</div>}
+      </div>
+
+      <Dialog title="Add workspace" open={createOpen} submitLabel="Create" onClose={() => setCreateOpen(false)} onSubmit={submit}>
+        <Field label="Name"><input className="input" name="name" required /></Field>
+        <Field label="Local path">
+          <div className="row" style={{ gap: 6 }}>
+            <input className="input" name="localPath" required style={{ flex: 1 }} />
+            <Button tone="ghost" onClick={(e) => { const form = (e.target as HTMLElement).closest("form"); if (form) void chooseDirectory(form); }}>
+              <Icon name="folder" size={13} /> Browse
+            </Button>
+          </div>
+        </Field>
+        <Field label="Project">
+          <select className="input" name="projectId" defaultValue="">
+            <option value="">None</option>
+            {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+          </select>
+        </Field>
+      </Dialog>
     </div>
   );
 }
