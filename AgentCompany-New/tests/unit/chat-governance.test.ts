@@ -6,12 +6,19 @@ import { DatabaseConnection } from "../../src/main/database/connection";
 import { ApprovalService } from "../../src/main/services/approval-service";
 import { ChatService } from "../../src/main/services/chat-service";
 import { OrganizationService } from "../../src/main/services/organization-service";
+import { ProviderService } from "../../src/main/services/provider-service";
+import { providerAdapters } from "../../src/main/services/provider-adapters";
 import { SnapshotService } from "../../src/main/services/snapshot-service";
 import { RISK_LEVEL } from "../../src/shared/domain";
 
 function createConnection(): DatabaseConnection {
   return new DatabaseConnection(join(tmpdir(), `agentcompany-new-chat-${randomUUID()}.db`));
 }
+
+const testVault = {
+  encryptSecret: (secret: string) => Buffer.from(secret, "utf8"),
+  decryptSecret: (ciphertext: Buffer) => ciphertext.toString("utf8"),
+};
 
 describe("chat governance", () => {
   test("persists memberships, retention policy, and structured delivery metadata", () => {
@@ -218,11 +225,13 @@ describe("chat governance", () => {
   test("routes collaboration slash commands to concrete domain targets", () => {
     const connection = createConnection();
     const organization = new OrganizationService(connection.db);
+    const providers = new ProviderService(connection.db, providerAdapters, testVault);
     const chat = new ChatService(connection.db);
     const snapshot = new SnapshotService(connection.db);
     let orgId = "";
     let employeeId = "";
     let agentId = "";
+    let providerId = "";
     let spaceId = "";
     let skillId = "";
     let fileId = "";
@@ -240,13 +249,16 @@ describe("chat governance", () => {
         goal: "Ship a verified control plane.",
       });
       employeeId = (connection.db.prepare("select id from employees where org_id = ?").get(orgId) as { id: string }).id;
+      providerId = (connection.db.prepare("select id from providers where org_id = ? and provider_key = 'openai'")
+        .get(orgId) as { id: string }).id;
+      providers.saveCredential({ orgId, providerId, secret: "sk-live-provider", model: "gpt-5.4" });
       agentId = organization.createAgent({
         orgId,
         name: "Ada",
         role: "Release reviewer",
         department: "Engineering",
-        modelProviderId: null,
-        modelId: null,
+        modelProviderId: providerId,
+        modelId: "gpt-5.4",
         budgetCents: 10000,
         managerAgentId: null,
       });
@@ -316,6 +328,36 @@ describe("chat governance", () => {
     expect(slashByMessage.get(fileMessageId)).toMatchObject({ command: "file", resultRef: fileId });
     expect(slashByMessage.get(runbookMessageId)).toMatchObject({ command: "runbook", resultRef: runbookMessageId });
     expect(slashByMessage.get(handoffMessageId)).toMatchObject({ command: "handoff", resultRef: fileId });
+    const agentTask = state.tasks.find((item) => item.assigneeAgentId === agentId && item.title === "Chat mention: review the gate");
+    expect(agentTask).toMatchObject({
+      orgId,
+      assigneeAgentId: agentId,
+      status: "backlog",
+      risk: "low",
+      priority: "high",
+      requiresFilesystem: false,
+    });
+    expect(agentTask?.description).toContain(`Source message: ${agentMessageId}`);
+    const agentRun = state.taskRuns.find((item) => item.taskId === agentTask?.id);
+    expect(agentRun).toMatchObject({
+      orgId,
+      agentId,
+      providerId,
+      trigger: "chat_mention",
+      state: "queued",
+      startedAt: null,
+      completedAt: null,
+      errorMessage: null,
+    });
+    expect(agentRun?.executionContextId).toMatch(/^ctx_/);
+    expect(agentRun?.serviceIdentityId).toMatch(/^sid_/);
+    expect(JSON.parse(agentRun?.secretScopeJson ?? "{}")).toMatchObject({
+      serviceIdentityId: agentRun?.serviceIdentityId,
+      providerIds: [providerId],
+      scope: "chat_mention",
+      credentialAccess: "provider_runtime_only",
+      sourceMessageId: agentMessageId,
+    });
     expect(state.chatPresence).toContainEqual(expect.objectContaining({ principalType: "agent", principalId: agentId, status: "thinking" }));
     expect(state.fileHandoffRecords).toContainEqual(expect.objectContaining({
       messageId: handoffMessageId,

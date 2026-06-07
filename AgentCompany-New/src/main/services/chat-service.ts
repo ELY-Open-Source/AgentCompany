@@ -32,16 +32,9 @@ import { buildChatMessageStructure } from "./chat-message-structure";
 import { ChatMessageMutationService } from "./chat-message-mutation-service";
 import { recordChatMentions, resolveChatMentions, type ResolvedMention } from "./chat-mentions";
 import { FileHandoffService, type FileHandoffAttachment } from "./file-handoff-service";
+import { ChatAgentWakeService } from "./chat-agent-wake-service";
 
-const SPACE_TYPES = new Set<CreateChatSpaceInput["spaceType"]>([
-  "company",
-  "division",
-  "department",
-  "project",
-  "pod",
-  "ad_hoc",
-  "direct",
-]);
+const SPACE_TYPES = new Set<CreateChatSpaceInput["spaceType"]>(["company", "division", "department", "project", "pod", "ad_hoc", "direct"]);
 const SPACE_VISIBILITIES = new Set<CreateChatSpaceInput["visibility"]>(["workspace", "restricted"]);
 
 export class ChatService {
@@ -51,6 +44,7 @@ export class ChatService {
   private readonly handoffs: FileHandoffService;
   private readonly messageMutations: ChatMessageMutationService;
   private readonly identity: IdentityAccessService;
+  private readonly agentWake: ChatAgentWakeService;
 
   constructor(private readonly db: DatabaseSync) {
     this.audit = new AuditService(db);
@@ -59,6 +53,7 @@ export class ChatService {
     this.handoffs = new FileHandoffService(db);
     this.messageMutations = new ChatMessageMutationService(db);
     this.identity = new IdentityAccessService(db);
+    this.agentWake = new ChatAgentWakeService(db);
   }
 
   createSpace(input: CreateChatSpaceInput): string {
@@ -232,7 +227,7 @@ export class ChatService {
     if (slash.command === "approve" || slash.command === "deny") {
       return this.decideApprovalFromSlash(input, sender, slash);
     }
-    if (slash.command === "agent") return this.routeAgentSlash(input, mentions, slash, messageId, now);
+    if (slash.command === "agent") return this.routeAgentSlash(input, mentions, slash, messageId, threadId, now);
     if (slash.command === "skill") return this.routeSkillSlash(input, slash, messageId);
     if (slash.command === "file") return this.routeFileSlash(input, attachments, slash, messageId);
     if (slash.command === "runbook") return this.routeRunbookSlash(input, attachments, slash, messageId);
@@ -255,18 +250,17 @@ export class ChatService {
     mentions: ResolvedMention[],
     slash: SlashInvocation,
     messageId: string,
+    threadId: string,
     now: string,
   ): string {
-    const target = mentions.find((mention) => mention.target.type === "agent")?.target;
-    if (!target || target.type !== "agent") throw new Error("Slash command /agent requires an agent mention.");
-    this.db.prepare(`
-      insert into chat_presence(principal_type, principal_id, status, status_text, last_seen_at)
-      values (?, ?, ?, ?, ?)
-      on conflict(principal_type, principal_id)
-      do update set status = excluded.status, status_text = excluded.status_text, last_seen_at = excluded.last_seen_at
-    `).run("agent", target.id, "thinking", slash.args.trim().slice(0, 160), now);
-    this.recordSlashRoute(input, messageId, slash.command, target.id, { targetType: "agent", targetId: target.id });
-    return target.id;
+    const wake = this.agentWake.wakeFromSlash(input, mentions, slash, messageId, threadId, now);
+    this.recordSlashRoute(input, messageId, slash.command, wake.targetId, {
+      targetType: "agent",
+      targetId: wake.targetId,
+      taskId: wake.taskId,
+      runId: wake.runId,
+    });
+    return wake.targetId;
   }
 
   private routeSkillSlash(input: SendMessageInput, slash: SlashInvocation, messageId: string): string {
