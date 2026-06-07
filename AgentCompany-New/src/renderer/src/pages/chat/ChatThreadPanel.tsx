@@ -12,6 +12,7 @@ import type {
 } from "../../../../shared/domain";
 import { auditEventLabel, formatTime } from "../types";
 import { ChatMessageRow } from "./ChatMessageRow";
+import { MentionTextarea } from "./MentionTextarea";
 import { senderName, type MessageContext } from "./chat-helpers";
 
 export function ChatThreadPanel({
@@ -121,17 +122,13 @@ export function ChatThreadPanel({
       </div>
       <form onSubmit={onSubmit} style={{ padding: 12, flexShrink: 0 }}>
         <div style={{ border: "1px solid var(--border-strong)", borderRadius: 10, background: "var(--panel)", padding: "8px 10px" }}>
-          <textarea
+          <MentionTextarea
             name="message"
             rows={2}
-            aria-label="Thread reply"
-            style={{ width: "100%", border: 0, resize: "none", outline: "none", fontSize: 13, background: "transparent", padding: 0, minHeight: 36 }}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
-                event.preventDefault();
-                event.currentTarget.form?.requestSubmit();
-              }
-            }}
+            ariaLabel="Thread reply"
+            agents={context.agents}
+            employees={context.employees}
+            style={{ minHeight: 36 }}
           />
           <div className="row" style={{ paddingTop: 6, gap: 4 }}>
             <IconButton icon="attach" label="Attach file" onClick={onAttach} />
