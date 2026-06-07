@@ -133,7 +133,7 @@ export function SettingsPage({ snapshot, actions }: PageProps) {
               roleGrants={roleGrants}
             />
           )}
-          {tab === "billing" && <BillingPanel agents={agents} providers={providers} providerRequests={providerRequests} />}
+          {tab === "billing" && <BillingPanel agents={agents} providers={providers} providerRequests={providerRequests} hiringPolicies={hiringPolicies} />}
           {tab === "models" && <ModelsPanel providers={providers} agents={agents} />}
           {tab === "providers" && (
             <ProvidersPanel
