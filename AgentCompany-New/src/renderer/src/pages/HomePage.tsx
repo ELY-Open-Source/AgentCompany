@@ -12,6 +12,7 @@ import type {
   TaskRunRecord,
 } from "../../../shared/domain";
 import { NewTaskDialog } from "./NewTaskDialog";
+import { AgentWorkloadChart, BudgetUtilizationChart, CostTrendChart, RunActivityChart, SuccessRateChart } from "./home/DashboardCharts";
 import type { PageProps } from "./types";
 import { activeOrgId, formatRelative, formatTime, money, requireActiveEmployee, requireActiveOrganization } from "./types";
 
@@ -37,6 +38,7 @@ export function HomePage({ snapshot, actions, navigate }: PageProps) {
   const taskRuns = useMemo(() => snapshot.taskRuns.filter((run) => run.orgId === orgId), [snapshot.taskRuns, orgId]);
   const chatMessages = useMemo(() => snapshot.chatMessages.filter((m) => m.orgId === orgId), [snapshot.chatMessages, orgId]);
   const chatSpaces = useMemo(() => snapshot.chatSpaces.filter((s) => s.orgId === orgId), [snapshot.chatSpaces, orgId]);
+  const providerRequests = useMemo(() => snapshot.providerRequests.filter((r) => r.orgId === orgId), [snapshot.providerRequests, orgId]);
   const [newTaskOpen, setNewTaskOpen] = useState(false);
 
   const pendingApprovals = approvals.filter((approval) => approval.state === "pending");
@@ -82,8 +84,16 @@ export function HomePage({ snapshot, actions, navigate }: PageProps) {
         <GoalCard goal={primaryGoal} progress={goalProgress} organizationName={organization.name} />
       </div>
 
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(5, minmax(0, 1fr))", gap: 12, marginTop: 12 }}>
+        <AgentWorkloadChart agents={agents} tasks={tasks} />
+        <BudgetUtilizationChart agents={agents} providers={providers} />
+        <RunActivityChart taskRuns={taskRuns} />
+        <SuccessRateChart taskRuns={taskRuns} />
+        <CostTrendChart providerRequests={providerRequests} />
+      </div>
+
       <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)", gap: 12, marginTop: 12 }}>
-        <RunActivityCard taskRuns={taskRuns} tasks={tasks} agents={agents} onViewAll={() => navigate("work")} />
+        <RunActivityCard taskRuns={taskRuns} tasks={tasks} agents={agents} onViewAll={() => navigate("runs")} />
         <RecentMessagesCard messages={chatMessages} agents={agents} employees={[employee]} spaces={chatSpaces} onViewAll={() => navigate("chat")} />
       </div>
 
