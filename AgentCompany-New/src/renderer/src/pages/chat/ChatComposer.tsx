@@ -1,11 +1,26 @@
-import { useState, type FormEvent, type MutableRefObject } from "react";
-import { Button, Icon, IconButton } from "../../shared/ui";
-import type { FileObjectRecord } from "../../../../shared/domain";
+import { useEffect, useRef, useState, type FormEvent, type MutableRefObject } from "react";
+import { Avatar, Button, Icon, IconButton } from "../../shared/ui";
+import type { AgentRecord, EmployeeRecord, FileObjectRecord } from "../../../../shared/domain";
 import { SLASH_COMMANDS } from "./chat-helpers";
+
+interface MentionCandidate {
+  handle: string;
+  label: string;
+  bot: boolean;
+}
+
+function buildCandidates(agents: AgentRecord[], employees: EmployeeRecord[]): MentionCandidate[] {
+  return [
+    ...agents.map((a) => ({ handle: a.name, label: `${a.name} · ${a.role}`, bot: true })),
+    ...employees.map((e) => ({ handle: e.displayName, label: `${e.displayName} · ${e.role}`, bot: false })),
+  ];
+}
 
 export function ChatComposer({
   disabled,
   files,
+  agents,
+  employees,
   attachmentFileId,
   onAttachmentChange,
   onAttach,
@@ -14,6 +29,8 @@ export function ChatComposer({
 }: {
   disabled: boolean;
   files: FileObjectRecord[];
+  agents: AgentRecord[];
+  employees: EmployeeRecord[];
   attachmentFileId: string;
   onAttachmentChange: (next: string) => void;
   onAttach: () => void;
@@ -21,7 +38,30 @@ export function ChatComposer({
   composerRef: MutableRefObject<HTMLTextAreaElement | null>;
 }) {
   const [slashOpen, setSlashOpen] = useState(false);
+  const [mentionQuery, setMentionQuery] = useState<string | null>(null);
+  const [mentionIndex, setMentionIndex] = useState(0);
+  const mentionAnchor = useRef(0);
   const attachment = files.find((file) => file.id === attachmentFileId) ?? null;
+  const candidates = buildCandidates(agents, employees);
+  const filtered = mentionQuery !== null
+    ? candidates.filter((c) => c.handle.toLowerCase().includes(mentionQuery.toLowerCase()))
+    : [];
+
+  useEffect(() => { setMentionIndex(0); }, [mentionQuery]);
+
+  const closeMention = () => setMentionQuery(null);
+
+  const insertMention = (handle: string) => {
+    const node = composerRef.current;
+    if (!node) return;
+    const before = node.value.slice(0, mentionAnchor.current);
+    const after = node.value.slice(node.selectionStart);
+    node.value = `${before}@${handle} ${after}`;
+    const caret = before.length + handle.length + 2;
+    node.setSelectionRange(caret, caret);
+    node.focus();
+    closeMention();
+  };
 
   const insert = (text: string) => {
     const node = composerRef.current;
@@ -36,9 +76,92 @@ export function ChatComposer({
     node.focus();
   };
 
+  const handleInput = () => {
+    const node = composerRef.current;
+    if (!node) return;
+    const pos = node.selectionStart;
+    const text = node.value.slice(0, pos);
+    const atMatch = text.match(/(^|\s)@(\S*)$/);
+    if (atMatch) {
+      mentionAnchor.current = pos - atMatch[2].length - 1;
+      setMentionQuery(atMatch[2]);
+    } else {
+      closeMention();
+    }
+  };
+
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (mentionQuery !== null && filtered.length > 0) {
+      if (event.key === "ArrowDown") {
+        event.preventDefault();
+        setMentionIndex((i) => (i + 1) % filtered.length);
+        return;
+      }
+      if (event.key === "ArrowUp") {
+        event.preventDefault();
+        setMentionIndex((i) => (i - 1 + filtered.length) % filtered.length);
+        return;
+      }
+      if (event.key === "Enter" || event.key === "Tab") {
+        event.preventDefault();
+        insertMention(filtered[mentionIndex].handle);
+        return;
+      }
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeMention();
+        return;
+      }
+    }
+    if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+      event.preventDefault();
+      event.currentTarget.form?.requestSubmit();
+    }
+  };
+
   return (
     <form onSubmit={onSubmit} style={{ padding: 14, paddingTop: 4, flexShrink: 0 }}>
-      <div style={{ border: "1px solid var(--border-strong)", borderRadius: 12, background: "var(--panel)", padding: "10px 12px" }}>
+      <div style={{ border: "1px solid var(--border-strong)", borderRadius: 12, background: "var(--panel)", padding: "10px 12px", position: "relative" }}>
+        {mentionQuery !== null && filtered.length > 0 && (
+          <div style={{
+            position: "absolute",
+            bottom: "100%",
+            left: 0,
+            right: 0,
+            marginBottom: 4,
+            background: "var(--panel)",
+            border: "1px solid var(--border)",
+            borderRadius: 10,
+            boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
+            maxHeight: 200,
+            overflow: "auto",
+            zIndex: 10,
+          }}>
+            {filtered.map((c, i) => (
+              <button
+                key={c.handle}
+                type="button"
+                onMouseDown={(e) => { e.preventDefault(); insertMention(c.handle); }}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  width: "100%",
+                  padding: "8px 12px",
+                  border: 0,
+                  background: i === mentionIndex ? "var(--accent-soft)" : "transparent",
+                  cursor: "pointer",
+                  fontSize: 13,
+                  color: "var(--text-1)",
+                  textAlign: "left",
+                }}
+              >
+                <Avatar name={c.handle} size="sm" bot={c.bot} />
+                <span style={{ fontWeight: 500 }}>{c.label}</span>
+              </button>
+            ))}
+          </div>
+        )}
         <textarea
           ref={composerRef}
           name="message"
@@ -56,12 +179,9 @@ export function ChatComposer({
             padding: 0,
             minHeight: 38,
           }}
-          onKeyDown={(event) => {
-            if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
-              event.preventDefault();
-              event.currentTarget.form?.requestSubmit();
-            }
-          }}
+          onInput={handleInput}
+          onKeyDown={handleKeyDown}
+          onBlur={() => setTimeout(closeMention, 200)}
         />
         <div className="row" style={{ paddingTop: 6, borderTop: "1px solid var(--border-soft)", gap: 4 }}>
           <IconButton icon="attach" label="Attach file" onClick={onAttach} disabled={disabled} />
@@ -81,7 +201,7 @@ export function ChatComposer({
             </span>
           )}
           <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6 }}>
-            <span className="mono" style={{ fontSize: 11, color: "var(--text-3)" }}>⌘↵</span>
+            <span className="mono" style={{ fontSize: 11, color: "var(--text-3)" }}>Ctrl+Enter</span>
             <Button tone="primary" size="small" type="submit" disabled={disabled}><Icon name="send" size={12} /> Send</Button>
           </div>
         </div>

@@ -96,6 +96,8 @@ export function ChatConversation({
       <ChatComposer
         disabled={!space}
         files={files}
+        agents={context.agents}
+        employees={context.employees}
         attachmentFileId={attachmentFileId}
         onAttachmentChange={onAttachmentChange}
         onAttach={onAttach}
