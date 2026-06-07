@@ -143,6 +143,7 @@ export interface DecideApprovalInput {
   approvalId: string;
   state: Extract<ApprovalState, "approved" | "declined">;
   decidedByEmployeeId: string;
+  notes?: string;
 }
 
 export interface SyncEmployeeIdentityInput {
@@ -552,6 +553,33 @@ export interface UpdateAutomationRuleInput {
 export interface DeleteAutomationRuleInput {
   orgId: string;
   ruleId: string;
+}
+
+export interface CreateMeetingInput {
+  orgId: string;
+  title: string;
+  meetingType: string;
+  scheduledAt: string | null;
+  durationMinutes: number;
+  agenda: string;
+}
+
+export interface DeleteMeetingInput {
+  orgId: string;
+  meetingId: string;
+}
+
+export interface CreateSprintInput {
+  orgId: string;
+  name: string;
+  goal: string;
+  startDate: string;
+  endDate: string;
+}
+
+export interface DeleteSprintInput {
+  orgId: string;
+  sprintId: string;
 }
 
 export interface NativeDialogResult {

@@ -160,6 +160,8 @@ export class SnapshotService {
       knowledgeEntries: list(this.db, "knowledge_entries", "updated_at desc"),
       automationRules: list<AppSnapshot["automationRules"][number]>(this.db, "automation_rules", "priority asc")
         .map((rule) => ({ ...rule, enabled: toBool(rule.enabled) })),
+      meetings: list(this.db, "meetings", "scheduled_at desc"),
+      sprints: list(this.db, "sprints", "start_date desc"),
     };
   }
 

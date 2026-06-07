@@ -15,6 +15,8 @@ export type RouteId =
   | "docs"
   | "knowledge"
   | "automation"
+  | "meetings"
+  | "sprints"
   | "approvals"
   | "social"
   | "settings";
@@ -38,6 +40,8 @@ const primaryNav: NavSpec[] = [
   { id: "docs", label: "Documents", icon: "file" },
   { id: "knowledge", label: "Knowledge", icon: "sparkle" },
   { id: "automation", label: "Automation", icon: "bot" },
+  { id: "meetings", label: "Meetings", icon: "team" },
+  { id: "sprints", label: "Sprints", icon: "work" },
   { id: "approvals", label: "Approvals", icon: "approve" },
   { id: "social", label: "Social", icon: "social" },
 ];

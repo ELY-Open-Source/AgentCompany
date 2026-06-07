@@ -46,13 +46,14 @@ export function ApprovalsPage({ snapshot, actions }: PageProps) {
 
   const editing = editingId ? approvals.find((approval) => approval.id === editingId) ?? null : null;
 
-  const decide = (approval: ApprovalRecord, state: "approved" | "declined") => {
+  const decide = (approval: ApprovalRecord, state: "approved" | "declined", notes?: string) => {
     setEditingId(null);
     void actions.run(() => window.agentCompany.decideApproval({
       orgId,
       approvalId: approval.id,
       state,
       decidedByEmployeeId: employee.id,
+      notes,
     }));
   };
 
@@ -113,8 +114,7 @@ export function ApprovalsPage({ snapshot, actions }: PageProps) {
         approval={editing}
         requester={editing ? resolveRequester(editing, employees, agents) : ""}
         onClose={() => setEditingId(null)}
-        onApprove={() => editing && decide(editing, "approved")}
-        onDecline={() => editing && decide(editing, "declined")}
+        onDecide={(state, notes) => editing && decide(editing, state, notes)}
       />
     </div>
   );
@@ -124,15 +124,14 @@ function ApprovalDetailDialog({
   approval,
   requester,
   onClose,
-  onApprove,
-  onDecline,
+  onDecide,
 }: {
   approval: ApprovalRecord | null;
   requester: string;
   onClose: () => void;
-  onApprove: () => void;
-  onDecline: () => void;
+  onDecide: (state: "approved" | "declined", notes?: string) => void;
 }) {
+  const [notes, setNotes] = useState("");
   if (!approval) return null;
   const tone = RISK_TONES[approval.risk];
   if (!tone) throw new Error("Approval risk tone is missing.");
@@ -158,9 +157,17 @@ function ApprovalDetailDialog({
           <span style={{ color: "var(--text-3)" }}>Requested</span>
           <span>{formatRelative(approval.createdAt)}</span>
         </div>
+        <textarea
+          className="input"
+          placeholder="Decision notes"
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          rows={2}
+          style={{ marginTop: 14 }}
+        />
         <div className="modal-actions">
-          <Button onClick={onDecline}>Decline</Button>
-          <Button tone="primary" onClick={onApprove}>Approve</Button>
+          <Button onClick={() => onDecide("declined", notes || undefined)}>Decline</Button>
+          <Button tone="primary" onClick={() => onDecide("approved", notes || undefined)}>Approve</Button>
         </div>
       </div>
     </div>

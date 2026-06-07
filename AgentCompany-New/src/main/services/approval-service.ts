@@ -79,11 +79,12 @@ export class ApprovalService {
       "Deciding employee was not found.",
     );
     const now = new Date().toISOString();
+    const notes = input.notes?.trim() || null;
     const result = this.db.prepare(`
       update approvals
-      set state = ?, decided_by_employee_id = ?, decided_at = ?
+      set state = ?, decided_by_employee_id = ?, decided_at = ?, decision_notes = ?
       where id = ? and org_id = ? and state = ?
-    `).run(input.state, input.decidedByEmployeeId, now, input.approvalId, input.orgId, APPROVAL_STATE.PENDING);
+    `).run(input.state, input.decidedByEmployeeId, now, notes, input.approvalId, input.orgId, APPROVAL_STATE.PENDING);
     if (result.changes === 0) throw new Error("Pending approval was not found.");
     this.audit.record({
       orgId: input.orgId,

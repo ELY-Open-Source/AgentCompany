@@ -12,6 +12,10 @@ import type {
   CreateAutomationRuleInput,
   CreateDocumentInput,
   CreateGoalInput,
+  CreateMeetingInput,
+  CreateSprintInput,
+  DeleteMeetingInput,
+  DeleteSprintInput,
   CreateKnowledgeEntryInput,
   CreateProjectInput,
   CreateWorkspaceInput,
@@ -116,6 +120,10 @@ export interface DesktopApi {
   createAutomationRule(input: CreateAutomationRuleInput): Promise<DesktopResult<AppSnapshot>>;
   updateAutomationRule(input: UpdateAutomationRuleInput): Promise<DesktopResult<AppSnapshot>>;
   deleteAutomationRule(input: DeleteAutomationRuleInput): Promise<DesktopResult<AppSnapshot>>;
+  createMeeting(input: CreateMeetingInput): Promise<DesktopResult<AppSnapshot>>;
+  deleteMeeting(input: DeleteMeetingInput): Promise<DesktopResult<AppSnapshot>>;
+  createSprint(input: CreateSprintInput): Promise<DesktopResult<AppSnapshot>>;
+  deleteSprint(input: DeleteSprintInput): Promise<DesktopResult<AppSnapshot>>;
   createApproval(input: CreateApprovalInput): Promise<DesktopResult<AppSnapshot>>;
   decideApproval(input: DecideApprovalInput): Promise<DesktopResult<AppSnapshot>>;
   syncEmployeeIdentity(input: SyncEmployeeIdentityInput): Promise<DesktopResult<AppSnapshot>>;

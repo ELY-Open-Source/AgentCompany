@@ -178,9 +178,40 @@ export interface ApprovalRecord {
   sourceEntityType: string | null;
   sourceEntityId: string | null;
   state: ApprovalState;
+  decisionNotes: string | null;
   decidedByEmployeeId: string | null;
   createdAt: string;
   decidedAt: string | null;
+}
+
+export interface MeetingRecord {
+  id: string;
+  orgId: string;
+  title: string;
+  meetingType: string;
+  status: string;
+  scheduledAt: string | null;
+  durationMinutes: number;
+  agenda: string;
+  notes: string;
+  decisions: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SprintRecord {
+  id: string;
+  orgId: string;
+  name: string;
+  goal: string;
+  status: string;
+  startDate: string;
+  endDate: string;
+  velocityPoints: number;
+  completedPoints: number;
+  retrospective: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export type {
@@ -488,4 +519,6 @@ export interface AppSnapshot {
   documents: DocumentRecord[];
   knowledgeEntries: KnowledgeEntryRecord[];
   automationRules: AutomationRuleRecord[];
+  meetings: MeetingRecord[];
+  sprints: SprintRecord[];
 }

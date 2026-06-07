@@ -25,6 +25,8 @@ import { TaskExecutionService } from "../services/task-execution-service";
 import { DocumentService } from "../services/document-service";
 import { KnowledgeService } from "../services/knowledge-service";
 import { AutomationService } from "../services/automation-service";
+import { MeetingService } from "../services/meeting-service";
+import { SprintService } from "../services/sprint-service";
 
 export interface IpcDeps {
   connection: DatabaseConnection;
@@ -54,6 +56,8 @@ export function registerIpcHandlers(deps: IpcDeps): void {
   const documents = new DocumentService(deps.connection.db);
   const knowledge = new KnowledgeService(deps.connection.db);
   const automation = new AutomationService(deps.connection.db);
+  const meetingService = new MeetingService(deps.connection.db);
+  const sprintService = new SprintService(deps.connection.db);
   const onboarding = new OnboardingService({
     db: deps.connection.db,
     saveProviderCredential: (input) => providers.saveCredential(input),
@@ -120,6 +124,10 @@ export function registerIpcHandlers(deps: IpcDeps): void {
   ipcMain.handle(IPC_CHANNELS.createAutomationRule, (_event, input) => mutate(() => automation.create(input)));
   ipcMain.handle(IPC_CHANNELS.updateAutomationRule, (_event, input) => mutate(() => automation.update(input)));
   ipcMain.handle(IPC_CHANNELS.deleteAutomationRule, (_event, input) => mutate(() => automation.delete(input)));
+  ipcMain.handle(IPC_CHANNELS.createMeeting, (_event, input) => mutate(() => meetingService.create(input)));
+  ipcMain.handle(IPC_CHANNELS.deleteMeeting, (_event, input) => mutate(() => meetingService.delete(input)));
+  ipcMain.handle(IPC_CHANNELS.createSprint, (_event, input) => mutate(() => sprintService.create(input)));
+  ipcMain.handle(IPC_CHANNELS.deleteSprint, (_event, input) => mutate(() => sprintService.delete(input)));
   ipcMain.handle(IPC_CHANNELS.createApproval, (_event, input) => mutate(() => approvals.create(input)));
   ipcMain.handle(IPC_CHANNELS.decideApproval, (_event, input) => mutate(() => approvals.decide(input)));
   ipcMain.handle(IPC_CHANNELS.syncEmployeeIdentity, (_event, input) => mutate(() => identityAccess.syncEmployeeIdentity(input)));
