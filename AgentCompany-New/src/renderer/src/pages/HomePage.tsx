@@ -4,14 +4,16 @@ import { TopbarActions } from "../shared/TopbarActions";
 import type {
   AgentRecord,
   ApprovalRecord,
+  ChatMessageRecord,
   EmployeeRecord,
   GoalRecord,
   ProviderRecord,
   TaskRecord,
+  TaskRunRecord,
 } from "../../../shared/domain";
 import { NewTaskDialog } from "./NewTaskDialog";
 import type { PageProps } from "./types";
-import { activeOrgId, formatTime, money, requireActiveEmployee, requireActiveOrganization } from "./types";
+import { activeOrgId, formatRelative, formatTime, money, requireActiveEmployee, requireActiveOrganization } from "./types";
 
 export function HomePage({ snapshot, actions, navigate }: PageProps) {
   const orgId = activeOrgId(snapshot);
@@ -32,6 +34,9 @@ export function HomePage({ snapshot, actions, navigate }: PageProps) {
         .reduce((sum, policy) => sum + policy.monthlyBudgetLimitCents, 0),
     [snapshot.hiringPolicies, orgId],
   );
+  const taskRuns = useMemo(() => snapshot.taskRuns.filter((run) => run.orgId === orgId), [snapshot.taskRuns, orgId]);
+  const chatMessages = useMemo(() => snapshot.chatMessages.filter((m) => m.orgId === orgId), [snapshot.chatMessages, orgId]);
+  const chatSpaces = useMemo(() => snapshot.chatSpaces.filter((s) => s.orgId === orgId), [snapshot.chatSpaces, orgId]);
   const [newTaskOpen, setNewTaskOpen] = useState(false);
 
   const pendingApprovals = approvals.filter((approval) => approval.state === "pending");
@@ -75,6 +80,11 @@ export function HomePage({ snapshot, actions, navigate }: PageProps) {
         <InProgressCard tasks={inProgressTasks} agents={agents} onViewAll={() => navigate("work")} />
         <TeamCard agents={agents} employee={employee} />
         <GoalCard goal={primaryGoal} progress={goalProgress} organizationName={organization.name} />
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)", gap: 12, marginTop: 12 }}>
+        <RunActivityCard taskRuns={taskRuns} tasks={tasks} agents={agents} onViewAll={() => navigate("work")} />
+        <RecentMessagesCard messages={chatMessages} agents={agents} employees={[employee]} spaces={chatSpaces} onViewAll={() => navigate("chat")} />
       </div>
 
       <NewTaskDialog open={newTaskOpen} orgId={orgId} snapshot={snapshot} actions={actions} onClose={() => setNewTaskOpen(false)} />
@@ -365,4 +375,116 @@ function resolveRequester(approval: ApprovalRecord, employees: EmployeeRecord[],
     if (agent) return agent.name;
   }
   return "System";
+}
+
+function RunActivityCard({
+  taskRuns,
+  tasks,
+  agents,
+  onViewAll,
+}: {
+  taskRuns: TaskRunRecord[];
+  tasks: TaskRecord[];
+  agents: AgentRecord[];
+  onViewAll: () => void;
+}) {
+  const recent = taskRuns.slice(0, 8);
+  return (
+    <section className="card" style={{ padding: 18 }}>
+      <div className="row" style={{ marginBottom: 14 }}>
+        <span className="card-label">Agent runs</span>
+        <button type="button" className="link-button" style={{ marginLeft: "auto", fontSize: 11 }} onClick={onViewAll}>
+          All work →
+        </button>
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        {recent.map((run) => {
+          const task = tasks.find((t) => t.id === run.taskId);
+          const agent = agents.find((a) => a.id === run.agentId);
+          return (
+            <div key={run.id} className="row" style={{ gap: 10 }}>
+              {agent && <Avatar name={agent.name} size="sm" bot />}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 12.5, fontWeight: 480, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {task?.title ?? run.taskId}
+                </div>
+                <div style={{ fontSize: 11, color: "var(--text-3)" }}>
+                  {agent?.name ?? "Agent"} · {run.trigger}
+                </div>
+              </div>
+              <Pill tone={runStateTone(run.state)}>{runStateLabel(run.state)}</Pill>
+              <span className="mono" style={{ fontSize: 11, color: "var(--text-3)", flexShrink: 0 }}>{formatRelative(run.createdAt)}</span>
+            </div>
+          );
+        })}
+        {recent.length === 0 && <div style={{ fontSize: 13, color: "var(--text-3)" }}>No runs yet</div>}
+      </div>
+    </section>
+  );
+}
+
+function RecentMessagesCard({
+  messages,
+  agents,
+  employees,
+  spaces,
+  onViewAll,
+}: {
+  messages: ChatMessageRecord[];
+  agents: AgentRecord[];
+  employees: EmployeeRecord[];
+  spaces: Array<{ id: string; name: string }>;
+  onViewAll: () => void;
+}) {
+  const recent = messages.slice(-8).reverse();
+  return (
+    <section className="card" style={{ padding: 18 }}>
+      <div className="row" style={{ marginBottom: 14 }}>
+        <span className="card-label">Recent messages</span>
+        <button type="button" className="link-button" style={{ marginLeft: "auto", fontSize: 11 }} onClick={onViewAll}>
+          Open chat →
+        </button>
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        {recent.map((msg) => {
+          const senderAgent = msg.senderType === "agent" ? agents.find((a) => a.id === msg.senderId) : null;
+          const senderEmployee = msg.senderType === "employee" ? employees.find((e) => e.id === msg.senderId) : null;
+          const name = senderAgent?.name ?? senderEmployee?.displayName ?? msg.senderType;
+          const space = spaces.find((s) => s.id === msg.spaceId);
+          const preview = msg.bodyMd.length > 80 ? `${msg.bodyMd.slice(0, 77)}...` : msg.bodyMd;
+          return (
+            <div key={msg.id} className="row" style={{ gap: 10, alignItems: "flex-start" }}>
+              <Avatar name={name} size="sm" bot={msg.senderType === "agent"} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div className="row" style={{ gap: 6 }}>
+                  <span style={{ fontSize: 12.5, fontWeight: 540 }}>{name}</span>
+                  {space && <span style={{ fontSize: 11, color: "var(--text-3)" }}>#{space.name}</span>}
+                  <span className="mono" style={{ marginLeft: "auto", fontSize: 11, color: "var(--text-3)", flexShrink: 0 }}>{formatTime(msg.createdAt)}</span>
+                </div>
+                <div style={{ fontSize: 12, color: "var(--text-2)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", lineHeight: 1.4 }}>
+                  {preview}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+        {recent.length === 0 && <div style={{ fontSize: 13, color: "var(--text-3)" }}>No messages yet</div>}
+      </div>
+    </section>
+  );
+}
+
+function runStateTone(state: string): "red" | "amber" | "violet" | undefined {
+  if (state === "failed") return "red";
+  if (state === "running") return "violet";
+  if (state === "queued") return "amber";
+  return undefined;
+}
+
+function runStateLabel(state: string): string {
+  if (state === "queued") return "Queued";
+  if (state === "running") return "Running";
+  if (state === "completed") return "Done";
+  if (state === "failed") return "Failed";
+  return state;
 }
