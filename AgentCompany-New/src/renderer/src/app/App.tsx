@@ -11,6 +11,7 @@ import { ApprovalsPage } from "../pages/ApprovalsPage";
 import { SocialPage } from "../pages/SocialPage";
 import { DocumentsPage } from "../pages/DocumentsPage";
 import { KnowledgePage } from "../pages/KnowledgePage";
+import { InboxPage } from "../pages/InboxPage";
 import { RunsPage } from "../pages/RunsPage";
 import { AutomationPage } from "../pages/AutomationPage";
 import { MeetingsPage } from "../pages/MeetingsPage";
@@ -45,6 +46,7 @@ export function App() {
     files: <FilesPage {...pageProps} />,
     docs: <DocumentsPage {...pageProps} />,
     knowledge: <KnowledgePage {...pageProps} />,
+    inbox: <InboxPage {...pageProps} />,
     runs: <RunsPage {...pageProps} />,
     automation: <AutomationPage {...pageProps} />,
     meetings: <MeetingsPage {...pageProps} />,
