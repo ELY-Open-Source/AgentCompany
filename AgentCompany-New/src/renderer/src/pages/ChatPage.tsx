@@ -69,6 +69,7 @@ export function ChatPage({ snapshot, actions }: PageProps) {
   const [openThreadId, setOpenThreadId] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [attachmentFileId, setAttachmentFileId] = useState<string>("");
+  const [threadAttachmentFileId, setThreadAttachmentFileId] = useState<string>("");
   const composerRef = useRef<HTMLTextAreaElement | null>(null);
 
   const firstAvailableSpaceId = channels[0]?.id ?? directs[0]?.id ?? null;
@@ -119,6 +120,16 @@ export function ChatPage({ snapshot, actions }: PageProps) {
   );
   const pendingApprovalsInSpace = filterApprovalsForSpace(approvalsAll, activeSpace);
 
+  const openThread = (threadId: string) => {
+    setOpenThreadId(threadId);
+    setThreadAttachmentFileId("");
+  };
+
+  const closeThread = () => {
+    setOpenThreadId(null);
+    setThreadAttachmentFileId("");
+  };
+
   const sendInChannel = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!activeSpace) return;
@@ -145,6 +156,7 @@ export function ChatPage({ snapshot, actions }: PageProps) {
     const body = value(form, "message");
     if (!body) return;
     event.currentTarget.reset();
+    setThreadAttachmentFileId("");
     void actions.run(() => window.agentCompany.sendMessage({
       orgId,
       spaceId: activeSpace.id,
@@ -152,7 +164,7 @@ export function ChatPage({ snapshot, actions }: PageProps) {
       senderType: "employee",
       senderId: employee.id,
       bodyMd: body,
-      attachmentFileIds: [],
+      attachmentFileIds: threadAttachmentFileId ? [threadAttachmentFileId] : [],
     }));
   };
 
@@ -225,9 +237,17 @@ export function ChatPage({ snapshot, actions }: PageProps) {
     }));
 
   const attachFile = () => {
+    importAttachment(setAttachmentFileId);
+  };
+
+  const attachThreadFile = () => {
+    importAttachment(setThreadAttachmentFileId);
+  };
+
+  const importAttachment = (onSelect: (fileId: string) => void) => {
     void window.agentCompany.importFile({ orgId }).then((result) => {
       if (!result.ok) throw new Error(result.error.message);
-      if (result.data) setAttachmentFileId(result.data);
+      if (result.data) onSelect(result.data);
     });
   };
 
@@ -248,7 +268,7 @@ export function ChatPage({ snapshot, actions }: PageProps) {
         activeSpaceId={activeSpaceId}
         onSelect={(spaceId) => {
           setSelectedSpaceId(spaceId);
-          setOpenThreadId(null);
+          closeThread();
         }}
         onCreateSpace={() => setCreateOpen(true)}
       />
@@ -269,7 +289,7 @@ export function ChatPage({ snapshot, actions }: PageProps) {
         currentEmployeeId={employee.id}
         onAttachmentChange={setAttachmentFileId}
         onAttach={attachFile}
-        onOpenThread={setOpenThreadId}
+        onOpenThread={openThread}
         onApprove={(approvalId) => decideApproval(approvalId, "approved")}
         onDecline={(approvalId) => decideApproval(approvalId, "declined")}
         onEditMessage={editChatMessage}
@@ -292,7 +312,10 @@ export function ChatPage({ snapshot, actions }: PageProps) {
           auditEvents={threadAuditEvents}
           context={{ employees, agents }}
           canIntervene={canBoardIntervene}
-          onClose={() => setOpenThreadId(null)}
+          attachmentFileId={threadAttachmentFileId}
+          onClose={closeThread}
+          onAttachmentChange={setThreadAttachmentFileId}
+          onAttach={attachThreadFile}
           onSubmit={sendInThread}
           onBoardSubmit={sendBoardIntervention}
           onOpenFile={openFile}

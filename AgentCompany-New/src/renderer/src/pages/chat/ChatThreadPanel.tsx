@@ -26,7 +26,10 @@ export function ChatThreadPanel({
   auditEvents,
   context,
   canIntervene,
+  attachmentFileId,
   onClose,
+  onAttachmentChange,
+  onAttach,
   onSubmit,
   onBoardSubmit,
   onOpenFile,
@@ -42,11 +45,15 @@ export function ChatThreadPanel({
   auditEvents: AuditEventRecord[];
   context: MessageContext;
   canIntervene: boolean;
+  attachmentFileId: string;
   onClose: () => void;
+  onAttachmentChange: (next: string) => void;
+  onAttach: () => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   onBoardSubmit: (event: FormEvent<HTMLFormElement>) => void;
   onOpenFile: (fileId: string) => void;
 }) {
+  const attachment = files.find((file) => file.id === attachmentFileId) ?? null;
   return (
     <aside
       style={{
@@ -126,8 +133,25 @@ export function ChatThreadPanel({
               }
             }}
           />
-          <div className="row" style={{ paddingTop: 6, justifyContent: "flex-end" }}>
-            <Button tone="primary" size="small" type="submit"><Icon name="send" size={12} /> Reply</Button>
+          <div className="row" style={{ paddingTop: 6, gap: 4 }}>
+            <IconButton icon="attach" label="Attach file" onClick={onAttach} />
+            {attachment && (
+              <span className="pill" style={{ maxWidth: 150 }}>
+                <Icon name="file" size={11} />
+                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{attachment.name}</span>
+                <button
+                  type="button"
+                  aria-label="Remove thread attachment"
+                  onClick={() => onAttachmentChange("")}
+                  style={{ display: "inline-flex", border: 0, background: "transparent", padding: 0, color: "var(--text-3)", cursor: "pointer" }}
+                >
+                  <Icon name="x" size={11} />
+                </button>
+              </span>
+            )}
+            <div style={{ marginLeft: "auto" }}>
+              <Button tone="primary" size="small" type="submit"><Icon name="send" size={12} /> Reply</Button>
+            </div>
           </div>
         </div>
       </form>
