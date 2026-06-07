@@ -142,6 +142,12 @@ export function TeamPage({ snapshot, actions }: PageProps) {
         <Field label="Model">
           <input className="input" name="modelId" list="agent-model-suggestions" value={hireModelId} onChange={(event) => setHireModelId(event.currentTarget.value)} />
         </Field>
+        <Field label="Manager">
+          <select className="input" name="managerAgentId" defaultValue="">
+            <option value="">None</option>
+            {agents.map((agent) => <option key={agent.id} value={agent.id}>{agent.name} · {agent.role}</option>)}
+          </select>
+        </Field>
         <Field label="Monthly budget"><input className="input" name="budget" type="number" min="0" step="1" defaultValue="250" /></Field>
         <Field label="Seniority">
           <select className="input" name="roleLevel" defaultValue="staff">
