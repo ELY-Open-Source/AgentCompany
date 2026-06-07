@@ -9,6 +9,7 @@ import { ChatService } from "./chat-service";
 import { SkillService } from "./skill-service";
 import { runAgentLoop } from "./agent-run-loop";
 import type { AgentToolContext } from "./agent-tools";
+import { canonicalMentionHandle } from "./mention-handles";
 
 const TASK_RUN_STATE = {
   QUEUED: "queued",
@@ -481,9 +482,9 @@ export class TaskExecutionService {
 function buildAgentInstructions(agent: TaskExecutionAgentRow): string {
   return [
     `You are ${agent.name}, ${agent.title || agent.role} (${agent.department}, ${agent.role_level}) operating an autonomous AI company.`,
-    "You act by calling tools: hire_agent staffs your team, create_task delegates work and assigns it by agent name, update_task_status tracks progress, write_deliverable produces real files in the company workspace, and send_message posts coordination messages to a channel.",
-    "Communicate like a real team, not a status board. Post to the channel that matches the work — 'engineering' for engineering, 'product' for product or design, otherwise 'general' — instead of putting everything in #general. When you hand work to a teammate, post the assignment naming that teammate; when you finish work for someone, post your result naming the person who assigned it. To keep a hand-off as one conversation, reply in the same thread by passing the thread_id a previous send_message returned.",
-    "Take concrete action with the tools instead of only describing a plan. When the work is done and you have posted your coordination message, give a brief closing summary with no further tool calls.",
+    "You act by calling tools: hire_agent staffs your team, create_task delegates work and assigns it by agent name, update_task_status tracks progress, write_deliverable produces real files in the company workspace, and send_message posts coordination messages to a channel with optional file attachments.",
+    "Communicate like a real team. Post to the channel that matches the work — 'engineering' for engineering, 'product' for product or design, otherwise 'general'. Use @mentions when addressing a teammate. When you hand work or files to a teammate, use send_message with /handoff @Name and attachment_file_ids containing the file_id returned by write_deliverable. To keep a hand-off as one conversation, reply in the same thread by passing the thread_id a previous send_message returned.",
+    "Take concrete action with the tools and reserve narrative for brief summaries after coordination is posted.",
   ].join("\n");
 }
 
@@ -541,14 +542,19 @@ function buildTaskPrompt(input: {
   if (input.isManager && !input.hasReports) {
     lines.push(
       "",
-      "Your team is currently empty. Hire 3-5 direct reports for the roles this goal needs (hire_agent), create and assign their first tasks (create_task), and write the initial operating plan into the workspace (write_deliverable). Then, for EACH report, send_message to that report's department channel (engineering, product, or general) naming the report and the work you assigned them — start a new thread per report and note the thread_id it returns. Post the company-wide kickoff to #general. Then summarize.",
+      "Your team is currently empty. Hire 3-5 direct reports for the roles this goal needs (hire_agent), create and assign their first tasks (create_task), and write the initial operating plan into the workspace (write_deliverable). Then use send_message with /handoff @Name and attachment_file_ids to pass the operating plan to the relevant report. For EACH report, send_message to that report's department channel (engineering, product, or general) using an @mention and the work you assigned them — start a new thread per report and note the thread_id it returns. Post the company-wide kickoff to #general. Then summarize.",
     );
   } else {
     const manager = input.managerName ?? "your manager";
+    const managerReference = input.managerName ? `${manager} (${agentMention(input.managerName)})` : manager;
     lines.push(
       "",
-      `Complete this task: do the work, write your output as real files with write_deliverable, then send_message to your department channel (engineering, product, or general) reporting your progress and completion and naming ${manager} so the hand-off is visible — reply in the assignment thread if you were given a thread_id. Update the task status when done, and summarize.`,
+      `Complete this task: do the work, write your output as real files with write_deliverable, then send_message to your department channel (engineering, product, or general) reporting your progress and completion to ${managerReference}. Use /handoff with attachment_file_ids when passing files. Reply in the assignment thread if you were given a thread_id. Update the task status when done, and summarize.`,
     );
   }
   return lines.join("\n");
+}
+
+function agentMention(name: string): string {
+  return `@${canonicalMentionHandle(name)}`;
 }

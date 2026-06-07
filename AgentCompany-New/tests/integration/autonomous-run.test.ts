@@ -10,7 +10,7 @@ import { providerAdapters } from "../../src/main/services/provider-adapters";
 import { TaskExecutionService } from "../../src/main/services/task-execution-service";
 import { SnapshotService } from "../../src/main/services/snapshot-service";
 import { claimNextQueuedRun } from "../../src/main/app/task-queue-worker";
-import type { AgentTurnResult, ProviderToolTurnInput, ToolCall } from "../../src/main/services/provider-tool-turn";
+import type { AgentTurnMessage, AgentTurnResult, ProviderToolTurnInput, ToolCall } from "../../src/main/services/provider-tool-turn";
 
 const testVault = {
   encryptSecret: (secret: string) => Buffer.from(secret, "utf8"),
@@ -21,7 +21,7 @@ function call(name: string, args: Record<string, unknown>): ToolCall {
   return { id: `call_${randomUUID()}`, name, arguments: args };
 }
 
-/** Scripts the CEO: staff two reports, delegate a task, write the plan, then stop. */
+/** Scripts the CEO: staff two reports, delegate work, hand off the file in chat, then stop. */
 function scriptedCeo(): (input: ProviderToolTurnInput) => Promise<AgentTurnResult> {
   const script: Array<{ text: string; toolCalls: ToolCall[] }> = [
     { text: "Staffing.", toolCalls: [
@@ -33,16 +33,41 @@ function scriptedCeo(): (input: ProviderToolTurnInput) => Promise<AgentTurnResul
     ] },
     { text: "Writing the plan.", toolCalls: [
       call("write_deliverable", { path: "plan/operating-plan.md", content: "# OrbitOps Operating Plan\n\n- Validate demand\n- Launch booking site\n" }),
-      call("send_message", { channel: "general", body: "Kickoff: team staffed, plan written, booking site delegated to Mara." }),
     ] },
+    { text: "Handing off the plan.", toolCalls: [] },
     { text: "Team staffed, work delegated, plan written.", toolCalls: [] },
   ];
   let index = 0;
-  return async () => {
+  return async (input) => {
+    const fileId = lastToolOutput(input.messages, "write_deliverable").match(/file_id=([^),\s]+)/)?.[1];
+    if (fileId && index === 3) {
+      index += 1;
+      return {
+        text: "Handing off the plan.",
+        toolCalls: [
+          call("send_message", {
+            channel: "general",
+            body: "/handoff @Mara-Quinn operating plan for booking-site execution. @Owen-Diaz coordinate launch operations in this thread.",
+            attachment_file_ids: [fileId],
+          }),
+        ],
+        rawResponseJson: JSON.stringify({ id: `resp_${index}` }),
+      };
+    }
     const turn = script[index] ?? { text: "done", toolCalls: [] };
     index += 1;
     return { text: turn.text, toolCalls: turn.toolCalls, rawResponseJson: JSON.stringify({ id: `resp_${index}` }) };
   };
+}
+
+function lastToolOutput(messages: AgentTurnMessage[], toolName: string): string {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (message.role !== "tool") continue;
+    const result = message.results.find((item) => item.toolName === toolName);
+    if (result) return result.output;
+  }
+  return "";
 }
 
 describe("autonomous bootstrap run", () => {
@@ -102,11 +127,24 @@ describe("autonomous bootstrap run", () => {
     expect(planFile).toBeTruthy();
     expect(planFile).toMatchObject({ ownerType: "agent", ownerId: ceo?.id, kind: "md", scanState: "approved" });
 
-    // The CEO posts a coordination message, so the Messages channel is populated.
+    // The CEO posts a file handoff in the company channel, so chat carries the
+    // actual artifact and recipient mentions instead of a plain status note.
     const general = state.chatSpaces.find((s) => s.orgId === orgId && s.name === "general");
     const kickoff = state.chatMessages.find((m) => m.orgId === orgId && m.spaceId === general?.id);
     expect(kickoff).toMatchObject({ senderType: "agent", senderId: ceo?.id });
-    expect(kickoff?.bodyMd).toContain("team staffed");
+    expect(kickoff?.bodyMd).toContain("/handoff @Mara-Quinn");
+    expect(state.chatAttachments).toContainEqual(expect.objectContaining({ messageId: kickoff?.id, fileId: planFile?.id }));
+    expect(state.chatMentions).toEqual(expect.arrayContaining([
+      expect.objectContaining({ messageId: kickoff?.id, targetType: "agent", targetId: mara?.id }),
+      expect.objectContaining({ messageId: kickoff?.id, targetType: "agent", targetId: state.agents.find((a) => a.orgId === orgId && a.name === "Owen Diaz")?.id }),
+    ]));
+    expect(state.fileHandoffRecords).toContainEqual(expect.objectContaining({
+      messageId: kickoff?.id,
+      fileId: planFile?.id,
+      targetPrincipalType: "agent",
+      targetPrincipalId: mara?.id,
+      policyDecision: "approved_for_handoff",
+    }));
 
     const run = state.taskRuns.find((r) => r.id === claimed!.id);
     expect(run?.state).toBe("completed");

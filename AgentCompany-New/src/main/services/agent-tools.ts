@@ -86,14 +86,19 @@ export const AGENT_TOOLS: ToolDefinition[] = [
   },
   {
     name: "send_message",
-    description: "Post a coordination message to a company channel so teammates and the operator can follow the work. Use the channel that matches the work: 'engineering' for engineering, 'product' for product/design, otherwise 'general'. Reply inside a thread by passing its thread_id (start a new thread by omitting it). Name the teammate you are addressing so the conversation reads as a real handoff.",
+    description: "Post a coordination message to a company channel so teammates and the operator can follow the work. Use @mentions for teammates, attach deliverable file ids with attachment_file_ids, and use /handoff @Name when passing a file. Use the channel that matches the work: 'engineering' for engineering, 'product' for product/design, otherwise 'general'. Reply inside a thread by passing its thread_id.",
     parameters: {
       type: "object",
       additionalProperties: false,
       properties: {
         channel: { type: "string", description: "Channel: 'engineering', 'product', or 'general'." },
-        body: { type: "string", description: "The message. Name the teammate you are addressing (assigning to, or reporting back to)." },
+        body: { type: "string", description: "The message. Use @mentions for teammates and slash commands such as /handoff @Name when passing files." },
         thread_id: { type: "string", description: "Reply inside an existing thread — pass the thread_id a prior send_message returned. Omit to start a new thread." },
+        attachment_file_ids: {
+          type: "array",
+          items: { type: "string" },
+          description: "Approved file object ids to attach to this chat message.",
+        },
       },
       required: ["channel", "body"],
     },
@@ -176,22 +181,23 @@ function updateTaskStatus(deps: AgentToolDeps, ctx: AgentToolContext, args: Json
 function writeDeliverableTool(deps: AgentToolDeps, ctx: AgentToolContext, args: JsonRecord): string {
   if (!ctx.workspace) throw new Error("No workspace is bound to this task; cannot write deliverables.");
   const path = requireString(args.path, "path");
-  const content = typeof args.content === "string" ? args.content : "";
+  const content = requireString(args.content, "content");
   const written = writeDeliverable({ workspaceRoot: ctx.workspace.localPath, relativePath: path, content });
-  recordWorkspaceFile(deps.db, {
+  const fileId = recordWorkspaceFile(deps.db, {
     orgId: ctx.orgId,
     ownerType: "agent",
     ownerId: ctx.agent.id,
     workspaceRoot: ctx.workspace.localPath,
     relativePath: written,
   });
-  return `Wrote deliverable ${written} (${content.length} chars).`;
+  return `Wrote deliverable ${written} (file_id=${fileId}, chars=${content.length}).`;
 }
 
 function sendMessageTool(deps: AgentToolDeps, ctx: AgentToolContext, args: JsonRecord): string {
   const channel = requireString(args.channel, "channel");
   const body = requireString(args.body, "body");
   const threadId = optionalString(args.thread_id);
+  const attachmentFileIds = optionalStringArray(args.attachment_file_ids, "attachment_file_ids");
   const space = deps.db.prepare(
     "select id from chat_spaces where org_id = ? and lower(name) = lower(?) and space_type <> 'direct' limit 1",
   ).get(ctx.orgId, channel) as { id: string } | undefined;
@@ -203,7 +209,7 @@ function sendMessageTool(deps: AgentToolDeps, ctx: AgentToolContext, args: JsonR
     senderType: "agent",
     senderId: ctx.agent.id,
     bodyMd: body,
-    attachmentFileIds: [],
+    attachmentFileIds,
   });
   const row = deps.db.prepare("select thread_id from chat_messages where id = ?").get(messageId) as { thread_id: string };
   return `Posted to #${channel} (message_id=${messageId}, thread_id=${row.thread_id}).`;
@@ -222,6 +228,12 @@ function requireString(value: unknown, field: string): string {
 
 function optionalString(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function optionalStringArray(value: unknown, field: string): string[] {
+  if (value === undefined) return [];
+  if (!Array.isArray(value)) throw new Error(`"${field}" must be an array.`);
+  return value.map((item, index) => requireString(item, `${field}[${index}]`));
 }
 
 function normalizeRisk(value: unknown): RiskLevel {
