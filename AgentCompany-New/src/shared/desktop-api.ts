@@ -9,6 +9,9 @@ import type {
   CreateAgentInput,
   UpdateAgentInput,
   CreateApprovalInput,
+  CreateGoalInput,
+  CreateProjectInput,
+  CreateWorkspaceInput,
   CreateAuditReplayInput,
   CreateChatSpaceInput,
   CreateComplianceExportInput,
@@ -90,6 +93,9 @@ export interface DesktopApi {
   createTask(input: CreateTaskInput): Promise<DesktopResult<AppSnapshot>>;
   updateTaskStatus(input: UpdateTaskStatusInput): Promise<DesktopResult<AppSnapshot>>;
   runTask(input: RunTaskInput): Promise<DesktopResult<AppSnapshot>>;
+  createGoal(input: CreateGoalInput): Promise<DesktopResult<AppSnapshot>>;
+  createProject(input: CreateProjectInput): Promise<DesktopResult<AppSnapshot>>;
+  createWorkspace(input: CreateWorkspaceInput): Promise<DesktopResult<AppSnapshot>>;
   createApproval(input: CreateApprovalInput): Promise<DesktopResult<AppSnapshot>>;
   decideApproval(input: DecideApprovalInput): Promise<DesktopResult<AppSnapshot>>;
   syncEmployeeIdentity(input: SyncEmployeeIdentityInput): Promise<DesktopResult<AppSnapshot>>;

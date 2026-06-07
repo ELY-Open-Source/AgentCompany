@@ -88,6 +88,28 @@ export interface RunTaskInput {
   taskId: string;
 }
 
+export interface CreateGoalInput {
+  orgId: string;
+  title: string;
+  description: string;
+  ownerAgentId: string | null;
+}
+
+export interface CreateProjectInput {
+  orgId: string;
+  goalId: string | null;
+  name: string;
+  description: string;
+  leadAgentId: string | null;
+}
+
+export interface CreateWorkspaceInput {
+  orgId: string;
+  name: string;
+  localPath: string;
+  projectId: string | null;
+}
+
 export interface CreateApprovalInput {
   orgId: string;
   kind: string;

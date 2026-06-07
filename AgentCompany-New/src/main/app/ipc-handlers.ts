@@ -101,6 +101,9 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       return fail("task_run_failed", error instanceof Error ? error.message : String(error));
     }
   });
+  ipcMain.handle(IPC_CHANNELS.createGoal, (_event, input) => mutate(() => organization.createGoal(input)));
+  ipcMain.handle(IPC_CHANNELS.createProject, (_event, input) => mutate(() => organization.createProject(input)));
+  ipcMain.handle(IPC_CHANNELS.createWorkspace, (_event, input) => mutate(() => organization.createWorkspace(input)));
   ipcMain.handle(IPC_CHANNELS.createApproval, (_event, input) => mutate(() => approvals.create(input)));
   ipcMain.handle(IPC_CHANNELS.decideApproval, (_event, input) => mutate(() => approvals.decide(input)));
   ipcMain.handle(IPC_CHANNELS.syncEmployeeIdentity, (_event, input) => mutate(() => identityAccess.syncEmployeeIdentity(input)));

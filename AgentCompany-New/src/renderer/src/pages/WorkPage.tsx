@@ -16,6 +16,8 @@ import {
   type WorkspaceRecord,
 } from "../../../shared/domain";
 import { NewTaskDialog } from "./NewTaskDialog";
+import { GoalDialog } from "./work/GoalDialog";
+import { ProjectDialog } from "./work/ProjectDialog";
 import { TaskDetailDialog } from "./work/TaskDetailDialog";
 import { ProjectOverview } from "./work/ProjectOverview";
 import { canRun, latestTaskRun, nextStatus, prettyRunState, prettyStatus, providerFor, runTone } from "./work/task-helpers";
@@ -41,6 +43,8 @@ export function WorkPage({ snapshot, actions }: PageProps) {
   const orgId = activeOrgId(snapshot);
   const [view, setView] = useState<View>("board");
   const [newTaskOpen, setNewTaskOpen] = useState(false);
+  const [newGoalOpen, setNewGoalOpen] = useState(false);
+  const [newProjectOpen, setNewProjectOpen] = useState(false);
   const [priorityFilter, setPriorityFilter] = useState<TaskPriority | "all">("all");
   const [assigneeFilter, setAssigneeFilter] = useState<string>("all");
   const [detailTaskId, setDetailTaskId] = useState<string | null>(null);
@@ -88,6 +92,8 @@ export function WorkPage({ snapshot, actions }: PageProps) {
           onPriority={setPriorityFilter}
           onAssignee={setAssigneeFilter}
         />
+        <Button tone="ghost" onClick={() => setNewGoalOpen(true)}><Icon name="plus" size={13} /> Goal</Button>
+        <Button tone="ghost" onClick={() => setNewProjectOpen(true)}><Icon name="plus" size={13} /> Project</Button>
         <Button tone="primary" onClick={() => setNewTaskOpen(true)}><Icon name="plus" size={13} /> New task</Button>
       </TopbarActions>
       <h1 className="page-h1">Work</h1>
@@ -124,6 +130,8 @@ export function WorkPage({ snapshot, actions }: PageProps) {
       )}
       {view === "timeline" && <TimelineView tasks={tasks} goals={goals} />}
 
+      <GoalDialog open={newGoalOpen} orgId={orgId} agents={agents} actions={actions} onClose={() => setNewGoalOpen(false)} />
+      <ProjectDialog open={newProjectOpen} orgId={orgId} goals={goals} agents={agents} actions={actions} onClose={() => setNewProjectOpen(false)} />
       <NewTaskDialog open={newTaskOpen} orgId={orgId} snapshot={snapshot} actions={actions} onClose={() => setNewTaskOpen(false)} />
       <TaskDetailDialog
         task={detailTask}

@@ -2,7 +2,7 @@ import type { DatabaseSync } from "node:sqlite";
 import { APPROVAL_STATE, RISK_LEVEL, TASK_STATUS, type ApprovalState } from "../../shared/domain";
 import { PROVIDER_CATALOG } from "../../shared/provider-catalog";
 import { createId } from "../../shared/ids";
-import type { CreateAgentInput, CreateOrganizationInput, CreateTaskInput, UpdateAgentInput } from "../../shared/commands";
+import type { CreateAgentInput, CreateGoalInput, CreateOrganizationInput, CreateProjectInput, CreateTaskInput, CreateWorkspaceInput, UpdateAgentInput } from "../../shared/commands";
 import { AuditService } from "./audit-service";
 import { PolicyService } from "./policy-service";
 import { IdentityAccessService } from "./identity-access-service";
@@ -380,6 +380,67 @@ export class OrganizationService {
         on conflict(space_id, principal_type, principal_id) do nothing
       `).run(space.id, "agent", agentId, "member", "unmuted");
     }
+  }
+
+  createGoal(input: CreateGoalInput): string {
+    const id = createId("gol");
+    const now = new Date().toISOString();
+    if (input.ownerAgentId) this.verifyOptionalOrgEntity("agents", input.ownerAgentId, input.orgId, "Owner agent");
+    this.db.prepare(`
+      insert into goals(id, org_id, title, description, status, owner_agent_id, created_at, updated_at)
+      values (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(id, input.orgId, input.title.trim(), input.description.trim(), "active", input.ownerAgentId, now, now);
+    this.audit.record({
+      orgId: input.orgId,
+      entityType: "goal",
+      entityId: id,
+      actorType: "employee",
+      actorId: null,
+      action: "created",
+      payload: { title: input.title.trim() },
+    });
+    return id;
+  }
+
+  createProject(input: CreateProjectInput): string {
+    const id = createId("prj");
+    const now = new Date().toISOString();
+    if (input.goalId) this.verifyOptionalOrgEntity("goals", input.goalId, input.orgId, "Goal");
+    if (input.leadAgentId) this.verifyOptionalOrgEntity("agents", input.leadAgentId, input.orgId, "Lead agent");
+    this.db.prepare(`
+      insert into projects(id, org_id, goal_id, name, description, lead_agent_id, status, created_at, updated_at)
+      values (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(id, input.orgId, input.goalId, input.name.trim(), input.description.trim(), input.leadAgentId, "in_progress", now, now);
+    this.audit.record({
+      orgId: input.orgId,
+      entityType: "project",
+      entityId: id,
+      actorType: "employee",
+      actorId: null,
+      action: "created",
+      payload: { name: input.name.trim() },
+    });
+    return id;
+  }
+
+  createWorkspace(input: CreateWorkspaceInput): string {
+    const id = createId("wsp");
+    const now = new Date().toISOString();
+    if (input.projectId) this.verifyProject(input.projectId, null, input.orgId);
+    this.db.prepare(`
+      insert into workspaces(id, org_id, name, local_path, repo_url, repo_ref, project_id, is_primary, created_at, updated_at)
+      values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(id, input.orgId, input.name.trim(), input.localPath.trim(), "", "", input.projectId, 0, now, now);
+    this.audit.record({
+      orgId: input.orgId,
+      entityType: "workspace",
+      entityId: id,
+      actorType: "employee",
+      actorId: null,
+      action: "created",
+      payload: { name: input.name.trim() },
+    });
+    return id;
   }
 
   updateTaskStatus(orgId: string, taskId: string, status: string): void {
