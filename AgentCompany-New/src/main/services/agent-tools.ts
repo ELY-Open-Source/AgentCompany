@@ -1,5 +1,6 @@
 import type { DatabaseSync } from "node:sqlite";
 import { RISK_LEVEL, TASK_PRIORITY, TASK_STATUS, type RiskLevel } from "../../shared/domain";
+import { ORGANIZATION_DEPARTMENTS } from "./org-governance-service";
 import type { OrganizationService } from "./organization-service";
 import type { ChatService } from "./chat-service";
 import { writeDeliverable } from "./deliverable-writer";
@@ -38,7 +39,7 @@ export const AGENT_TOOLS: ToolDefinition[] = [
       properties: {
         name: { type: "string", description: "Full name of the new agent." },
         role: { type: "string", description: "Their role/title, e.g. 'Growth Marketer'." },
-        department: { type: "string", description: "Department, e.g. 'Marketing' or 'Operations'." },
+        department: { type: "string", enum: [...ORGANIZATION_DEPARTMENTS], description: "The company department the hire belongs to." },
         model: { type: "string", description: "Optional model id; defaults to your own model." },
       },
       required: ["name", "role", "department"],

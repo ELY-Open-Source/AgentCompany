@@ -5,7 +5,7 @@ import { createId } from "../../shared/ids";
 import { AuditService } from "./audit-service";
 import { OperationsService } from "./operations-service";
 
-const DEFAULT_DEPARTMENTS = ["Executive", "Engineering", "Product", "Design", "Marketing", "Operations", "Support"] as const;
+export const ORGANIZATION_DEPARTMENTS = ["Executive", "Engineering", "Product", "Design", "Marketing", "Operations", "Support"] as const;
 const RISK_RANK: Record<RiskLevel, number> = { low: 0, medium: 1, high: 2 };
 
 export class OrgGovernanceService {
@@ -18,7 +18,7 @@ export class OrgGovernanceService {
   }
 
   seedOrganizationGovernance(orgId: string, boardEmployeeId: string, now: string): void {
-    for (const department of DEFAULT_DEPARTMENTS) this.seedDepartmentPolicy(orgId, department, now);
+    for (const department of ORGANIZATION_DEPARTMENTS) this.seedDepartmentPolicy(orgId, department, now);
     this.db.prepare(`
       insert into approval_routing_rules(id, org_id, kind, minimum_risk, route_to_type, route_to_id, created_at)
       values (?, ?, ?, ?, ?, ?, ?)
@@ -27,14 +27,19 @@ export class OrgGovernanceService {
   }
 
   enforceHiringPolicy(input: CreateAgentInput): HiringPolicyDecision {
-    const departmentName = input.department.trim();
-    if (!departmentName) throw new Error("Department is required.");
+    const requested = input.department.trim();
+    if (!requested) throw new Error("Department is required.");
     const policy = this.db.prepare(`
-      select max_headcount, monthly_budget_limit_cents, require_approval_above_cents
+      select department_name, max_headcount, monthly_budget_limit_cents, require_approval_above_cents
       from hiring_policies
-      where org_id = ? and department_name = ?
-    `).get(input.orgId, departmentName) as HiringPolicyRow | undefined;
-    if (!policy) throw new Error("Hiring policy is required for department.");
+      where org_id = ? and lower(department_name) = lower(?)
+    `).get(input.orgId, requested) as HiringPolicyRow | undefined;
+    if (!policy) {
+      const known = this.db.prepare("select department_name from hiring_policies where org_id = ? order by department_name asc")
+        .all(input.orgId) as Array<{ department_name: string }>;
+      throw new Error(`Unknown department "${requested}". Departments: ${known.map((row) => row.department_name).join(", ")}.`);
+    }
+    const departmentName = policy.department_name;
     const usage = this.db.prepare(`
       select count(*) as headcount, coalesce(sum(budget_cents), 0) as budget_cents
       from agents
@@ -44,7 +49,7 @@ export class OrgGovernanceService {
     if (usage.budget_cents + input.budgetCents > policy.monthly_budget_limit_cents) {
       throw new Error("Department monthly budget limit has been reached.");
     }
-    return { reviewRequired: input.budgetCents > policy.require_approval_above_cents };
+    return { reviewRequired: input.budgetCents > policy.require_approval_above_cents, departmentName };
   }
 
   routeApproval(input: { orgId: string; approvalId: string; kind: string; risk: RiskLevel }): void {
@@ -121,6 +126,7 @@ export class OrgGovernanceService {
 }
 
 interface HiringPolicyRow {
+  department_name: string;
   max_headcount: number;
   monthly_budget_limit_cents: number;
   require_approval_above_cents: number;
@@ -128,6 +134,8 @@ interface HiringPolicyRow {
 
 interface HiringPolicyDecision {
   reviewRequired: boolean;
+  /** Canonical department name from the policy table (the input may differ in case). */
+  departmentName: string;
 }
 
 interface ApprovalRoutingRuleRow {

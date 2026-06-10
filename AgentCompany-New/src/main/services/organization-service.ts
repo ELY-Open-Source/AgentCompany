@@ -161,7 +161,7 @@ export class OrganizationService {
       input.orgId,
       input.name.trim(),
       input.role.trim(),
-      input.department.trim(),
+      hiringPolicy.departmentName,
       input.modelProviderId,
       input.modelId,
       input.budgetCents,
@@ -182,7 +182,7 @@ export class OrganizationService {
       actorType: "system",
       actorId: null,
       action: "created",
-      payload: { role: input.role, department: input.department },
+      payload: { role: input.role, department: hiringPolicy.departmentName },
     });
     this.addAgentToWorkspaceSpaces(input.orgId, id);
     this.identityAccess.createAgentServiceIdentity(input.orgId, id, input.name, now);

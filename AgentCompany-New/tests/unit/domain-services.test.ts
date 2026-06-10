@@ -707,4 +707,46 @@ describe("domain services", () => {
     expect(ownedKickoff.assignee_agent_id).toBe(ownerId);
     connection.close();
   });
+
+  test("hiring normalizes department case and rejects unknown departments with guidance", () => {
+    const connection = createConnection();
+    const organization = new OrganizationService(connection.db);
+    let orgId = "";
+    connection.transaction(() => {
+      orgId = organization.createOrganization({
+        organizationName: "Acme Operations",
+        employeeName: "Dana Lee",
+        mission: "Coordinate agents with auditable approvals.",
+        goal: "Ship a verified control plane.",
+      });
+    });
+
+    let agentId = "";
+    connection.transaction(() => {
+      agentId = organization.createAgent({
+        orgId,
+        name: "Zhang Hao",
+        role: "Algorithm Lead",
+        department: "engineering",
+        modelProviderId: null,
+        modelId: null,
+        budgetCents: 25000,
+        managerAgentId: null,
+      });
+    });
+    const hired = connection.db.prepare("select department from agents where id = ?").get(agentId) as { department: string };
+    expect(hired.department).toBe("Engineering");
+
+    expect(() => connection.transaction(() => organization.createAgent({
+      orgId,
+      name: "Chen Wei",
+      role: "Research Lead",
+      department: "general",
+      modelProviderId: null,
+      modelId: null,
+      budgetCents: 25000,
+      managerAgentId: null,
+    }))).toThrow(/Unknown department "general"\. Departments: .*Engineering.*Executive/);
+    connection.close();
+  });
 });
