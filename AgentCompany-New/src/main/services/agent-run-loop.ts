@@ -48,6 +48,12 @@ export async function runAgentLoop(deps: AgentRunLoopDeps, input: AgentRunLoopIn
     lastRequestId = turn.requestId;
 
     if (turn.toolCalls.length === 0) {
+      if (toolCallCount === 0 && !turn.text.trim()) {
+        // A first turn with neither text nor tool calls means the provider
+        // produced nothing actionable (e.g. output truncated mid-reasoning);
+        // completing the run would silently mark a no-op as done.
+        throw new Error("Provider returned an empty turn: no text and no tool calls.");
+      }
       return { finalText: turn.text, iterations: iteration, toolCallCount, lastRequestId };
     }
 

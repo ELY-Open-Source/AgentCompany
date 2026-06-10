@@ -143,4 +143,26 @@ describe("agent run loop (real tool dispatch)", () => {
     expect(result.toolCallCount).toBe(1);
     connection.close();
   });
+
+  test("a first turn with no text and no tool calls fails the run instead of completing a no-op", async () => {
+    const connection = new DatabaseConnection(join(tmpdir(), `ac-loop3-${randomUUID()}.db`));
+    const organization = new OrganizationService(connection.db);
+    let orgId = "";
+    let ceoId = "";
+    let providerId = "";
+    connection.transaction(() => {
+      orgId = organization.createOrganization({ organizationName: "OrbitOps", employeeName: "Yang", mission: "m", goal: "g" });
+      providerId = (connection.db.prepare("select id from providers where org_id = ? and provider_key = 'openai'").get(orgId) as { id: string }).id;
+      ceoId = organization.createAgent({ orgId, name: "CEO", role: "CEO", department: "Executive", modelProviderId: providerId, modelId: "gpt-5.4", budgetCents: 25000, managerAgentId: null });
+    });
+    const ctx: AgentToolContext = {
+      orgId, agent: { id: ceoId, modelProviderId: providerId, modelId: "gpt-5.4" },
+      taskProjectId: null, taskGoalId: null, workspace: null,
+    };
+    await expect(runAgentLoop(
+      { providers: fakeProvider([{ text: "", toolCalls: [] }]), tools: { db: connection.db, organization, chat: new ChatService(connection.db) } },
+      { orgId, providerId, workspaceId: null, instructions: "i", initialUserTurn: "u", toolContext: ctx },
+    )).rejects.toThrow(/empty turn/);
+    connection.close();
+  });
 });
