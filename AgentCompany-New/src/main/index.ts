@@ -5,6 +5,7 @@ import { DatabaseConnection } from "./database/connection";
 import { createMainWindow } from "./app/create-window";
 import { registerIpcHandlers } from "./app/ipc-handlers";
 import { startProviderBackgroundWorker } from "./app/provider-background-worker";
+import { recoverInterruptedWork } from "./app/startup-recovery";
 import { startTaskQueueWorker } from "./app/task-queue-worker";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -17,6 +18,7 @@ if (!hasSingleInstanceLock) {
 app.whenReady().then(() => {
   const profileDir = process.env.AGENTCOMPANY_NEW_PROFILE_DIR ?? join(app.getPath("userData"), "profile");
   const connection = new DatabaseConnection(join(profileDir, "agentcompany.db"));
+  connection.transaction(() => recoverInterruptedWork(connection.db));
   const win = createMainWindow({
     preloadPath: join(__dirname, "../preload/index.js"),
     rendererDist: join(__dirname, "../renderer"),
