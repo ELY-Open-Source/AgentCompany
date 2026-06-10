@@ -32,21 +32,28 @@ interface NavSpec {
  * internal scroll regions, so the content area must not scroll as one block. */
 const FLUSH_ROUTES = new Set<RouteId>(["chat", "settings", "files", "social", "runs"]);
 
+/** The daily-driver surfaces — the core operating loop. */
 const primaryNav: NavSpec[] = [
   { id: "home", label: "Home", icon: "home" },
-  { id: "inbox", label: "Inbox", icon: "approve" },
   { id: "work", label: "Work", icon: "work" },
-  { id: "approvals", label: "Approvals", icon: "approve" },
   { id: "team", label: "Team", icon: "team" },
   { id: "chat", label: "Messages", icon: "chat" },
-  { id: "files", label: "Files", icon: "docs" },
+  { id: "runs", label: "Runs", icon: "send" },
+  { id: "files", label: "Files", icon: "folder" },
+  { id: "approvals", label: "Approvals", icon: "approve" },
+];
+
+/** Less-frequent surfaces, demoted under a divider so the primary set leads. */
+const secondaryNav: NavSpec[] = [
+  { id: "inbox", label: "Inbox", icon: "inbox" },
   { id: "docs", label: "Documents", icon: "file" },
   { id: "knowledge", label: "Knowledge", icon: "sparkle" },
-  { id: "runs", label: "Runs", icon: "send" },
-  { id: "meetings", label: "Meetings", icon: "team" },
-  { id: "sprints", label: "Sprints", icon: "work" },
+  { id: "meetings", label: "Meetings", icon: "calendar" },
+  { id: "sprints", label: "Sprints", icon: "target" },
   { id: "social", label: "Social", icon: "social" },
 ];
+
+const allNav: NavSpec[] = [...primaryNav, ...secondaryNav];
 
 export function Shell({
   snapshot,
@@ -104,17 +111,13 @@ export function Shell({
         </button>
         <nav className="nav">
           {primaryNav.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              aria-label={item.label}
-              className={`nav-item ${route === item.id ? "active" : ""}`.trim()}
-              onClick={() => setRoute(item.id)}
-            >
-              <Icon name={item.icon} size={15} />
-              <span>{item.label}</span>
-              {renderBadge(badges[item.id])}
-            </button>
+            <NavButton key={item.id} item={item} active={route === item.id} badge={badges[item.id]} onSelect={setRoute} />
+          ))}
+        </nav>
+        <div className="nav-divider" />
+        <nav className="nav">
+          {secondaryNav.map((item) => (
+            <NavButton key={item.id} item={item} active={route === item.id} badge={badges[item.id]} onSelect={setRoute} />
           ))}
         </nav>
         <div className="sidebar-spacer" />
@@ -122,10 +125,11 @@ export function Shell({
           <button
             type="button"
             aria-label="Settings"
+            aria-current={route === "settings" ? "page" : undefined}
             className={`nav-item ${route === "settings" ? "active" : ""}`.trim()}
             onClick={() => setRoute("settings")}
           >
-            <Icon name="settings" size={15} />
+            <span className="icon-box"><Icon name="settings" size={18} /></span>
             <span>Settings</span>
           </button>
         </nav>
@@ -167,8 +171,34 @@ export function Shell({
 }
 
 
+function NavButton({
+  item,
+  active,
+  badge,
+  onSelect,
+}: {
+  item: NavSpec;
+  active: boolean;
+  badge: number | undefined;
+  onSelect: (route: RouteId) => void;
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={item.label}
+      aria-current={active ? "page" : undefined}
+      className={`nav-item ${active ? "active" : ""}`.trim()}
+      onClick={() => onSelect(item.id)}
+    >
+      <span className="icon-box"><Icon name={item.icon} size={18} /></span>
+      <span>{item.label}</span>
+      {renderBadge(badge)}
+    </button>
+  );
+}
+
 function labelFor(route: RouteId): string {
-  const spec = primaryNav.find((item) => item.id === route);
+  const spec = allNav.find((item) => item.id === route);
   if (spec) return spec.label;
   if (route === "settings") return "Settings";
   throw new Error(`Unknown route: ${route}`);

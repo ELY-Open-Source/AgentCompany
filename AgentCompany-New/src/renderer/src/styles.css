@@ -195,14 +195,17 @@ a { color: inherit; }
 .nav-item:active { transform: scale(0.985); }
 .nav-item.active { background: var(--panel-3); color: var(--text-1); font-weight: 560; }
 .nav-item.active svg { color: var(--text-1); }
-.nav-item svg { color: var(--text-3); flex-shrink: 0; transition: color var(--motion-fast) var(--ease-out); }
-.nav-item span:not(.nav-badge) { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nav-item svg { color: var(--text-3); transition: color var(--motion-fast) var(--ease-out); }
+.nav-item .icon-box { color: var(--text-3); }
+.nav-item.active .icon-box { color: var(--text-1); }
+.nav-item span:not(.nav-badge):not(.icon-box) { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .nav-badge {
   margin-left: auto;
   font-size: var(--fs-caption);
   color: var(--text-3);
   font-variant-numeric: tabular-nums;
 }
+.nav-divider { height: 1px; background: var(--border-soft); margin: var(--sp-2); }
 .org-menu {
   position: absolute;
   left: 0;

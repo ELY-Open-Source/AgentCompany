@@ -41,6 +41,8 @@ const PATHS: Record<string, ReactNode> = {
   refresh: <><path d="M21 12a9 9 0 1 1-3-6.7" /><path d="M21 3v6h-6" /></>,
   pause: <><rect x="6" y="5" width="4" height="14" rx="1" /><rect x="14" y="5" width="4" height="14" rx="1" /></>,
   shield: <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z" />,
+  calendar: <><rect x="3" y="4.5" width="18" height="16" rx="2" /><path d="M3 9h18M8 2.5v4M16 2.5v4" /></>,
+  target: <><circle cx="12" cy="12" r="8" /><circle cx="12" cy="12" r="3.6" /></>,
 };
 
 export type IconName = keyof typeof PATHS | (string & {});

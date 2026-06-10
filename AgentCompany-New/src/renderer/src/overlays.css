@@ -180,9 +180,11 @@
 @media (max-width: 980px) {
   .sidebar { width: 64px; }
   .sidebar .brand-name,
-  .sidebar .nav-item span:not(.nav-badge),
+  .sidebar .nav-item span:not(.nav-badge):not(.icon-box),
   .sidebar-foot-name,
   .sidebar .search-bar > span:not(.search-kbd) { display: none; }
+  .sidebar .nav-item { justify-content: center; }
+  .sidebar .nav-badge { display: none; }
   .sidebar .search-bar { justify-content: center; padding: var(--sp-2); }
   .sidebar .search-kbd { display: none; }
   .content { padding: var(--sp-5) var(--sp-4) var(--sp-8); }
