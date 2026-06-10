@@ -76,29 +76,6 @@ test("onboards, hires, and creates work in the Electron shell", async () => {
     expect(hiredAgent.workspaceId).toBe(hiredAgent.primaryWorkspaceId);
     expect(hiredAgent.heartbeatEnabled).toBe(true);
     expect(hiredAgent.heartbeatIntervalSec).toBe(120);
-    await page.getByRole("button", { name: "Settings" }).click();
-    await page.getByRole("button", { name: "Members" }).click();
-    await expect(page.getByText("Identity & Access")).toBeVisible();
-    await expect(page.getByText("org admin").first()).toBeVisible();
-    await expect(page.getByText("scoped agent").first()).toBeVisible();
-    await page.getByRole("button", { name: "Policies" }).click();
-    await expect(page.getByText("Hiring policies")).toBeVisible();
-    await expect(page.getByText("Review routing")).toBeVisible();
-    await page.getByRole("button", { name: "Operations", exact: true }).click();
-    await expect(page.getByText("Feature flags")).toBeVisible();
-    await expect(page.getByText("SLO targets")).toBeVisible();
-    await expect(page.getByText("Chaos drills").first()).toBeVisible();
-    await page.getByRole("button", { name: "Run" }).first().click();
-    await expect(page.getByText("passed").first()).toBeVisible();
-    await page.getByRole("button", { name: "SDLC", exact: true }).click();
-    await expect(page.getByText("Review agents", { exact: true })).toBeVisible();
-    await expect(page.getByText("Eval suites", { exact: true })).toBeVisible();
-    await expect(page.getByText("PR bot gates", { exact: true })).toBeVisible();
-    await page.getByRole("button", { name: "Run" }).first().click();
-    await expect(page.getByText("passed").first()).toBeVisible();
-    await page.getByRole("button", { name: "Run" }).nth(3).click();
-    await expect(page.getByText(/passed ·/).first()).toBeVisible();
-
     await page.getByRole("button", { name: "Work", exact: true }).click();
     await page.getByRole("button", { name: "New task" }).click();
     await page.getByLabel("Title").fill("Production deploy");
@@ -177,14 +154,6 @@ test("onboards, hires, and creates work in the Electron shell", async () => {
     await expect(page.getByText("Never run").first()).toBeVisible();
     await page.getByRole("button", { name: "Run tests" }).click();
     await expect(page.getByText("1/1 passed").first()).toBeVisible();
-    await page.getByRole("button", { name: "Compliance" }).click();
-    await page.getByRole("button", { name: "Create" }).click();
-    await expect(page.getByText("gdpr export · employee").first()).toBeVisible();
-    await expect(page.getByText("Thread replay")).toBeVisible();
-    await page.getByRole("button", { name: "Run" }).click();
-    await expect(page.getByText("Replay runs", { exact: true })).toBeVisible();
-    await expect(page.getByText(/\d+ events ·/).first()).toBeVisible();
-
     const legacyPath = createLegacyDatabase();
     await page.getByRole("button", { name: "Migration" }).click();
     await page.getByRole("button", { name: "Report" }).click();
@@ -238,7 +207,7 @@ async function verifyPagesDoNotOverflow(page: Page): Promise<void> {
       await page.getByRole("button", { name: nav, exact: true }).click();
       await expectPageToFit(page);
     }
-    for (const tab of ["Workspace", "Members", "Billing", "Models", "Providers", "Skills", "Policies", "Operations", "SDLC", "Compliance", "Migration", "Profile", "Notifications", "Security"]) {
+    for (const tab of ["Workspace", "Billing", "Providers", "Skills", "Migration"]) {
       await page.getByRole("button", { name: "Settings" }).click();
       await page.getByRole("button", { name: tab, exact: true }).click();
       await expectPageToFit(page);

@@ -14,7 +14,6 @@ export type RouteId =
   | "files"
   | "docs"
   | "knowledge"
-  | "automation"
   | "inbox"
   | "runs"
   | "meetings"
@@ -35,18 +34,17 @@ const FLUSH_ROUTES = new Set<RouteId>(["chat", "settings", "files", "social", "r
 
 const primaryNav: NavSpec[] = [
   { id: "home", label: "Home", icon: "home" },
-  { id: "team", label: "Team", icon: "team" },
+  { id: "inbox", label: "Inbox", icon: "approve" },
   { id: "work", label: "Work", icon: "work" },
+  { id: "approvals", label: "Approvals", icon: "approve" },
+  { id: "team", label: "Team", icon: "team" },
   { id: "chat", label: "Messages", icon: "chat" },
   { id: "files", label: "Files", icon: "docs" },
-  { id: "inbox", label: "Inbox", icon: "approve" },
   { id: "docs", label: "Documents", icon: "file" },
   { id: "knowledge", label: "Knowledge", icon: "sparkle" },
   { id: "runs", label: "Runs", icon: "send" },
-  { id: "automation", label: "Automation", icon: "bot" },
   { id: "meetings", label: "Meetings", icon: "team" },
   { id: "sprints", label: "Sprints", icon: "work" },
-  { id: "approvals", label: "Approvals", icon: "approve" },
   { id: "social", label: "Social", icon: "social" },
 ];
 
@@ -134,7 +132,6 @@ export function Shell({
         <div className="sidebar-foot">
           <Avatar name={employee.displayName} size="sm" />
           <span className="sidebar-foot-name">{employee.displayName}</span>
-          <Icon name="bell" size={14} color="var(--text-3)" />
         </div>
       </aside>
       <main className="main">

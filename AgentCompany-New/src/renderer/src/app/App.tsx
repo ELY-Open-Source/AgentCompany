@@ -13,7 +13,6 @@ import { DocumentsPage } from "../pages/DocumentsPage";
 import { KnowledgePage } from "../pages/KnowledgePage";
 import { InboxPage } from "../pages/InboxPage";
 import { RunsPage } from "../pages/RunsPage";
-import { AutomationPage } from "../pages/AutomationPage";
 import { MeetingsPage } from "../pages/MeetingsPage";
 import { SprintsPage } from "../pages/SprintsPage";
 import { SettingsPage } from "../pages/SettingsPage";
@@ -48,7 +47,6 @@ export function App() {
     knowledge: <KnowledgePage {...pageProps} />,
     inbox: <InboxPage {...pageProps} />,
     runs: <RunsPage {...pageProps} />,
-    automation: <AutomationPage {...pageProps} />,
     meetings: <MeetingsPage {...pageProps} />,
     sprints: <SprintsPage {...pageProps} />,
     approvals: <ApprovalsPage {...pageProps} />,
