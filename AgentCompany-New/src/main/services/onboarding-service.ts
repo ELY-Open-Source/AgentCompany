@@ -4,10 +4,11 @@ import type {
   BootstrapOnboardingSummary,
   SaveProviderCredentialInput,
 } from "../../shared/commands";
-import { PROVIDER_AUTH_TYPE, RISK_LEVEL, TASK_STATUS } from "../../shared/domain";
+import { PROVIDER_AUTH_TYPE } from "../../shared/domain";
 import { PROVIDER_CATALOG } from "../../shared/provider-catalog";
 import { createId } from "../../shared/ids";
 import { AuditService } from "./audit-service";
+import { createGoalKickoffTask } from "./goal-kickoff";
 import { OrganizationService } from "./organization-service";
 import { ChatService } from "./chat-service";
 
@@ -70,7 +71,16 @@ export class OnboardingService {
     const projectId = this.createProject(orgId, goalId, ceoAgentId, input, now);
     this.createProjectChatSpace(orgId, projectName(input));
     if (workspaceId) this.bindWorkspaceToProject(workspaceId, projectId, now);
-    const taskId = this.createKickoffTask(orgId, goalId, projectId, workspaceId, ceoAgentId, input, now);
+    const taskId = createGoalKickoffTask(this.deps.db, {
+      orgId,
+      goalId,
+      goalTitle: input.goalTitle,
+      goalDescription: input.goalDescription,
+      companyName: input.companyName,
+      assigneeAgentId: ceoAgentId,
+      projectId,
+      workspaceId,
+    });
     const runId = this.createTaskRun(orgId, taskId, ceoAgentId, providerId, workspaceId, now);
 
     this.audit.record({
@@ -172,41 +182,6 @@ export class OnboardingService {
       .run(projectId, now, workspaceId);
   }
 
-  private createKickoffTask(
-    orgId: string,
-    goalId: string,
-    projectId: string,
-    workspaceId: string | null,
-    ceoAgentId: string,
-    input: BootstrapOnboardingInput,
-    now: string,
-  ): string {
-    const taskId = createId("tsk");
-    this.deps.db.prepare(`
-      insert into tasks(
-        id, org_id, title, description, status, assignee_agent_id, risk,
-        project_id, goal_id, workspace_id, priority, requires_filesystem, created_at, updated_at
-      )
-      values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      taskId,
-      orgId,
-      `Operationalize goal: ${input.goalTitle.trim()}`,
-      this.createKickoffTaskDescription(input),
-      TASK_STATUS.BACKLOG,
-      ceoAgentId,
-      RISK_LEVEL.MEDIUM,
-      projectId,
-      goalId,
-      workspaceId,
-      "high",
-      workspaceId ? 1 : 0,
-      now,
-      now,
-    );
-    return taskId;
-  }
-
   private createTaskRun(orgId: string, taskId: string, ceoAgentId: string, providerId: string, workspaceId: string | null, now: string): string {
     const runId = createId("run");
     const executionContextId = createId("ctx");
@@ -253,15 +228,6 @@ export class OnboardingService {
       .get(orgId, agentId) as { id: string } | undefined;
     if (!row) throw new Error("Agent service identity was not found.");
     return row.id;
-  }
-
-  private createKickoffTaskDescription(input: BootstrapOnboardingInput): string {
-    return [
-      `Company: ${input.companyName.trim()}`,
-      `Goal: ${input.goalTitle.trim()}`,
-      input.goalDescription.trim(),
-      "Read the bound workspace, create the first operating plan, delegate work, and route decisions through approvals and messages.",
-    ].filter((line) => line.length > 0).join("\n\n");
   }
 }
 

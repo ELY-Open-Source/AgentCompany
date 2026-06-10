@@ -627,4 +627,77 @@ describe("domain services", () => {
     expect(state.taskRuns[0]?.serviceIdentityId).toMatch(/^sid_/);
     connection.close();
   });
+
+  test("creating a goal kicks off an operationalize task for its owner or the CEO", () => {
+    const connection = createConnection();
+    const organization = new OrganizationService(connection.db);
+    let orgId = "";
+
+    connection.transaction(() => {
+      orgId = organization.createOrganization({
+        organizationName: "Acme Operations",
+        employeeName: "Dana Lee",
+        mission: "Coordinate agents with auditable approvals.",
+        goal: "Ship a verified control plane.",
+      });
+    });
+
+    // Without any agent there is nobody to operationalize the goal yet.
+    connection.transaction(() => {
+      organization.createGoal({ orgId, title: "Open the Berlin market", description: "Win the first ten customers.", ownerAgentId: null });
+    });
+    expect(connection.db.prepare("select count(*) as n from tasks where org_id = ?").get(orgId)).toMatchObject({ n: 0 });
+
+    let ceoId = "";
+    let ownerId = "";
+    connection.transaction(() => {
+      ceoId = organization.createAgent({
+        orgId,
+        name: "CEO",
+        role: "CEO",
+        department: "Executive",
+        modelProviderId: null,
+        modelId: null,
+        budgetCents: 25000,
+        managerAgentId: null,
+        roleLevel: "c_suite",
+      });
+      ownerId = organization.createAgent({
+        orgId,
+        name: "Mara Quinn",
+        role: "Growth Marketer",
+        department: "Marketing",
+        modelProviderId: null,
+        modelId: null,
+        budgetCents: 25000,
+        managerAgentId: ceoId,
+      });
+    });
+
+    // Ownerless goals land with the top-level agent; the kickoff re-enables its heartbeat.
+    let ceoGoalId = "";
+    connection.transaction(() => {
+      ceoGoalId = organization.createGoal({ orgId, title: "Launch the loyalty program", description: "Ship the first reward tier.", ownerAgentId: null });
+    });
+    const ceoKickoff = connection.db.prepare("select title, status, assignee_agent_id from tasks where goal_id = ?")
+      .get(ceoGoalId) as { title: string; status: string; assignee_agent_id: string };
+    expect(ceoKickoff).toMatchObject({
+      title: "Operationalize goal: Launch the loyalty program",
+      status: TASK_STATUS.BACKLOG,
+      assignee_agent_id: ceoId,
+    });
+    const ceo = connection.db.prepare("select heartbeat_enabled, heartbeat_interval_sec from agents where id = ?")
+      .get(ceoId) as { heartbeat_enabled: number; heartbeat_interval_sec: number };
+    expect(ceo).toMatchObject({ heartbeat_enabled: 1, heartbeat_interval_sec: 120 });
+
+    // Goals with an explicit owner land with that owner.
+    let ownedGoalId = "";
+    connection.transaction(() => {
+      ownedGoalId = organization.createGoal({ orgId, title: "Win the spring campaign", description: "Double qualified leads.", ownerAgentId: ownerId });
+    });
+    const ownedKickoff = connection.db.prepare("select assignee_agent_id from tasks where goal_id = ?")
+      .get(ownedGoalId) as { assignee_agent_id: string };
+    expect(ownedKickoff.assignee_agent_id).toBe(ownerId);
+    connection.close();
+  });
 });

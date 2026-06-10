@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { describe, expect, test } from "vitest";
 import { DatabaseConnection } from "../../src/main/database/connection";
 import { OnboardingService } from "../../src/main/services/onboarding-service";
+import { OrganizationService } from "../../src/main/services/organization-service";
 import { ProviderService } from "../../src/main/services/provider-service";
 import { providerAdapters } from "../../src/main/services/provider-adapters";
 import { TaskExecutionService } from "../../src/main/services/task-execution-service";
@@ -160,6 +161,69 @@ describe("autonomous bootstrap run", () => {
     // Idempotent: the delegated task now has a run, so it is not enqueued again.
     expect(taskExecution.enqueueHeartbeatRuns()).toEqual([]);
 
+    connection.close();
+  });
+
+  test("a goal created after onboarding reaches the CEO and runs autonomously", async () => {
+    const connection = new DatabaseConnection(join(tmpdir(), `ac-goal-${randomUUID()}.db`));
+    const providers = new ProviderService(connection.db, providerAdapters, testVault, undefined, async () => ({
+      text: "Reviewed the goal and posted the operating plan.",
+      toolCalls: [],
+      rawResponseJson: JSON.stringify({ id: "resp_goal" }),
+    }));
+    const onboarding = new OnboardingService({ db: connection.db, saveProviderCredential: (input) => providers.saveCredential(input) });
+    const organization = new OrganizationService(connection.db);
+    const taskExecution = new TaskExecutionService(connection.db, providers);
+
+    let orgId = "";
+    let ceoAgentId = "";
+    connection.transaction(() => {
+      const summary = onboarding.bootstrap({
+        companyName: "OrbitOps AI",
+        companyDescription: "AI-run operations company.",
+        employeeName: "Yang",
+        workspacePath: "",
+        executionMode: "ai_ceo",
+        autoApproveHires: true,
+        reviewDeliverables: false,
+        goalTitle: "Stand up a local service business in 30 days.",
+        goalDescription: "Validate the market and win the first paying customers.",
+        providerKey: "openai",
+        providerSecret: "sk-test-key",
+        providerModel: "gpt-5.4",
+      });
+      orgId = summary.orgId;
+      ceoAgentId = summary.ceoAgentId;
+    });
+
+    // Drain the bootstrap kickoff so only the new goal's work remains.
+    const bootstrapRun = claimNextQueuedRun(connection);
+    await taskExecution.executeRun(bootstrapRun!.org_id, bootstrapRun!.id);
+
+    let goalId = "";
+    connection.transaction(() => {
+      goalId = organization.createGoal({
+        orgId,
+        title: "Open the Berlin market",
+        description: "Win the first ten customers.",
+        ownerAgentId: null,
+      });
+    });
+
+    const kickoff = connection.db.prepare("select id, assignee_agent_id, status from tasks where goal_id = ?")
+      .get(goalId) as { id: string; assignee_agent_id: string; status: string };
+    expect(kickoff.assignee_agent_id).toBe(ceoAgentId);
+    expect(kickoff.status).toBe("backlog");
+
+    // The autonomous worker's heartbeat picks the kickoff up and completes it.
+    const enqueued = connection.transaction(() => taskExecution.enqueueHeartbeatRuns());
+    expect(enqueued).toHaveLength(1);
+    const claimed = claimNextQueuedRun(connection);
+    expect(claimed?.id).toBe(enqueued[0]);
+    await taskExecution.executeRun(claimed!.org_id, claimed!.id);
+    const run = connection.db.prepare("select state, task_id, trigger from task_runs where id = ?")
+      .get(claimed!.id) as { state: string; task_id: string; trigger: string };
+    expect(run).toMatchObject({ state: "completed", task_id: kickoff.id, trigger: "heartbeat" });
     connection.close();
   });
 });

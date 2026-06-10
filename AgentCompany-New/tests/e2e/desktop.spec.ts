@@ -38,6 +38,11 @@ test("onboards, hires, and creates work in the Electron shell", async () => {
     await expect(page.getByText("Projects", { exact: true })).toBeVisible();
     await expect(page.getByText("Execution plan: Ship a verified control plane").first()).toBeVisible();
     await expect(page.getByText("#execution-plan-ship-a-verified-control-plane").first()).toBeVisible();
+    await page.getByRole("button", { name: "Goal", exact: true }).click();
+    await page.getByLabel("Title").fill("Open the Berlin market");
+    await page.getByLabel("Description").fill("Win the first ten customers.");
+    await page.locator(".modal").getByRole("button", { name: "Create" }).click();
+    await expect(page.getByText("Operationalize goal: Open the Berlin market").first()).toBeVisible();
     await page.getByRole("button", { name: "Team" }).click();
     await page.getByRole("button", { name: "Hire" }).click();
     await page.getByLabel("Name").fill("Alex Chen");
