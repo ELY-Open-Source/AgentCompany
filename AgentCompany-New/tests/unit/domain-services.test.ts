@@ -1,4 +1,4 @@
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { createHash, randomUUID } from "node:crypto";
@@ -580,7 +580,7 @@ describe("domain services", () => {
     expect(report.failures.some((failure) => failure.reason === "missing_table")).toBe(true);
     expect(report.validationSummary.missingTableCount).toBeGreaterThan(0);
     expect(report.validationSummary.passed).toBe(false);
-    expect(report.rollbackPack.sourceDatabasePath).toBe(legacyPath);
+    expect(report.rollbackPack.sourceDatabasePath).toBe(realpathSync.native(legacyPath));
     connection.close();
   });
 
