@@ -20,20 +20,8 @@ import {
   requireVertexProfile,
   type ProviderAuthProfile,
 } from "./provider-auth-profiles";
-import {
-  backgroundUnsupported,
-  retrieveUnsupported,
-  type ProviderBackgroundCreateResult,
-  type ProviderBackgroundRetrieveResult,
-} from "./provider-background";
-import {
-  authorizeWithParser,
-  refreshUnsupported,
-  revokeLocalProfile,
-  type ProviderAuthorizeHandler,
-  type ProviderRefreshHandler,
-  type ProviderRevokeHandler,
-} from "./provider-auth-lifecycle";
+import { backgroundUnsupported, retrieveUnsupported } from "./provider-background";
+import { authorizeWithParser, refreshUnsupported, revokeLocalProfile } from "./provider-auth-lifecycle";
 import { getJson, postEventStream, postJson, type JsonRecord } from "./provider-http";
 import { fetchAnthropicModels, fetchOpenAiModels } from "./provider-models-fetch";
 
@@ -45,80 +33,18 @@ import {
   mapOpenAiChatCompletionStream,
   mapOpenAiResponseStream,
   streamUnsupported,
-  type ProviderCancelResult,
-  type ProviderStreamResult,
 } from "./provider-streaming";
 
 export { ProviderHttpError, providerRateLimitStateFromError } from "./provider-http";
 export type { ProviderAuthProfile } from "./provider-auth-profiles";
+export * from "./provider-adapter-contract";
 
-export interface ProviderExecutionInput {
-  authProfile: ProviderAuthProfile;
-  model: string;
-  prompt: string;
-  instructions: string | null;
-}
-
-export interface ProviderExecutionResult {
-  text: string;
-  rawResponseJson: string;
-  rateLimitState: ProviderObservedRateLimitState | null;
-}
-
-export type ProviderStreamInput = ProviderExecutionInput;
-export type ProviderBackgroundCreateInput = ProviderExecutionInput;
-
-export interface ProviderCancelInput {
-  authProfile: ProviderAuthProfile;
-  responseId: string;
-}
-
-export interface ProviderBackgroundRetrieveInput {
-  authProfile: ProviderAuthProfile;
-  responseId: string;
-}
-
-export interface ProviderHealthInput {
-  authProfile: ProviderAuthProfile;
-  model: string | null;
-}
-
-export interface ProviderHealthResult {
-  checkedAt: string;
-  rateLimitState: ProviderObservedRateLimitState | null;
-}
-
-export interface ProviderContext {
-  authProfile: ProviderAuthProfile;
-  model: string | null;
-}
-
-export interface ProviderRateLimitState {
-  requestLimit: number | null;
-  remainingRequests: number | null;
-  resetAt: string | null;
-  retryAfterMs: number | null;
-  rawStateJson: string;
-}
-
-export interface ProviderAdapter {
-  providerKey: string;
-  authType: ProviderAuthType;
-  authorize: ProviderAuthorizeHandler;
-  refresh: ProviderRefreshHandler;
-  revoke: ProviderRevokeHandler;
-  parseAuthProfile(secret: string): ProviderAuthProfile;
-  listModels(ctx: ProviderContext): Promise<ProviderModelEntry[]>;
-  getRateLimitState(ctx: ProviderContext): Promise<ProviderRateLimitState | null>;
-  checkHealth(input: ProviderHealthInput): Promise<ProviderHealthResult>;
-  streamResponse(input: ProviderStreamInput): Promise<ProviderStreamResult>;
-  cancelResponse(input: ProviderCancelInput): Promise<ProviderCancelResult>;
-  createBackgroundResponse(input: ProviderBackgroundCreateInput): Promise<ProviderBackgroundCreateResult>;
-  retrieveResponse(input: ProviderBackgroundRetrieveInput): Promise<ProviderBackgroundRetrieveResult>;
-  createResponse?: (input: ProviderExecutionInput) => Promise<ProviderExecutionResult>;
-}
-
-export type ProviderAdapterRegistry = Record<string, ProviderAdapter>;
+import type {
+  ProviderAdapter,
+  ProviderAdapterRegistry,
+  ProviderHealthResult,
+  ProviderRateLimitState,
+} from "./provider-adapter-contract";
 
 export const providerAdapters: ProviderAdapterRegistry = {
   openai: {

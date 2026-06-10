@@ -4,7 +4,7 @@ import { PROVIDER_CATALOG } from "../../shared/provider-catalog";
 import { createId } from "../../shared/ids";
 import type { CreateAgentInput, CreateGoalInput, CreateOrganizationInput, CreateProjectInput, CreateTaskInput, CreateWorkspaceInput, DeleteTaskInput, UpdateAgentInput, UpdateTaskInput } from "../../shared/commands";
 import { AuditService } from "./audit-service";
-import { createGoalKickoffTask } from "./goal-kickoff";
+import { kickoffCreatedGoal } from "./goal-kickoff";
 import { PolicyService } from "./policy-service";
 import { IdentityAccessService } from "./identity-access-service";
 import { OrgGovernanceService } from "./org-governance-service";
@@ -402,47 +402,14 @@ export class OrganizationService {
       action: "created",
       payload: { title: input.title.trim() },
     });
-    this.kickoffGoal(input, id);
-    return id;
-  }
-
-  /**
-   * An active goal must reach an accountable agent — the chosen owner, or
-   * the top-level agent (the CEO) — as a kickoff task the autonomous
-   * heartbeat starts. Without this, a goal created outside onboarding would
-   * sit inert forever.
-   */
-  private kickoffGoal(input: CreateGoalInput, goalId: string): void {
-    const assigneeAgentId = input.ownerAgentId ?? this.topLevelActiveAgentId(input.orgId);
-    if (!assigneeAgentId) return;
-    const organization = this.db.prepare("select name from organizations where id = ?")
-      .get(input.orgId) as { name: string };
-    createGoalKickoffTask(this.db, {
+    kickoffCreatedGoal(this.db, {
       orgId: input.orgId,
-      goalId,
-      goalTitle: input.title,
-      goalDescription: input.description,
-      companyName: organization.name,
-      assigneeAgentId,
-      projectId: null,
-      workspaceId: this.primaryWorkspaceId(input.orgId),
+      goalId: id,
+      title: input.title,
+      description: input.description,
+      ownerAgentId: input.ownerAgentId,
     });
-  }
-
-  private topLevelActiveAgentId(orgId: string): string | null {
-    const row = this.db.prepare(`
-      select id from agents
-      where org_id = ? and manager_agent_id is null and lifecycle = 'active'
-      order by created_at asc
-      limit 1
-    `).get(orgId) as { id: string } | undefined;
-    return row?.id ?? null;
-  }
-
-  private primaryWorkspaceId(orgId: string): string | null {
-    const row = this.db.prepare("select id from workspaces where org_id = ? and is_primary = 1 order by created_at asc limit 1")
-      .get(orgId) as { id: string } | undefined;
-    return row?.id ?? null;
+    return id;
   }
 
   createProject(input: CreateProjectInput): string {

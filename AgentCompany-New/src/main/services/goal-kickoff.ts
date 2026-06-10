@@ -2,6 +2,53 @@ import type { DatabaseSync } from "node:sqlite";
 import { RISK_LEVEL, TASK_STATUS } from "../../shared/domain";
 import { createId } from "../../shared/ids";
 
+export interface CreatedGoalKickoffInput {
+  orgId: string;
+  goalId: string;
+  title: string;
+  description: string;
+  ownerAgentId: string | null;
+}
+
+/**
+ * Routes a newly created goal to an accountable agent — the chosen owner,
+ * or the top-level agent (the CEO) — as a kickoff task bound to the org's
+ * primary workspace. Returns null when the org has no agent yet; the goal
+ * then waits until one exists.
+ */
+export function kickoffCreatedGoal(db: DatabaseSync, input: CreatedGoalKickoffInput): string | null {
+  const assigneeAgentId = input.ownerAgentId ?? topLevelActiveAgentId(db, input.orgId);
+  if (!assigneeAgentId) return null;
+  const organization = db.prepare("select name from organizations where id = ?")
+    .get(input.orgId) as { name: string };
+  return createGoalKickoffTask(db, {
+    orgId: input.orgId,
+    goalId: input.goalId,
+    goalTitle: input.title,
+    goalDescription: input.description,
+    companyName: organization.name,
+    assigneeAgentId,
+    projectId: null,
+    workspaceId: primaryWorkspaceId(db, input.orgId),
+  });
+}
+
+function topLevelActiveAgentId(db: DatabaseSync, orgId: string): string | null {
+  const row = db.prepare(`
+    select id from agents
+    where org_id = ? and manager_agent_id is null and lifecycle = 'active'
+    order by created_at asc
+    limit 1
+  `).get(orgId) as { id: string } | undefined;
+  return row?.id ?? null;
+}
+
+function primaryWorkspaceId(db: DatabaseSync, orgId: string): string | null {
+  const row = db.prepare("select id from workspaces where org_id = ? and is_primary = 1 order by created_at asc limit 1")
+    .get(orgId) as { id: string } | undefined;
+  return row?.id ?? null;
+}
+
 export interface GoalKickoffTaskInput {
   orgId: string;
   goalId: string;
