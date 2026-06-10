@@ -11,7 +11,7 @@ import type {
   TaskRunRecord,
   WorkspaceRecord,
 } from "../../../../shared/domain";
-import { TASK_PRIORITY, TASK_STATUS } from "../../../../shared/domain";
+import { TASK_STATUS } from "../../../../shared/domain";
 import { auditEventLabel, formatRelative } from "../types";
 import { canRun, nextStatus, prettyRunState, prettyStatus, providerFor, runsForTask, runTone } from "./task-helpers";
 import type { SnapshotActions } from "../../app/useSnapshot";

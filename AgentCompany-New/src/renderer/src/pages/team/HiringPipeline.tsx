@@ -1,4 +1,4 @@
-import { Avatar, Pill } from "../../shared/ui";
+import { Avatar } from "../../shared/ui";
 import type { AgentRecord, ApprovalRecord } from "../../../../shared/domain";
 import { formatRelative } from "../types";
 

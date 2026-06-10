@@ -2,7 +2,6 @@ import { useMemo, useState, type FormEvent } from "react";
 import { Avatar, Button, Field, Icon, IconButton, Pill } from "../shared/ui";
 import { TopbarActions } from "../shared/TopbarActions";
 import { Dialog } from "../shared/Dialog";
-import type { DocumentRecord } from "../../../shared/domain";
 import type { PageProps } from "./types";
 import { activeOrgId, formatRelative } from "./types";
 

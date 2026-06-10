@@ -1,10 +1,10 @@
 import { useMemo, useState } from "react";
-import { Avatar, Button, Icon, Pill, Segmented } from "../shared/ui";
+import { Avatar, Pill, Segmented } from "../shared/ui";
 import { TopbarActions } from "../shared/TopbarActions";
 import type { AgentRecord, ApprovalRecord, ChatMessageRecord, TaskRecord, TaskRunRecord } from "../../../shared/domain";
 import { TASK_STATUS } from "../../../shared/domain";
 import type { PageProps } from "./types";
-import { activeOrgId, formatRelative, requireActiveEmployee } from "./types";
+import { activeOrgId, formatRelative } from "./types";
 
 type InboxFilter = "all" | "approvals" | "failures" | "blocked" | "messages";
 const FILTERS: Array<{ id: InboxFilter; label: string }> = [
@@ -32,9 +32,8 @@ interface InboxItem {
   tone: "amber" | "red" | "violet" | undefined;
 }
 
-export function InboxPage({ snapshot, actions, navigate }: PageProps) {
+export function InboxPage({ snapshot }: PageProps) {
   const orgId = activeOrgId(snapshot);
-  const employee = requireActiveEmployee(snapshot);
   const agents = useMemo(() => snapshot.agents.filter((a) => a.orgId === orgId), [snapshot.agents, orgId]);
   const tasks = useMemo(() => snapshot.tasks.filter((t) => t.orgId === orgId), [snapshot.tasks, orgId]);
   const taskRuns = useMemo(() => snapshot.taskRuns.filter((r) => r.orgId === orgId), [snapshot.taskRuns, orgId]);
@@ -116,7 +115,6 @@ function PerformanceView({ agents, tasks, taskRuns }: { agents: AgentRecord[]; t
   const completedRuns = taskRuns.filter((r) => r.state === "completed").length;
   const failedRuns = taskRuns.filter((r) => r.state === "failed").length;
   const successRate = completedRuns + failedRuns > 0 ? Math.round((completedRuns / (completedRuns + failedRuns)) * 100) : 0;
-  const throughput = doneTasks;
 
   return (
     <div>

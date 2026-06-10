@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type MutableRefObject } from "react";
+import { useRef, useState, type MutableRefObject } from "react";
 import { Avatar } from "../../shared/ui";
 import type { AgentRecord, EmployeeRecord } from "../../../../shared/domain";
 
@@ -44,8 +44,6 @@ export function MentionTextarea({
     ? candidates.filter((c) => c.handle.toLowerCase().includes(query.toLowerCase()))
     : [];
 
-  useEffect(() => { setIndex(0); }, [query]);
-
   const close = () => setQuery(null);
 
   const insertMention = (handle: string) => {
@@ -69,6 +67,7 @@ export function MentionTextarea({
     if (atMatch) {
       anchor.current = pos - atMatch[2].length - 1;
       setQuery(atMatch[2]);
+      setIndex(0);
     } else {
       close();
     }

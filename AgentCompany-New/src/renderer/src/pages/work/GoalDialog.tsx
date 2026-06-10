@@ -1,7 +1,7 @@
 import { type FormEvent } from "react";
 import { Field } from "../../shared/ui";
 import { Dialog } from "../../shared/Dialog";
-import type { AgentRecord, AppSnapshot } from "../../../../shared/domain";
+import type { AgentRecord } from "../../../../shared/domain";
 import type { SnapshotActions } from "../../app/useSnapshot";
 
 function text(form: FormData, key: string): string {

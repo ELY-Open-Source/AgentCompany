@@ -3,7 +3,7 @@ import { Button, Field, Icon, IconButton, Pill } from "../shared/ui";
 import { TopbarActions } from "../shared/TopbarActions";
 import { Dialog } from "../shared/Dialog";
 import type { PageProps } from "./types";
-import { activeOrgId, formatRelative } from "./types";
+import { activeOrgId } from "./types";
 
 const MEETING_TYPES = ["standup", "all_hands", "sprint_review", "retrospective", "planning", "one_on_one", "ad_hoc"] as const;
 

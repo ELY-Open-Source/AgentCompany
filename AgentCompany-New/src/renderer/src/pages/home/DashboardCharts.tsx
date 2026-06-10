@@ -39,28 +39,36 @@ export function BudgetUtilizationChart({ agents, providers }: { agents: AgentRec
   });
   const total = Math.max(1, data.reduce((s, d) => s + d.cents, 0));
 
+  const segments = stackSegments(data, total);
+  const colors = ["var(--accent)", "var(--green)", "var(--amber)", "var(--violet)", "var(--red)", "var(--text-3)"];
+
   return (
     <ChartCard title="Budget utilization">
       <svg viewBox={`0 0 ${CHART_W} ${CHART_H}`} style={{ width: "100%", height: CHART_H }}>
-        {(() => {
-          let cumX = 0;
-          return data.map((d, i) => {
-            const w = (d.cents / total) * CHART_W;
-            const x = cumX;
-            cumX += w;
-            const colors = ["var(--accent)", "var(--green)", "var(--amber)", "var(--violet)", "var(--red)", "var(--text-3)"];
-            return (
-              <g key={d.label}>
-                <rect x={x} y={20} width={Math.max(1, w - 2)} height={CHART_H - 40} rx={4} fill={colors[i % colors.length]} opacity={0.8} />
-                <text x={x + w / 2} y={CHART_H - 4} textAnchor="middle" fontSize="9" fill="var(--text-3)">{d.label}</text>
-                <text x={x + w / 2} y={14} textAnchor="middle" fontSize="9" fill="var(--text-2)">${Math.round(d.cents / 100)}</text>
-              </g>
-            );
-          });
-        })()}
+        {segments.map((segment, i) => (
+          <g key={segment.label}>
+            <rect x={segment.x} y={20} width={Math.max(1, segment.w - 2)} height={CHART_H - 40} rx={4} fill={colors[i % colors.length]} opacity={0.8} />
+            <text x={segment.x + segment.w / 2} y={CHART_H - 4} textAnchor="middle" fontSize="9" fill="var(--text-3)">{segment.label}</text>
+            <text x={segment.x + segment.w / 2} y={14} textAnchor="middle" fontSize="9" fill="var(--text-2)">${Math.round(segment.cents / 100)}</text>
+          </g>
+        ))}
       </svg>
     </ChartCard>
   );
+}
+
+function stackSegments(
+  data: Array<{ label: string; cents: number }>,
+  total: number,
+): Array<{ label: string; cents: number; x: number; w: number }> {
+  const segments: Array<{ label: string; cents: number; x: number; w: number }> = [];
+  let cumX = 0;
+  for (const d of data) {
+    const w = (d.cents / total) * CHART_W;
+    segments.push({ label: d.label, cents: d.cents, x: cumX, w });
+    cumX += w;
+  }
+  return segments;
 }
 
 export function RunActivityChart({ taskRuns }: { taskRuns: TaskRunRecord[] }) {

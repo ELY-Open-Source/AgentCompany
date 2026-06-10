@@ -1,6 +1,5 @@
 import { useMemo, useState } from "react";
-import { Avatar, Button, Icon, IconButton, Pill, Segmented } from "../shared/ui";
-import { TopbarActions } from "../shared/TopbarActions";
+import { Avatar, Pill, Segmented } from "../shared/ui";
 import type { AgentRecord, ProviderRecord, TaskRecord, TaskRunRecord } from "../../../shared/domain";
 import type { PageProps } from "./types";
 import { activeOrgId, formatRelative } from "./types";
@@ -14,7 +13,7 @@ const FILTERS: Array<{ id: StatusFilter; label: string }> = [
   { id: "failed", label: "Failed" },
 ];
 
-export function RunsPage({ snapshot, actions }: PageProps) {
+export function RunsPage({ snapshot }: PageProps) {
   const orgId = activeOrgId(snapshot);
   const taskRuns = useMemo(() => snapshot.taskRuns.filter((r) => r.orgId === orgId), [snapshot.taskRuns, orgId]);
   const tasks = useMemo(() => snapshot.tasks.filter((t) => t.orgId === orgId), [snapshot.tasks, orgId]);

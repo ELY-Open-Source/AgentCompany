@@ -1,7 +1,6 @@
-import { useMemo } from "react";
 import { Avatar, Pill } from "../../shared/ui";
 import type { AgentRecord, HiringPolicyRecord, ProviderRecord, ProviderRequestRecord } from "../../../../shared/domain";
-import { money, formatRelative } from "../types";
+import { money } from "../types";
 
 export function BillingPanel({
   agents,
@@ -20,7 +19,7 @@ export function BillingPanel({
   const totalInputChars = monthRequests.reduce((s, r) => s + r.inputCharCount, 0);
   const totalOutputChars = monthRequests.reduce((s, r) => s + r.outputCharCount, 0);
   const failedRequests = monthRequests.filter((r) => r.state === "failed");
-  const agentSpend = useMemo(() => buildAgentSpend(agents, providers, monthRequests), [agents, providers, monthRequests]);
+  const agentSpend = buildAgentSpend(agents, providers, monthRequests);
 
   return (
     <div className="page">
