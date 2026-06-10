@@ -190,6 +190,21 @@ textarea.input { min-height: 84px; resize: vertical; line-height: 1.5; }
 .clickable-card { transition: border-color var(--motion-fast) var(--ease-out), box-shadow var(--motion-fast) var(--ease-out); }
 .clickable-card:hover { border-color: var(--border-strong); box-shadow: var(--shadow-sm); }
 
+/* Dashboard metric tiles lift on hover; the readout brightens with the card. */
+.metric-card {
+  position: relative;
+  transition: transform var(--motion-base) var(--ease-out), box-shadow var(--motion-base) var(--ease-out), border-color var(--motion-base) var(--ease-out);
+}
+.metric-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); border-color: var(--border-strong); }
+.metric-readout {
+  margin-left: auto;
+  font-size: var(--fs-caption);
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+  transition: color var(--motion-fast) var(--ease-out);
+}
+.metric-card:hover .metric-readout { color: var(--text-1); }
+
 .link-button {
   border: 0;
   background: transparent;
