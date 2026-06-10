@@ -46,8 +46,8 @@ export function RunsPage({ snapshot }: PageProps) {
     <div className="split-main">
       <aside className="secondary-pane" style={{ width: 340 }}>
         <div style={{ padding: "12px 12px 8px" }}>
-          <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Runs</div>
-          <div className="row" style={{ gap: 6, marginBottom: 8, fontSize: 11, color: "var(--text-3)" }}>
+          <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>Runs</div>
+          <div className="row" style={{ gap: 8, marginBottom: 8, fontSize: 12, color: "var(--text-3)" }}>
             <span>{queued} queued</span><span>·</span><span>{running} running</span><span>·</span><span>{failed} failed</span>
           </div>
           <input
@@ -72,10 +72,10 @@ export function RunsPage({ snapshot }: PageProps) {
                 onClick={() => setSelectedId(run.id)}
               >
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 12.5, fontWeight: 480, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  <div style={{ fontSize: 14, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     {task?.title ?? run.taskId}
                   </div>
-                  <div style={{ fontSize: 11, color: "var(--text-3)" }}>
+                  <div style={{ fontSize: 12, color: "var(--text-3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     {agent?.name ?? "Agent"} · {run.trigger}
                   </div>
                 </div>
@@ -83,14 +83,14 @@ export function RunsPage({ snapshot }: PageProps) {
               </button>
             );
           })}
-          {filtered.length === 0 && <div style={{ padding: 16, fontSize: 13, color: "var(--text-3)" }}>No runs</div>}
+          {filtered.length === 0 && <div style={{ padding: 16, fontSize: 14, color: "var(--text-3)" }}>No runs</div>}
         </div>
       </aside>
       <div style={{ flex: 1, minWidth: 0, overflow: "auto", padding: 24 }}>
         {selected ? (
           <RunDetail run={selected} tasks={tasks} agents={agents} providers={providers} providerRequests={providerRequests} />
         ) : (
-          <div style={{ display: "grid", placeItems: "center", height: "100%", color: "var(--text-3)", fontSize: 13 }}>
+          <div style={{ display: "grid", placeItems: "center", height: "100%", color: "var(--text-3)", fontSize: 14 }}>
             Select a run
           </div>
         )}
@@ -126,7 +126,7 @@ function RunDetail({ run, tasks, agents, providers, providerRequests }: {
         <Pill tone={runTone(run.state)}>{runLabel(run.state)}</Pill>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "120px 1fr", gap: "8px 14px", fontSize: 12.5, marginBottom: 20 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "120px 1fr", gap: "8px 16px", fontSize: 14, marginBottom: 20 }}>
         <MetaLabel>Agent</MetaLabel><div>{agent?.name ?? "—"} ({agent?.role ?? "—"})</div>
         <MetaLabel>Provider</MetaLabel><div>{provider?.label ?? "—"} · {provider?.model ?? "—"}</div>
         <MetaLabel>Trigger</MetaLabel><div>{run.trigger}</div>
@@ -134,21 +134,21 @@ function RunDetail({ run, tasks, agents, providers, providerRequests }: {
         {run.startedAt && (<><MetaLabel>Started</MetaLabel><div>{formatRelative(run.startedAt)}</div></>)}
         {run.completedAt && (<><MetaLabel>Completed</MetaLabel><div>{formatRelative(run.completedAt)}</div></>)}
         {durationMs !== null && (<><MetaLabel>Duration</MetaLabel><div>{formatDuration(durationMs)}</div></>)}
-        <MetaLabel>Context</MetaLabel><div className="mono" style={{ fontSize: 11 }}>{run.executionContextId}</div>
+        <MetaLabel>Context</MetaLabel><div className="mono" style={{ fontSize: 12, overflow: "hidden", textOverflow: "ellipsis" }}>{run.executionContextId}</div>
       </div>
 
       {run.state === "failed" && run.errorMessage && (
-        <div className="card" style={{ padding: 14, marginBottom: 16, borderColor: "var(--red)" }}>
-          <div className="section-label" style={{ color: "var(--red)", marginBottom: 6 }}>Error</div>
-          <div style={{ fontSize: 12.5, color: "var(--text-1)", whiteSpace: "pre-wrap", lineHeight: 1.5 }}>{run.errorMessage}</div>
+        <div className="card" style={{ padding: 16, marginBottom: 16, borderColor: "var(--red)" }}>
+          <div className="section-label" style={{ color: "var(--red)", marginBottom: 8 }}>Error</div>
+          <div style={{ fontSize: 14, color: "var(--text-1)", whiteSpace: "pre-wrap", lineHeight: 1.5 }}>{run.errorMessage}</div>
         </div>
       )}
 
       {request && (
-        <div className="card" style={{ padding: 14, marginBottom: 16 }}>
+        <div className="card" style={{ padding: 16, marginBottom: 16 }}>
           <div className="section-label" style={{ marginBottom: 8 }}>Provider request</div>
-          <div style={{ display: "grid", gridTemplateColumns: "120px 1fr", gap: "6px 14px", fontSize: 12 }}>
-            <MetaLabel>Request ID</MetaLabel><div className="mono" style={{ fontSize: 11 }}>{request.id}</div>
+          <div style={{ display: "grid", gridTemplateColumns: "120px 1fr", gap: "8px 16px", fontSize: 14 }}>
+            <MetaLabel>Request ID</MetaLabel><div className="mono" style={{ fontSize: 12, overflow: "hidden", textOverflow: "ellipsis" }}>{request.id}</div>
             <MetaLabel>Model</MetaLabel><div>{request.model}</div>
             <MetaLabel>State</MetaLabel><div>{request.state}</div>
             <MetaLabel>Input chars</MetaLabel><div className="num">{request.inputCharCount.toLocaleString()}</div>

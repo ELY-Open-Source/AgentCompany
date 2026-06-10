@@ -206,6 +206,27 @@ a { color: inherit; }
   font-variant-numeric: tabular-nums;
 }
 .nav-divider { height: 1px; background: var(--border-soft); margin: var(--sp-2); }
+
+/* Selectable list row used by master-detail panes (Runs, etc.). width:100%
+   + min-width:0 lets the inner flex child ellipsize instead of pushing the
+   row past the pane and forcing a horizontal scrollbar. */
+.nav-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  width: 100%;
+  min-width: 0;
+  padding: var(--sp-2) var(--sp-3);
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text-1);
+  text-align: left;
+  transition: background var(--motion-fast) var(--ease-out);
+}
+.nav-row:hover { background: var(--hover); }
+.nav-row.active { background: var(--panel-3); }
+
 .org-menu {
   position: absolute;
   left: 0;
