@@ -54,6 +54,8 @@ export class TaskExecutionService {
     private readonly db: DatabaseSync,
     private readonly providers: ProviderService = new ProviderService(db),
     private readonly skills: SkillService = new SkillService(db, ""),
+    /** Invoked whenever a run writes data mid-flight, so the UI can refresh while agents work. */
+    private readonly notifyDataChanged: () => void = () => undefined,
   ) {
     this.audit = new AuditService(db);
     this.organization = new OrganizationService(db);
@@ -118,7 +120,11 @@ export class TaskExecutionService {
       };
       const chatContext = this.loadChatContext(orgId, isolation);
       const result = await runAgentLoop(
-        { providers: this.providers, tools: { db: this.db, organization: this.organization, chat: this.chat } },
+        {
+          providers: this.providers,
+          tools: { db: this.db, organization: this.organization, chat: this.chat },
+          onToolResults: this.notifyDataChanged,
+        },
         {
           orgId,
           providerId: provider.id,

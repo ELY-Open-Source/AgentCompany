@@ -80,14 +80,21 @@ describe("agent run loop (real tool dispatch)", () => {
       { text: "Team staffed, work delegated, plan written.", toolCalls: [] },
     ];
 
+    let toolResultNotifications = 0;
     const result = await runAgentLoop(
-      { providers: fakeProvider(script), tools: { db: connection.db, organization, chat: new ChatService(connection.db) } },
+      {
+        providers: fakeProvider(script),
+        tools: { db: connection.db, organization, chat: new ChatService(connection.db) },
+        onToolResults: () => { toolResultNotifications += 1; },
+      },
       { orgId, providerId, workspaceId, instructions: "You are the CEO.", initialUserTurn: "Start the company.", toolContext },
     );
 
     expect(result.iterations).toBe(4);
     expect(result.toolCallCount).toBe(5);
     expect(result.finalText).toContain("Team staffed");
+    // The UI is told about new data after every tool-bearing iteration, not only at the end.
+    expect(toolResultNotifications).toBe(3);
 
     const agentNames = (connection.db.prepare("select name from agents where org_id = ? order by name").all(orgId) as Array<{ name: string }>).map((r) => r.name);
     expect(agentNames).toEqual(["Alex Rivera", "CEO", "Sam Lee"]);

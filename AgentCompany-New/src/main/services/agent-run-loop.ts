@@ -23,6 +23,8 @@ export interface AgentRunLoopResult {
 export interface AgentRunLoopDeps {
   providers: Pick<ProviderService, "runToolTurn">;
   tools: AgentToolDeps;
+  /** Called after each iteration's tool calls have written their effects. */
+  onToolResults?: () => void;
 }
 
 /**
@@ -63,6 +65,7 @@ export async function runAgentLoop(deps: AgentRunLoopDeps, input: AgentRunLoopIn
       return { toolCallId: call.id, toolName: call.name, output: dispatchAgentTool(deps.tools, input.toolContext, call) };
     });
     messages.push({ role: "tool", results });
+    deps.onToolResults?.();
   }
 
   throw new Error(`Agent run did not converge within ${MAX_ITERATIONS} iterations.`);

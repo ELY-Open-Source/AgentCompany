@@ -42,7 +42,12 @@ export function registerIpcHandlers(deps: IpcDeps): void {
   const providers = new ProviderService(deps.connection.db);
   const providerOAuth = new ProviderOAuthService();
   const skills = new SkillService(deps.connection.db, deps.artifactRoot);
-  const taskExecution = new TaskExecutionService(deps.connection.db, providers, skills);
+  const notifyDataChanged = () => {
+    if (!deps.mainWindow.isDestroyed()) {
+      deps.mainWindow.webContents.send(IPC_CHANNELS.rendererEvent, { type: "snapshot-changed" });
+    }
+  };
+  const taskExecution = new TaskExecutionService(deps.connection.db, providers, skills, notifyDataChanged);
   const social = new SocialService(deps.connection.db);
   const files = new FileService(deps.connection.db, deps.artifactRoot);
   const migrations = new MigrationService(deps.connection.db);

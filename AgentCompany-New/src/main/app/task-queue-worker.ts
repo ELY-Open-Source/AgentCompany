@@ -40,7 +40,12 @@ export function claimNextQueuedRun(connection: DatabaseConnection): QueuedRun | 
  * verified by row changes) so a run is never executed twice.
  */
 export function startTaskQueueWorker(input: TaskQueueWorkerInput): () => void {
-  const taskExecution = new TaskExecutionService(input.connection.db);
+  const notifyDataChanged = () => {
+    if (!input.mainWindow.isDestroyed()) {
+      input.mainWindow.webContents.send(IPC_CHANNELS.rendererEvent, { type: "snapshot-changed" });
+    }
+  };
+  const taskExecution = new TaskExecutionService(input.connection.db, undefined, undefined, notifyDataChanged);
   const intervalMs = input.intervalMs ?? DEFAULT_INTERVAL_MS;
   let running = false;
 
@@ -51,19 +56,16 @@ export function startTaskQueueWorker(input: TaskQueueWorkerInput): () => void {
       const enqueued = input.connection.transaction(() => taskExecution.enqueueHeartbeatRuns());
       const claimed = claimNextQueuedRun(input.connection);
       if (!claimed) {
-        if (enqueued.length > 0 && !input.mainWindow.isDestroyed()) {
-          input.mainWindow.webContents.send(IPC_CHANNELS.rendererEvent, { type: "snapshot-changed" });
-        }
+        if (enqueued.length > 0) notifyDataChanged();
         return;
       }
+      notifyDataChanged();
       try {
         await taskExecution.executeRun(claimed.org_id, claimed.id);
       } catch {
         // executeRun records the failure on the run row; the UI reflects it below.
       }
-      if (!input.mainWindow.isDestroyed()) {
-        input.mainWindow.webContents.send(IPC_CHANNELS.rendererEvent, { type: "snapshot-changed" });
-      }
+      notifyDataChanged();
     } finally {
       running = false;
     }
