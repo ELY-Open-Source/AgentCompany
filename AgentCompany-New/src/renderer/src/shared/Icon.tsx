@@ -47,9 +47,9 @@ export type IconName = keyof typeof PATHS | (string & {});
 
 export function Icon({
   name,
-  size = 14,
+  size = 18,
   color = "currentColor",
-  strokeWidth = 1.6,
+  strokeWidth = 1.5,
 }: {
   name: IconName;
   size?: number;

@@ -1,0 +1,17 @@
+/* Geist is vendored locally (variable woff2) so the desktop build stays
+   offline and CSP-clean (font-src 'self'). One file per family covers every
+   weight via the variable axis. */
+@font-face {
+  font-family: "Geist";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("../fonts/Geist-Variable.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Geist Mono";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("../fonts/GeistMono-Variable.woff2") format("woff2");
+}
