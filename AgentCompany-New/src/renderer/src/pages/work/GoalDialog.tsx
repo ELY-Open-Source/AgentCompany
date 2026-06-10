@@ -43,7 +43,9 @@ export function GoalDialog({
       <Field label="Owner agent">
         <select className="input" name="ownerAgentId" defaultValue="">
           <option value="">Unassigned</option>
-          {agents.map((agent) => <option key={agent.id} value={agent.id}>{agent.name} · {agent.role}</option>)}
+          {agents.filter((agent) => agent.lifecycle === "active").map((agent) => (
+            <option key={agent.id} value={agent.id}>{agent.name} · {agent.role}</option>
+          ))}
         </select>
       </Field>
     </Dialog>

@@ -4,7 +4,7 @@ import { PROVIDER_CATALOG } from "../../shared/provider-catalog";
 import { createId } from "../../shared/ids";
 import type { CreateAgentInput, CreateGoalInput, CreateOrganizationInput, CreateProjectInput, CreateTaskInput, CreateWorkspaceInput, DeleteTaskInput, UpdateAgentInput, UpdateTaskInput } from "../../shared/commands";
 import { AuditService } from "./audit-service";
-import { kickoffCreatedGoal } from "./goal-kickoff";
+import { ensureAgentHeartbeat, resolveGoalKickoff, type GoalKickoffPlan } from "./goal-kickoff";
 import { PolicyService } from "./policy-service";
 import { IdentityAccessService } from "./identity-access-service";
 import { OrgGovernanceService } from "./org-governance-service";
@@ -213,6 +213,7 @@ export class OrganizationService {
       );
       this.settleApproval(input.orgId, approvalId, "agent_hire", RISK_LEVEL.MEDIUM, autoApprove);
     }
+    this.kickoffUntouchedGoals(input.orgId);
     return id;
   }
 
@@ -402,14 +403,58 @@ export class OrganizationService {
       action: "created",
       payload: { title: input.title.trim() },
     });
-    kickoffCreatedGoal(this.db, {
+    const plan = resolveGoalKickoff(this.db, {
       orgId: input.orgId,
-      goalId: id,
-      title: input.title,
-      description: input.description,
+      goalTitle: input.title,
+      goalDescription: input.description,
       ownerAgentId: input.ownerAgentId,
     });
+    if (plan) this.createKickoffTask(input.orgId, id, plan);
     return id;
+  }
+
+  /**
+   * Materializes a goal's kickoff plan as a first-class task: it passes the
+   * same policy/approval gates as any other task and wakes the assignee.
+   */
+  private createKickoffTask(orgId: string, goalId: string, plan: GoalKickoffPlan): string {
+    ensureAgentHeartbeat(this.db, orgId, plan.assigneeAgentId);
+    return this.createTask({
+      orgId,
+      title: plan.title,
+      description: plan.description,
+      status: TASK_STATUS.BACKLOG,
+      assigneeAgentId: plan.assigneeAgentId,
+      risk: RISK_LEVEL.MEDIUM,
+      projectId: null,
+      goalId,
+      workspaceId: plan.workspaceId,
+      priority: "high",
+      requiresFilesystem: plan.workspaceId !== null,
+    });
+  }
+
+  /**
+   * Goals created before any agent existed (or whose owner was archived)
+   * have no kickoff task yet; the moment an agent joins, each untouched
+   * active goal is operationalized so no goal stays inert.
+   */
+  private kickoffUntouchedGoals(orgId: string): void {
+    const goals = this.db.prepare(`
+      select id, title, description, owner_agent_id
+      from goals g
+      where g.org_id = ? and g.status = 'active'
+        and not exists (select 1 from tasks t where t.goal_id = g.id)
+    `).all(orgId) as Array<{ id: string; title: string; description: string; owner_agent_id: string | null }>;
+    for (const goal of goals) {
+      const plan = resolveGoalKickoff(this.db, {
+        orgId,
+        goalTitle: goal.title,
+        goalDescription: goal.description,
+        ownerAgentId: goal.owner_agent_id,
+      });
+      if (plan) this.createKickoffTask(orgId, goal.id, plan);
+    }
   }
 
   createProject(input: CreateProjectInput): string {

@@ -4,11 +4,11 @@ import type {
   BootstrapOnboardingSummary,
   SaveProviderCredentialInput,
 } from "../../shared/commands";
-import { PROVIDER_AUTH_TYPE } from "../../shared/domain";
+import { PROVIDER_AUTH_TYPE, RISK_LEVEL, TASK_STATUS } from "../../shared/domain";
 import { PROVIDER_CATALOG } from "../../shared/provider-catalog";
 import { createId } from "../../shared/ids";
 import { AuditService } from "./audit-service";
-import { createGoalKickoffTask } from "./goal-kickoff";
+import { goalKickoffDescription, goalKickoffTitle } from "./goal-kickoff";
 import { OrganizationService } from "./organization-service";
 import { ChatService } from "./chat-service";
 
@@ -71,15 +71,18 @@ export class OnboardingService {
     const projectId = this.createProject(orgId, goalId, ceoAgentId, input, now);
     this.createProjectChatSpace(orgId, projectName(input));
     if (workspaceId) this.bindWorkspaceToProject(workspaceId, projectId, now);
-    const taskId = createGoalKickoffTask(this.deps.db, {
+    const taskId = this.organization.createTask({
       orgId,
-      goalId,
-      goalTitle: input.goalTitle,
-      goalDescription: input.goalDescription,
-      companyName: input.companyName,
+      title: goalKickoffTitle(input.goalTitle),
+      description: goalKickoffDescription(input.companyName, input.goalTitle, input.goalDescription),
+      status: TASK_STATUS.BACKLOG,
       assigneeAgentId: ceoAgentId,
+      risk: RISK_LEVEL.MEDIUM,
       projectId,
+      goalId,
       workspaceId,
+      priority: "high",
+      requiresFilesystem: workspaceId !== null,
     });
     const runId = this.createTaskRun(orgId, taskId, ceoAgentId, providerId, workspaceId, now);
 

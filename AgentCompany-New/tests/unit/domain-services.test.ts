@@ -643,8 +643,9 @@ describe("domain services", () => {
     });
 
     // Without any agent there is nobody to operationalize the goal yet.
+    let waitingGoalId = "";
     connection.transaction(() => {
-      organization.createGoal({ orgId, title: "Open the Berlin market", description: "Win the first ten customers.", ownerAgentId: null });
+      waitingGoalId = organization.createGoal({ orgId, title: "Open the Berlin market", description: "Win the first ten customers.", ownerAgentId: null });
     });
     expect(connection.db.prepare("select count(*) as n from tasks where org_id = ?").get(orgId)).toMatchObject({ n: 0 });
 
@@ -673,6 +674,12 @@ describe("domain services", () => {
         managerAgentId: ceoId,
       });
     });
+
+    // The first hire operationalizes the goal that was waiting, exactly once.
+    expect(connection.db.prepare("select count(*) as n from tasks where goal_id = ?").get(waitingGoalId)).toMatchObject({ n: 1 });
+    const revived = connection.db.prepare("select status, assignee_agent_id from tasks where goal_id = ?")
+      .get(waitingGoalId) as { status: string; assignee_agent_id: string };
+    expect(revived).toMatchObject({ status: TASK_STATUS.BACKLOG, assignee_agent_id: ceoId });
 
     // Ownerless goals land with the top-level agent; the kickoff re-enables its heartbeat.
     let ceoGoalId = "";
