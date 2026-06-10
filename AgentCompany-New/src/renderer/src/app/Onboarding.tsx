@@ -168,37 +168,39 @@ export function Onboarding({
       </section>
 
       <form className="onboarding-panel" onSubmit={submit} noValidate>
-        {step === "welcome" && (
-          <WelcomeStep onNext={() => setStep("provider")} />
-        )}
-        {step === "provider" && (
-          <ProviderStep
-            providers={availableProviders}
-            draft={draft}
-            onChange={update}
-            onBack={back("welcome")}
-            onNext={guard(() => validateProvider(draft, availableProviders), "company")}
-          />
-        )}
-        {step === "company" && (
-          <CompanyStep
-            draft={draft}
-            onChange={update}
-            onBack={back("provider")}
-            onNext={guard(() => validateCompany(draft), "mode")}
-          />
-        )}
-        {step === "mode" && (
-          <ModeStep draft={draft} onChange={update} onBack={back("company")} onNext={() => setStep("mission")} />
-        )}
-        {step === "mission" && (
-          <MissionStep
-            draft={draft}
-            submitting={submitting}
-            onChange={update}
-            onBack={back("mode")}
-          />
-        )}
+        <div key={step} className="step-view">
+          {step === "welcome" && (
+            <WelcomeStep onNext={() => setStep("provider")} />
+          )}
+          {step === "provider" && (
+            <ProviderStep
+              providers={availableProviders}
+              draft={draft}
+              onChange={update}
+              onBack={back("welcome")}
+              onNext={guard(() => validateProvider(draft, availableProviders), "company")}
+            />
+          )}
+          {step === "company" && (
+            <CompanyStep
+              draft={draft}
+              onChange={update}
+              onBack={back("provider")}
+              onNext={guard(() => validateCompany(draft), "mode")}
+            />
+          )}
+          {step === "mode" && (
+            <ModeStep draft={draft} onChange={update} onBack={back("company")} onNext={() => setStep("mission")} />
+          )}
+          {step === "mission" && (
+            <MissionStep
+              draft={draft}
+              submitting={submitting}
+              onChange={update}
+              onBack={back("mode")}
+            />
+          )}
+        </div>
         {error && <div style={{ color: "var(--red)", marginTop: 14, fontSize: 12.5 }}>{error}</div>}
       </form>
       </main>

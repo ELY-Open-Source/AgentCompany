@@ -151,7 +151,9 @@ export function Shell({
           </div>
         </header>
         <div className={FLUSH_ROUTES.has(route) ? "content flush" : "content"}>
-          <TopbarSlotContext.Provider value={actionsSlot}>{children}</TopbarSlotContext.Provider>
+          <TopbarSlotContext.Provider value={actionsSlot}>
+            <div key={route} className="route-view">{children}</div>
+          </TopbarSlotContext.Provider>
         </div>
       </main>
       <SearchDialog

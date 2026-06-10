@@ -24,8 +24,15 @@
   font-size: 12.5px;
   font-weight: 500;
   white-space: nowrap;
+  transition:
+    background var(--motion-fast) var(--ease-out),
+    border-color var(--motion-fast) var(--ease-out),
+    color var(--motion-fast) var(--ease-out),
+    transform var(--motion-fast) var(--ease-out),
+    opacity var(--motion-fast) var(--ease-out);
 }
 .button:hover { background: var(--panel-2); }
+.button:active:not(:disabled) { transform: scale(0.97); }
 .button.primary { background: var(--text-1); color: #fff; border-color: var(--text-1); }
 .button.primary:hover { background: #27272a; }
 .button.ghost { border-color: transparent; background: transparent; color: var(--text-2); }
@@ -43,8 +50,15 @@
   background: var(--panel);
   color: var(--text-2);
   flex-shrink: 0;
+  transition:
+    background var(--motion-fast) var(--ease-out),
+    border-color var(--motion-fast) var(--ease-out),
+    color var(--motion-fast) var(--ease-out),
+    transform var(--motion-fast) var(--ease-out),
+    opacity var(--motion-fast) var(--ease-out);
 }
 .icon-button:hover { background: var(--panel-2); color: var(--text-1); }
+.icon-button:active:not(:disabled) { transform: scale(0.94); }
 .icon-button.ghost { border-color: transparent; background: transparent; }
 .icon-button.ghost:hover { background: var(--hover); color: var(--text-1); }
 .icon-button:disabled { opacity: 0.4; cursor: default; }
@@ -68,7 +82,9 @@
   color: var(--text-2);
   font-size: 12px;
   font-weight: 500;
+  transition: background var(--motion-fast) var(--ease-out), color var(--motion-fast) var(--ease-out);
 }
+.segmented .segment:hover:not(.active) { color: var(--text-1); }
 .segmented .segment.active { background: var(--panel-3); color: var(--text-1); font-weight: 540; }
 
 .pill {
@@ -84,8 +100,9 @@
   font-size: 11px;
   font-weight: 500;
   white-space: nowrap;
+  transition: background var(--motion-base) var(--ease-out), color var(--motion-base) var(--ease-out), border-color var(--motion-base) var(--ease-out);
 }
-.pill .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--text-3); }
+.pill .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--text-3); transition: background var(--motion-base) var(--ease-out); }
 .pill.amber { background: var(--amber-soft); color: var(--amber); border-color: transparent; }
 .pill.amber .dot { background: var(--amber); }
 .pill.green { background: var(--green-soft); color: var(--green); border-color: transparent; }
@@ -127,8 +144,10 @@
   padding: 8px 10px;
   outline: none;
   font-size: 13px;
+  transition: border-color var(--motion-fast) var(--ease-out), box-shadow var(--motion-fast) var(--ease-out);
 }
-.input:focus { border-color: var(--text-1); }
+.input:focus { border-color: var(--text-1); box-shadow: 0 0 0 3px rgba(9, 9, 11, 0.06); }
+input[type="checkbox"] { accent-color: var(--accent); }
 textarea.input { min-height: 84px; resize: vertical; line-height: 1.5; }
 .field {
   display: flex;
@@ -166,10 +185,10 @@ textarea.input { min-height: 84px; resize: vertical; line-height: 1.5; }
   border-bottom: 1px solid var(--border-soft);
 }
 .table-row:last-child { border-bottom: 0; }
-.table-row.clickable { cursor: pointer; }
+.table-row.clickable { cursor: pointer; transition: background var(--motion-fast) var(--ease-out); }
 .table-row.clickable:hover { background: var(--hover); }
-.clickable-card { transition: border-color 0.1s ease; }
-.clickable-card:hover { border-color: var(--border-strong); }
+.clickable-card { transition: border-color var(--motion-fast) var(--ease-out), box-shadow var(--motion-fast) var(--ease-out); }
+.clickable-card:hover { border-color: var(--border-strong); box-shadow: var(--shadow-sm); }
 
 .link-button {
   border: 0;
@@ -178,6 +197,7 @@ textarea.input { min-height: 84px; resize: vertical; line-height: 1.5; }
   cursor: pointer;
   font: inherit;
   color: var(--text-3);
+  transition: color var(--motion-fast) var(--ease-out);
 }
 .link-button:hover { color: var(--text-1); }
 

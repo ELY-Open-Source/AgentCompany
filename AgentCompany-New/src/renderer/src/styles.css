@@ -27,6 +27,11 @@
   --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
   --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
   --font-display: "Inter", -apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif;
+  --motion-fast: 120ms;
+  --motion-base: 200ms;
+  --motion-slow: 280ms;
+  --ease-out: cubic-bezier(0.25, 1, 0.5, 1);
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 * { box-sizing: border-box; }
@@ -74,8 +79,10 @@ a { color: inherit; }
   border-radius: var(--r-md);
   cursor: pointer;
   margin-bottom: 18px;
+  transition: background var(--motion-fast) var(--ease-out);
 }
 .sidebar-org:hover { background: var(--hover); }
+.sidebar-org:active { background: var(--panel-3); }
 .brand-mark {
   width: 22px;
   height: 22px;
@@ -111,7 +118,9 @@ a { color: inherit; }
   cursor: text;
   border: 0;
   width: 100%;
+  transition: background var(--motion-fast) var(--ease-out), color var(--motion-fast) var(--ease-out);
 }
+.search-bar:hover { background: var(--panel-3); color: var(--text-2); }
 .search-kbd {
   margin-left: auto;
   font-size: 11px;
@@ -140,11 +149,13 @@ a { color: inherit; }
   text-align: left;
   width: 100%;
   min-width: 0;
+  transition: background var(--motion-fast) var(--ease-out), color var(--motion-fast) var(--ease-out), transform var(--motion-fast) var(--ease-out);
 }
 .nav-item:hover { background: var(--hover); color: var(--text-1); }
+.nav-item:active { transform: scale(0.985); }
 .nav-item.active { background: var(--panel-3); color: var(--text-1); font-weight: 540; }
 .nav-item.active svg { color: var(--text-1); }
-.nav-item svg { color: var(--text-3); flex-shrink: 0; }
+.nav-item svg { color: var(--text-3); flex-shrink: 0; transition: color var(--motion-fast) var(--ease-out); }
 .nav-item span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .nav-badge {
   margin-left: auto;
@@ -187,6 +198,7 @@ a { color: inherit; }
   font-size: 13px;
   text-align: left;
   width: 100%;
+  transition: background var(--motion-fast) var(--ease-out), color var(--motion-fast) var(--ease-out);
 }
 .org-menu-row:hover { background: var(--hover); color: var(--text-1); }
 .org-menu-row.active { background: var(--panel-3); color: var(--text-1); font-weight: 540; }
@@ -199,6 +211,7 @@ a { color: inherit; }
   border-radius: 4px;
   cursor: pointer;
   opacity: 0;
+  transition: opacity var(--motion-fast) var(--ease-out), background var(--motion-fast) var(--ease-out);
 }
 .org-menu-row:hover .org-menu-delete { opacity: 1; }
 .org-menu-delete:hover { background: var(--panel-3); }
@@ -262,6 +275,7 @@ a { color: inherit; }
   font-size: 13px;
   text-align: left;
   width: 100%;
+  transition: background var(--motion-fast) var(--ease-out), color var(--motion-fast) var(--ease-out);
 }
 .org-menu-action:hover { background: var(--hover); color: var(--text-1); }
 .brand-mark.sm {
@@ -321,6 +335,19 @@ a { color: inherit; }
   flex: 1;
   overflow: auto;
   padding: 28px 32px 40px;
+}
+/* One route's content entering: a quiet rise that signals the view changed.
+   The wrapper is structural for flush routes, so it must stay a flex column. */
+.route-view {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  animation: view-enter var(--motion-slow) var(--ease-out-expo);
+}
+@keyframes view-enter {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
 }
 /* Split-layout routes fill the content area and let their panes scroll
    independently instead of scrolling the whole page. */
@@ -412,6 +439,7 @@ a { color: inherit; }
   color: var(--text-2);
   font-size: 15px;
   line-height: 1;
+  transition: background var(--motion-fast) var(--ease-out), color var(--motion-fast) var(--ease-out);
 }
 .org-zoom-btn:hover:not(:disabled) { background: var(--hover); color: var(--text-1); }
 .org-zoom-btn:disabled { color: var(--text-4); cursor: default; }
@@ -441,7 +469,7 @@ a { color: inherit; }
   box-shadow: var(--shadow-sm);
   text-align: left;
   cursor: pointer;
-  transition: border-color 0.12s ease, box-shadow 0.12s ease;
+  transition: border-color var(--motion-fast) var(--ease-out), box-shadow var(--motion-fast) var(--ease-out);
 }
 .org-node-card:hover:not(:disabled) { border-color: var(--border-strong); box-shadow: var(--shadow-md); }
 .org-node-card:disabled { cursor: default; }
@@ -461,4 +489,12 @@ a { color: inherit; }
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
