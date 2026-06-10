@@ -32,7 +32,7 @@ export function FilesPage({ snapshot, actions }: PageProps) {
   const [view, setView] = useState<ViewMode>("list");
   const [scanFilter, setScanFilter] = useState<FileScanState | "all">("all");
 
-  const departments = collectDepartments(agents);
+  const departments = collectDepartments(files, agents);
   const filesByAgent = collectAgentFiles(files, agents);
   const sectionFiles = filterFiles(files, section, agents);
   const visibleFiles = scanFilter === "all" ? sectionFiles : sectionFiles.filter((file) => file.scanState === scanFilter);

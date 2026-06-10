@@ -23,13 +23,19 @@ export const FILE_COLOR_MAP: Record<string, { color: string; label: string }> = 
   folder: { color: "#a1a1aa", label: "" },
 };
 
-export function collectDepartments(agents: AgentRecord[]): Array<{ name: string; count: number }> {
-  const seen = new Map<string, number>();
-  for (const agent of agents) {
-    if (!agent.department) continue;
-    seen.set(agent.department, (seen.get(agent.department) ?? 0) + 1);
+/** Departments shown in the file tree carry a FILE count, not an agent count:
+ * the badge must equal what opening the section reveals. Departments with no
+ * files are omitted so the tree never advertises a folder that opens empty. */
+export function collectDepartments(files: FileObjectRecord[], agents: AgentRecord[]): Array<{ name: string; count: number }> {
+  const departmentByAgent = new Map(agents.map((agent) => [agent.id, agent.department]));
+  const counts = new Map<string, number>();
+  for (const file of files) {
+    if (file.ownerType !== "agent" || !file.ownerId) continue;
+    const department = departmentByAgent.get(file.ownerId);
+    if (!department) continue;
+    counts.set(department, (counts.get(department) ?? 0) + 1);
   }
-  return [...seen.entries()].map(([name, count]) => ({ name, count })).sort((a, b) => a.name.localeCompare(b.name));
+  return [...counts.entries()].map(([name, count]) => ({ name, count })).sort((a, b) => a.name.localeCompare(b.name));
 }
 
 export function collectAgentFiles(files: FileObjectRecord[], agents: AgentRecord[]): Array<{ agent: AgentRecord; count: number }> {

@@ -91,7 +91,7 @@ function TreeItem({
 }) {
   return (
     <button type="button" className={`nav-item ${active ? "active" : ""}`.trim()} onClick={onClick}>
-      <Icon name={icon} size={14} />
+      <span className="icon-box"><Icon name={icon} size={18} /></span>
       <span>{label}</span>
       <span className="nav-badge num">{count}</span>
     </button>
