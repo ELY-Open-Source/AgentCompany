@@ -26,20 +26,30 @@ export class OrgGovernanceService {
     `).run(createId("arr"), orgId, "*", RISK_LEVEL.LOW, ROUTE_TO_TYPE.EMPLOYEE, boardEmployeeId, now);
   }
 
-  enforceHiringPolicy(input: CreateAgentInput): HiringPolicyDecision {
-    const requested = input.department.trim();
+  /** Resolves the canonical department name (case-insensitive), or throws naming the valid choices. */
+  requireCanonicalDepartment(orgId: string, department: string): string {
+    const requested = department.trim();
     if (!requested) throw new Error("Department is required.");
-    const policy = this.db.prepare(`
-      select department_name, max_headcount, monthly_budget_limit_cents, require_approval_above_cents
-      from hiring_policies
+    const row = this.db.prepare(`
+      select department_name from hiring_policies
       where org_id = ? and lower(department_name) = lower(?)
-    `).get(input.orgId, requested) as HiringPolicyRow | undefined;
-    if (!policy) {
+    `).get(orgId, requested) as { department_name: string } | undefined;
+    if (!row) {
       const known = this.db.prepare("select department_name from hiring_policies where org_id = ? order by department_name asc")
-        .all(input.orgId) as Array<{ department_name: string }>;
-      throw new Error(`Unknown department "${requested}". Departments: ${known.map((row) => row.department_name).join(", ")}.`);
+        .all(orgId) as Array<{ department_name: string }>;
+      throw new Error(`Unknown department "${requested}". Departments: ${known.map((entry) => entry.department_name).join(", ")}.`);
     }
-    const departmentName = policy.department_name;
+    return row.department_name;
+  }
+
+  enforceHiringPolicy(input: CreateAgentInput): HiringPolicyDecision {
+    const departmentName = this.requireCanonicalDepartment(input.orgId, input.department);
+    const policy = this.db.prepare(`
+      select max_headcount, monthly_budget_limit_cents, require_approval_above_cents
+      from hiring_policies
+      where org_id = ? and department_name = ?
+    `).get(input.orgId, departmentName) as HiringPolicyRow | undefined;
+    if (!policy) throw new Error("Hiring policy is required for department.");
     const usage = this.db.prepare(`
       select count(*) as headcount, coalesce(sum(budget_cents), 0) as budget_cents
       from agents
@@ -126,7 +136,6 @@ export class OrgGovernanceService {
 }
 
 interface HiringPolicyRow {
-  department_name: string;
   max_headcount: number;
   monthly_budget_limit_cents: number;
   require_approval_above_cents: number;

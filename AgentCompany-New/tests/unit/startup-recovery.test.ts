@@ -10,7 +10,7 @@ import { recoverInterruptedWork } from "../../src/main/app/startup-recovery";
 import { createId } from "../../src/shared/ids";
 
 describe("startup recovery", () => {
-  test("orphaned running runs fail at boot and the heartbeat re-enqueues the task", () => {
+  test("orphaned running runs return to the queue at boot without spending retry budget", () => {
     const connection = new DatabaseConnection(join(tmpdir(), `ac-recover-${randomUUID()}.db`));
     const onboarding = new OnboardingService({
       db: connection.db,
@@ -44,7 +44,7 @@ describe("startup recovery", () => {
     // The previous session claimed the run and left in-flight provider requests.
     const claimed = claimNextQueuedRun(connection);
     expect(claimed).toBeTruthy();
-    const insertRequest = (id: string, executionMode: string, state: string) => {
+    const insertRequest = (id: string, executionMode: string, externalResponseId: string | null) => {
       connection.db.prepare(`
         insert into provider_requests(
           id, org_id, provider_id, provider_key, workspace_id, model, prompt_sha256,
@@ -52,39 +52,44 @@ describe("startup recovery", () => {
           output_char_count, execution_mode, policy_decision, external_response_id,
           stream_event_count, cancelled_at, created_at, completed_at
         )
-        values (?, ?, ?, 'openai', null, 'gpt-5.1', 'sha', null, null, ?, null, 10, 0, ?, 'allowed', ?, 0, null, ?, null)
-      `).run(id, orgId, providerId, state, executionMode, executionMode === "background" ? "resp_ext" : null, new Date().toISOString());
+        values (?, ?, ?, 'openai', null, 'gpt-5.1', 'sha', null, null, 'pending', null, 10, 0, ?, 'allowed', ?, 0, null, ?, null)
+      `).run(id, orgId, providerId, executionMode, externalResponseId, new Date().toISOString());
     };
     const foregroundId = createId("preq");
-    const backgroundId = createId("preq");
-    insertRequest(foregroundId, "foreground", "pending");
-    insertRequest(backgroundId, "background", "pending");
+    const acceptedBackgroundId = createId("preq");
+    const unacceptedBackgroundId = createId("preq");
+    insertRequest(foregroundId, "foreground", null);
+    insertRequest(acceptedBackgroundId, "background", "resp_ext");
+    insertRequest(unacceptedBackgroundId, "background", null);
 
     connection.transaction(() => recoverInterruptedWork(connection.db));
 
-    const run = connection.db.prepare("select state, error_message, completed_at from task_runs where id = ?")
-      .get(claimed!.id) as { state: string; error_message: string; completed_at: string };
-    expect(run.state).toBe("failed");
-    expect(run.error_message).toContain("Interrupted");
-    expect(run.completed_at).toBeTruthy();
-
-    // Foreground orphans fail; background ones stay for the background worker.
-    expect(connection.db.prepare("select state from provider_requests where id = ?").get(foregroundId)).toMatchObject({ state: "failed" });
-    expect(connection.db.prepare("select state from provider_requests where id = ?").get(backgroundId)).toMatchObject({ state: "pending" });
-
-    // The interruption is auditable and the heartbeat immediately retries the task.
+    // Interruption is not failure: the run returns to the queue and is claimed again.
+    const run = connection.db.prepare("select state, started_at, error_message from task_runs where id = ?")
+      .get(claimed!.id) as { state: string; started_at: string | null; error_message: string | null };
+    expect(run).toMatchObject({ state: "queued", started_at: null, error_message: null });
     const audit = connection.db.prepare(
-      "select count(*) as n from audit_events where org_id = ? and entity_type = 'task_run' and action = 'failed'",
+      "select count(*) as n from audit_events where org_id = ? and entity_type = 'task_run' and action = 'requeued'",
     ).get(orgId) as { n: number };
     expect(audit.n).toBe(1);
-    const taskExecution = new TaskExecutionService(connection.db);
-    const enqueued = connection.transaction(() => taskExecution.enqueueHeartbeatRuns());
-    expect(enqueued).toHaveLength(1);
+    const reclaimed = claimNextQueuedRun(connection);
+    expect(reclaimed?.id).toBe(claimed!.id);
 
-    // Recovery is idempotent: a second boot changes nothing.
+    // The heartbeat does not double-enqueue the task while its run is live.
+    const taskExecution = new TaskExecutionService(connection.db);
+    expect(connection.transaction(() => taskExecution.enqueueHeartbeatRuns())).toEqual([]);
+
+    // Dead in-flight requests fail unless the background worker can resume them by external id.
+    expect(connection.db.prepare("select state from provider_requests where id = ?").get(foregroundId)).toMatchObject({ state: "failed" });
+    expect(connection.db.prepare("select state from provider_requests where id = ?").get(acceptedBackgroundId)).toMatchObject({ state: "pending" });
+    expect(connection.db.prepare("select state from provider_requests where id = ?").get(unacceptedBackgroundId)).toMatchObject({ state: "failed" });
+
+    // Recovery is idempotent for runs it already requeued and claimed work it does not own.
     connection.transaction(() => recoverInterruptedWork(connection.db));
-    const failedRuns = connection.db.prepare("select count(*) as n from task_runs where state = 'failed'").get() as { n: number };
-    expect(failedRuns.n).toBe(1);
+    const requeues = connection.db.prepare(
+      "select count(*) as n from audit_events where org_id = ? and entity_type = 'task_run' and action = 'requeued'",
+    ).get(orgId) as { n: number };
+    expect(requeues.n).toBe(2);
     connection.close();
   });
 });
