@@ -19,7 +19,15 @@ export interface ProviderEventStreamResponse {
   rateLimitState: ProviderObservedRateLimitState | null;
 }
 
-const PROVIDER_REQUEST_TIMEOUT_MS = 60_000;
+const HEADERS_TIMEOUT_MS = 60_000;
+const BODY_TIMEOUT_MS = 300_000;
+const STREAM_IDLE_TIMEOUT_MS = 60_000;
+
+export interface ProviderRequestTimeouts {
+  headersTimeoutMs?: number;
+  bodyTimeoutMs?: number;
+  idleTimeoutMs?: number;
+}
 
 export class ProviderHttpError extends Error {
   constructor(
@@ -35,7 +43,12 @@ export function providerRateLimitStateFromError(error: unknown): ProviderObserve
   return error instanceof ProviderHttpError ? error.rateLimitState : null;
 }
 
-export async function postJson(endpoint: string, headers: Record<string, string>, body: JsonRecord): Promise<ProviderJsonResponse> {
+export async function postJson(
+  endpoint: string,
+  headers: Record<string, string>,
+  body: JsonRecord,
+  timeouts: ProviderRequestTimeouts = {},
+): Promise<ProviderJsonResponse> {
   return requestJson(endpoint, {
     method: "POST",
     headers: {
@@ -43,7 +56,7 @@ export async function postJson(endpoint: string, headers: Record<string, string>
       ...headers,
     },
     body: JSON.stringify(body),
-  });
+  }, timeouts);
 }
 
 export async function getJson(endpoint: string, headers: Record<string, string>): Promise<ProviderJsonResponse> {
@@ -54,8 +67,10 @@ export async function postEventStream(
   endpoint: string,
   headers: Record<string, string>,
   body: JsonRecord,
+  timeouts: ProviderRequestTimeouts = {},
 ): Promise<ProviderEventStreamResponse> {
-  const response = await requestProvider(endpoint, {
+  const controller = new AbortController();
+  const response = await withDeadline(controller, timeouts.headersTimeoutMs ?? HEADERS_TIMEOUT_MS, () => fetch(endpoint, {
     method: "POST",
     headers: {
       accept: "text/event-stream",
@@ -63,22 +78,24 @@ export async function postEventStream(
       ...headers,
     },
     body: JSON.stringify(body),
-  });
+    signal: controller.signal,
+  }));
   const rateLimitState = parseProviderRateLimitHeaders(response.headers);
   if (!response.ok) {
-    const raw = await response.text();
+    const raw = await withDeadline(controller, timeouts.bodyTimeoutMs ?? BODY_TIMEOUT_MS, () => response.text());
     const data = parseProviderJson(raw, false);
     const message = readProviderError(data) ?? (raw.trim() || `Provider request failed with HTTP ${response.status}.`);
     throw new ProviderHttpError(message, rateLimitState);
   }
   if (!response.body) throw new ProviderHttpError("Provider returned an empty event stream.", rateLimitState);
-  return { messages: readServerSentEvents(response.body), rateLimitState };
+  return { messages: readServerSentEvents(response.body, timeouts.idleTimeoutMs ?? STREAM_IDLE_TIMEOUT_MS), rateLimitState };
 }
 
-async function requestJson(endpoint: string, init: RequestInit): Promise<ProviderJsonResponse> {
-  const response = await requestProvider(endpoint, init);
+async function requestJson(endpoint: string, init: RequestInit, timeouts: ProviderRequestTimeouts = {}): Promise<ProviderJsonResponse> {
+  const controller = new AbortController();
+  const response = await withDeadline(controller, timeouts.headersTimeoutMs ?? HEADERS_TIMEOUT_MS, () => fetch(endpoint, { ...init, signal: controller.signal }));
   const rateLimitState = parseProviderRateLimitHeaders(response.headers);
-  const raw = await response.text();
+  const raw = await withDeadline(controller, timeouts.bodyTimeoutMs ?? BODY_TIMEOUT_MS, () => response.text());
   const data = parseProviderJson(raw, response.ok);
   if (!response.ok) {
     const message = readProviderError(data) ?? (raw.trim() || `Provider request failed with HTTP ${response.status}.`);
@@ -87,24 +104,35 @@ async function requestJson(endpoint: string, init: RequestInit): Promise<Provide
   return { data, rateLimitState };
 }
 
-async function requestProvider(endpoint: string, init: RequestInit): Promise<Response> {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), PROVIDER_REQUEST_TIMEOUT_MS);
+/**
+ * Runs one phase of a provider request under a hard deadline. The abort
+ * controller covers the WHOLE request — a server that returns headers and
+ * then stalls the body must not hang the caller, so the body read gets its
+ * own (longer) deadline after the headers arrive.
+ */
+async function withDeadline<T>(controller: AbortController, timeoutMs: number, operation: () => Promise<T>): Promise<T> {
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    return await fetch(endpoint, { ...init, signal: controller.signal });
+    return await operation();
+  } catch (error) {
+    if (controller.signal.aborted) throw new ProviderHttpError("Provider request timed out.", null);
+    throw error;
   } finally {
-    clearTimeout(timeout);
+    clearTimeout(timer);
   }
 }
 
-export async function* readServerSentEvents(body: ReadableStream<Uint8Array>): AsyncIterable<ProviderEventStreamMessage> {
+export async function* readServerSentEvents(
+  body: ReadableStream<Uint8Array>,
+  idleTimeoutMs: number = STREAM_IDLE_TIMEOUT_MS,
+): AsyncIterable<ProviderEventStreamMessage> {
   const decoder = new TextDecoder();
   const state: EventStreamParseState = { eventName: null, dataLines: [] };
   let lineBuffer = "";
   const reader = body.getReader();
   try {
     for (;;) {
-      const { value, done } = await reader.read();
+      const { value, done } = await readWithIdleDeadline(reader, idleTimeoutMs);
       if (done) break;
       lineBuffer += decoder.decode(value, { stream: true });
       const lines = lineBuffer.split("\n");
@@ -121,8 +149,27 @@ export async function* readServerSentEvents(body: ReadableStream<Uint8Array>): A
     }
     const message = flushServerSentEvent(state);
     if (message) yield message;
+  } catch (error) {
+    await reader.cancel().catch(() => undefined);
+    throw error;
   } finally {
     reader.releaseLock();
+  }
+}
+
+/** A healthy event stream emits chunks continuously; a read that produces nothing within the idle window means the connection is dead. */
+async function readWithIdleDeadline(
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+  idleTimeoutMs: number,
+): Promise<ReadableStreamReadResult<Uint8Array>> {
+  let timer: NodeJS.Timeout | undefined;
+  const idle = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new ProviderHttpError("Provider stream timed out.", null)), idleTimeoutMs);
+  });
+  try {
+    return await Promise.race([reader.read(), idle]);
+  } finally {
+    clearTimeout(timer);
   }
 }
 
