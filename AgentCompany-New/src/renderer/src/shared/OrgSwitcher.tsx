@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { AppSnapshot, OrganizationRecord } from "../../../shared/domain";
 import { Icon } from "./Icon";
+import { CascadeMenu, CascadeRow } from "./CascadeMenu";
 
 function orgInitial(name: string): string {
   return name.trim().charAt(0).toUpperCase();
@@ -33,8 +34,8 @@ export function OrgSwitcher({ snapshot, activeOrgId, onSelect, onNew, onDelete }
     return () => document.removeEventListener("mousedown", onDocClick);
   }, [open]);
 
-  const initial = orgInitial(active.name);
   const orgs = snapshot.organizations;
+  const confirmingOrg = confirmingDelete ? orgs.find((org) => org.id === confirmingDelete) ?? null : null;
 
   const handleSelect = (orgId: string) => {
     setOpen(false);
@@ -58,96 +59,90 @@ export function OrgSwitcher({ snapshot, activeOrgId, onSelect, onNew, onDelete }
         aria-expanded={open}
         onClick={() => setOpen((value) => !value)}
       >
-        <span className="brand-mark">{initial}</span>
+        <span className="brand-mark">{orgInitial(active.name)}</span>
         <span className="brand-name">{active.name}</span>
-        <Icon name="chevronDown" size={12} color="var(--text-3)" />
+        <Icon name="chevronDown" size={14} color="var(--text-3)" />
       </button>
-      {open && (
+      {open && (confirmingOrg ? (
         <div role="menu" className="org-menu">
+          <div className="org-menu-confirm">
+            <div className="org-menu-confirm-title">Delete “{confirmingOrg.name}”?</div>
+            <div className="org-menu-confirm-hint">All agents, work, chats, and files are permanently removed.</div>
+            <div className="org-menu-confirm-actions">
+              <button type="button" className="org-menu-confirm-no" onClick={() => setConfirmingDelete(null)}>Cancel</button>
+              <button type="button" className="org-menu-confirm-yes" onClick={() => handleDelete(confirmingOrg.id)}>Delete</button>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <CascadeMenu className="org-menu">
           <div className="org-menu-section-label">Organizations</div>
           {orgs.map((org) => (
-            <OrgRow
+            <CascadeRow
               key={org.id}
-              org={org}
-              active={org.id === activeOrgId}
-              onSelect={() => handleSelect(org.id)}
-              confirming={confirmingDelete === org.id}
-              onAskDelete={() => setConfirmingDelete(org.id)}
-              onCancelDelete={() => setConfirmingDelete(null)}
-              onConfirmDelete={() => handleDelete(org.id)}
-            />
+              id={org.id}
+              submenu={(close) => (
+                <OrgActions
+                  org={org}
+                  isActive={org.id === activeOrgId}
+                  onSwitch={() => { close(); handleSelect(org.id); }}
+                  onDelete={() => { close(); setConfirmingDelete(org.id); }}
+                />
+              )}
+            >
+              <button
+                type="button"
+                role="menuitem"
+                className={`org-menu-row ${org.id === activeOrgId ? "active" : ""}`.trim()}
+                onClick={() => handleSelect(org.id)}
+              >
+                <span className="brand-mark sm">{orgInitial(org.name)}</span>
+                <span className="org-menu-name">{org.name}</span>
+                {org.id === activeOrgId && <Icon name="check" size={14} color="var(--text-1)" />}
+                <span className="org-menu-chevron"><Icon name="chevron" size={14} /></span>
+              </button>
+            </CascadeRow>
           ))}
           <div className="org-menu-divider" />
           <button
             type="button"
             role="menuitem"
             className="org-menu-action"
-            onClick={() => {
-              setOpen(false);
-              setConfirmingDelete(null);
-              onNew();
-            }}
+            onClick={() => { setOpen(false); setConfirmingDelete(null); onNew(); }}
           >
-            <Icon name="plus" size={13} color="var(--text-2)" />
+            <span className="icon-box" style={{ width: 18, height: 18 }}><Icon name="plus" size={16} color="var(--text-2)" /></span>
             <span>New organization</span>
           </button>
-        </div>
-      )}
+        </CascadeMenu>
+      ))}
     </div>
   );
 }
 
-function OrgRow({
+function OrgActions({
   org,
-  active,
-  onSelect,
-  confirming,
-  onAskDelete,
-  onCancelDelete,
-  onConfirmDelete,
+  isActive,
+  onSwitch,
+  onDelete,
 }: {
   org: OrganizationRecord;
-  active: boolean;
-  onSelect: () => void;
-  confirming: boolean;
-  onAskDelete: () => void;
-  onCancelDelete: () => void;
-  onConfirmDelete: () => void;
+  isActive: boolean;
+  onSwitch: () => void;
+  onDelete: () => void;
 }) {
-  const initial = orgInitial(org.name);
-  if (confirming) {
-    return (
-      <div className="org-menu-confirm">
-        <div className="org-menu-confirm-title">Delete “{org.name}”?</div>
-        <div className="org-menu-confirm-hint">All agents, work, chats, and files are permanently removed.</div>
-        <div className="org-menu-confirm-actions">
-          <button type="button" className="org-menu-confirm-no" onClick={onCancelDelete}>Cancel</button>
-          <button type="button" className="org-menu-confirm-yes" onClick={onConfirmDelete}>Delete</button>
-        </div>
-      </div>
-    );
-  }
   return (
-    <button
-      type="button"
-      role="menuitem"
-      className={`org-menu-row ${active ? "active" : ""}`.trim()}
-      onClick={onSelect}
-    >
-      <span className="brand-mark sm">{initial}</span>
-      <span className="org-menu-name">{org.name}</span>
-      {active && <Icon name="check" size={12} color="var(--text-1)" />}
-      <span
-        role="button"
-        aria-label={`Delete ${org.name}`}
-        className="org-menu-delete"
-        onClick={(event) => {
-          event.stopPropagation();
-          onAskDelete();
-        }}
-      >
-        <Icon name="x" size={12} color="var(--text-3)" />
-      </span>
-    </button>
+    <>
+      <div className="org-menu-section-label">{org.name}</div>
+      {!isActive && (
+        <button type="button" role="menuitem" className="org-menu-action" onClick={onSwitch}>
+          <span className="icon-box" style={{ width: 18, height: 18 }}><Icon name="arrowRight" size={16} color="var(--text-2)" /></span>
+          <span>Switch to this org</span>
+        </button>
+      )}
+      <button type="button" role="menuitem" className="org-menu-action danger" onClick={onDelete}>
+        <span className="icon-box" style={{ width: 18, height: 18 }}><Icon name="x" size={16} color="var(--red)" /></span>
+        <span>Delete organization</span>
+      </button>
+    </>
   );
 }

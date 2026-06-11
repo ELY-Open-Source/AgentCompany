@@ -342,6 +342,8 @@ a { color: inherit; }
   transition: background var(--motion-fast) var(--ease-out), color var(--motion-fast) var(--ease-out);
 }
 .org-menu-action:hover { background: var(--hover); color: var(--text-1); }
+.org-menu-action.danger { color: var(--red); }
+.org-menu-action.danger:hover { background: rgba(210, 59, 59, 0.1); color: var(--red); }
 .brand-mark.sm {
   width: 20px;
   height: 20px;
