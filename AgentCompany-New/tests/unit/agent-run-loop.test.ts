@@ -19,7 +19,8 @@ function fakeProvider(script: ScriptedTurn[]) {
   let index = 0;
   return {
     runToolTurn: async (): Promise<AgentTurnResult & { requestId: string }> => {
-      const turn = script[index] ?? { text: "done", toolCalls: [] };
+      // A run never ends on prose now; an exhausted script ends by calling finish.
+      const turn = script[index] ?? { text: "done", toolCalls: [call("finish", {})] };
       index += 1;
       return { text: turn.text, toolCalls: turn.toolCalls, rawResponseJson: "{}", requestId: `req_${index}` };
     },
@@ -33,14 +34,18 @@ function call(name: string, args: Record<string, unknown>): ToolCall {
 /** Mimics a weak model: it rambles in prose and skips tools unless the backend
  * compels a tool call. With forcing it posts a kickoff message, then stops. */
 function weakModelProvider() {
-  let forced = false;
+  let acted = false;
   return {
     runToolTurn: async (input: { toolChoice?: "auto" | "required" }): Promise<AgentTurnResult & { requestId: string }> => {
-      if (input.toolChoice === "required" && !forced) {
-        forced = true;
-        return { text: "Acting.", toolCalls: [call("send_message", { channel: "general", body: "Kicking off the company." })], rawResponseJson: "{}", requestId: "req_forced" };
+      // Left to itself this model rambles (no tools); compelled, it posts, then ends.
+      if (input.toolChoice !== "required") {
+        return { text: "Let me think about this some more.", toolCalls: [], rawResponseJson: "{}", requestId: "req_prose" };
       }
-      return { text: "Let me think about this some more.", toolCalls: [], rawResponseJson: "{}", requestId: "req_prose" };
+      if (!acted) {
+        acted = true;
+        return { text: "Acting.", toolCalls: [call("send_message", { channel: "general", body: "Kicking off the company." })], rawResponseJson: "{}", requestId: "req_act" };
+      }
+      return { text: "Done.", toolCalls: [call("finish", {})], rawResponseJson: "{}", requestId: "req_finish" };
     },
   };
 }
@@ -92,7 +97,7 @@ describe("agent run loop (real tool dispatch)", () => {
         call("write_deliverable", { path: "plan/operating-plan.md", content: "# Operating Plan\n\n1. Validate demand.\n2. Launch booking site.\n" }),
         call("send_message", { channel: "general", body: "Team staffed and the operating plan is live. Booking site is next." }),
       ] },
-      { text: "Team staffed, work delegated, plan written.", toolCalls: [] },
+      { text: "Team staffed, work delegated, plan written.", toolCalls: [call("finish", {})] },
     ];
 
     let toolResultNotifications = 0;
@@ -181,7 +186,7 @@ describe("agent run loop (real tool dispatch)", () => {
     };
     const script: ScriptedTurn[] = [
       { text: "escape", toolCalls: [call("write_deliverable", { path: "../escape.txt", content: "x" })] },
-      { text: "done", toolCalls: [] },
+      { text: "done", toolCalls: [call("finish", {})] },
     ];
     const result = await runAgentLoop(
       { providers: fakeProvider(script), tools: { db: connection.db, organization, chat: new ChatService(connection.db) } },
@@ -213,7 +218,7 @@ describe("agent run loop (real tool dispatch)", () => {
     await expect(runAgentLoop(
       { providers: fakeProvider([{ text: "Here is my plan: first I will think about it.", toolCalls: [] }]), tools: { db: connection.db, organization, chat: new ChatService(connection.db) } },
       { orgId, providerId, workspaceId: null, instructions: "i", initialUserTurn: "u", toolContext: ctx },
-    )).rejects.toThrow(/no action on its first turn/);
+    )).rejects.toThrow(/no tool call on a forced turn/);
     connection.close();
   });
 });

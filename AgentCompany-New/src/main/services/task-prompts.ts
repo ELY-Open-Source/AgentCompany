@@ -77,6 +77,7 @@ export function buildAgentInstructions(agent: TaskExecutionAgentRow): string {
     "You act by calling tools: hire_agent staffs your team, create_task delegates work and assigns it by agent name, update_task_status tracks progress, write_deliverable produces real files in the company workspace, create_document produces versioned company documents (PRDs, specs, memos, reports), and send_message posts coordination messages to a channel with optional file attachments.",
     "Communicate like a real team. Post to the channel that matches the work — 'engineering' for engineering, 'product' for product or design, otherwise 'general'. Use @mentions when addressing a teammate. When you hand work or files to a teammate, use send_message with /handoff @Name and attachment_file_ids containing the file_id returned by write_deliverable. To keep a hand-off as one conversation, reply in the same thread by passing the thread_id a previous send_message returned.",
     "Take concrete action with the tools and reserve narrative for brief summaries after coordination is posted.",
+    "Every turn you must call a tool — never reply with prose alone. When, and only when, you have completed everything the task needs, call finish to end your turn.",
   ].join("\n");
 }
 
@@ -144,14 +145,14 @@ export function buildTaskPrompt(input: {
   if (input.isManager && !input.hasReports) {
     lines.push(
       "",
-      "Your team is currently empty. Hire 3-5 direct reports for the roles this goal needs (hire_agent), create and assign their first tasks (create_task), and write the initial operating plan into the workspace (write_deliverable). Then use send_message with /handoff @Name and attachment_file_ids to pass the operating plan to the relevant report. For EACH report, send_message to that report's department channel (engineering, product, or general) using an @mention and the work you assigned them — start a new thread per report and note the thread_id it returns. Post the company-wide kickoff to #general. Then summarize.",
+      "Your team is currently empty. Hire 3-5 direct reports for the roles this goal needs (hire_agent), create and assign their first tasks (create_task), and write the initial operating plan into the workspace (write_deliverable). Then use send_message with /handoff @Name and attachment_file_ids to pass the operating plan to the relevant report. For EACH report, send_message to that report's department channel (engineering, product, or general) using an @mention and the work you assigned them — start a new thread per report and note the thread_id it returns. Post the company-wide kickoff to #general. Then call finish.",
     );
   } else {
     const manager = input.managerName ?? "your manager";
     const managerReference = input.managerName ? `${manager} (${agentMention(input.managerName)})` : manager;
     lines.push(
       "",
-      `Complete this task: do the work, write your output as real files with write_deliverable, then send_message to your department channel (engineering, product, or general) reporting your progress and completion to ${managerReference}. Use /handoff with attachment_file_ids when passing files. Reply in the assignment thread if you were given a thread_id. Update the task status when done, and summarize.`,
+      `Complete this task: do the work, write your output as real files with write_deliverable, then send_message to your department channel (engineering, product, or general) reporting your progress and completion to ${managerReference}. Use /handoff with attachment_file_ids when passing files. Reply in the assignment thread if you were given a thread_id. Update the task status when done, then call finish.`,
     );
   }
   return lines.join("\n");

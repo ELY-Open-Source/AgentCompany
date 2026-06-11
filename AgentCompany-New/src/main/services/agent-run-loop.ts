@@ -1,5 +1,5 @@
 import type { ProviderService } from "./provider-service";
-import { AGENT_TOOLS, dispatchAgentTool, type AgentToolContext, type AgentToolDeps } from "./agent-tools";
+import { AGENT_TOOLS, dispatchAgentTool, FINISH_TOOL, type AgentToolContext, type AgentToolDeps } from "./agent-tools";
 import type { AgentTurnMessage } from "./provider-tool-turn";
 
 const MAX_ITERATIONS = 12;
@@ -46,30 +46,37 @@ export async function runAgentLoop(deps: AgentRunLoopDeps, input: AgentRunLoopIn
       instructions: input.instructions,
       messages,
       tools: AGENT_TOOLS,
-      // Compel a concrete action on the opening turn so even a weak model
-      // cannot answer with prose and quietly finish a no-op; once it has acted,
-      // let it choose freely (continue working, or stop when done).
-      toolChoice: iteration === 1 ? "required" : "auto",
+      // Compel a tool call on every turn so a weak model cannot answer with
+      // prose and stop after a token gesture. The agent ends deliberately by
+      // calling `finish` — only after it has actually done the work.
+      toolChoice: "required",
     });
     lastRequestId = turn.requestId;
 
     if (turn.toolCalls.length === 0) {
-      if (iteration === 1) {
-        // The opening turn was forced to call a tool. None means the agent took
-        // no action at all — fail loudly instead of recording a deceptive
-        // "success" that hired no one, delegated nothing, and said nothing.
-        throw new Error("Agent took no action on its first turn — the model returned no tool calls.");
+      // The provider ignored the forced tool choice; treat it as no action.
+      throw new Error("Agent returned no tool call on a forced turn.");
+    }
+
+    const wantsFinish = turn.toolCalls.some((call) => call.name === FINISH_TOOL);
+    const actionable = turn.toolCalls.filter((call) => call.name !== FINISH_TOOL);
+    if (actionable.length > 0) {
+      messages.push({ role: "assistant", text: turn.text, toolCalls: actionable });
+      const results = actionable.map((call) => {
+        toolCallCount += 1;
+        return { toolCallId: call.id, toolName: call.name, output: dispatchAgentTool(deps.tools, input.toolContext, call) };
+      });
+      messages.push({ role: "tool", results });
+      deps.onToolResults?.();
+    }
+
+    if (wantsFinish) {
+      if (toolCallCount === 0) {
+        // Finishing before doing anything is the silent no-op we must reject.
+        throw new Error("Agent finished without taking any action.");
       }
       return { finalText: turn.text, iterations: iteration, toolCallCount, lastRequestId };
     }
-
-    messages.push({ role: "assistant", text: turn.text, toolCalls: turn.toolCalls });
-    const results = turn.toolCalls.map((call) => {
-      toolCallCount += 1;
-      return { toolCallId: call.id, toolName: call.name, output: dispatchAgentTool(deps.tools, input.toolContext, call) };
-    });
-    messages.push({ role: "tool", results });
-    deps.onToolResults?.();
   }
 
   throw new Error(`Agent run did not converge within ${MAX_ITERATIONS} iterations.`);

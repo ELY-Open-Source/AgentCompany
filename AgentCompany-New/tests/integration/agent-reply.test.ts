@@ -37,7 +37,7 @@ function scriptedTeam(): (input: ProviderToolTurnInput) => Promise<AgentTurnResu
       call("create_task", { title: "Build the booking API", description: "Ship the booking API.", assignee_agent_name: "Dana Lee" }),
       call("send_message", { channel: "engineering", body: `@${handle} you own the booking API — kicking off here.` }),
     ] },
-    { text: "Kickoff complete.", toolCalls: [] },
+    { text: "Kickoff complete.", toolCalls: [call("finish", {})] },
   ];
   return async (input: ProviderToolTurnInput): Promise<AgentTurnResult> => {
     if ((input.instructions ?? "").includes("Dana Lee")) {
@@ -46,11 +46,11 @@ function scriptedTeam(): (input: ProviderToolTurnInput) => Promise<AgentTurnResu
       const threadId = firstUser ? /thread_id="([^"]+)"/.exec(firstUser.text)?.[1] : undefined;
       const turn = dana === 0
         ? { text: "On it.", toolCalls: [call("send_message", { channel: "engineering", body: "On it — booking API design starting now.", ...(threadId ? { thread_id: threadId } : {}) })] }
-        : { text: "Replied.", toolCalls: [] };
+        : { text: "Replied.", toolCalls: [call("finish", {})] };
       dana += 1;
       return { text: turn.text, toolCalls: turn.toolCalls, rawResponseJson: "{}" };
     }
-    const turn = ceoScript[ceo] ?? { text: "done", toolCalls: [] };
+    const turn = ceoScript[ceo] ?? { text: "done", toolCalls: [call("finish", {})] };
     ceo += 1;
     return { text: turn.text, toolCalls: turn.toolCalls, rawResponseJson: "{}" };
   };

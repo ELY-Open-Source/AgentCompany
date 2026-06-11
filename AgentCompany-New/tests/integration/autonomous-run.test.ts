@@ -36,7 +36,7 @@ function scriptedCeo(): (input: ProviderToolTurnInput) => Promise<AgentTurnResul
       call("write_deliverable", { path: "plan/operating-plan.md", content: "# OrbitOps Operating Plan\n\n- Validate demand\n- Launch booking site\n" }),
     ] },
     { text: "Handing off the plan.", toolCalls: [] },
-    { text: "Team staffed, work delegated, plan written.", toolCalls: [] },
+    { text: "Team staffed, work delegated, plan written.", toolCalls: [call("finish", {})] },
   ];
   let index = 0;
   return async (input) => {
@@ -55,7 +55,7 @@ function scriptedCeo(): (input: ProviderToolTurnInput) => Promise<AgentTurnResul
         rawResponseJson: JSON.stringify({ id: `resp_${index}` }),
       };
     }
-    const turn = script[index] ?? { text: "done", toolCalls: [] };
+    const turn = script[index] ?? { text: "done", toolCalls: [call("finish", {})] };
     index += 1;
     return { text: turn.text, toolCalls: turn.toolCalls, rawResponseJson: JSON.stringify({ id: `resp_${index}` }) };
   };
@@ -169,14 +169,13 @@ describe("autonomous bootstrap run", () => {
     // The forced opening turn means each run must take a concrete action; it
     // posts to the company channel, then stops on the next (free) turn.
     const providers = new ProviderService(connection.db, providerAdapters, testVault, undefined, async (input) => {
-      if (input.toolChoice === "required") {
-        return {
-          text: "Reviewing the goal.",
-          toolCalls: [call("send_message", { channel: "general", body: "Reviewed the goal and posting the operating plan." })],
-          rawResponseJson: JSON.stringify({ id: "resp_goal_act" }),
-        };
-      }
-      return { text: "Done.", toolCalls: [], rawResponseJson: JSON.stringify({ id: "resp_goal_done" }) };
+      const acted = input.messages.some((message) => message.role === "tool");
+      if (acted) return { text: "Done.", toolCalls: [call("finish", {})], rawResponseJson: JSON.stringify({ id: "resp_goal_done" }) };
+      return {
+        text: "Reviewing the goal.",
+        toolCalls: [call("send_message", { channel: "general", body: "Reviewed the goal and posting the operating plan." })],
+        rawResponseJson: JSON.stringify({ id: "resp_goal_act" }),
+      };
     });
     const onboarding = new OnboardingService({ db: connection.db, saveProviderCredential: (input) => providers.saveCredential(input) });
     const organization = new OrganizationService(connection.db);
