@@ -60,6 +60,20 @@ describe("openai responses encoding", () => {
     ]));
     expect(result.toolCalls).toEqual([{ id: "c3", name: "write_deliverable", arguments: { path: "a" } }]);
   });
+
+  test("accumulates output_item.done when the completion output is empty (Codex/ChatGPT backend)", async () => {
+    // The Codex backend streams each tool call as an output_item.done event and
+    // then sends a response.completed whose response.output is [].
+    const result = await accumulateResponsesStream(stream([
+      { type: "response.output_item.added", item: { id: "fc1", type: "function_call", status: "in_progress", arguments: "", call_id: "call_1", name: "hire_agent" } },
+      { type: "response.function_call_arguments.done", arguments: '{"name":"Dr. Li"}', item_id: "fc1" },
+      { type: "response.output_item.done", item: { id: "fc1", type: "function_call", status: "completed", arguments: '{"name":"Dr. Li","department":"Engineering"}', call_id: "call_1", name: "hire_agent" } },
+      { type: "response.output_item.done", item: { id: "m1", type: "message", content: [{ type: "output_text", text: "Staffing the team." }] } },
+      { type: "response.completed", response: { output: [], status: "completed" } },
+    ]));
+    expect(result.toolCalls).toEqual([{ id: "call_1", name: "hire_agent", arguments: { name: "Dr. Li", department: "Engineering" } }]);
+    expect(result.text).toBe("Staffing the team.");
+  });
 });
 
 describe("openai chat completions encoding", () => {

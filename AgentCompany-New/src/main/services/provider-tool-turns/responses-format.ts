@@ -74,24 +74,37 @@ function errorText(data: JsonRecord): string {
 }
 
 /**
- * Accumulate a Responses SSE stream (Codex/Copilot) into the final result. The
- * result is accepted from the completion event's `response.output`.
+ * Accumulate a Responses SSE stream (Codex/Copilot) into the final result.
+ *
+ * The ChatGPT/Codex backend streams each output item in a
+ * `response.output_item.done` event and then sends a `response.completed`
+ * whose `response.output` is EMPTY. Reading only the completion event there
+ * loses every tool call (the model acted, but the turn parses as empty). So
+ * collect items as they finish and fall back to them when the completion
+ * carries no output of its own.
  */
 export async function accumulateResponsesStream(messages: AsyncIterable<ProviderEventStreamMessage>): Promise<AgentTurnResult> {
   const raw: string[] = [];
+  const streamed: unknown[] = [];
   for await (const message of messages) {
     raw.push(message.rawData);
     const type = eventType(message);
     if (!type) continue;
     if (type === "error" || type === "response.failed") throw new Error(errorText(message.data));
+    if (type === "response.output_item.done" && isRecord(message.data.item)) {
+      streamed.push(message.data.item);
+    }
     if (type === "response.completed" || type === "response.done" || type === "response.incomplete") {
       const response = isRecord(message.data.response) ? message.data.response : null;
-      if (response && Array.isArray(response.output)) {
-        const parsed = parseResponsesOutput(response);
-        return { text: parsed.text, toolCalls: parsed.toolCalls, rawResponseJson: JSON.stringify(raw) };
-      }
-      throw new Error("Responses completion event was missing response.output.");
+      const completionOutput = response && Array.isArray(response.output) ? response.output : [];
+      const output = completionOutput.length > 0 ? completionOutput : streamed;
+      const parsed = parseResponsesOutput({ output });
+      return { text: parsed.text, toolCalls: parsed.toolCalls, rawResponseJson: JSON.stringify(raw) };
     }
+  }
+  if (streamed.length > 0) {
+    const parsed = parseResponsesOutput({ output: streamed });
+    return { text: parsed.text, toolCalls: parsed.toolCalls, rawResponseJson: JSON.stringify(raw) };
   }
   throw new Error("Responses stream ended before a completion event.");
 }
