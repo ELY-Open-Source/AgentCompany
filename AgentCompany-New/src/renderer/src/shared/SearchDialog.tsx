@@ -116,10 +116,10 @@ export function SearchDialog({
             >
               <Pill>{LABELS[result.entityType]}</Pill>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 13, fontWeight: 540, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{result.title}</div>
+                <div style={{ fontSize: 14, fontWeight: 540, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{result.title}</div>
                 <div style={{ fontSize: 12, color: "var(--text-3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{result.preview}</div>
               </div>
-              <span style={{ fontSize: 11, color: "var(--text-3)" }}>{result.facets.type}</span>
+              <span style={{ fontSize: 12, color: "var(--text-3)" }}>{result.facets.type}</span>
             </button>
           ))}
         </div>

@@ -71,7 +71,7 @@ export function WorkspacePanel({
       <div className="card" style={{ padding: 18 }}>
         <div className="row" style={{ marginBottom: 12 }}>
           <div className="section-label">Workspaces</div>
-          <span style={{ marginLeft: "auto" }}><Button tone="ghost" onClick={() => setCreateOpen(true)}><Icon name="plus" size={13} /> Add</Button></span>
+          <span style={{ marginLeft: "auto" }}><Button tone="ghost" onClick={() => setCreateOpen(true)}><Icon name="plus" size={16} /> Add</Button></span>
         </div>
         {workspaces.map((workspace) => (
           <div key={workspace.id} className="row" style={{ padding: "8px 0", borderBottom: "1px solid var(--border-soft)" }}>
@@ -84,7 +84,7 @@ export function WorkspacePanel({
             </div>
           </div>
         ))}
-        {workspaces.length === 0 && <div style={{ fontSize: 13, color: "var(--text-3)" }}>No workspaces configured</div>}
+        {workspaces.length === 0 && <div style={{ fontSize: 14, color: "var(--text-3)" }}>No workspaces configured</div>}
       </div>
 
       <Dialog title="Add workspace" open={createOpen} submitLabel="Create" onClose={() => setCreateOpen(false)} onSubmit={submit}>
@@ -96,7 +96,7 @@ export function WorkspacePanel({
               const form = document.querySelector<HTMLFormElement>("form:has([name='localPath'])");
               if (form) void chooseDirectory(form);
             }}>
-              <Icon name="folder" size={13} /> Browse
+              <Icon name="folder" size={16} /> Browse
             </Button>
           </div>
         </Field>

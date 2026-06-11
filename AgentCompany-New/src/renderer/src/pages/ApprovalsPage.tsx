@@ -143,14 +143,14 @@ function ApprovalDetailDialog({
           <IconButton icon="x" label="Close" onClick={onClose} />
         </div>
         <div className="row" style={{ flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
-          <span style={{ fontSize: 11, color: tone.color, fontWeight: 540, letterSpacing: "0.02em" }}>{tone.label}</span>
+          <span style={{ fontSize: 12, color: tone.color, fontWeight: 540, letterSpacing: "0.02em" }}>{tone.label}</span>
           <span style={{ color: "var(--text-4)" }}>·</span>
           <Pill>{approval.kind}</Pill>
         </div>
-        <p style={{ margin: "0 0 16px", color: "var(--text-2)", fontSize: 13, lineHeight: 1.55, whiteSpace: "pre-wrap" }}>
+        <p style={{ margin: "0 0 16px", color: "var(--text-2)", fontSize: 14, lineHeight: 1.55, whiteSpace: "pre-wrap" }}>
           {approval.details}
         </p>
-        <div style={{ display: "grid", gridTemplateColumns: "100px 1fr", gap: "10px 14px", fontSize: 12.5 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "100px 1fr", gap: "10px 14px", fontSize: 12 }}>
           <span style={{ color: "var(--text-3)" }}>Requested by</span>
           <span>{requester}</span>
           {approval.sourceEntityType && (<><span style={{ color: "var(--text-3)" }}>Source</span><span>{humanizeKind(approval.sourceEntityType)}</span></>)}
@@ -199,7 +199,7 @@ function StatTile({ label, value, tone }: { label: string; value: string; tone?:
       <div className="card-label" style={{ marginBottom: 6 }}>{label}</div>
       <div
         className="num"
-        style={{ fontSize: 22, fontWeight: 600, color: tone === "amber" ? "var(--amber)" : "var(--text-1)", letterSpacing: "-0.02em" }}
+        style={{ fontSize: 18, fontWeight: 600, color: tone === "amber" ? "var(--amber)" : "var(--text-1)", letterSpacing: "-0.02em" }}
       >
         {value}
       </div>
@@ -241,12 +241,12 @@ function ApprovalRow({
       <div style={{ width: 3, alignSelf: "stretch", background: tone.color, borderRadius: 2 }} />
       <div style={{ minWidth: 0 }}>
         <div className="row" style={{ marginBottom: 4 }}>
-          <span style={{ fontSize: 11, color: tone.color, fontWeight: 540, letterSpacing: "0.02em" }}>{tone.label}</span>
+          <span style={{ fontSize: 12, color: tone.color, fontWeight: 540, letterSpacing: "0.02em" }}>{tone.label}</span>
           <span style={{ color: "var(--text-4)" }}>·</span>
           <Pill>{approval.kind}</Pill>
         </div>
         <div style={{ fontSize: 15, fontWeight: 540, letterSpacing: "-0.01em", marginBottom: 4 }}>{approval.title}</div>
-        <div style={{ fontSize: 13, color: "var(--text-2)", lineHeight: 1.5, marginBottom: 12, whiteSpace: "pre-wrap" }}>
+        <div style={{ fontSize: 14, color: "var(--text-2)", lineHeight: 1.5, marginBottom: 12, whiteSpace: "pre-wrap" }}>
           {approval.details}
         </div>
         <div className="row" style={{ gap: 8 }}>
@@ -282,7 +282,7 @@ function DecidedRow({
       style={{
         gap: 12,
         padding: "12px 18px",
-        fontSize: 13,
+        fontSize: 14,
         borderBottom: last ? "none" : "1px solid var(--border-soft)",
       }}
     >

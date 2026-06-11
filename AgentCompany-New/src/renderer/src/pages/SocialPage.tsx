@@ -82,9 +82,9 @@ export function SocialPage({ snapshot, actions }: PageProps) {
   return (
     <div className="page" style={{ display: "flex", flexDirection: "column", minHeight: 0, height: "100%", padding: "28px 32px 0" }}>
       <TopbarActions>
-        <Button onClick={() => setConnectOpen(true)}><Icon name="plus" size={13} /> Connect account</Button>
+        <Button onClick={() => setConnectOpen(true)}><Icon name="plus" size={16} /> Connect account</Button>
         <Button tone="primary" onClick={() => setDraftOpen(true)} disabled={accounts.length === 0}>
-          <Icon name="sparkle" size={13} /> Draft post
+          <Icon name="sparkle" size={16} /> Draft post
         </Button>
       </TopbarActions>
       <h1 className="page-h1">Social</h1>
@@ -224,12 +224,12 @@ function AccountCard({
       <div className="row" style={{ gap: 10, minWidth: 0 }}>
         <PlatformIcon platform={account.platform} />
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 13, fontWeight: 540, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{account.handle}</div>
-          <div style={{ fontSize: 11, color: "var(--text-3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{account.displayName}</div>
+          <div style={{ fontSize: 14, fontWeight: 540, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{account.handle}</div>
+          <div style={{ fontSize: 12, color: "var(--text-3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{account.displayName}</div>
         </div>
       </div>
       {authorizedName && (
-        <div className="row" style={{ fontSize: 11, color: "var(--text-3)", gap: 6 }}>
+        <div className="row" style={{ fontSize: 12, color: "var(--text-3)", gap: 6 }}>
           <span style={{ width: 6, height: 6, borderRadius: 3, background: "var(--green)" }} /> Authorized to {authorizedName}
         </div>
       )}
@@ -286,10 +286,10 @@ function PostRow({
           {post.state === "published" && <Pill tone="green" dot>Published</Pill>}
           {post.state === "cancelled" && <Pill tone="red">Cancelled</Pill>}
         </div>
-        <div style={{ fontSize: 13, color: "var(--text-1)", lineHeight: 1.5, marginBottom: 8, whiteSpace: "pre-wrap" }}>{post.bodyMd}</div>
+        <div style={{ fontSize: 14, color: "var(--text-1)", lineHeight: 1.5, marginBottom: 8, whiteSpace: "pre-wrap" }}>{post.bodyMd}</div>
         <div className="row" style={{ gap: 6 }}>
           <Avatar name={authorName} size="sm" bot={post.createdByEmployeeId === null} />
-          <span style={{ fontSize: 11, color: "var(--text-3)" }}>By {authorName}</span>
+          <span style={{ fontSize: 12, color: "var(--text-3)" }}>By {authorName}</span>
         </div>
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>

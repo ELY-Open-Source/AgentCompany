@@ -84,7 +84,7 @@ export function PinnedCard({
           <Icon name="pin" size={14} />
         </button>
       </div>
-      <div style={{ fontSize: 13, fontWeight: 540, letterSpacing: "-0.005em", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+      <div style={{ fontSize: 14, fontWeight: 540, letterSpacing: "-0.005em", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
         {file.name}
       </div>
       <div className="mono" style={{ color: "var(--text-3)", fontSize: 10, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
@@ -92,12 +92,12 @@ export function PinnedCard({
       </div>
       <div className="row" style={{ gap: 6 }}>
         <Pill tone={file.scanState === "approved" ? "green" : "red"}>{file.scanState === "approved" ? "Clean" : "Blocked"}</Pill>
-        <span className="mono" style={{ color: "var(--text-3)", fontSize: 11 }}>{grantCount}</span>
+        <span className="mono" style={{ color: "var(--text-3)", fontSize: 12 }}>{grantCount}</span>
       </div>
       <ScanLabelStrip file={file} />
       <div className="row" style={{ gap: 8, marginTop: "auto", minWidth: 0 }}>
         <Avatar name={ownerName} size="sm" bot={isAgentOwner(file)} />
-        <span style={{ fontSize: 11, color: "var(--text-3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        <span style={{ fontSize: 12, color: "var(--text-3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
           {formatRelative(file.updatedAt ?? file.createdAt)} · {ownerName.split(" ")[0]}
         </span>
       </div>

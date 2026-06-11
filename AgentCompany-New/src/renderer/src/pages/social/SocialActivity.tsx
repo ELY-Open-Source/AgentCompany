@@ -82,7 +82,7 @@ export function SocialActivity({
               </span>
               <span style={{ color: "var(--text-3)", fontSize: 12 }}>{accountHandle(grant.socialAccountId)}</span>
               <Pill tone="violet">{humanize(grant.role)}</Pill>
-              <span style={{ marginLeft: "auto", fontSize: 11, color: "var(--text-3)" }}>{scopeSummary(grant.scopeJson)}</span>
+              <span style={{ marginLeft: "auto", fontSize: 12, color: "var(--text-3)" }}>{scopeSummary(grant.scopeJson)}</span>
             </div>
           ))}
         </div>
@@ -95,10 +95,10 @@ export function SocialActivity({
               className="row"
               style={{ gap: 10, padding: "10px 16px", borderBottom: index === entries.length - 1 ? "none" : "1px solid var(--border-soft)" }}
             >
-              <span style={{ fontSize: 12.5, fontWeight: 500 }}>{entry.label}</span>
+              <span style={{ fontSize: 12, fontWeight: 500 }}>{entry.label}</span>
               <span style={{ fontSize: 12, color: "var(--text-3)" }}>{accountHandle(entry.accountId)}</span>
               <Pill tone={policyTone(entry.policyDecision)}>{humanize(entry.policyDecision)}</Pill>
-              <span style={{ marginLeft: "auto", fontSize: 11, color: "var(--text-3)" }}>
+              <span style={{ marginLeft: "auto", fontSize: 12, color: "var(--text-3)" }}>
                 {entry.actorType === "agent" ? "agent" : employeeName(entry.actorId)} · {formatRelative(entry.createdAt)}
               </span>
             </div>

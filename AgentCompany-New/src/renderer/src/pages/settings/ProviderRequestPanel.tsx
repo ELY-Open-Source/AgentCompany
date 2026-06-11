@@ -105,7 +105,7 @@ export function ProviderRequestPanel({
           </div>
           <Button type="submit" tone="primary">
             <span className="row" style={{ gap: 6 }}>
-              <Icon name="send" size={13} />
+              <Icon name="send" size={16} />
               Run
             </span>
           </Button>
@@ -169,7 +169,7 @@ function ProviderRequestRow({
     >
       <div style={{ minWidth: 0 }}>
         <div style={{ fontWeight: 540, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{provider.label}</div>
-        <div className="mono" style={{ fontSize: 11, color: "var(--text-3)" }}>{request.model}</div>
+        <div className="mono" style={{ fontSize: 12, color: "var(--text-3)" }}>{request.model}</div>
       </div>
       <div className="mono" style={{ color: "var(--text-2)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{workspace?.name ?? "Organization"}</div>
       <div className="mono" style={{ color: "var(--text-2)" }}>{request.executionMode}</div>

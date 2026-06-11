@@ -68,7 +68,7 @@ export function ChatThreadPanel({
       }}
     >
       <div className="row" style={{ padding: "14px 16px", borderBottom: "1px solid var(--border-soft)", flexShrink: 0 }}>
-        <div style={{ fontSize: 12.5, fontWeight: 600 }}>Thread</div>
+        <div style={{ fontSize: 12, fontWeight: 600 }}>Thread</div>
         <Pill tone={boardStateTone(thread.boardState)}>{boardStateLabel(thread.boardState)}</Pill>
         <div style={{ marginLeft: "auto" }}>
           <IconButton icon="x" label="Close thread" onClick={onClose} />
@@ -134,7 +134,7 @@ export function ChatThreadPanel({
             <IconButton icon="attach" label="Attach file" onClick={onAttach} />
             {attachment && (
               <span className="pill" style={{ maxWidth: 150 }}>
-                <Icon name="file" size={11} />
+                <Icon name="file" size={14} />
                 <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{attachment.name}</span>
                 <button
                   type="button"
@@ -142,7 +142,7 @@ export function ChatThreadPanel({
                   onClick={() => onAttachmentChange("")}
                   style={{ display: "inline-flex", border: 0, background: "transparent", padding: 0, color: "var(--text-3)", cursor: "pointer" }}
                 >
-                  <Icon name="x" size={11} />
+                  <Icon name="x" size={14} />
                 </button>
               </span>
             )}
@@ -215,7 +215,7 @@ function BoardControl({
           {interventions.map((intervention) => (
             <div key={intervention.id} style={{ borderTop: "1px solid var(--border-soft)", paddingTop: 7 }}>
               <div className="row" style={{ gap: 6, marginBottom: 3 }}>
-                <span className="mono" style={{ fontSize: 11, color: "var(--text-3)" }}>{formatTime(intervention.createdAt)}</span>
+                <span className="mono" style={{ fontSize: 12, color: "var(--text-3)" }}>{formatTime(intervention.createdAt)}</span>
                 <Pill tone={intervention.mode === "takeover" ? "violet" : intervention.action === "freeze" ? "red" : undefined}>
                   {formatBoardAction(intervention.action)}
                 </Pill>
@@ -264,7 +264,7 @@ function AuditReplay({ events }: { events: AuditEventRecord[] }) {
               minWidth: 0,
             }}
           >
-            <span className="mono" style={{ fontSize: 11, color: "var(--text-3)", flexShrink: 0 }}>{formatTime(event.createdAt)}</span>
+            <span className="mono" style={{ fontSize: 12, color: "var(--text-3)", flexShrink: 0 }}>{formatTime(event.createdAt)}</span>
             <span style={{ fontSize: 12, color: "var(--text-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
               {auditEventLabel(event.entityType, event.action)}
             </span>

@@ -53,7 +53,7 @@ export function SkillsPanel({ orgId, skills, revisions, bindings, tests, agents,
           </p>
         </div>
         <div style={{ marginLeft: "auto" }}>
-          <Button tone="primary" onClick={() => setImportOpen(true)}><Icon name="plus" size={13} /> Import</Button>
+          <Button tone="primary" onClick={() => setImportOpen(true)}><Icon name="plus" size={16} /> Import</Button>
         </div>
       </div>
 
@@ -77,7 +77,7 @@ export function SkillsPanel({ orgId, skills, revisions, bindings, tests, agents,
             >
               <div style={{ minWidth: 0 }}>
                 <div style={{ fontWeight: 540, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{skill.name}</div>
-                <div style={{ color: "var(--text-3)", fontSize: 11 }}>{skill.slug}</div>
+                <div style={{ color: "var(--text-3)", fontSize: 12 }}>{skill.slug}</div>
               </div>
               <Pill>{latest ? latest.versionSemver : "—"}</Pill>
               <Pill>{testSummary(revisionTests)}</Pill>

@@ -45,7 +45,7 @@ export function KnowledgePage({ snapshot, actions }: PageProps) {
           <option value="all">All categories</option>
           {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
         </select>
-        <Button tone="primary" onClick={() => setCreateOpen(true)}><Icon name="plus" size={13} /> Add entry</Button>
+        <Button tone="primary" onClick={() => setCreateOpen(true)}><Icon name="plus" size={16} /> Add entry</Button>
       </TopbarActions>
       <h1 className="page-h1">Knowledge Base</h1>
       <p className="page-sub">{entries.length} {entries.length === 1 ? "entry" : "entries"}</p>
@@ -61,10 +61,10 @@ export function KnowledgePage({ snapshot, actions }: PageProps) {
               <Pill>{entry.category}</Pill>
               <Pill tone={importanceTone(entry.importance)}>{entry.importance}</Pill>
             </div>
-            <div style={{ fontSize: 13, color: "var(--text-2)", lineHeight: 1.5, whiteSpace: "pre-wrap", maxHeight: 120, overflow: "hidden" }}>
+            <div style={{ fontSize: 14, color: "var(--text-2)", lineHeight: 1.5, whiteSpace: "pre-wrap", maxHeight: 120, overflow: "hidden" }}>
               {entry.content}
             </div>
-            <div style={{ marginTop: 8, fontSize: 11, color: "var(--text-3)" }}>{formatRelative(entry.updatedAt)}</div>
+            <div style={{ marginTop: 8, fontSize: 12, color: "var(--text-3)" }}>{formatRelative(entry.updatedAt)}</div>
           </article>
         ))}
       </div>

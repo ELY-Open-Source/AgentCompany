@@ -121,9 +121,9 @@ export function TaskDetailDialog({
         )}
 
         <div className="modal-actions">
-          <Button tone="ghost" onClick={deleteTask}><Icon name="x" size={13} /> Delete</Button>
-          {assignee && <Button onClick={() => onRun(task)} disabled={!canRun(provider)}><Icon name="send" size={13} /> Run</Button>}
-          {advanceTo && <Button tone="primary" onClick={() => onAdvance(task)}><Icon name="check" size={13} /> {prettyStatus(advanceTo)}</Button>}
+          <Button tone="ghost" onClick={deleteTask}><Icon name="x" size={16} /> Delete</Button>
+          {assignee && <Button onClick={() => onRun(task)} disabled={!canRun(provider)}><Icon name="send" size={16} /> Run</Button>}
+          {advanceTo && <Button tone="primary" onClick={() => onAdvance(task)}><Icon name="check" size={16} /> {prettyStatus(advanceTo)}</Button>}
         </div>
 
         {editing && <EditOverlay task={task} agents={agents} allTasks={allTasks} onSubmit={submitEdit} onCancel={() => setEditing(false)} />}
@@ -140,9 +140,9 @@ function OverviewTab({ task, assignee, project, goal, workspace, provider, runs 
   return (
     <>
       {task.description && (
-        <p style={{ margin: "0 0 14px", color: "var(--text-2)", fontSize: 13, lineHeight: 1.55, whiteSpace: "pre-wrap" }}>{task.description}</p>
+        <p style={{ margin: "0 0 14px", color: "var(--text-2)", fontSize: 14, lineHeight: 1.55, whiteSpace: "pre-wrap" }}>{task.description}</p>
       )}
-      <div style={{ display: "grid", gridTemplateColumns: "100px 1fr", gap: "8px 14px", fontSize: 12.5 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "100px 1fr", gap: "8px 14px", fontSize: 12 }}>
         <MetaLabel>Assignee</MetaLabel>
         <div className="row" style={{ gap: 8 }}>
           {assignee ? (<><Avatar name={assignee.name} size="sm" bot /><span>{assignee.name}</span>{provider && <span style={{ color: "var(--text-3)" }}>({provider.label})</span>}</>) : <span style={{ color: "var(--text-4)" }}>Unassigned</span>}
@@ -177,13 +177,13 @@ function OverviewTab({ task, assignee, project, goal, workspace, provider, runs 
 function SubtasksTab({ subtasks, agents }: { subtasks: TaskRecord[]; agents: AgentRecord[] }) {
   return (
     <div style={{ minHeight: 60 }}>
-      {subtasks.length === 0 && <div style={{ fontSize: 13, color: "var(--text-3)" }}>No subtasks</div>}
+      {subtasks.length === 0 && <div style={{ fontSize: 14, color: "var(--text-3)" }}>No subtasks</div>}
       {subtasks.map((st) => {
         const owner = agents.find((a) => a.id === st.assigneeAgentId);
         return (
           <div key={st.id} className="row" style={{ gap: 10, padding: "8px 0", borderBottom: "1px solid var(--border-soft)" }}>
-            <Icon name={st.status === TASK_STATUS.DONE ? "check" : "work"} size={13} color={st.status === TASK_STATUS.DONE ? "var(--green)" : "var(--text-3)"} />
-            <span style={{ flex: 1, fontSize: 13, fontWeight: 480, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{st.title}</span>
+            <Icon name={st.status === TASK_STATUS.DONE ? "check" : "work"} size={16} color={st.status === TASK_STATUS.DONE ? "var(--green)" : "var(--text-3)"} />
+            <span style={{ flex: 1, fontSize: 14, fontWeight: 480, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{st.title}</span>
             <Pill>{prettyStatus(st.status)}</Pill>
             {owner && <Avatar name={owner.name} size="sm" bot />}
           </div>
@@ -202,18 +202,18 @@ function ActivityTab({ audit, approvals }: { audit: AuditEventRecord[]; approval
           {approvals.map((a) => (
             <div key={a.id} className="row" style={{ gap: 8, padding: "6px 0" }}>
               <Pill tone={a.state === "approved" ? "green" : a.state === "pending" ? "amber" : "red"}>{a.state}</Pill>
-              <span style={{ fontSize: 12.5 }}>{a.title}</span>
-              <span className="mono" style={{ marginLeft: "auto", fontSize: 11, color: "var(--text-3)" }}>{formatRelative(a.createdAt)}</span>
+              <span style={{ fontSize: 12 }}>{a.title}</span>
+              <span className="mono" style={{ marginLeft: "auto", fontSize: 12, color: "var(--text-3)" }}>{formatRelative(a.createdAt)}</span>
             </div>
           ))}
         </div>
       )}
       <div className="section-label">Events</div>
-      {audit.length === 0 && <div style={{ fontSize: 13, color: "var(--text-3)" }}>No events</div>}
+      {audit.length === 0 && <div style={{ fontSize: 14, color: "var(--text-3)" }}>No events</div>}
       {audit.map((e) => (
         <div key={e.id} className="row" style={{ gap: 8, padding: "5px 0" }}>
-          <span className="mono" style={{ fontSize: 11, color: "var(--text-3)", flexShrink: 0 }}>{formatRelative(e.createdAt)}</span>
-          <span style={{ fontSize: 12.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{auditEventLabel(e.entityType, e.action)}</span>
+          <span className="mono" style={{ fontSize: 12, color: "var(--text-3)", flexShrink: 0 }}>{formatRelative(e.createdAt)}</span>
+          <span style={{ fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{auditEventLabel(e.entityType, e.action)}</span>
         </div>
       ))}
     </div>

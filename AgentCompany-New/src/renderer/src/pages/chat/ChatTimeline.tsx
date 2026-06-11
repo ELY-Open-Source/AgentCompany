@@ -94,7 +94,7 @@ function DayDivider({ label }: { label: string }) {
   return (
     <div className="row" style={{ gap: 12, margin: "8px 0 16px" }}>
       <div style={{ flex: 1, height: 1, background: "var(--border-soft)" }} />
-      <div style={{ fontSize: 11, color: "var(--text-3)", fontWeight: 540 }}>{label}</div>
+      <div style={{ fontSize: 12, color: "var(--text-3)", fontWeight: 540 }}>{label}</div>
       <div style={{ flex: 1, height: 1, background: "var(--border-soft)" }} />
     </div>
   );
@@ -126,7 +126,7 @@ function ApprovalInline({
         <Pill tone={approval.risk === "high" ? "red" : approval.risk === "medium" ? "amber" : undefined}>{approval.risk}</Pill>
       </div>
       <div style={{ fontSize: 14, fontWeight: 540, marginBottom: 4 }}>{approval.title}</div>
-      <div style={{ fontSize: 12.5, color: "var(--text-3)", marginBottom: 12, lineHeight: 1.5 }}>{approval.details}</div>
+      <div style={{ fontSize: 12, color: "var(--text-3)", marginBottom: 12, lineHeight: 1.5 }}>{approval.details}</div>
       <div className="row" style={{ gap: 6 }}>
         <Button tone="primary" size="small" onClick={onApprove}>Approve</Button>
         <Button size="small" onClick={onDecline}>Decline</Button>

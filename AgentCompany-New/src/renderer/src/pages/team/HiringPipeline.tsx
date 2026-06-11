@@ -54,12 +54,12 @@ export function HiringPipeline({ agents, approvals }: { agents: AgentRecord[]; a
                     <div className="row" style={{ gap: 8 }}>
                       <Avatar name={entry.agent.name} size="sm" bot />
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 12.5, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{entry.agent.name}</div>
-                        <div style={{ fontSize: 11, color: "var(--text-3)" }}>{entry.agent.role} · {entry.agent.department}</div>
+                        <div style={{ fontSize: 12, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{entry.agent.name}</div>
+                        <div style={{ fontSize: 12, color: "var(--text-3)" }}>{entry.agent.role} · {entry.agent.department}</div>
                       </div>
                     </div>
                     {entry.approval && (
-                      <div style={{ marginTop: 6, fontSize: 11, color: "var(--text-3)" }}>
+                      <div style={{ marginTop: 6, fontSize: 12, color: "var(--text-3)" }}>
                         {formatRelative(entry.approval.createdAt)}
                       </div>
                     )}

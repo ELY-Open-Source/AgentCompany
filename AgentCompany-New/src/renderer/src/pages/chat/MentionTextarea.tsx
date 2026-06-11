@@ -133,7 +133,7 @@ export function MentionTextarea({
                 border: 0,
                 background: i === index ? "var(--accent-soft)" : "transparent",
                 cursor: "pointer",
-                fontSize: 13,
+                fontSize: 14,
                 color: "var(--text-1)",
                 textAlign: "left",
               }}
@@ -155,7 +155,7 @@ export function MentionTextarea({
           border: 0,
           resize: "none",
           outline: "none",
-          fontSize: 13,
+          fontSize: 14,
           color: "var(--text-1)",
           background: "transparent",
           padding: 0,

@@ -62,11 +62,11 @@ export function InboxPage({ snapshot }: PageProps) {
                 <div className="row" style={{ gap: 10 }}>
                   {item.agentName && <Avatar name={item.agentName} size="sm" bot />}
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 13, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.title}</div>
+                    <div style={{ fontSize: 14, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.title}</div>
                     <div style={{ fontSize: 12, color: "var(--text-3)" }}>{item.detail}</div>
                   </div>
                   <Pill tone={item.tone}>{humanize(item.kind)}</Pill>
-                  <span className="mono" style={{ fontSize: 11, color: "var(--text-3)", flexShrink: 0 }}>{formatRelative(item.timestamp)}</span>
+                  <span className="mono" style={{ fontSize: 12, color: "var(--text-3)", flexShrink: 0 }}>{formatRelative(item.timestamp)}</span>
                 </div>
               </div>
             ))}
@@ -155,7 +155,7 @@ function MetricCard({ label, value, sub }: { label: string; value: string; sub?:
     <div className="card" style={{ padding: 14 }}>
       <div className="card-label" style={{ marginBottom: 6 }}>{label}</div>
       <div className="row" style={{ alignItems: "baseline", gap: 4 }}>
-        <span className="num" style={{ fontSize: 24, fontWeight: 600 }}>{value}</span>
+        <span className="num" style={{ fontSize: 18, fontWeight: 600 }}>{value}</span>
         {sub && <span style={{ fontSize: 12, color: "var(--text-3)" }}>{sub}</span>}
       </div>
     </div>

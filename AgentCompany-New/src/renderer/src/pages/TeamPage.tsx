@@ -97,9 +97,9 @@ export function TeamPage({ snapshot, actions }: PageProps) {
     <div className="page">
       <TopbarActions>
         <Button tone="ghost" onClick={() => cycleFilter(filter, setFilter)} title="Filter">
-          <Icon name="filter" size={13} /> {filterLabel(filter)}
+          <Icon name="filter" size={16} /> {filterLabel(filter)}
         </Button>
-        <Button tone="primary" onClick={openHireDialog}><Icon name="plus" size={13} /> Hire</Button>
+        <Button tone="primary" onClick={openHireDialog}><Icon name="plus" size={16} /> Hire</Button>
       </TopbarActions>
       <h1 className="page-h1">Team</h1>
       <p className="page-sub">
@@ -266,7 +266,7 @@ function RosterRow({ row, last, onEdit }: { row: RosterEntry; last: boolean; onE
         <Avatar name={row.name} size="sm" bot={!row.human} />
         <div style={{ minWidth: 0 }}>
           <div style={{ fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{row.name}</div>
-          <div style={{ fontSize: 11, color: "var(--text-3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{row.role}</div>
+          <div style={{ fontSize: 12, color: "var(--text-3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{row.role}</div>
         </div>
       </div>
       <div style={{ color: "var(--text-2)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{row.dept}</div>
@@ -296,7 +296,7 @@ function RosterRow({ row, last, onEdit }: { row: RosterEntry; last: boolean; onE
                 }}
               />
             </div>
-            <span className="num mono" style={{ fontSize: 11, color: "var(--text-3)" }}>{money(row.budgetCents)}</span>
+            <span className="num mono" style={{ fontSize: 12, color: "var(--text-3)" }}>{money(row.budgetCents)}</span>
           </div>
         )}
       </div>

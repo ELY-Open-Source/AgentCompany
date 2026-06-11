@@ -41,7 +41,7 @@ export function ChatSidebar({
   return (
     <aside className="secondary-pane">
       <div className="row" style={{ padding: "4px 8px 12px" }}>
-        <div style={{ fontSize: 13, fontWeight: 600 }}>Messages</div>
+        <div style={{ fontSize: 14, fontWeight: 600 }}>Messages</div>
         <IconButton icon="plus" label="New space" onClick={onCreateSpace} />
       </div>
       <div className="pane-scroll">
@@ -81,7 +81,7 @@ export function ChatSidebar({
 function NavGroup({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div style={{ marginTop: 10 }}>
-      <div style={{ fontSize: 11, color: "var(--text-3)", padding: "6px 8px", fontWeight: 540, letterSpacing: "0.02em" }}>{label}</div>
+      <div style={{ fontSize: 12, color: "var(--text-3)", padding: "6px 8px", fontWeight: 540, letterSpacing: "0.02em" }}>{label}</div>
       <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>{children}</div>
     </div>
   );
@@ -104,7 +104,7 @@ function ChannelItem({
 }) {
   return (
     <button type="button" className={`nav-item ${active ? "active" : ""}`.trim()} onClick={onClick}>
-      <Icon name={space.visibility === "restricted" ? "lock" : "hash"} size={13} color={active ? "var(--text-1)" : "var(--text-3)"} />
+      <Icon name={space.visibility === "restricted" ? "lock" : "hash"} size={16} color={active ? "var(--text-1)" : "var(--text-3)"} />
       <span>{space.name}</span>
       {count > 0 && <span className="nav-badge">{count}</span>}
     </button>
@@ -136,7 +136,7 @@ function DirectItem({
           {dotColor && <span className="presence-dot" style={{ background: dotColor }} />}
         </span>
       ) : (
-        <Icon name="user" size={13} />
+        <Icon name="user" size={16} />
       )}
       <span>{space.name}</span>
       {count > 0 && <span className="nav-badge">{count}</span>}

@@ -70,7 +70,7 @@ export function DocumentsPage({ snapshot, actions }: PageProps) {
           <option value="all">All types</option>
           {DOC_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
         </select>
-        <Button tone="primary" onClick={() => setCreateOpen(true)}><Icon name="plus" size={13} /> New document</Button>
+        <Button tone="primary" onClick={() => setCreateOpen(true)}><Icon name="plus" size={16} /> New document</Button>
       </TopbarActions>
       <h1 className="page-h1">Documents</h1>
       <p className="page-sub">{documents.length} {documents.length === 1 ? "document" : "documents"}</p>

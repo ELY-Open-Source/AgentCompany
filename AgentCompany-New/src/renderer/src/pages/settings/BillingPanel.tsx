@@ -36,7 +36,7 @@ export function BillingPanel({
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 20 }}>
         <div className="card" style={{ padding: 14 }}>
           <div className="card-label" style={{ marginBottom: 8 }}>Token usage (30d)</div>
-          <div style={{ display: "grid", gridTemplateColumns: "100px 1fr", gap: "6px 14px", fontSize: 12.5 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "100px 1fr", gap: "6px 14px", fontSize: 12 }}>
             <span style={{ color: "var(--text-3)" }}>Input chars</span><span className="num">{totalInputChars.toLocaleString()}</span>
             <span style={{ color: "var(--text-3)" }}>Output chars</span><span className="num">{totalOutputChars.toLocaleString()}</span>
             <span style={{ color: "var(--text-3)" }}>Total</span><span className="num">{(totalInputChars + totalOutputChars).toLocaleString()}</span>
@@ -66,8 +66,8 @@ export function BillingPanel({
             </div>
             <div className="num mono">{money(row.agent.budgetCents)}</div>
             <div className="num mono">{row.requestCount}</div>
-            <div className="num mono" style={{ fontSize: 11 }}>{row.inputChars.toLocaleString()}</div>
-            <div className="num mono" style={{ fontSize: 11 }}>{row.outputChars.toLocaleString()}</div>
+            <div className="num mono" style={{ fontSize: 12 }}>{row.inputChars.toLocaleString()}</div>
+            <div className="num mono" style={{ fontSize: 12 }}>{row.outputChars.toLocaleString()}</div>
           </div>
         ))}
       </div>
@@ -85,7 +85,7 @@ export function BillingPanel({
             <div key={provider.id} className="table-row" style={{ gridTemplateColumns: "minmax(0, 1.6fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr)", borderBottom: index === providers.length - 1 ? "none" : "1px solid var(--border-soft)" }}>
               <div style={{ minWidth: 0 }}>
                 <div style={{ fontWeight: 540 }}>{provider.label}</div>
-                {provider.model && <div style={{ fontSize: 11, color: "var(--text-3)" }}>{provider.model}</div>}
+                {provider.model && <div style={{ fontSize: 12, color: "var(--text-3)" }}>{provider.model}</div>}
               </div>
               <div className="num mono">{requests.length}</div>
               <div>{errors > 0 ? <Pill tone="amber">{errors}</Pill> : <span className="num mono" style={{ color: "var(--text-3)" }}>0</span>}</div>
@@ -102,7 +102,7 @@ function StatTile({ label, value, tone }: { label: string; value: string; tone?:
   return (
     <div className="card" style={{ padding: 14 }}>
       <div className="card-label" style={{ marginBottom: 6 }}>{label}</div>
-      <div className="num" style={{ fontSize: 22, fontWeight: 600, color: tone === "red" ? "var(--red)" : "var(--text-1)" }}>{value}</div>
+      <div className="num" style={{ fontSize: 18, fontWeight: 600, color: tone === "red" ? "var(--red)" : "var(--text-1)" }}>{value}</div>
     </div>
   );
 }

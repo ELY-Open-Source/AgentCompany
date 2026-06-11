@@ -75,7 +75,7 @@ export function FilesPage({ snapshot, actions }: PageProps) {
             ]}
           />
           <Button tone="primary" onClick={upload}>
-            <Icon name="upload" size={13} /> Upload
+            <Icon name="upload" size={16} /> Upload
           </Button>
         </TopbarActions>
         <h1 className="page-h1">Files</h1>
@@ -104,7 +104,7 @@ export function FilesPage({ snapshot, actions }: PageProps) {
 
           <div className="row" style={{ marginBottom: 10 }}>
             <div className="section-label">{labelFor(section)}</div>
-            <div style={{ marginLeft: "auto", fontSize: 11, color: "var(--text-3)" }}>Modified ↓</div>
+            <div style={{ marginLeft: "auto", fontSize: 12, color: "var(--text-3)" }}>Modified ↓</div>
           </div>
 
           {view === "list" ? (
@@ -148,7 +148,7 @@ function FilesFilter({
     <Popover
       trigger={({ toggle }) => (
         <button type="button" className="button ghost" aria-label="Filter files" onClick={toggle}>
-          <Icon name="filter" size={13} color={scan !== "all" ? "var(--accent)" : "currentColor"} />
+          <Icon name="filter" size={16} color={scan !== "all" ? "var(--accent)" : "currentColor"} />
         </button>
       )}
     >
@@ -158,7 +158,7 @@ function FilesFilter({
           {options.map((option) => (
             <MenuRow key={option.id} active={scan === option.id} onClick={() => onScan(option.id)}>
               {option.label}
-              {scan === option.id && <span className="menu-check"><Icon name="check" size={13} /></span>}
+              {scan === option.id && <span className="menu-check"><Icon name="check" size={16} /></span>}
             </MenuRow>
           ))}
         </>

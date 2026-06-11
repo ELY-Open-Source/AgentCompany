@@ -89,7 +89,7 @@ function FileRow({
       </div>
       <div className="row" style={{ gap: 6, minWidth: 0 }}>
         <Pill tone={canOpen ? "green" : "red"}>{canOpen ? "Clean" : "Blocked"}</Pill>
-        <span className="mono" style={{ color: "var(--text-3)", fontSize: 11 }}>{grantCount}</span>
+        <span className="mono" style={{ color: "var(--text-3)", fontSize: 12 }}>{grantCount}</span>
       </div>
       <div style={{ color: "var(--text-3)", fontSize: 12 }}>{formatRelative(file.updatedAt ?? file.createdAt)}</div>
       <div style={{ textAlign: "right" }} onClick={(event) => event.stopPropagation()}>

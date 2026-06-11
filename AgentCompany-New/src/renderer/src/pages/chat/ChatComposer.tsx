@@ -61,7 +61,7 @@ export function ChatComposer({
           <IconButton icon="sparkle" label="Commands" onClick={() => setSlashOpen((open) => !open)} />
           {attachment && (
             <span className="pill" style={{ maxWidth: 220 }}>
-              <Icon name="file" size={11} />
+              <Icon name="file" size={14} />
               <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{attachment.name}</span>
               <button
                 type="button"
@@ -69,12 +69,12 @@ export function ChatComposer({
                 onClick={() => onAttachmentChange("")}
                 style={{ display: "inline-flex", border: 0, background: "transparent", padding: 0, color: "var(--text-3)", cursor: "pointer" }}
               >
-                <Icon name="x" size={11} />
+                <Icon name="x" size={14} />
               </button>
             </span>
           )}
           <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6 }}>
-            <span className="mono" style={{ fontSize: 11, color: "var(--text-3)" }}>Ctrl+Enter</span>
+            <span className="mono" style={{ fontSize: 12, color: "var(--text-3)" }}>Ctrl+Enter</span>
             <Button tone="primary" size="small" type="submit" disabled={disabled}><Icon name="send" size={12} /> Send</Button>
           </div>
         </div>

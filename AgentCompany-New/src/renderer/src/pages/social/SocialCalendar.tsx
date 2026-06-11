@@ -55,7 +55,7 @@ export function SocialCalendar({
                 alignItems: "center",
                 justifyContent: "center",
                 gap: 3,
-                fontSize: 11,
+                fontSize: 12,
                 color: cell.inMonth ? "var(--text-2)" : "var(--text-4)",
                 fontWeight: isToday ? 600 : 480,
                 background: isToday ? "var(--text-1)" : "transparent",
@@ -82,7 +82,7 @@ export function SocialCalendar({
           );
         })}
       </div>
-      <div className="row" style={{ marginTop: 16, fontSize: 11, color: "var(--text-3)", gap: 10 }}>
+      <div className="row" style={{ marginTop: 16, fontSize: 12, color: "var(--text-3)", gap: 10 }}>
         <Legend label="X" color="var(--accent)" />
         <Legend label="LinkedIn" color="var(--green)" />
         <Legend label="YouTube" color="var(--amber)" />

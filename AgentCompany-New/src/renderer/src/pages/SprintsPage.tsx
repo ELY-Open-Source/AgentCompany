@@ -36,7 +36,7 @@ export function SprintsPage({ snapshot, actions }: PageProps) {
   return (
     <div className="page">
       <TopbarActions>
-        <Button tone="primary" onClick={() => setCreateOpen(true)}><Icon name="plus" size={13} /> New sprint</Button>
+        <Button tone="primary" onClick={() => setCreateOpen(true)}><Icon name="plus" size={16} /> New sprint</Button>
       </TopbarActions>
       <h1 className="page-h1">Sprints</h1>
       <p className="page-sub">{sprints.length} {sprints.length === 1 ? "sprint" : "sprints"}</p>
@@ -78,7 +78,7 @@ function SprintCard({ sprint, tasks, onDelete }: { sprint: SprintRecord; tasks: 
         <Pill tone={sprintStatusTone(sprint.status)}>{sprint.status}</Pill>
         <Pill>{sprint.startDate} to {sprint.endDate}</Pill>
       </div>
-      <div style={{ fontSize: 13, color: "var(--text-2)", lineHeight: 1.5, marginBottom: 12 }}>{sprint.goal}</div>
+      <div style={{ fontSize: 14, color: "var(--text-2)", lineHeight: 1.5, marginBottom: 12 }}>{sprint.goal}</div>
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         <ProgressBar label="Time" pct={progressPct} />
         <ProgressBar label="Tasks" pct={taskPct} />

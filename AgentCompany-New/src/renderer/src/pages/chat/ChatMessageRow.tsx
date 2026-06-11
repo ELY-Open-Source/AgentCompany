@@ -58,13 +58,13 @@ export function ChatMessageRow({
       <Avatar name={name} size={compact ? "sm" : ""} bot={bot} />
       <div style={{ flex: 1, minWidth: 0 }}>
         <div className="row" style={{ alignItems: "baseline", gap: 8, marginBottom: 2 }}>
-          <span style={{ fontSize: 13, fontWeight: 540 }}>{name}</span>
-          <span className="mono" style={{ fontSize: 11, color: "var(--text-3)" }}>{formatTime(message.createdAt)}</span>
-          {message.editedAt && !deleted && <span style={{ fontSize: 11, color: "var(--text-3)" }}>(edited)</span>}
+          <span style={{ fontSize: 14, fontWeight: 540 }}>{name}</span>
+          <span className="mono" style={{ fontSize: 12, color: "var(--text-3)" }}>{formatTime(message.createdAt)}</span>
+          {message.editedAt && !deleted && <span style={{ fontSize: 12, color: "var(--text-3)" }}>(edited)</span>}
           {canModify && !editing && (
             <span style={{ marginLeft: "auto", display: "flex", gap: 2 }}>
-              <IconButton icon="edit" label="Edit message" size={13} onClick={() => setEditing(true)} />
-              <IconButton icon="x" label="Delete message" size={13} onClick={onDelete} />
+              <IconButton icon="edit" label="Edit message" size={16} onClick={() => setEditing(true)} />
+              <IconButton icon="x" label="Delete message" size={16} onClick={onDelete} />
             </span>
           )}
         </div>
@@ -74,7 +74,7 @@ export function ChatMessageRow({
           </div>
         )}
         {deleted ? (
-          <div style={{ fontSize: 13, color: "var(--text-3)", fontStyle: "italic" }}>Message deleted</div>
+          <div style={{ fontSize: 14, color: "var(--text-3)", fontStyle: "italic" }}>Message deleted</div>
         ) : editing ? (
           <form onSubmit={submitEdit}>
             <textarea
@@ -91,7 +91,7 @@ export function ChatMessageRow({
             </div>
           </form>
         ) : (
-          <div style={{ fontSize: 13, color: "var(--text-1)", lineHeight: 1.5, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+          <div style={{ fontSize: 14, color: "var(--text-1)", lineHeight: 1.5, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
             {renderBody(message.bodyMd, messageMentions, context)}
           </div>
         )}
@@ -123,7 +123,7 @@ export function ChatMessageRow({
               border: 0,
             }}
           >
-            <Icon name="chat" size={11} /> {replyCount > 0 ? `${replyCount} ${replyCount === 1 ? "reply" : "replies"}` : "Thread"} →
+            <Icon name="chat" size={14} /> {replyCount > 0 ? `${replyCount} ${replyCount === 1 ? "reply" : "replies"}` : "Thread"} →
           </button>
         )}
       </div>
@@ -205,14 +205,14 @@ function AttachmentCard({ file, handoff = false, onOpen }: { file: FileObjectRec
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div className="row" style={{ gap: 6, minWidth: 0 }}>
-          <span style={{ fontSize: 12.5, fontWeight: 540, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{file.name}</span>
+          <span style={{ fontSize: 12, fontWeight: 540, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{file.name}</span>
           {handoff && (
             <span className="pill violet" style={{ flexShrink: 0 }}>
               <Icon name="bot" size={10} /> AI → AI
             </span>
           )}
         </div>
-        <div style={{ fontSize: 11, color: "var(--text-3)" }}>{file.kind.toUpperCase()} · {file.sha256.slice(0, 8)}</div>
+        <div style={{ fontSize: 12, color: "var(--text-3)" }}>{file.kind.toUpperCase()} · {file.sha256.slice(0, 8)}</div>
       </div>
       {canOpen && <IconButton icon="arrowUpRight" label={`Open ${file.name}`} onClick={onOpen ?? undefined} />}
     </div>

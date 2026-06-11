@@ -40,7 +40,7 @@ export function MeetingsPage({ snapshot, actions }: PageProps) {
   return (
     <div className="page">
       <TopbarActions>
-        <Button tone="primary" onClick={() => setCreateOpen(true)}><Icon name="plus" size={13} /> Schedule</Button>
+        <Button tone="primary" onClick={() => setCreateOpen(true)}><Icon name="plus" size={16} /> Schedule</Button>
       </TopbarActions>
       <h1 className="page-h1">Meetings</h1>
       <p className="page-sub">{scheduled.length} upcoming · {completed.length} past</p>
@@ -91,7 +91,7 @@ function MeetingCard({ meeting, onDelete }: { meeting: { id: string; title: stri
         <Pill>{meeting.durationMinutes}m</Pill>
       </div>
       {meeting.scheduledAt && <div style={{ fontSize: 12, color: "var(--text-3)" }}>{new Date(meeting.scheduledAt).toLocaleString()}</div>}
-      {meeting.agenda && <div style={{ fontSize: 13, color: "var(--text-2)", marginTop: 6, whiteSpace: "pre-wrap", lineHeight: 1.5 }}>{meeting.agenda}</div>}
+      {meeting.agenda && <div style={{ fontSize: 14, color: "var(--text-2)", marginTop: 6, whiteSpace: "pre-wrap", lineHeight: 1.5 }}>{meeting.agenda}</div>}
     </div>
   );
 }

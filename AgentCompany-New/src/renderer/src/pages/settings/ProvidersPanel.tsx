@@ -302,8 +302,8 @@ function ProviderRow({
       </div>
       <ProviderHealth provider={provider} />
       <div style={{ textAlign: "right", minWidth: 120 }}>
-        <div className="num mono" style={{ fontSize: 13, fontWeight: 540 }}>{boundCount} {boundCount === 1 ? "agent" : "agents"}</div>
-        <div className="mono" style={{ fontSize: 11, color: "var(--text-3)" }}>bound</div>
+        <div className="num mono" style={{ fontSize: 14, fontWeight: 540 }}>{boundCount} {boundCount === 1 ? "agent" : "agents"}</div>
+        <div className="mono" style={{ fontSize: 12, color: "var(--text-3)" }}>bound</div>
       </div>
       <Button onClick={onCheck}>Check</Button>
       <Button onClick={onManage}>Manage</Button>

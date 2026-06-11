@@ -22,7 +22,7 @@ export function ProviderConnectFields({
   if (entry.authType === "api_key") {
     return (
       <>
-        <p style={{ fontSize: 12.5, color: "var(--text-3)", lineHeight: 1.5, margin: 0 }}>{entry.credentialHelp}</p>
+        <p style={{ fontSize: 12, color: "var(--text-3)", lineHeight: 1.5, margin: 0 }}>{entry.credentialHelp}</p>
         <Field label="API key"><input className="input" name="secret" type="password" required autoFocus /></Field>
         <ModelPicker entry={entry} provider={provider} />
       </>
@@ -50,7 +50,7 @@ export function ProviderOAuthFields({
   const [model, setModel] = useState(provider.model ?? entry.defaultModel ?? entry.models[0]?.id ?? "");
   return (
     <>
-      <p style={{ fontSize: 12.5, color: "var(--text-3)", lineHeight: 1.5, margin: 0 }}>{entry.credentialHelp}</p>
+      <p style={{ fontSize: 12, color: "var(--text-3)", lineHeight: 1.5, margin: 0 }}>{entry.credentialHelp}</p>
       <Field label="Default model">
         {entry.models.length ? (
           <select className="input" value={model} onChange={(event) => setModel(event.target.value)}>
@@ -77,7 +77,7 @@ function CompatFieldsForm({ entry, provider }: { entry: ProviderCatalogEntry; pr
   const [baseUrl, setBaseUrl] = useState("");
   return (
     <>
-      <p style={{ fontSize: 12.5, color: "var(--text-3)", lineHeight: 1.5, margin: 0 }}>{entry.credentialHelp}</p>
+      <p style={{ fontSize: 12, color: "var(--text-3)", lineHeight: 1.5, margin: 0 }}>{entry.credentialHelp}</p>
       <Field label="Base URL">
         <input
           className="input"
@@ -139,7 +139,7 @@ function CloudFieldsForm({ entry, provider }: { entry: ProviderCatalogEntry; pro
   const update = (patch: Partial<CloudFields>) => setState((current) => ({ ...current, ...patch }));
   return (
     <>
-      <p style={{ fontSize: 12.5, color: "var(--text-3)", lineHeight: 1.5, margin: 0 }}>{entry.credentialHelp}</p>
+      <p style={{ fontSize: 12, color: "var(--text-3)", lineHeight: 1.5, margin: 0 }}>{entry.credentialHelp}</p>
       <Field label="Base URL">
         <input className="input" name="cloudBaseUrl" value={state.baseUrl} onChange={(event) => update({ baseUrl: event.target.value })} />
       </Field>

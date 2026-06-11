@@ -92,9 +92,9 @@ export function WorkPage({ snapshot, actions }: PageProps) {
           onPriority={setPriorityFilter}
           onAssignee={setAssigneeFilter}
         />
-        <Button tone="ghost" onClick={() => setNewGoalOpen(true)}><Icon name="plus" size={13} /> Goal</Button>
-        <Button tone="ghost" onClick={() => setNewProjectOpen(true)}><Icon name="plus" size={13} /> Project</Button>
-        <Button tone="primary" onClick={() => setNewTaskOpen(true)}><Icon name="plus" size={13} /> New task</Button>
+        <Button tone="ghost" onClick={() => setNewGoalOpen(true)}><Icon name="plus" size={16} /> Goal</Button>
+        <Button tone="ghost" onClick={() => setNewProjectOpen(true)}><Icon name="plus" size={16} /> Project</Button>
+        <Button tone="primary" onClick={() => setNewTaskOpen(true)}><Icon name="plus" size={16} /> New task</Button>
       </TopbarActions>
       <h1 className="page-h1">Work</h1>
       <p className="page-sub">
@@ -178,7 +178,7 @@ function WorkFilter({
     <Popover
       trigger={({ toggle }) => (
         <button type="button" className="button ghost" aria-label="Filter tasks" onClick={toggle}>
-          <Icon name="filter" size={13} color={active ? "var(--accent)" : "currentColor"} />
+          <Icon name="filter" size={16} color={active ? "var(--accent)" : "currentColor"} />
         </button>
       )}
     >
@@ -188,19 +188,19 @@ function WorkFilter({
           {priorities.map((option) => (
             <MenuRow key={option.id} active={priority === option.id} onClick={() => onPriority(option.id)}>
               {option.label}
-              {priority === option.id && <span className="menu-check"><Icon name="check" size={13} /></span>}
+              {priority === option.id && <span className="menu-check"><Icon name="check" size={16} /></span>}
             </MenuRow>
           ))}
           <MenuDivider />
           <MenuLabel>Assignee</MenuLabel>
           <MenuRow active={assignee === "all"} onClick={() => onAssignee("all")}>
             All assignees
-            {assignee === "all" && <span className="menu-check"><Icon name="check" size={13} /></span>}
+            {assignee === "all" && <span className="menu-check"><Icon name="check" size={16} /></span>}
           </MenuRow>
           {agents.map((agent) => (
             <MenuRow key={agent.id} active={assignee === agent.id} onClick={() => onAssignee(agent.id)}>
               {agent.name}
-              {assignee === agent.id && <span className="menu-check"><Icon name="check" size={13} /></span>}
+              {assignee === agent.id && <span className="menu-check"><Icon name="check" size={16} /></span>}
             </MenuRow>
           ))}
         </>
@@ -242,7 +242,7 @@ function BoardView({
           <div key={column.id} style={{ display: "flex", flexDirection: "column", gap: 8, minWidth: 0 }}>
             <div className="row" style={{ padding: "4px 6px 8px" }}>
               <span style={{ width: 8, height: 8, borderRadius: 2, background: column.tone, flexShrink: 0 }} />
-              <span style={{ fontSize: 12.5, fontWeight: 540 }}>{column.label}</span>
+              <span style={{ fontSize: 12, fontWeight: 540 }}>{column.label}</span>
               <span className="num" style={{ fontSize: 12, color: "var(--text-3)" }}>{columnTasks.length}</span>
               <IconButton icon="plus" label="Add task" onClick={onCreate} />
             </div>
@@ -427,7 +427,7 @@ function TaskCard({
         <div
           style={{
             flex: 1,
-            fontSize: 13,
+            fontSize: 14,
             fontWeight: 480,
             lineHeight: 1.35,
             letterSpacing: "-0.005em",

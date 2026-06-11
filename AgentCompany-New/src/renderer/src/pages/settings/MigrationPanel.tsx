@@ -47,7 +47,7 @@ export function MigrationPanel({
           <p className="page-sub" style={{ marginBottom: 0 }}>{reports.length} migration {reports.length === 1 ? "report" : "reports"}.</p>
         </div>
         <div style={{ marginLeft: "auto" }}>
-          <Button tone="primary" onClick={() => setOpen(true)}><Icon name="plus" size={13} /> Report</Button>
+          <Button tone="primary" onClick={() => setOpen(true)}><Icon name="plus" size={16} /> Report</Button>
         </div>
       </div>
       {reports.length > 0 && (
@@ -67,7 +67,7 @@ export function MigrationPanel({
       <section className="card" style={{ marginTop: 16, padding: 0, overflow: "hidden" }}>
         <div className="row" style={{ padding: "14px 16px", borderBottom: "1px solid var(--border-soft)" }}>
           <Icon name="refresh" size={14} color="var(--text-3)" />
-          <div style={{ fontSize: 13, fontWeight: 600 }}>Rollback snapshots</div>
+          <div style={{ fontSize: 14, fontWeight: 600 }}>Rollback snapshots</div>
         </div>
         {rollbackSnapshots.length > 0 ? rollbackSnapshots.map((snapshot, index) => (
           <RollbackRow
@@ -83,7 +83,7 @@ export function MigrationPanel({
       <section className="card" style={{ marginTop: 16, padding: 0, overflow: "hidden" }}>
         <div className="row" style={{ padding: "14px 16px", borderBottom: "1px solid var(--border-soft)" }}>
           <Icon name="list" size={14} color="var(--text-3)" />
-          <div style={{ fontSize: 13, fontWeight: 600 }}>Reconciliation</div>
+          <div style={{ fontSize: 14, fontWeight: 600 }}>Reconciliation</div>
         </div>
         {reconciliationItems.length > 0 ? reconciliationItems.map((item, index) => (
           <ReconciliationRow
@@ -125,7 +125,7 @@ function ReportRow({
     >
       <div style={{ minWidth: 0 }}>
         <div style={{ fontWeight: 540, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={report.sourceRef}>{report.sourceRef}</div>
-        <div style={{ fontSize: 11, color: "var(--text-3)" }}>{formatRelative(report.createdAt)}</div>
+        <div style={{ fontSize: 12, color: "var(--text-3)" }}>{formatRelative(report.createdAt)}</div>
       </div>
       <div className="row" style={{ flexWrap: "wrap", gap: 4 }}>
         {Object.entries(body.tableCounts).map(([table, count]) => (
@@ -169,7 +169,7 @@ function RollbackRow({
     >
       <div style={{ minWidth: 0 }}>
         <div style={{ fontWeight: 540, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={snapshot.sourceDatabasePath}>{snapshot.sourceDatabasePath}</div>
-        <div style={{ fontSize: 11, color: "var(--text-3)" }}>{formatRelative(snapshot.createdAt)}</div>
+        <div style={{ fontSize: 12, color: "var(--text-3)" }}>{formatRelative(snapshot.createdAt)}</div>
       </div>
       <Pill>{snapshot.sourceDatabaseSha256.slice(0, 12)}</Pill>
       <Pill>{manifest.workspaces.length} workspaces</Pill>
@@ -206,7 +206,7 @@ function ReconciliationRow({
     >
       <div style={{ minWidth: 0 }}>
         <div style={{ fontWeight: 540, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.targetType} · {item.targetId}</div>
-        <div style={{ fontSize: 11, color: "var(--text-3)" }}>{formatRelative(item.createdAt)}</div>
+        <div style={{ fontSize: 12, color: "var(--text-3)" }}>{formatRelative(item.createdAt)}</div>
       </div>
       <div style={{ fontSize: 12, color: "var(--text-2)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.reason}</div>
       <Pill tone={resolved ? "green" : "amber"}>{item.state}</Pill>
