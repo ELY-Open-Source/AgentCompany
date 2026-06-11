@@ -144,7 +144,7 @@ export function Onboarding({
               </button>
             )}
           </div>
-          <h1 className="page-h1" style={{ fontSize: 34, marginTop: 32, letterSpacing: "-0.02em" }}>Start your AI company.</h1>
+          <h1 className="page-h1" style={{ fontSize: 24, marginTop: 32, letterSpacing: "-0.02em" }}>Start your AI company.</h1>
           <p className="page-sub" style={{ maxWidth: 460, fontSize: 14, lineHeight: 1.55 }}>
             Stand up the workspace, bind the provider, and queue the first operating loop.
           </p>
@@ -157,8 +157,8 @@ export function Onboarding({
         <div className="card" style={{ maxWidth: 460 }}>
           <div className="card-label" style={{ marginBottom: 10 }}>Runtime selected</div>
           <div className="row" style={{ gap: 10 }}>
-            <Icon name="bot" size={16} />
-            <strong style={{ fontSize: 13 }}>{selectedProvider.label}</strong>
+            <Icon name="bot" size={18} />
+            <strong style={{ fontSize: 14 }}>{selectedProvider.label}</strong>
             {draft.providerModel && <Pill tone="violet">{draft.providerModel}</Pill>}
           </div>
           <div style={{ marginTop: 10, fontSize: 12, color: "var(--text-3)" }}>
@@ -201,7 +201,7 @@ export function Onboarding({
             />
           )}
         </div>
-        {error && <div style={{ color: "var(--red)", marginTop: 14, fontSize: 12.5 }}>{error}</div>}
+        {error && <div style={{ color: "var(--red)", marginTop: 16, fontSize: 14 }}>{error}</div>}
       </form>
       </main>
     </div>
@@ -223,7 +223,7 @@ function WelcomeStep({ onNext }: { onNext: () => void }) {
         AgentCompany sets up your operating loop in five steps. Bring an API key, pick a runtime
         for the founding CEO, and we'll wire up the first goal, project, and task.
       </p>
-      <ul style={{ paddingLeft: 18, color: "var(--text-2)", lineHeight: 1.8, margin: 0 }}>
+      <ul style={{ paddingLeft: 20, color: "var(--text-2)", lineHeight: 1.8, margin: 0, fontSize: 14 }}>
         <li>Connect one model provider (OpenAI, Anthropic, xAI, or Groq).</li>
         <li>Name the company and the human board chair.</li>
         <li>Pick execution mode and bind the workspace path.</li>
@@ -257,7 +257,7 @@ function CompanyStep({ draft, onChange, onBack, onNext }: StepProps) {
       <Field label="Workspace path (optional)">
         <div className="row" style={{ gap: 6 }}>
           <input className="input" value={draft.workspacePath} onChange={(event) => onChange({ workspacePath: event.target.value })} />
-          <Button tone="ghost" onClick={chooseWorkspace}><Icon name="folder" size={13} /> Choose</Button>
+          <Button tone="ghost" onClick={chooseWorkspace}><Icon name="folder" size={16} /> Choose</Button>
         </div>
       </Field>
       <Actions onBack={onBack} onNext={onNext} />
@@ -269,7 +269,7 @@ function ModeStep({ draft, onChange, onBack, onNext }: StepProps) {
   return (
     <div className="form-grid">
       <h2 className="page-h1">Mode</h2>
-      <p style={{ color: "var(--text-3)", fontSize: 13 }}>How autonomous should the CEO be?</p>
+      <p style={{ color: "var(--text-3)", fontSize: 14 }}>How autonomous should the CEO be?</p>
       <ModeCard
         title="AI CEO"
         description="Agents auto-approve hires up to the budget envelope and ship work that clears policy."

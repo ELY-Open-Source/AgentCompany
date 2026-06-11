@@ -23,7 +23,7 @@ export function ProviderStep({
   return (
     <div className="form-grid">
       <h2 className="page-h1">Provider</h2>
-      <p style={{ color: "var(--text-3)", fontSize: 13 }}>
+      <p style={{ color: "var(--text-3)", fontSize: 14 }}>
         Pick the runtime for the founding CEO. You can attach more providers in Settings later.
       </p>
       <div className="option-grid">
@@ -108,7 +108,7 @@ function ProviderCredentialFields({
   return (
     <div className="provider-inline-form">
       {selected.credentialHelp && (
-        <div style={{ fontSize: 12.5, color: "var(--text-3)", lineHeight: 1.5 }}>{selected.credentialHelp}</div>
+        <div style={{ fontSize: 13, color: "var(--text-3)", lineHeight: 1.5 }}>{selected.credentialHelp}</div>
       )}
       {isOAuthLike ? (
         <ProviderOAuthConnect
