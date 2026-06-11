@@ -7,7 +7,16 @@ import { isRecord, type JsonRecord, type ProviderEventStreamMessage } from "../p
 import { parseArguments, type AgentTurnMessage, type AgentTurnResult, type ToolCall, type ToolDefinition } from "../provider-tool-turn";
 
 export function responsesToolDefs(tools: ToolDefinition[], strict: boolean | null = false): unknown[] {
-  return tools.map((tool) => ({ type: "function", name: tool.name, description: tool.description, parameters: tool.parameters, strict }));
+  // `strict` must be a boolean or omitted. Passing `strict: null` (the Codex
+  // path) is malformed and makes the endpoint drop the whole tool list, so the
+  // model has nothing to call. Omit the field instead of sending null.
+  return tools.map((tool) => ({
+    type: "function",
+    name: tool.name,
+    description: tool.description,
+    parameters: tool.parameters,
+    ...(strict === null ? {} : { strict }),
+  }));
 }
 
 export function toResponsesInput(messages: AgentTurnMessage[]): unknown[] {
