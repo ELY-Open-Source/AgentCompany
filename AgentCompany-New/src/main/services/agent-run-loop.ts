@@ -46,15 +46,19 @@ export async function runAgentLoop(deps: AgentRunLoopDeps, input: AgentRunLoopIn
       instructions: input.instructions,
       messages,
       tools: AGENT_TOOLS,
+      // Compel a concrete action on the opening turn so even a weak model
+      // cannot answer with prose and quietly finish a no-op; once it has acted,
+      // let it choose freely (continue working, or stop when done).
+      toolChoice: iteration === 1 ? "required" : "auto",
     });
     lastRequestId = turn.requestId;
 
     if (turn.toolCalls.length === 0) {
-      if (toolCallCount === 0 && !turn.text.trim()) {
-        // A first turn with neither text nor tool calls means the provider
-        // produced nothing actionable (e.g. output truncated mid-reasoning);
-        // completing the run would silently mark a no-op as done.
-        throw new Error("Provider returned an empty turn: no text and no tool calls.");
+      if (iteration === 1) {
+        // The opening turn was forced to call a tool. None means the agent took
+        // no action at all — fail loudly instead of recording a deceptive
+        // "success" that hired no one, delegated nothing, and said nothing.
+        throw new Error("Agent took no action on its first turn — the model returned no tool calls.");
       }
       return { finalText: turn.text, iterations: iteration, toolCallCount, lastRequestId };
     }

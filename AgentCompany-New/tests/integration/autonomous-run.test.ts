@@ -166,11 +166,18 @@ describe("autonomous bootstrap run", () => {
 
   test("a goal created after onboarding reaches the CEO and runs autonomously", async () => {
     const connection = new DatabaseConnection(join(tmpdir(), `ac-goal-${randomUUID()}.db`));
-    const providers = new ProviderService(connection.db, providerAdapters, testVault, undefined, async () => ({
-      text: "Reviewed the goal and posted the operating plan.",
-      toolCalls: [],
-      rawResponseJson: JSON.stringify({ id: "resp_goal" }),
-    }));
+    // The forced opening turn means each run must take a concrete action; it
+    // posts to the company channel, then stops on the next (free) turn.
+    const providers = new ProviderService(connection.db, providerAdapters, testVault, undefined, async (input) => {
+      if (input.toolChoice === "required") {
+        return {
+          text: "Reviewing the goal.",
+          toolCalls: [call("send_message", { channel: "general", body: "Reviewed the goal and posting the operating plan." })],
+          rawResponseJson: JSON.stringify({ id: "resp_goal_act" }),
+        };
+      }
+      return { text: "Done.", toolCalls: [], rawResponseJson: JSON.stringify({ id: "resp_goal_done" }) };
+    });
     const onboarding = new OnboardingService({ db: connection.db, saveProviderCredential: (input) => providers.saveCredential(input) });
     const organization = new OrganizationService(connection.db);
     const taskExecution = new TaskExecutionService(connection.db, providers);

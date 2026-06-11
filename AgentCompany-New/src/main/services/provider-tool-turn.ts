@@ -51,12 +51,18 @@ export interface TurnCredential {
   serviceAccountJson?: string;
 }
 
+/** How the backend should treat tool calls this turn. "required" compels the
+ * model to emit at least one tool call (no prose-only escape) — used to force a
+ * concrete action so a weak model cannot ramble its way to a silent no-op. */
+export type ToolChoice = "auto" | "required";
+
 export interface ProviderToolTurnInput {
   credential: TurnCredential;
   model: string;
   instructions: string | null;
   messages: AgentTurnMessage[];
   tools: ToolDefinition[];
+  toolChoice?: ToolChoice;
 }
 
 export type ToolTurnFn = (input: ProviderToolTurnInput) => Promise<AgentTurnResult>;

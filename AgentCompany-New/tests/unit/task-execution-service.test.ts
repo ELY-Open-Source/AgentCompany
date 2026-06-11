@@ -37,7 +37,10 @@ describe("task execution service", () => {
     const fakeToolTurn = async (input: ProviderToolTurnInput): Promise<AgentTurnResult> => {
       const first = input.messages[0];
       if (first?.role === "user") capturedPrompt = first.text;
-      return { text: "executed:gpt-5.4", toolCalls: [], rawResponseJson: JSON.stringify({ id: "resp-task-1" }) };
+      if (input.toolChoice === "required") {
+        return { text: "executed:gpt-5.4", toolCalls: [{ id: `call_${randomUUID()}`, name: "create_document", arguments: { title: "Run note", doc_type: "memo", content: "Executed." } }], rawResponseJson: JSON.stringify({ id: "resp-task-1a" }) };
+      }
+      return { text: "executed:gpt-5.4", toolCalls: [], rawResponseJson: JSON.stringify({ id: "resp-task-1b" }) };
     };
     const providers = new ProviderService(connection.db, providerAdapters, testVault, undefined, fakeToolTurn);
     const skills = new SkillService(connection.db, join(tmpdir(), `agentcompany-task-skills-${randomUUID()}`));
@@ -141,11 +144,12 @@ describe("task execution service", () => {
     const organization = new OrganizationService(connection.db);
     const approvals = new ApprovalService(connection.db);
     const snapshot = new SnapshotService(connection.db);
-    const fakeToolTurn = async (): Promise<AgentTurnResult> => ({
-      text: "executed:gpt-5.4",
-      toolCalls: [],
-      rawResponseJson: JSON.stringify({ id: "resp-task-approved" }),
-    });
+    const fakeToolTurn = async (input: ProviderToolTurnInput): Promise<AgentTurnResult> => {
+      if (input.toolChoice === "required") {
+        return { text: "executed:gpt-5.4", toolCalls: [{ id: `call_${randomUUID()}`, name: "create_document", arguments: { title: "Run note", doc_type: "memo", content: "Executed." } }], rawResponseJson: JSON.stringify({ id: "resp-task-approved-a" }) };
+      }
+      return { text: "executed:gpt-5.4", toolCalls: [], rawResponseJson: JSON.stringify({ id: "resp-task-approved-b" }) };
+    };
     const providers = new ProviderService(connection.db, providerAdapters, testVault, undefined, fakeToolTurn);
     const execution = new TaskExecutionService(connection.db, providers);
     let orgId = "";
