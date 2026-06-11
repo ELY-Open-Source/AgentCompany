@@ -1,11 +1,11 @@
 /** AWS Bedrock Converse API encoding/decoding (ported from Pi's bedrock handler). */
 import { isRecord, type JsonRecord } from "../provider-http";
-import type { AgentTurnMessage, ToolCall, ToolChoice, ToolDefinition } from "../provider-tool-turn";
+import type { AgentTurnMessage, ToolCall, ToolDefinition } from "../provider-tool-turn";
 
-export function bedrockToolConfig(tools: ToolDefinition[], toolChoice?: ToolChoice): JsonRecord {
+export function bedrockToolConfig(tools: ToolDefinition[]): JsonRecord {
   return {
     tools: tools.map((tool) => ({ toolSpec: { name: tool.name, description: tool.description, inputSchema: { json: tool.parameters } } })),
-    toolChoice: toolChoice === "required" ? { any: {} } : { auto: {} },
+    toolChoice: { auto: {} },
   };
 }
 

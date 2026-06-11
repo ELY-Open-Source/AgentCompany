@@ -119,15 +119,7 @@ export const AGENT_TOOLS: ToolDefinition[] = [
       required: ["title", "doc_type", "content"],
     },
   },
-  {
-    name: "finish",
-    description: "End your turn. Call this ONLY after you have taken every action this task needs — for a kickoff that means hiring your team, delegating their first tasks, and posting a kickoff message to a channel. Do not call it just to stop early.",
-    parameters: { type: "object", additionalProperties: false, properties: {}, required: [] },
-  },
 ];
-
-/** Control tool that ends an agent's turn; the run loop consumes it, never dispatched. */
-export const FINISH_TOOL = "finish";
 
 export function dispatchAgentTool(deps: AgentToolDeps, ctx: AgentToolContext, call: ToolCall): string {
   try {

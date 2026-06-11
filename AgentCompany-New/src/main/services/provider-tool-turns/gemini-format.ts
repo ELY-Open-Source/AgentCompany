@@ -4,7 +4,7 @@
  * Antigravity request wrapper in google-gemini-cli.
  */
 import { isRecord, type JsonRecord, type ProviderEventStreamMessage } from "../provider-http";
-import { type AgentTurnMessage, type AgentTurnResult, type ToolCall, type ToolChoice, type ToolDefinition } from "../provider-tool-turn";
+import { type AgentTurnMessage, type AgentTurnResult, type ToolCall, type ToolDefinition } from "../provider-tool-turn";
 
 const ANTIGRAVITY_SYSTEM_INSTRUCTION =
   "You are Antigravity, a powerful agentic AI coding assistant designed by the Google Deepmind team working on Advanced Agentic Coding." +
@@ -64,7 +64,6 @@ export function antigravityRequestBody(input: {
   instructions: string | null;
   messages: AgentTurnMessage[];
   tools: ToolDefinition[];
-  toolChoice?: ToolChoice;
   requestId: string;
 }): JsonRecord {
   const request: JsonRecord = {
@@ -80,7 +79,7 @@ export function antigravityRequestBody(input: {
   };
   if (input.tools.length > 0) {
     request.tools = geminiToolDefs(input.model, input.tools);
-    request.toolConfig = { functionCallingConfig: { mode: input.toolChoice === "required" ? "ANY" : "AUTO" } };
+    request.toolConfig = { functionCallingConfig: { mode: "AUTO" } };
   }
   return { project: input.projectId, model: input.model, request, requestType: "agent", userAgent: "antigravity", requestId: input.requestId };
 }
@@ -91,13 +90,12 @@ export function vertexRequestBody(input: {
   instructions: string | null;
   messages: AgentTurnMessage[];
   tools: ToolDefinition[];
-  toolChoice?: ToolChoice;
 }): JsonRecord {
   const body: JsonRecord = { contents: toGeminiContents(input.model, input.messages) };
   if (input.instructions) body.systemInstruction = { parts: [{ text: input.instructions }] };
   if (input.tools.length > 0) {
     body.tools = geminiToolDefs(input.model, input.tools);
-    body.toolConfig = { functionCallingConfig: { mode: input.toolChoice === "required" ? "ANY" : "AUTO" } };
+    body.toolConfig = { functionCallingConfig: { mode: "AUTO" } };
   }
   return body;
 }

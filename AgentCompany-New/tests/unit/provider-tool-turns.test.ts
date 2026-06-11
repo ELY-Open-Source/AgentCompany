@@ -210,22 +210,13 @@ describe("credential resolver", () => {
   });
 });
 
-describe("tool definitions and forced tool choice", () => {
+describe("responses tool definitions", () => {
   const tools = [{ name: "hire_agent", description: "Add a report.", parameters: { type: "object", properties: {} } }];
 
-  test("Responses tool defs omit strict when null, keep it when boolean", () => {
+  test("omit strict when null (so the Codex endpoint keeps the tools), keep it when boolean", () => {
     const codex = responsesToolDefs(tools, null)[0] as Record<string, unknown>;
-    expect("strict" in codex).toBe(false); // null would make the endpoint drop the tools
+    expect("strict" in codex).toBe(false); // strict:null is malformed and makes the endpoint drop the tools
     expect(responsesToolDefs(tools)[0]).toMatchObject({ type: "function", name: "hire_agent", strict: false });
     expect(responsesToolDefs(tools, true)[0]).toMatchObject({ strict: true });
-  });
-
-  test("Bedrock and Gemini encode a forced tool choice", () => {
-    expect(bedrockToolConfig(tools, "required").toolChoice).toEqual({ any: {} });
-    expect(bedrockToolConfig(tools).toolChoice).toEqual({ auto: {} });
-    const vertex = vertexRequestBody({ model: "m", instructions: null, messages: [], tools, toolChoice: "required" });
-    expect(vertex.toolConfig).toEqual({ functionCallingConfig: { mode: "ANY" } });
-    const anti = antigravityRequestBody({ model: "m", projectId: "p", instructions: null, messages: [], tools, requestId: "r" });
-    expect((anti.request as Record<string, unknown>).toolConfig).toEqual({ functionCallingConfig: { mode: "AUTO" } });
   });
 });

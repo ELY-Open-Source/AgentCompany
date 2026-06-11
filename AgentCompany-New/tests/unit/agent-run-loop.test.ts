@@ -19,8 +19,7 @@ function fakeProvider(script: ScriptedTurn[]) {
   let index = 0;
   return {
     runToolTurn: async (): Promise<AgentTurnResult & { requestId: string }> => {
-      // A run never ends on prose now; an exhausted script ends by calling finish.
-      const turn = script[index] ?? { text: "done", toolCalls: [call("finish", {})] };
+      const turn = script[index] ?? { text: "done", toolCalls: [] };
       index += 1;
       return { text: turn.text, toolCalls: turn.toolCalls, rawResponseJson: "{}", requestId: `req_${index}` };
     },
@@ -29,25 +28,6 @@ function fakeProvider(script: ScriptedTurn[]) {
 
 function call(name: string, args: Record<string, unknown>): ToolCall {
   return { id: `call_${randomUUID()}`, name, arguments: args };
-}
-
-/** Mimics a weak model: it rambles in prose and skips tools unless the backend
- * compels a tool call. With forcing it posts a kickoff message, then stops. */
-function weakModelProvider() {
-  let acted = false;
-  return {
-    runToolTurn: async (input: { toolChoice?: "auto" | "required" }): Promise<AgentTurnResult & { requestId: string }> => {
-      // Left to itself this model rambles (no tools); compelled, it posts, then ends.
-      if (input.toolChoice !== "required") {
-        return { text: "Let me think about this some more.", toolCalls: [], rawResponseJson: "{}", requestId: "req_prose" };
-      }
-      if (!acted) {
-        acted = true;
-        return { text: "Acting.", toolCalls: [call("send_message", { channel: "general", body: "Kicking off the company." })], rawResponseJson: "{}", requestId: "req_act" };
-      }
-      return { text: "Done.", toolCalls: [call("finish", {})], rawResponseJson: "{}", requestId: "req_finish" };
-    },
-  };
 }
 
 describe("agent run loop (real tool dispatch)", () => {
@@ -97,7 +77,7 @@ describe("agent run loop (real tool dispatch)", () => {
         call("write_deliverable", { path: "plan/operating-plan.md", content: "# Operating Plan\n\n1. Validate demand.\n2. Launch booking site.\n" }),
         call("send_message", { channel: "general", body: "Team staffed and the operating plan is live. Booking site is next." }),
       ] },
-      { text: "Team staffed, work delegated, plan written.", toolCalls: [call("finish", {})] },
+      { text: "Team staffed, work delegated, plan written.", toolCalls: [] },
     ];
 
     let toolResultNotifications = 0;
@@ -140,33 +120,6 @@ describe("agent run loop (real tool dispatch)", () => {
     connection.close();
   });
 
-  test("forcing the opening turn makes a weak model act instead of completing a no-op", async () => {
-    const connection = new DatabaseConnection(join(tmpdir(), `ac-weak-${randomUUID()}.db`));
-    const organization = new OrganizationService(connection.db);
-    let orgId = "";
-    let ceoId = "";
-    let providerId = "";
-    connection.transaction(() => {
-      orgId = organization.createOrganization({ organizationName: "OrbitOps", employeeName: "Yang", mission: "m", goal: "g" });
-      providerId = (connection.db.prepare("select id from providers where org_id = ? and provider_key = 'openai'").get(orgId) as { id: string }).id;
-      ceoId = organization.createAgent({ orgId, name: "CEO", role: "CEO", department: "Executive", modelProviderId: providerId, modelId: "gpt-5.4", budgetCents: 25000, managerAgentId: null });
-    });
-    const ctx: AgentToolContext = {
-      orgId, agent: { id: ceoId, modelProviderId: providerId, modelId: "gpt-5.4" },
-      taskProjectId: null, taskGoalId: null, workspace: null,
-    };
-    const result = await runAgentLoop(
-      { providers: weakModelProvider(), tools: { db: connection.db, organization, chat: new ChatService(connection.db) } },
-      { orgId, providerId, workspaceId: null, instructions: "You are the CEO.", initialUserTurn: "Start the company.", toolContext: ctx },
-    );
-    // The loop forced the opening turn, so the otherwise-rambling model acted.
-    expect(result.toolCallCount).toBe(1);
-    const messages = connection.db.prepare("select sender_id from chat_messages where org_id = ?").all(orgId) as Array<{ sender_id: string }>;
-    expect(messages).toHaveLength(1);
-    expect(messages[0]?.sender_id).toBe(ceoId);
-    connection.close();
-  });
-
   test("rejects deliverable paths that escape the workspace", async () => {
     const connection = new DatabaseConnection(join(tmpdir(), `ac-loop2-${randomUUID()}.db`));
     const organization = new OrganizationService(connection.db);
@@ -186,7 +139,7 @@ describe("agent run loop (real tool dispatch)", () => {
     };
     const script: ScriptedTurn[] = [
       { text: "escape", toolCalls: [call("write_deliverable", { path: "../escape.txt", content: "x" })] },
-      { text: "done", toolCalls: [call("finish", {})] },
+      { text: "done", toolCalls: [] },
     ];
     const result = await runAgentLoop(
       { providers: fakeProvider(script), tools: { db: connection.db, organization, chat: new ChatService(connection.db) } },
@@ -198,7 +151,7 @@ describe("agent run loop (real tool dispatch)", () => {
     connection.close();
   });
 
-  test("a first turn that takes no action (prose only, no tool calls) fails the run", async () => {
+  test("a first turn with no text and no tool calls fails the run instead of completing a no-op", async () => {
     const connection = new DatabaseConnection(join(tmpdir(), `ac-loop3-${randomUUID()}.db`));
     const organization = new OrganizationService(connection.db);
     let orgId = "";
@@ -213,12 +166,10 @@ describe("agent run loop (real tool dispatch)", () => {
       orgId, agent: { id: ceoId, modelProviderId: providerId, modelId: "gpt-5.4" },
       taskProjectId: null, taskGoalId: null, workspace: null,
     };
-    // A weak model that answers the kickoff with prose and zero tool calls must
-    // not be recorded as a success — the forced first turn produced no action.
     await expect(runAgentLoop(
-      { providers: fakeProvider([{ text: "Here is my plan: first I will think about it.", toolCalls: [] }]), tools: { db: connection.db, organization, chat: new ChatService(connection.db) } },
+      { providers: fakeProvider([{ text: "", toolCalls: [] }]), tools: { db: connection.db, organization, chat: new ChatService(connection.db) } },
       { orgId, providerId, workspaceId: null, instructions: "i", initialUserTurn: "u", toolContext: ctx },
-    )).rejects.toThrow(/no tool call on a forced turn/);
+    )).rejects.toThrow(/empty turn/);
     connection.close();
   });
 });

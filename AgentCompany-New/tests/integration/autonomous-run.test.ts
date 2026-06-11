@@ -36,7 +36,7 @@ function scriptedCeo(): (input: ProviderToolTurnInput) => Promise<AgentTurnResul
       call("write_deliverable", { path: "plan/operating-plan.md", content: "# OrbitOps Operating Plan\n\n- Validate demand\n- Launch booking site\n" }),
     ] },
     { text: "Handing off the plan.", toolCalls: [] },
-    { text: "Team staffed, work delegated, plan written.", toolCalls: [call("finish", {})] },
+    { text: "Team staffed, work delegated, plan written.", toolCalls: [] },
   ];
   let index = 0;
   return async (input) => {
@@ -55,7 +55,7 @@ function scriptedCeo(): (input: ProviderToolTurnInput) => Promise<AgentTurnResul
         rawResponseJson: JSON.stringify({ id: `resp_${index}` }),
       };
     }
-    const turn = script[index] ?? { text: "done", toolCalls: [call("finish", {})] };
+    const turn = script[index] ?? { text: "done", toolCalls: [] };
     index += 1;
     return { text: turn.text, toolCalls: turn.toolCalls, rawResponseJson: JSON.stringify({ id: `resp_${index}` }) };
   };
@@ -166,17 +166,11 @@ describe("autonomous bootstrap run", () => {
 
   test("a goal created after onboarding reaches the CEO and runs autonomously", async () => {
     const connection = new DatabaseConnection(join(tmpdir(), `ac-goal-${randomUUID()}.db`));
-    // The forced opening turn means each run must take a concrete action; it
-    // posts to the company channel, then stops on the next (free) turn.
-    const providers = new ProviderService(connection.db, providerAdapters, testVault, undefined, async (input) => {
-      const acted = input.messages.some((message) => message.role === "tool");
-      if (acted) return { text: "Done.", toolCalls: [call("finish", {})], rawResponseJson: JSON.stringify({ id: "resp_goal_done" }) };
-      return {
-        text: "Reviewing the goal.",
-        toolCalls: [call("send_message", { channel: "general", body: "Reviewed the goal and posting the operating plan." })],
-        rawResponseJson: JSON.stringify({ id: "resp_goal_act" }),
-      };
-    });
+    const providers = new ProviderService(connection.db, providerAdapters, testVault, undefined, async () => ({
+      text: "Reviewed the goal and posted the operating plan.",
+      toolCalls: [],
+      rawResponseJson: JSON.stringify({ id: "resp_goal" }),
+    }));
     const onboarding = new OnboardingService({ db: connection.db, saveProviderCredential: (input) => providers.saveCredential(input) });
     const organization = new OrganizationService(connection.db);
     const taskExecution = new TaskExecutionService(connection.db, providers);

@@ -41,7 +41,7 @@ export async function runOpenAiResponsesTurn(input: ProviderToolTurnInput): Prom
     model: input.model,
     input: toResponsesInput(input.messages),
     tools: responsesToolDefs(input.tools),
-    tool_choice: input.toolChoice ?? "auto",
+    tool_choice: "auto",
     store: false,
     ...(input.instructions ? { instructions: input.instructions } : {}),
   };
@@ -58,7 +58,7 @@ export function makeChatCompletionsTurn(endpoint: string, label: string): (input
       model: input.model,
       messages: toChatMessages(input.instructions, input.messages),
       tools: chatToolDefs(input.tools),
-      tool_choice: input.toolChoice ?? "auto",
+      tool_choice: "auto",
       stream: false,
     };
     const response = await postJson(endpoint, { authorization: `Bearer ${requireApiKey(input.credential, label)}` }, body);
@@ -74,7 +74,6 @@ export async function runAnthropicTurn(input: ProviderToolTurnInput): Promise<Ag
     model: input.model,
     max_tokens: 4096,
     tools: anthropicToolDefs(input.tools),
-    ...(input.toolChoice === "required" ? { tool_choice: { type: "any" } } : {}),
     messages: toAnthropicMessages(input.messages),
     ...(input.instructions ? { system: input.instructions } : {}),
   };
@@ -94,7 +93,6 @@ export async function runClaudeProTurn(input: ProviderToolTurnInput): Promise<Ag
     model: input.model,
     max_tokens: 4096,
     tools: anthropicToolDefs(input.tools),
-    ...(input.toolChoice === "required" ? { tool_choice: { type: "any" } } : {}),
     messages: toAnthropicMessages(input.messages),
     system,
   };
@@ -123,7 +121,7 @@ export async function runCodexTurn(input: ProviderToolTurnInput): Promise<AgentT
     input: toResponsesInput(input.messages),
     text: { verbosity: "medium" },
     include: ["reasoning.encrypted_content"],
-    tool_choice: input.toolChoice ?? "auto",
+    tool_choice: "auto",
     parallel_tool_calls: true,
     tools: responsesToolDefs(input.tools, null),
   };
@@ -146,7 +144,7 @@ export async function runCopilotTurn(input: ProviderToolTurnInput): Promise<Agen
     model: input.model,
     input: toResponsesInput(input.messages),
     tools: responsesToolDefs(input.tools),
-    tool_choice: input.toolChoice ?? "auto",
+    tool_choice: "auto",
     store: false,
   };
   const response = await postJson(`${baseUrl}/responses`, {
@@ -167,7 +165,7 @@ export async function runCustomOpenAiTurn(input: ProviderToolTurnInput): Promise
     model: input.model,
     messages: toChatMessages(input.instructions, input.messages),
     tools: chatToolDefs(input.tools),
-    tool_choice: input.toolChoice ?? "auto",
+    tool_choice: "auto",
     stream: false,
   };
   const response = await postJson(`${input.credential.baseUrl}/chat/completions`, { authorization: `Bearer ${requireApiKey(input.credential, "Custom OpenAI-compatible provider")}` }, body);
@@ -183,7 +181,6 @@ export async function runCustomAnthropicTurn(input: ProviderToolTurnInput): Prom
     model: input.model,
     max_tokens: 4096,
     tools: anthropicToolDefs(input.tools),
-    ...(input.toolChoice === "required" ? { tool_choice: { type: "any" } } : {}),
     messages: toAnthropicMessages(input.messages),
     ...(input.instructions ? { system: input.instructions } : {}),
   };
@@ -204,7 +201,6 @@ export async function runAntigravityTurn(input: ProviderToolTurnInput): Promise<
     instructions: input.instructions,
     messages: input.messages,
     tools: input.tools,
-    toolChoice: input.toolChoice,
     requestId,
   });
   const response = await postEventStream(`${ANTIGRAVITY_ENDPOINT}/v1internal:streamGenerateContent?alt=sse`, {
@@ -224,7 +220,7 @@ export async function runAzureTurn(input: ProviderToolTurnInput): Promise<AgentT
     model: input.credential.deployment,
     messages: toChatMessages(input.instructions, input.messages),
     tools: chatToolDefs(input.tools),
-    tool_choice: input.toolChoice ?? "auto",
+    tool_choice: "auto",
     stream: false,
   };
   const url = `${input.credential.baseUrl}/openai/deployments/${input.credential.deployment}/chat/completions?api-version=2024-10-21`;
@@ -241,7 +237,7 @@ export async function runBedrockTurn(input: ProviderToolTurnInput): Promise<Agen
   const converse: JsonRecord = {
     messages: toBedrockMessages(input.messages),
     inferenceConfig: { maxTokens: 4096 },
-    toolConfig: bedrockToolConfig(input.tools, input.toolChoice),
+    toolConfig: bedrockToolConfig(input.tools),
     ...(input.instructions ? { system: [{ text: input.instructions }] } : {}),
   };
   const bodyString = JSON.stringify(converse);
@@ -263,7 +259,7 @@ export async function runVertexTurn(input: ProviderToolTurnInput): Promise<Agent
   const { projectId, region, serviceAccountJson } = input.credential;
   if (!projectId || !region || !serviceAccountJson) throw new Error("Vertex AI credential is incomplete.");
   const token = await getGcpAccessToken(serviceAccountJson);
-  const body = vertexRequestBody({ model: input.model, instructions: input.instructions, messages: input.messages, tools: input.tools, toolChoice: input.toolChoice });
+  const body = vertexRequestBody({ model: input.model, instructions: input.instructions, messages: input.messages, tools: input.tools });
   const url = `https://${region}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${region}/publishers/google/models/${input.model}:generateContent`;
   const response = await postJson(url, { authorization: `Bearer ${token}` }, body);
   const parsed = parseGeminiResponse(response.data);

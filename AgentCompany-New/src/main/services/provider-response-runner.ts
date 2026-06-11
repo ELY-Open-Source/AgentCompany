@@ -12,7 +12,7 @@ import type { ProviderRateLimitRegistry } from "./provider-rate-limit-registry";
 import type { ProviderRequestStore } from "./provider-request-store";
 import type { ProviderResponseObserver } from "./provider-response-observer";
 import { hashPrompt, readProviderResponseId, requireStreamText } from "./provider-response-utils";
-import { type AgentTurnMessage, type AgentTurnResult, type ToolChoice, type ToolDefinition, type ToolTurnFn } from "./provider-tool-turn";
+import { type AgentTurnMessage, type AgentTurnResult, type ToolDefinition, type ToolTurnFn } from "./provider-tool-turn";
 import { selectToolTurn, supportsToolTurn } from "./provider-tool-turns/router";
 import { resolveTurnCredential } from "./provider-tool-turns/credential-resolver";
 import {
@@ -103,7 +103,6 @@ export class ProviderResponseRunner {
     instructions: string | null;
     messages: AgentTurnMessage[];
     tools: ToolDefinition[];
-    toolChoice?: ToolChoice;
   }): Promise<AgentTurnResult & { requestId: string }> {
     const provider = loadConfiguredProvider(this.deps.db, input.orgId, input.providerId);
     const workspaceId = this.normalizeWorkspaceId(input.orgId, input.workspaceId ?? null);
@@ -129,7 +128,7 @@ export class ProviderResponseRunner {
     });
     const startedAt = Date.now();
     try {
-      const result = await turn({ credential, model, instructions: input.instructions, messages: input.messages, tools: input.tools, toolChoice: input.toolChoice });
+      const result = await turn({ credential, model, instructions: input.instructions, messages: input.messages, tools: input.tools });
       this.deps.requestStore.markSucceeded({
         orgId: input.orgId,
         requestId,
