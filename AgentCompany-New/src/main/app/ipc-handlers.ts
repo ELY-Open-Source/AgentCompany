@@ -27,6 +27,7 @@ import { KnowledgeService } from "../services/knowledge-service";
 import { AutomationService } from "../services/automation-service";
 import { MeetingService } from "../services/meeting-service";
 import { SprintService } from "../services/sprint-service";
+import { normalizeExternalBrowserUrl } from "./external-url";
 
 export interface IpcDeps {
   connection: DatabaseConnection;
@@ -177,8 +178,9 @@ export function registerIpcHandlers(deps: IpcDeps): void {
         { providerKey: input.providerKey, enterpriseDomain: input.enterpriseDomain ?? null },
         {
           onAuth: ({ url, instructions }) => {
-            void shell.openExternal(url);
-            emit({ phase: "authorize", url, instructions });
+            const browserUrl = normalizeExternalBrowserUrl(url);
+            void shell.openExternal(browserUrl);
+            emit({ phase: "authorize", url: browserUrl, instructions });
           },
           onProgress: (message) => emit({ phase: "progress", message }),
         },
@@ -209,11 +211,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
   });
   ipcMain.handle(IPC_CHANNELS.openExternalUrl, async (_event, url: string) => {
     try {
-      const parsed = new URL(url);
-      if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
-        return fail("external_url_blocked", "Only http(s) URLs may be opened externally.");
-      }
-      await shell.openExternal(parsed.toString());
+      await shell.openExternal(normalizeExternalBrowserUrl(url));
       return ok(null);
     } catch (error) {
       return fail("external_url_failed", error instanceof Error ? error.message : String(error));
