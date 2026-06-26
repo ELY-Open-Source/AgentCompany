@@ -1,7 +1,6 @@
 import type {
   AgentRecord,
   ApprovalRecord,
-  AuditEventRecord,
   ChatAttachmentRecord,
   ChatMessageRecord,
   ChatSpaceRecord,
@@ -79,33 +78,6 @@ export function filterApprovalsForSpace(
 
 export function countMessagesIn(spaceId: string, messages: ChatMessageRecord[]): number {
   return messages.filter((message) => message.spaceId === spaceId).length;
-}
-
-export function replayEventsForThread(
-  events: AuditEventRecord[],
-  thread: ChatThreadRecord,
-  messages: ChatMessageRecord[],
-): AuditEventRecord[] {
-  const messageIds = new Set(
-    messages
-      .filter((message) => message.threadId === thread.id || message.id === thread.rootMessageId)
-      .map((message) => message.id),
-  );
-  return events
-    .filter((event) => {
-      if (event.entityType === "chat_message" && messageIds.has(event.entityId)) return true;
-      const payload = auditPayload(event);
-      return payload.threadId === thread.id || payload.sourceThreadId === thread.id;
-    })
-    .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
-}
-
-function auditPayload(event: AuditEventRecord): Record<string, unknown> {
-  const parsed = JSON.parse(event.payloadJson) as unknown;
-  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-    throw new Error("Audit event payload is invalid.");
-  }
-  return parsed as Record<string, unknown>;
 }
 
 export function formatDay(iso: string): string {

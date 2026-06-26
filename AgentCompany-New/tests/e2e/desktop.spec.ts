@@ -102,9 +102,7 @@ test("onboards, hires, and creates work in the Electron shell", async () => {
     await expect(page.getByText("@Board").first()).toBeVisible();
     await expect(page.getByText("/escalate").first()).toBeVisible();
     await page.getByRole("button", { name: "Open thread" }).first().click();
-    await expect(page.getByText("Audit")).toBeVisible();
-    await expect(page.getByText("Chat message sent").first()).toBeVisible();
-    await expect(page.getByText("Approval requested").first()).toBeVisible();
+    await expect(page.getByRole("textbox", { name: "Thread reply" })).toBeVisible();
     await page.getByRole("button", { name: "Approvals" }).click();
     await expect(page.getByText("Escalate release").first()).toBeVisible();
 

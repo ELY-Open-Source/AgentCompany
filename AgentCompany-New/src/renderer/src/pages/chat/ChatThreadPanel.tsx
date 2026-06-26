@@ -1,7 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { Button, Icon, IconButton, Pill } from "../../shared/ui";
 import type {
-  AuditEventRecord,
   BoardInterventionRecord,
   ChatAttachmentRecord,
   ChatMentionRecord,
@@ -10,7 +9,7 @@ import type {
   ChatThreadRecord,
   FileObjectRecord,
 } from "../../../../shared/domain";
-import { auditEventLabel, formatTime } from "../types";
+import { formatTime } from "../types";
 import { ChatMessageRow } from "./ChatMessageRow";
 import { MentionTextarea } from "./MentionTextarea";
 import { senderName, type MessageContext } from "./chat-helpers";
@@ -24,7 +23,6 @@ export function ChatThreadPanel({
   slashInvocations,
   boardInterventions,
   files,
-  auditEvents,
   context,
   canIntervene,
   attachmentFileId,
@@ -43,7 +41,6 @@ export function ChatThreadPanel({
   slashInvocations: ChatSlashInvocationRecord[];
   boardInterventions: BoardInterventionRecord[];
   files: FileObjectRecord[];
-  auditEvents: AuditEventRecord[];
   context: MessageContext;
   canIntervene: boolean;
   attachmentFileId: string;
@@ -118,7 +115,6 @@ export function ChatThreadPanel({
             compact
           />
         ))}
-        {auditEvents.length > 0 && <AuditReplay events={auditEvents} />}
       </div>
       <form onSubmit={onSubmit} style={{ padding: 12, flexShrink: 0 }}>
         <div style={{ border: "1px solid var(--border-strong)", borderRadius: 10, background: "var(--panel)", padding: "8px 10px" }}>
@@ -243,34 +239,4 @@ function boardStateLabel(state: string): string {
 
 function formatBoardAction(action: string): string {
   return action.replace(/_/g, " ");
-}
-
-function AuditReplay({ events }: { events: AuditEventRecord[] }) {
-  return (
-    <section style={{ borderTop: "1px solid var(--border-soft)", marginTop: 18, paddingTop: 14 }}>
-      <div className="section-label" style={{ marginBottom: 10 }}>Audit</div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        {events.map((event) => (
-          <div
-            key={event.id}
-            className="row"
-            style={{
-              alignItems: "baseline",
-              gap: 8,
-              border: "1px solid var(--border)",
-              borderRadius: 8,
-              padding: "8px 10px",
-              background: "var(--panel)",
-              minWidth: 0,
-            }}
-          >
-            <span className="mono" style={{ fontSize: 12, color: "var(--text-3)", flexShrink: 0 }}>{formatTime(event.createdAt)}</span>
-            <span style={{ fontSize: 12, color: "var(--text-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-              {auditEventLabel(event.entityType, event.action)}
-            </span>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
 }

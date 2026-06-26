@@ -212,7 +212,7 @@ function AttachmentCard({ file, handoff = false, onOpen }: { file: FileObjectRec
             </span>
           )}
         </div>
-        <div style={{ fontSize: 12, color: "var(--text-3)" }}>{file.kind.toUpperCase()} · {file.sha256.slice(0, 8)}</div>
+        <div style={{ fontSize: 12, color: "var(--text-3)" }}>{file.kind.toUpperCase()}</div>
       </div>
       {canOpen && <IconButton icon="arrowUpRight" label={`Open ${file.name}`} onClick={onOpen ?? undefined} />}
     </div>

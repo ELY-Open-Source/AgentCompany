@@ -8,7 +8,6 @@ import {
   collectParticipants,
   filterApprovalsForSpace,
   isRootMessage,
-  replayEventsForThread,
 } from "./chat/chat-helpers";
 import { ROLE_KEY } from "../../../shared/domain";
 import type { PageProps } from "./types";
@@ -46,10 +45,6 @@ export function ChatPage({ snapshot, actions }: PageProps) {
   const approvalsAll = useMemo(
     () => snapshot.approvals.filter((a) => a.orgId === orgId && a.state === "pending"),
     [snapshot.approvals, orgId],
-  );
-  const auditEventsAll = useMemo(
-    () => snapshot.auditEvents.filter((event) => event.orgId === orgId),
-    [snapshot.auditEvents, orgId],
   );
   const channels = useMemo(() => spaces.filter((space) => space.spaceType !== "direct"), [spaces]);
   const directs = useMemo(() => spaces.filter((space) => space.spaceType === "direct"), [spaces]);
@@ -106,10 +101,6 @@ export function ChatPage({ snapshot, actions }: PageProps) {
   const threadMessages = selectedThread
     ? messagesInSpace.filter((m) => m.threadId === selectedThread.id && m.id !== selectedThread.rootMessageId)
     : [];
-  const threadAuditEvents = useMemo(
-    () => (selectedThread ? replayEventsForThread(auditEventsAll, selectedThread, messagesInSpace) : []),
-    [auditEventsAll, selectedThread, messagesInSpace],
-  );
   const selectedBoardInterventions = useMemo(
     () => (selectedThread ? boardInterventionsAll.filter((item) => item.threadId === selectedThread.id) : []),
     [boardInterventionsAll, selectedThread],
@@ -309,7 +300,6 @@ export function ChatPage({ snapshot, actions }: PageProps) {
           slashInvocations={slashInvocationsAll}
           boardInterventions={selectedBoardInterventions}
           files={files}
-          auditEvents={threadAuditEvents}
           context={{ employees, agents }}
           canIntervene={canBoardIntervene}
           attachmentFileId={threadAttachmentFileId}
