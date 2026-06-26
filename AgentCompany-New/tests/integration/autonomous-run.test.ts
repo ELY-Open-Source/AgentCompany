@@ -131,7 +131,7 @@ describe("autonomous bootstrap run", () => {
     // The CEO posts a file handoff in the company channel, so chat carries the
     // actual artifact and recipient mentions instead of a plain status note.
     const general = state.chatSpaces.find((s) => s.orgId === orgId && s.name === "general");
-    const kickoff = state.chatMessages.find((m) => m.orgId === orgId && m.spaceId === general?.id);
+    const kickoff = state.chatMessages.find((m) => m.orgId === orgId && m.spaceId === general?.id && m.bodyMd.includes("/handoff"));
     expect(kickoff).toMatchObject({ senderType: "agent", senderId: ceo?.id });
     expect(kickoff?.bodyMd).toContain("/handoff @Mara-Quinn");
     expect(state.chatAttachments).toContainEqual(expect.objectContaining({ messageId: kickoff?.id, fileId: planFile?.id }));

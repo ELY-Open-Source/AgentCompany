@@ -6,6 +6,7 @@ import type { ChatService } from "./chat-service";
 import { writeDeliverable } from "./deliverable-writer";
 import { DocumentService } from "./document-service";
 import { recordWorkspaceFile } from "./files/file-object-store";
+import { canonicalMentionHandle } from "./mention-handles";
 import type { JsonRecord } from "./provider-http";
 import type { ToolCall, ToolDefinition } from "./provider-tool-turn";
 
@@ -25,6 +26,10 @@ export interface AgentToolDeps {
   db: DatabaseSync;
   organization: OrganizationService;
   chat: ChatService;
+}
+
+export interface AgentToolDispatchOptions {
+  announceTaskAssignments?: boolean;
 }
 
 /** The tools the acting agent may call during a run. */
@@ -121,13 +126,18 @@ export const AGENT_TOOLS: ToolDefinition[] = [
   },
 ];
 
-export function dispatchAgentTool(deps: AgentToolDeps, ctx: AgentToolContext, call: ToolCall): string {
+export function dispatchAgentTool(
+  deps: AgentToolDeps,
+  ctx: AgentToolContext,
+  call: ToolCall,
+  options: AgentToolDispatchOptions = {},
+): string {
   try {
     switch (call.name) {
       case "hire_agent":
         return hireAgent(deps, ctx, call.arguments);
       case "create_task":
-        return createTask(deps, ctx, call.arguments);
+        return createTask(deps, ctx, call.arguments, options);
       case "update_task_status":
         return updateTaskStatus(deps, ctx, call.arguments);
       case "write_deliverable":
@@ -167,26 +177,32 @@ function hireAgent(deps: AgentToolDeps, ctx: AgentToolContext, args: JsonRecord)
   return `Hired ${name} as ${role} in ${department} (agent_id=${agentId}).`;
 }
 
-function createTask(deps: AgentToolDeps, ctx: AgentToolContext, args: JsonRecord): string {
+function createTask(deps: AgentToolDeps, ctx: AgentToolContext, args: JsonRecord, options: AgentToolDispatchOptions): string {
   const title = requireString(args.title, "title");
   const description = requireString(args.description, "description");
   const assigneeName = optionalString(args.assignee_agent_name);
-  const assigneeId = assigneeName ? resolveAgentByName(deps.db, ctx.orgId, assigneeName) : null;
-  if (assigneeName && !assigneeId) throw new Error(`No agent named "${assigneeName}" — hire them first.`);
-  const taskId = deps.organization.createTask({
-    orgId: ctx.orgId,
-    title,
-    description,
-    status: TASK_STATUS.BACKLOG,
-    assigneeAgentId: assigneeId,
-    risk: normalizeRisk(args.risk),
-    projectId: ctx.taskProjectId,
-    goalId: ctx.taskGoalId,
-    workspaceId: ctx.workspace?.id ?? null,
-    priority: TASK_PRIORITY.NORMAL,
-    requiresFilesystem: false,
-  });
-  return `Created task "${title}" (task_id=${taskId})${assigneeId ? ` assigned to ${assigneeName}` : " (unassigned)"}.`;
+  const assignee = assigneeName ? requireRunnableAgentByName(deps.db, ctx.orgId, assigneeName) : null;
+  const create = () => {
+    const taskId = deps.organization.createTask({
+      orgId: ctx.orgId,
+      title,
+      description,
+      status: TASK_STATUS.BACKLOG,
+      assigneeAgentId: assignee?.id ?? null,
+      risk: normalizeRisk(args.risk),
+      projectId: ctx.taskProjectId,
+      goalId: ctx.taskGoalId,
+      workspaceId: ctx.workspace?.id ?? null,
+      priority: TASK_PRIORITY.NORMAL,
+      requiresFilesystem: false,
+    });
+    const assignmentThread = options.announceTaskAssignments !== false && assignee && assignee.id !== ctx.agent.id
+      ? postAssignmentMessage(deps, ctx, { taskId, title, description, assignee })
+      : null;
+    return { taskId, assignmentThread };
+  };
+  const { taskId, assignmentThread } = assignee ? withSavepoint(deps.db, "agent_create_task_assignment", create) : create();
+  return `Created task "${title}" (task_id=${taskId})${assignee ? ` assigned to ${assignee.name}` : " (unassigned)"}${assignmentThread ? ` in thread_id="${assignmentThread}"` : ""}.`;
 }
 
 function updateTaskStatus(deps: AgentToolDeps, ctx: AgentToolContext, args: JsonRecord): string {
@@ -303,10 +319,72 @@ function createDocumentTool(deps: AgentToolDeps, ctx: AgentToolContext, args: Js
   return `Created document "${title}" (doc_id=${docId}, type=${docType}, chars=${content.length}).`;
 }
 
-function resolveAgentByName(db: DatabaseSync, orgId: string, name: string): string | null {
-  const row = db.prepare("select id from agents where org_id = ? and lower(name) = lower(?) and lifecycle = 'active' limit 1")
-    .get(orgId, name.trim()) as { id: string } | undefined;
-  return row?.id ?? null;
+interface RunnableAssignmentAgent {
+  id: string;
+  name: string;
+  department: string;
+}
+
+function requireRunnableAgentByName(db: DatabaseSync, orgId: string, name: string): RunnableAssignmentAgent {
+  const row = db.prepare(`
+    select a.id, a.name, a.department
+    from agents a
+    join providers p on p.id = a.model_provider_id and p.org_id = a.org_id
+    join service_identities si on si.agent_id = a.id and si.org_id = a.org_id
+    where a.org_id = ?
+      and lower(a.name) = lower(?)
+      and a.lifecycle = 'active'
+      and p.enabled = 1
+    limit 1
+  `).get(orgId, name.trim()) as RunnableAssignmentAgent | undefined;
+  if (!row) throw new Error(`No runnable agent named "${name}" with an enabled provider and service identity.`);
+  return row;
+}
+
+function postAssignmentMessage(
+  deps: AgentToolDeps,
+  ctx: AgentToolContext,
+  input: { taskId: string; title: string; description: string; assignee: RunnableAssignmentAgent },
+): string {
+  const channel = assignmentChannel(input.assignee.department);
+  const body = [
+    `@${canonicalMentionHandle(input.assignee.name)} take task_id=${input.taskId}: ${input.title}.`,
+    input.description,
+  ].join(" ");
+  const space = deps.db.prepare(
+    "select id from chat_spaces where org_id = ? and lower(name) = lower(?) and space_type <> 'direct' limit 1",
+  ).get(ctx.orgId, channel) as { id: string } | undefined;
+  if (!space) throw new Error(`No channel named "${channel}".`);
+  const messageId = deps.chat.sendMessage({
+    orgId: ctx.orgId,
+    spaceId: space.id,
+    threadId: null,
+    senderType: "agent",
+    senderId: ctx.agent.id,
+    bodyMd: body,
+    attachmentFileIds: [],
+  });
+  const row = deps.db.prepare("select thread_id from chat_messages where id = ?").get(messageId) as { thread_id: string };
+  return row.thread_id;
+}
+
+function assignmentChannel(department: string): string {
+  const normalized = department.trim().toLowerCase();
+  if (normalized === "engineering" || normalized === "product") return normalized;
+  return "general";
+}
+
+function withSavepoint<T>(db: DatabaseSync, name: string, operation: () => T): T {
+  db.exec(`savepoint ${name}`);
+  try {
+    const result = operation();
+    db.exec(`release savepoint ${name}`);
+    return result;
+  } catch (error) {
+    db.exec(`rollback to savepoint ${name}`);
+    db.exec(`release savepoint ${name}`);
+    throw error;
+  }
 }
 
 function requireString(value: unknown, field: string): string {

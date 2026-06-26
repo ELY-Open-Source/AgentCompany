@@ -7,6 +7,7 @@ import { DatabaseConnection } from "../../src/main/database/connection";
 import { OrganizationService } from "../../src/main/services/organization-service";
 import { ChatService } from "../../src/main/services/chat-service";
 import { runAgentLoop } from "../../src/main/services/agent-run-loop";
+import { canonicalMentionHandle } from "../../src/main/services/mention-handles";
 import type { AgentToolContext } from "../../src/main/services/agent-tools";
 import type { AgentTurnResult, ToolCall } from "../../src/main/services/provider-tool-turn";
 
@@ -46,6 +47,7 @@ describe("agent run loop (real tool dispatch)", () => {
         organizationName: "OrbitOps", employeeName: "Yang", mission: "Run an AI company.", goal: "Win customers.",
       });
       providerId = (connection.db.prepare("select id from providers where org_id = ? and provider_key = 'openai'").get(orgId) as { id: string }).id;
+      connection.db.prepare("update providers set enabled = 1 where id = ?").run(providerId);
       connection.db.prepare(`
         insert into workspaces(id, org_id, name, local_path, repo_url, repo_ref, project_id, is_primary, created_at, updated_at)
         values (?, ?, 'Default Workspace', ?, '', '', null, 1, datetime('now'), datetime('now'))
@@ -108,14 +110,13 @@ describe("agent run loop (real tool dispatch)", () => {
     expect(existsSync(deliverablePath)).toBe(true);
     expect(readFileSync(deliverablePath, "utf8")).toContain("Operating Plan");
 
-    // The CEO's coordination message lands in #general so the channel is no longer blank.
-    const generalSpaceId = (connection.db.prepare("select id from chat_spaces where org_id = ? and name = 'general'").get(orgId) as { id: string }).id;
+    // The assignment message and the CEO's coordination message both land in chat.
     const messages = connection.db.prepare(
       "select sender_type, sender_id, body_md, space_id from chat_messages where org_id = ?",
     ).all(orgId) as Array<{ sender_type: string; sender_id: string; body_md: string; space_id: string }>;
-    expect(messages).toHaveLength(1);
-    expect(messages[0]).toMatchObject({ sender_type: "agent", sender_id: ceoId, space_id: generalSpaceId });
-    expect(messages[0]?.body_md).toContain("operating plan is live");
+    expect(messages).toHaveLength(2);
+    expect(messages).toContainEqual(expect.objectContaining({ sender_type: "agent", sender_id: ceoId, body_md: expect.stringContaining(`@${canonicalMentionHandle("Alex Rivera")}`) }));
+    expect(messages).toContainEqual(expect.objectContaining({ sender_type: "agent", sender_id: ceoId, body_md: expect.stringContaining("operating plan is live") }));
 
     connection.close();
   });
@@ -148,6 +149,59 @@ describe("agent run loop (real tool dispatch)", () => {
     // The tool returns an error string to the model; nothing is written outside the root.
     expect(existsSync(join(workspaceRoot, "..", "escape.txt"))).toBe(false);
     expect(result.toolCallCount).toBe(1);
+    connection.close();
+  });
+
+  test("delegating a task opens an assignment thread for the assignee", async () => {
+    const connection = new DatabaseConnection(join(tmpdir(), `ac-loop-assign-${randomUUID()}.db`));
+    const organization = new OrganizationService(connection.db);
+    let orgId = "";
+    let ceoId = "";
+    let providerId = "";
+    connection.transaction(() => {
+      orgId = organization.createOrganization({
+        organizationName: "OrbitOps", employeeName: "Yang", mission: "m", goal: "g",
+      });
+      providerId = (connection.db.prepare("select id from providers where org_id = ? and provider_key = 'openai'").get(orgId) as { id: string }).id;
+      connection.db.prepare("update providers set enabled = 1 where id = ?").run(providerId);
+      ceoId = organization.createAgent({
+        orgId, name: "CEO", role: "CEO", department: "Executive",
+        modelProviderId: providerId, modelId: "gpt-5.4", budgetCents: 25000, managerAgentId: null,
+      });
+    });
+    const ctx: AgentToolContext = {
+      orgId, agent: { id: ceoId, modelProviderId: providerId, modelId: "gpt-5.4" },
+      taskProjectId: null, taskGoalId: null, workspace: null,
+    };
+    const script: ScriptedTurn[] = [
+      { text: "staff", toolCalls: [call("hire_agent", { name: "Alex Rivera", role: "Engineer", department: "Engineering" })] },
+      { text: "delegate", toolCalls: [call("create_task", { title: "Build the booking API", description: "Ship the booking API.", assignee_agent_name: "Alex Rivera" })] },
+      { text: "done", toolCalls: [] },
+    ];
+
+    await runAgentLoop(
+      { providers: fakeProvider(script), tools: { db: connection.db, organization, chat: new ChatService(connection.db) } },
+      { orgId, providerId, workspaceId: null, instructions: "i", initialUserTurn: "u", toolContext: ctx },
+    );
+
+    const alex = connection.db.prepare("select id from agents where org_id = ? and name = 'Alex Rivera'").get(orgId) as { id: string };
+    const assignment = connection.db.prepare(`
+      select m.body_md, m.thread_id, s.name as space_name
+      from chat_messages m
+      join chat_spaces s on s.id = m.space_id
+      where m.org_id = ?
+    `).get(orgId) as { body_md: string; thread_id: string; space_name: string } | undefined;
+    expect(assignment).toMatchObject({ space_name: "engineering" });
+    expect(assignment?.body_md).toContain(`@${canonicalMentionHandle("Alex Rivera")}`);
+    expect(assignment?.body_md).toContain("Build the booking API");
+
+    const wake = connection.db.prepare(`
+      select state, trigger, secret_scope_json
+      from task_runs
+      where org_id = ? and agent_id = ? and trigger = 'chat_mention'
+    `).get(orgId, alex.id) as { state: string; trigger: string; secret_scope_json: string } | undefined;
+    expect(wake).toMatchObject({ state: "queued", trigger: "chat_mention" });
+    expect(JSON.parse(wake?.secret_scope_json ?? "{}")).toMatchObject({ sourceThreadId: assignment?.thread_id });
     connection.close();
   });
 

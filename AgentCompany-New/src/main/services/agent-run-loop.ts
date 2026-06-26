@@ -1,5 +1,6 @@
 import type { ProviderService } from "./provider-service";
 import { AGENT_TOOLS, dispatchAgentTool, type AgentToolContext, type AgentToolDeps } from "./agent-tools";
+import { canonicalMentionHandle } from "./mention-handles";
 import type { AgentTurnMessage } from "./provider-tool-turn";
 
 const MAX_ITERATIONS = 12;
@@ -62,11 +63,32 @@ export async function runAgentLoop(deps: AgentRunLoopDeps, input: AgentRunLoopIn
     messages.push({ role: "assistant", text: turn.text, toolCalls: turn.toolCalls });
     const results = turn.toolCalls.map((call) => {
       toolCallCount += 1;
-      return { toolCallId: call.id, toolName: call.name, output: dispatchAgentTool(deps.tools, input.toolContext, call) };
+      return {
+        toolCallId: call.id,
+        toolName: call.name,
+        output: dispatchAgentTool(deps.tools, input.toolContext, call, {
+          announceTaskAssignments: shouldAnnounceTaskAssignment(call, turn.toolCalls),
+        }),
+      };
     });
     messages.push({ role: "tool", results });
     deps.onToolResults?.();
   }
 
   throw new Error(`Agent run did not converge within ${MAX_ITERATIONS} iterations.`);
+}
+
+function shouldAnnounceTaskAssignment(call: { name: string; arguments: Record<string, unknown> }, toolCalls: Array<{ name: string; arguments: Record<string, unknown> }>): boolean {
+  if (call.name !== "create_task") return true;
+  const assigneeName = stringArg(call.arguments.assignee_agent_name);
+  if (!assigneeName) return true;
+  const handle = `@${canonicalMentionHandle(assigneeName)}`;
+  return !toolCalls.some((toolCall) => {
+    if (toolCall.name !== "send_message") return false;
+    return stringArg(toolCall.arguments.body).toLowerCase().includes(handle);
+  });
+}
+
+function stringArg(value: unknown): string {
+  return typeof value === "string" ? value : "";
 }
