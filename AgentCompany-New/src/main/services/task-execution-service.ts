@@ -119,6 +119,8 @@ export class TaskExecutionService {
         workspace: workspace ? { id: workspace.id, localPath: workspace.local_path } : null,
       };
       const chatContext = this.loadChatContext(orgId, isolation);
+      const isCeo = !agent.manager_agent_id;
+      const hasReports = this.agentHasReports(orgId, agent.id);
       const result = await runAgentLoop(
         {
           providers: this.providers,
@@ -129,7 +131,7 @@ export class TaskExecutionService {
           orgId,
           providerId: provider.id,
           workspaceId: task.workspace_id,
-          instructions: buildAgentInstructions(agent),
+          instructions: buildAgentInstructions({ agent, companyName: this.orgName(orgId), isCeo, hasReports }),
           initialUserTurn: buildTaskPrompt({
             task,
             agent,
@@ -139,8 +141,8 @@ export class TaskExecutionService {
             workspace,
             isolation,
             skillRuntimeSnapshot,
-            isManager: !agent.manager_agent_id,
-            hasReports: this.agentHasReports(orgId, agent.id),
+            isManager: isCeo,
+            hasReports,
             managerName: this.agentName(orgId, agent.manager_agent_id),
             chatContext,
           }),
@@ -375,6 +377,12 @@ export class TaskExecutionService {
     if (!agentId) return null;
     const row = this.db.prepare("select name from agents where id = ? and org_id = ?").get(agentId, orgId) as { name: string } | undefined;
     return row?.name ?? null;
+  }
+
+  private orgName(orgId: string): string {
+    const row = this.db.prepare("select name from organizations where id = ?").get(orgId) as { name: string } | undefined;
+    if (!row) throw new Error("Organization was not found.");
+    return row.name;
   }
 
   private completeRun(orgId: string, runId: string, providerRequestId: string): void {

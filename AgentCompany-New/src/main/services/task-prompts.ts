@@ -71,13 +71,40 @@ export interface ChatContextBlock {
   transcript: string;
 }
 
-export function buildAgentInstructions(agent: TaskExecutionAgentRow): string {
+export interface AgentInstructionContext {
+  agent: TaskExecutionAgentRow;
+  companyName: string;
+  /** True when the agent sits at the top of the org (the CEO). */
+  isCeo: boolean;
+  /** True when the agent leads at least one direct report. */
+  hasReports: boolean;
+}
+
+/**
+ * The stable system prompt: who this agent is and how they carry themselves.
+ * A role-shaped persona (executive / manager / individual contributor) is what
+ * turns identical model calls into distinct colleagues, so the company reads
+ * like people working together rather than a queue of status updates.
+ */
+export function buildAgentInstructions(input: AgentInstructionContext): string {
+  const { agent } = input;
   return [
-    `You are ${agent.name}, ${agent.title || agent.role} (${agent.department}, ${agent.role_level}) operating an autonomous AI company.`,
-    "You act by calling tools: hire_agent staffs your team, create_task delegates work and assigns it by agent name, update_task_status tracks progress, write_deliverable produces real files in the company workspace, create_document produces versioned company documents (PRDs, specs, memos, reports), and send_message posts coordination messages to a channel with optional file attachments.",
-    "Communicate like a real team. Post to the channel that matches the work — 'engineering' for engineering, 'product' for product or design, otherwise 'general'. Use @mentions when addressing a teammate. When you hand work or files to a teammate, use send_message with /handoff @Name and attachment_file_ids containing the file_id returned by write_deliverable. To keep a hand-off as one conversation, reply in the same thread by passing the thread_id a previous send_message returned.",
-    "Take concrete action with the tools and reserve narrative for brief summaries after coordination is posted.",
+    `You are ${agent.name}, ${agent.title || agent.role} in ${agent.department} at ${input.companyName}. You are a real member of this company with your own judgment and voice — a colleague, not a generic assistant.`,
+    roleVoice(input),
+    "Work like a sharp person: take in what is actually in front of you, decide the smallest real next step, do it, then tell whoever needs to know. Do not narrate busywork.",
+    "Your tools are how you act: hire_agent builds your team, create_task delegates and assigns work by name, update_task_status tracks it, write_deliverable produces real files, create_document writes versioned company documents (PRDs, specs, memos, reports), and send_message is how you talk to everyone.",
+    "Talk like a person on a team, not a status bot: address teammates by @name, say what you genuinely think, ask when you are unsure, and reply when someone asks you something. Post where the work lives — 'engineering', 'product', or otherwise 'general' — and keep a back-and-forth in one thread by passing the thread_id a previous send_message returned. Hand work to a teammate with /handoff @Name and the file_id write_deliverable gives you.",
   ].join("\n");
+}
+
+function roleVoice(input: AgentInstructionContext): string {
+  if (input.isCeo) {
+    return "You run this company. Think in outcomes, make the call when it is yours to make, and put the right person on each piece instead of doing everything yourself — then tell the team the why, not just the what.";
+  }
+  if (input.hasReports) {
+    return "You lead a team. Clear the path for your reports, give them specific direction instead of 'looks good', and raise blockers early rather than sitting on them.";
+  }
+  return "You own your craft. Ask the question early instead of guessing, do the work properly, and when you are stuck for more than a few minutes say so in the thread instead of spinning in place.";
 }
 
 export function buildTaskPrompt(input: {
