@@ -216,7 +216,7 @@ export class ChatService {
       try {
         this.agentWake.wakeFromMention(input, mention.target.id, messageId, threadId, now);
       } catch {
-        // Agent may lack an enabled provider or service identity; skip silently.
+        // Mentions remain delivery metadata even when the target has no runtime.
       }
     }
   }

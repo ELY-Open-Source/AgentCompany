@@ -17,9 +17,10 @@ describe("agent messaging", () => {
     const organization = new OrganizationService(connection.db);
     let orgId = "";
     let ceoId = "";
+    let providerId = "";
     connection.transaction(() => {
       orgId = organization.createOrganization({ organizationName: "OrbitOps", employeeName: "Yang", mission: "m", goal: "g" });
-      const providerId = (connection.db.prepare("select id from providers where org_id = ? and provider_key = 'openai'").get(orgId) as { id: string }).id;
+      providerId = (connection.db.prepare("select id from providers where org_id = ? and provider_key = 'openai'").get(orgId) as { id: string }).id;
       ceoId = organization.createAgent({
         orgId, name: "CEO", role: "CEO", department: "Executive",
         modelProviderId: providerId, modelId: "gpt-5.4", budgetCents: 25000, managerAgentId: null,
@@ -52,9 +53,46 @@ describe("agent messaging", () => {
       modelProviderId: null, modelId: null, budgetCents: 1000, managerAgentId: ceoId,
     }));
     const addressed = dispatchAgentTool(deps, ctx, call("send_message", { channel: "engineering", body: "@Dana can you take the booking API?" }));
-    expect(addressed).toContain("Dana can see it and reply here");
+    expect(addressed).toContain("Dana was mentioned in this thread");
+    expect(addressed).not.toContain("Dana can see it and reply here");
     expect(addressed).not.toContain("message_id=");
+    expect(connection.db.prepare("select count(*) as count from task_runs where org_id = ? and trigger = 'chat_mention'")
+      .get(orgId)).toEqual({ count: 0 });
 
+    connection.close();
+  });
+
+  test("reports reply readiness when a mention wakes a teammate run", () => {
+    const connection = new DatabaseConnection(join(tmpdir(), `ac-msg-${randomUUID()}.db`));
+    const organization = new OrganizationService(connection.db);
+    let orgId = "";
+    let ceoId = "";
+    let danaId = "";
+    let providerId = "";
+    connection.transaction(() => {
+      orgId = organization.createOrganization({ organizationName: "OrbitOps", employeeName: "Yang", mission: "m", goal: "g" });
+      providerId = (connection.db.prepare("select id from providers where org_id = ? and provider_key = 'openai'").get(orgId) as { id: string }).id;
+      connection.db.prepare("update providers set enabled = 1 where id = ? and org_id = ?").run(providerId, orgId);
+      ceoId = organization.createAgent({
+        orgId, name: "CEO", role: "CEO", department: "Executive",
+        modelProviderId: providerId, modelId: "gpt-5.4", budgetCents: 25000, managerAgentId: null,
+      });
+      danaId = organization.createAgent({
+        orgId, name: "Dana", role: "Engineer", department: "Engineering",
+        modelProviderId: providerId, modelId: "gpt-5.4", budgetCents: 1000, managerAgentId: ceoId,
+      });
+    });
+    const deps = { db: connection.db, organization, chat: new ChatService(connection.db) };
+    const ctx: AgentToolContext = {
+      orgId, agent: { id: ceoId, modelProviderId: null, modelId: null },
+      taskProjectId: null, taskGoalId: null, workspace: null,
+    };
+
+    const result = dispatchAgentTool(deps, ctx, call("send_message", { channel: "engineering", body: "@Dana can you take this?" }));
+
+    expect(result).toContain("Dana can see it and reply here");
+    expect(connection.db.prepare("select count(*) as count from task_runs where org_id = ? and agent_id = ? and trigger = 'chat_mention'")
+      .get(orgId, danaId)).toEqual({ count: 1 });
     connection.close();
   });
 });

@@ -36,7 +36,7 @@ export class ChatAgentWakeService {
   }
 
   wakeFromMention(input: SendMessageInput, agentId: string, messageId: string, threadId: string, now: string): AgentWakeResult {
-    const agent = this.requireRunnableAgent(input.orgId, agentId);
+    const agent = this.requireRunnableAgent(input.orgId, agentId, "Agent mention");
     const workspace = this.workspaceForAgent(input.orgId, agent.workspace_id);
     const from = this.principalName(input.orgId, input.senderType, input.senderId);
     const channel = this.channelName(input.orgId, input.spaceId);
@@ -60,7 +60,7 @@ export class ChatAgentWakeService {
 
   wakeFromSlash(input: SendMessageInput, mentions: ResolvedMention[], slash: SlashInvocation, messageId: string, threadId: string, now: string): AgentWakeResult {
     const targetId = this.requireAgentMention(mentions);
-    const agent = this.requireRunnableAgent(input.orgId, targetId);
+    const agent = this.requireRunnableAgent(input.orgId, targetId, "Slash command /agent");
     const workspace = this.workspaceForAgent(input.orgId, agent.workspace_id);
     const taskId = this.organization.createTask({
       orgId: input.orgId,
@@ -86,7 +86,7 @@ export class ChatAgentWakeService {
     return target.id;
   }
 
-  private requireRunnableAgent(orgId: string, agentId: string): RunnableAgentRow {
+  private requireRunnableAgent(orgId: string, agentId: string, label: string): RunnableAgentRow {
     const agent = this.db.prepare(`
       select a.id, a.name, a.model_provider_id, a.workspace_id
       from agents a
@@ -97,7 +97,7 @@ export class ChatAgentWakeService {
         and p.enabled = 1
       limit 1
     `).get(agentId, orgId) as RunnableAgentRow | undefined;
-    if (!agent) throw new Error("Slash command /agent requires an active agent with an enabled provider.");
+    if (!agent) throw new Error(`${label} requires an active agent with an enabled provider.`);
     return agent;
   }
 

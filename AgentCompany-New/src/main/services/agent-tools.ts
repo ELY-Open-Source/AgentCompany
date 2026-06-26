@@ -236,17 +236,20 @@ function sendMessageTool(deps: AgentToolDeps, ctx: AgentToolContext, args: JsonR
     "select id from chat_spaces where org_id = ? and lower(name) = lower(?) and space_type <> 'direct' limit 1",
   ).get(ctx.orgId, channel) as { id: string } | undefined;
   if (!space) throw new Error(`No channel named "${channel}".`);
-  const messageId = deps.chat.sendMessage({
-    orgId: ctx.orgId,
-    spaceId: space.id,
-    threadId,
-    senderType: "agent",
-    senderId: ctx.agent.id,
-    bodyMd: body,
-    attachmentFileIds,
+  const sent = withSavepoint(deps.db, "agent_send_message", () => {
+    const messageId = deps.chat.sendMessage({
+      orgId: ctx.orgId,
+      spaceId: space.id,
+      threadId,
+      senderType: "agent",
+      senderId: ctx.agent.id,
+      bodyMd: body,
+      attachmentFileIds,
+    });
+    const row = deps.db.prepare("select thread_id from chat_messages where id = ?").get(messageId) as { thread_id: string };
+    return { messageId, threadId: row.thread_id };
   });
-  const row = deps.db.prepare("select thread_id from chat_messages where id = ?").get(messageId) as { thread_id: string };
-  return describeSend(deps.db, ctx.agent.id, channel, space.id, messageId, row.thread_id);
+  return describeSend(deps.db, ctx.agent.id, channel, space.id, sent.messageId, sent.threadId);
 }
 
 /**
@@ -259,25 +262,45 @@ function describeSend(db: DatabaseSync, selfAgentId: string, channel: string, sp
   const addressed = mentionedTeammates(db, selfAgentId, messageId);
   const present = channelTeammates(db, selfAgentId, spaceId, addressed);
   const lines = [`Your message is up in #${channel}.`];
-  if (addressed.length > 0) lines.push(`${joinNames(addressed)} can see it and reply here.`);
+  const replyReady = addressed.filter((teammate) => teammate.canReply).map((teammate) => teammate.name);
+  const mentionedOnly = addressed.filter((teammate) => !teammate.canReply).map((teammate) => teammate.name);
+  if (replyReady.length > 0) lines.push(`${joinNames(replyReady)} can see it and reply here.`);
+  if (mentionedOnly.length > 0) lines.push(`${joinNames(mentionedOnly)} was mentioned in this thread.`);
   if (present.length > 0) lines.push(`Also in the room: ${joinNames(present)}.`);
   lines.push(`To stay in this conversation, reply with thread_id="${threadId}".`);
   return lines.join(" ");
 }
 
-function mentionedTeammates(db: DatabaseSync, selfAgentId: string, messageId: string): string[] {
+interface MentionedTeammate {
+  name: string;
+  canReply: boolean;
+}
+
+function mentionedTeammates(db: DatabaseSync, selfAgentId: string, messageId: string): MentionedTeammate[] {
+  const wakePattern = `%"sourceMessageId":"${messageId}"%`;
   const rows = db.prepare(`
-    select coalesce(a.name, e.display_name) as name
+    select coalesce(a.name, e.display_name) as name,
+           case
+             when m.target_type = 'employee' then 1
+             when exists (
+               select 1
+               from task_runs r
+               where r.agent_id = m.target_id
+                 and r.trigger = 'chat_mention'
+                 and r.secret_scope_json like ?
+             ) then 1
+             else 0
+           end as can_reply
     from chat_mentions m
     left join agents a on a.id = m.target_id and m.target_type = 'agent'
     left join employees e on e.id = m.target_id and m.target_type = 'employee'
     where m.message_id = ? and m.target_type in ('agent', 'employee') and m.target_id <> ?
-  `).all(messageId, selfAgentId) as Array<{ name: string | null }>;
-  return dedupeNames(rows);
+  `).all(wakePattern, messageId, selfAgentId) as Array<{ name: string | null; can_reply: number }>;
+  return dedupeTeammates(rows);
 }
 
-function channelTeammates(db: DatabaseSync, selfAgentId: string, spaceId: string, addressed: string[]): string[] {
-  const alreadyNamed = new Set(addressed);
+function channelTeammates(db: DatabaseSync, selfAgentId: string, spaceId: string, addressed: MentionedTeammate[]): string[] {
+  const alreadyNamed = new Set(addressed.map((teammate) => teammate.name));
   const rows = db.prepare(`
     select coalesce(a.name, e.display_name) as name
     from chat_memberships cm
@@ -292,6 +315,17 @@ function dedupeNames(rows: Array<{ name: string | null }>): string[] {
   const names = new Set<string>();
   for (const row of rows) if (row.name) names.add(row.name);
   return [...names];
+}
+
+function dedupeTeammates(rows: Array<{ name: string | null; can_reply: number }>): MentionedTeammate[] {
+  const teammates = new Map<string, MentionedTeammate>();
+  for (const row of rows) {
+    if (!row.name) continue;
+    const existing = teammates.get(row.name);
+    const canReply = row.can_reply === 1;
+    teammates.set(row.name, { name: row.name, canReply: canReply || existing?.canReply === true });
+  }
+  return [...teammates.values()];
 }
 
 function joinNames(names: string[]): string {
