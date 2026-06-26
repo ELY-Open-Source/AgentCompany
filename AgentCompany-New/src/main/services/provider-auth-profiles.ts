@@ -75,12 +75,12 @@ export function parseVertexProfile(secret: string): ProviderAuthProfile {
 
 export function parseOpenAiCompatProfile(secret: string): ProviderAuthProfile {
   const parsed = parseCloudSecret(secret);
-  return { type: "openai_compat", baseUrl: normalizedEndpointUrl(requiredString(parsed.baseUrl, "Base URL"), "Base URL"), apiKey: requiredString(parsed.secret, "API key") };
+  return { type: "openai_compat", baseUrl: normalizedHttpsUrl(requiredString(parsed.baseUrl, "Base URL"), "Base URL"), apiKey: requiredString(parsed.secret, "API key") };
 }
 
 export function parseAnthropicCompatProfile(secret: string): ProviderAuthProfile {
   const parsed = parseCloudSecret(secret);
-  return { type: "anthropic_compat", baseUrl: normalizedEndpointUrl(requiredString(parsed.baseUrl, "Base URL"), "Base URL"), apiKey: requiredString(parsed.secret, "API key") };
+  return { type: "anthropic_compat", baseUrl: normalizedHttpsUrl(requiredString(parsed.baseUrl, "Base URL"), "Base URL"), apiKey: requiredString(parsed.secret, "API key") };
 }
 
 export function requireOpenAiCompatProfile(profile: ProviderAuthProfile): Extract<ProviderAuthProfile, { type: "openai_compat" }> {
@@ -159,11 +159,7 @@ function nonEmptySecret(secret: string, label: string): string {
 function normalizedHttpsUrl(value: string, label: string): string {
   const url = new URL(value);
   if (url.protocol !== "https:") throw new Error(`${label} must use HTTPS.`);
-  return url.toString().replace(/\/+$/, "");
-}
-
-function normalizedEndpointUrl(value: string, label: string): string {
-  const url = new URL(value);
-  if (url.protocol !== "https:" && url.protocol !== "http:") throw new Error(`${label} must be an http(s) URL.`);
+  if (url.username || url.password) throw new Error(`${label} must not include credentials.`);
+  if (url.search || url.hash) throw new Error(`${label} must not include query strings or fragments.`);
   return url.toString().replace(/\/+$/, "");
 }

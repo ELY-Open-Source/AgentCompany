@@ -604,10 +604,12 @@ describe("provider service", () => {
     const providers = new ProviderService(connection.db);
     let orgId = "";
     let azureProviderId = "";
+    let customOpenAiProviderId = "";
 
     connection.transaction(() => {
       orgId = createOrganization(organization);
       azureProviderId = providerId(connection, orgId, "azure-openai");
+      customOpenAiProviderId = providerId(connection, orgId, "custom-openai");
     });
 
     expect(() => connection.transaction(() => providers.saveCredential({
@@ -616,6 +618,12 @@ describe("provider service", () => {
       secret: JSON.stringify({ baseUrl: "http://example.com", deployment: "gpt-5", secret: "key" }),
       model: "gpt-5",
     }))).toThrow("Azure base URL must use HTTPS.");
+    expect(() => connection.transaction(() => providers.saveCredential({
+      orgId,
+      providerId: customOpenAiProviderId,
+      secret: JSON.stringify({ baseUrl: "http://api.example.com/v1", secret: "key" }),
+      model: "gpt-5",
+    }))).toThrow("Base URL must use HTTPS.");
     connection.close();
   });
 });

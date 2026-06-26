@@ -85,6 +85,20 @@ describe("provider contracts", () => {
       deployment: "gpt-5.4",
       secret: "azure-key",
     }))).toThrow("Azure base URL must use HTTPS.");
+    for (const providerKey of ["custom-openai", "custom-anthropic"]) {
+      expect(() => providerAdapters[providerKey].parseAuthProfile(JSON.stringify({
+        baseUrl: "http://api.example.com/v1",
+        secret: "sk-custom",
+      }))).toThrow("Base URL must use HTTPS.");
+      expect(() => providerAdapters[providerKey].parseAuthProfile(JSON.stringify({
+        baseUrl: "https://user:token@api.example.com/v1",
+        secret: "sk-custom",
+      }))).toThrow("Base URL must not include credentials.");
+      expect(() => providerAdapters[providerKey].parseAuthProfile(JSON.stringify({
+        baseUrl: "https://api.example.com/v1?tenant=acme",
+        secret: "sk-custom",
+      }))).toThrow("Base URL must not include query strings or fragments.");
+    }
   });
 
   // Providers with no enumerable models endpoint keep returning the curated
