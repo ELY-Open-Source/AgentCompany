@@ -1,6 +1,5 @@
 import type { DatabaseSync } from "node:sqlite";
 import { APPROVAL_STATE, RISK_LEVEL, TASK_STATUS, type ApprovalState } from "../../shared/domain";
-import { PROVIDER_CATALOG } from "../../shared/provider-catalog";
 import { createId } from "../../shared/ids";
 import type { CreateAgentInput, CreateGoalInput, CreateOrganizationInput, CreateProjectInput, CreateTaskInput, CreateWorkspaceInput, DeleteTaskInput, UpdateAgentInput, UpdateTaskInput } from "../../shared/commands";
 import { AuditService } from "./audit-service";
@@ -8,106 +7,24 @@ import { ensureAgentHeartbeat, resolveGoalKickoff, type GoalKickoffPlan } from "
 import { PolicyService } from "./policy-service";
 import { IdentityAccessService } from "./identity-access-service";
 import { OrgGovernanceService } from "./org-governance-service";
-import { OperationsService } from "./operations-service";
-import { SdlcService } from "./sdlc-service";
 import { assertUsableMentionName } from "./mention-handles";
+import { seedOrganization } from "./organization-seed";
 
 export class OrganizationService {
   private readonly audit: AuditService;
   private readonly policy: PolicyService;
   private readonly identityAccess: IdentityAccessService;
   private readonly governance: OrgGovernanceService;
-  private readonly operations: OperationsService;
-  private readonly sdlc: SdlcService;
 
   constructor(private readonly db: DatabaseSync) {
     this.audit = new AuditService(db);
     this.policy = new PolicyService(db);
     this.identityAccess = new IdentityAccessService(db);
     this.governance = new OrgGovernanceService(db);
-    this.operations = new OperationsService(db);
-    this.sdlc = new SdlcService(db);
   }
 
   createOrganization(input: CreateOrganizationInput): string {
-    assertUsableMentionName(input.employeeName);
-    const orgId = createId("org");
-    const employeeId = createId("emp");
-    const now = new Date().toISOString();
-
-    this.db.prepare(`
-      insert into organizations(
-        id, name, mission, goal, description, execution_mode, auto_approve_hires, review_deliverables, created_at
-      )
-      values (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      orgId,
-      input.organizationName.trim(),
-      input.mission.trim(),
-      input.goal.trim(),
-      input.description?.trim() ?? "",
-      input.executionMode ?? "ai_ceo",
-      input.autoApproveHires === false ? 0 : 1,
-      input.reviewDeliverables === true ? 1 : 0,
-      now,
-    );
-    this.db.prepare("insert into employees(id, org_id, display_name, role, created_at) values (?, ?, ?, ?, ?)")
-      .run(employeeId, orgId, input.employeeName.trim(), "Board Chair", now);
-    this.identityAccess.seedEmployeeAccess(orgId, employeeId, now);
-    this.governance.seedOrganizationGovernance(orgId, employeeId, now);
-    this.operations.seedOrganizationOperations(orgId, now);
-    this.sdlc.seedOrganizationSdlc(orgId, now);
-
-    for (const space of [
-      ["company", "general", "Company coordination", "workspace"],
-      ["department", "product", "Product decisions", "workspace"],
-      ["department", "engineering", "Engineering delivery", "workspace"],
-      ["company", "board", "Board decisions", "restricted"],
-    ]) {
-      const spaceId = createId("spc");
-      this.db.prepare(`
-        insert into chat_spaces(id, org_id, space_type, name, topic, visibility, created_at)
-        values (?, ?, ?, ?, ?, ?, ?)
-      `).run(spaceId, orgId, space[0], space[1], space[2], space[3], now);
-      this.db.prepare(`
-        insert into chat_memberships(space_id, principal_type, principal_id, role, mute_state)
-        values (?, ?, ?, ?, ?)
-      `).run(spaceId, "employee", employeeId, space[1] === "board" ? "approver" : "member", "unmuted");
-    }
-
-    for (const provider of PROVIDER_CATALOG) {
-      this.db.prepare(`
-        insert into providers(id, org_id, provider_key, label, auth_type, model, credential_id, enabled, created_at)
-        values (?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(
-        createId("prv"),
-        orgId,
-        provider.key,
-        provider.label,
-        provider.authType,
-        provider.defaultModel,
-        null,
-        0,
-        now,
-      );
-    }
-
-    this.policy.seedOrganizationPolicies(orgId, now);
-    this.db.prepare(`
-      insert into app_state(id, active_org_id, updated_at)
-      values (1, ?, ?)
-      on conflict(id) do update set active_org_id = excluded.active_org_id, updated_at = excluded.updated_at
-    `).run(orgId, now);
-    this.audit.record({
-      orgId,
-      entityType: "organization",
-      entityId: orgId,
-      actorType: "employee",
-      actorId: employeeId,
-      action: "created",
-      payload: { name: input.organizationName.trim() },
-    });
-    return orgId;
+    return seedOrganization(this.db, input);
   }
 
   setActiveOrganization(orgId: string): void {
