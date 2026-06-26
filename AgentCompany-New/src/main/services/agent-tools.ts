@@ -88,7 +88,7 @@ export const AGENT_TOOLS: ToolDefinition[] = [
   },
   {
     name: "send_message",
-    description: "Post a coordination message to a company channel so teammates and the operator can follow the work. Use @mentions for teammates, attach deliverable file ids with attachment_file_ids, and use /handoff @Name when passing a file. Use the channel that matches the work: 'engineering' for engineering, 'product' for product/design, otherwise 'general'. Reply inside a thread by passing its thread_id.",
+    description: "Talk to your teammates in a channel — ask, answer, decide together, or hand off work, the way colleagues do. @mention the people you are addressing, attach deliverable file ids with attachment_file_ids, and use /handoff @Name when passing a file. Use the channel that matches the work: 'engineering' for engineering, 'product' for product/design, otherwise 'general'. Reply inside a thread by passing its thread_id to keep one conversation together.",
     parameters: {
       type: "object",
       additionalProperties: false,
@@ -230,7 +230,58 @@ function sendMessageTool(deps: AgentToolDeps, ctx: AgentToolContext, args: JsonR
     attachmentFileIds,
   });
   const row = deps.db.prepare("select thread_id from chat_messages where id = ?").get(messageId) as { thread_id: string };
-  return `Posted to #${channel} (message_id=${messageId}, thread_id=${row.thread_id}).`;
+  return describeSend(deps.db, ctx.agent.id, channel, space.id, messageId, row.thread_id);
+}
+
+/**
+ * What the sending agent hears back: who is in the channel and who they just
+ * addressed — the presence of real colleagues, not a transaction id. Hearing
+ * the room is what lets an agent hold a conversation instead of posting into a
+ * void, while the thread_id keeps the next reply on the same thread.
+ */
+function describeSend(db: DatabaseSync, selfAgentId: string, channel: string, spaceId: string, messageId: string, threadId: string): string {
+  const addressed = mentionedTeammates(db, selfAgentId, messageId);
+  const present = channelTeammates(db, selfAgentId, spaceId, addressed);
+  const lines = [`Your message is up in #${channel}.`];
+  if (addressed.length > 0) lines.push(`${joinNames(addressed)} can see it and reply here.`);
+  if (present.length > 0) lines.push(`Also in the room: ${joinNames(present)}.`);
+  lines.push(`To stay in this conversation, reply with thread_id="${threadId}".`);
+  return lines.join(" ");
+}
+
+function mentionedTeammates(db: DatabaseSync, selfAgentId: string, messageId: string): string[] {
+  const rows = db.prepare(`
+    select coalesce(a.name, e.display_name) as name
+    from chat_mentions m
+    left join agents a on a.id = m.target_id and m.target_type = 'agent'
+    left join employees e on e.id = m.target_id and m.target_type = 'employee'
+    where m.message_id = ? and m.target_type in ('agent', 'employee') and m.target_id <> ?
+  `).all(messageId, selfAgentId) as Array<{ name: string | null }>;
+  return dedupeNames(rows);
+}
+
+function channelTeammates(db: DatabaseSync, selfAgentId: string, spaceId: string, addressed: string[]): string[] {
+  const alreadyNamed = new Set(addressed);
+  const rows = db.prepare(`
+    select coalesce(a.name, e.display_name) as name
+    from chat_memberships cm
+    left join agents a on a.id = cm.principal_id and cm.principal_type = 'agent'
+    left join employees e on e.id = cm.principal_id and cm.principal_type = 'employee'
+    where cm.space_id = ? and cm.principal_id <> ?
+  `).all(spaceId, selfAgentId) as Array<{ name: string | null }>;
+  return dedupeNames(rows).filter((name) => !alreadyNamed.has(name)).slice(0, 6);
+}
+
+function dedupeNames(rows: Array<{ name: string | null }>): string[] {
+  const names = new Set<string>();
+  for (const row of rows) if (row.name) names.add(row.name);
+  return [...names];
+}
+
+function joinNames(names: string[]): string {
+  if (names.length === 1) return names[0];
+  if (names.length === 2) return `${names[0]} and ${names[1]}`;
+  return `${names.slice(0, -1).join(", ")}, and ${names[names.length - 1]}`;
 }
 
 function createDocumentTool(deps: AgentToolDeps, ctx: AgentToolContext, args: JsonRecord): string {

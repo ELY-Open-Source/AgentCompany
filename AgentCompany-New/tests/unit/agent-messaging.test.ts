@@ -32,10 +32,10 @@ describe("agent messaging", () => {
     };
 
     const first = dispatchAgentTool(deps, ctx, call("send_message", { channel: "engineering", body: "Assigning the booking API to Dana." }));
-    const threadId = /thread_id=([^),\s]+)/.exec(first)?.[1];
+    const threadId = /thread_id="([^"]+)"/.exec(first)?.[1];
     expect(threadId).toBeTruthy();
     const second = dispatchAgentTool(deps, ctx, call("send_message", { channel: "engineering", body: "Update: API shipped.", thread_id: threadId }));
-    expect(second).toContain("Posted to #engineering");
+    expect(second).toContain("#engineering");
 
     const engineering = connection.db.prepare("select id from chat_spaces where org_id = ? and name = 'engineering'").get(orgId) as { id: string };
     const messages = connection.db.prepare("select space_id, thread_id, sender_type, sender_id from chat_messages where org_id = ?")
@@ -45,6 +45,16 @@ describe("agent messaging", () => {
     expect(messages.every((m) => m.sender_type === "agent" && m.sender_id === ceoId)).toBe(true);
     // Both messages share the one thread — the reply joined the assignment thread.
     expect(new Set(messages.map((m) => m.thread_id)).size).toBe(1);
+
+    // Addressing a teammate comes back as presence — who can reply — not a receipt id.
+    connection.transaction(() => organization.createAgent({
+      orgId, name: "Dana", role: "Engineer", department: "Engineering",
+      modelProviderId: null, modelId: null, budgetCents: 1000, managerAgentId: ceoId,
+    }));
+    const addressed = dispatchAgentTool(deps, ctx, call("send_message", { channel: "engineering", body: "@Dana can you take the booking API?" }));
+    expect(addressed).toContain("Dana can see it and reply here");
+    expect(addressed).not.toContain("message_id=");
+
     connection.close();
   });
 });
