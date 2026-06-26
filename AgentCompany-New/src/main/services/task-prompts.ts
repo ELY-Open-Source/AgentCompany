@@ -162,11 +162,12 @@ export function buildTaskPrompt(input: {
   if (input.chatContext) {
     lines.push(
       "",
-      "Chat thread you are replying to:",
+      "The conversation in this thread so far:",
       input.chatContext.transcript,
       "",
-      `Reply in this thread by passing thread_id="${input.chatContext.threadId}" to send_message.`,
+      `You have been brought into this thread. Reply to the people here in your own voice — answer what they asked, give your honest take, push back if you disagree, or hand work over. Stay in the thread by passing thread_id="${input.chatContext.threadId}" to send_message. This is a conversation between colleagues, not a status report; only change a task's status if the work itself actually moved.`,
     );
+    return lines.join("\n");
   }
   if (input.isManager && !input.hasReports) {
     lines.push(
@@ -178,7 +179,7 @@ export function buildTaskPrompt(input: {
     const managerReference = input.managerName ? `${manager} (${agentMention(input.managerName)})` : manager;
     lines.push(
       "",
-      `Complete this task: do the work, write your output as real files with write_deliverable, then send_message to your department channel (engineering, product, or general) reporting your progress and completion to ${managerReference}. Use /handoff with attachment_file_ids when passing files. Reply in the assignment thread if you were given a thread_id. Update the task status when done, and summarize.`,
+      `Do the work and write real output with write_deliverable, then tell ${managerReference} and the team what you did and what is next — in your own words, the way you would bring a colleague up to speed, not as a form. Hand files over with /handoff and attachment_file_ids, reply in the assignment thread if you were given one, and when the work is genuinely done move the task to done.`,
     );
   }
   return lines.join("\n");

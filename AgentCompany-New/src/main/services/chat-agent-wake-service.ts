@@ -38,10 +38,12 @@ export class ChatAgentWakeService {
   wakeFromMention(input: SendMessageInput, agentId: string, messageId: string, threadId: string, now: string): AgentWakeResult {
     const agent = this.requireRunnableAgent(input.orgId, agentId);
     const workspace = this.workspaceForAgent(input.orgId, agent.workspace_id);
+    const from = this.principalName(input.orgId, input.senderType, input.senderId);
+    const channel = this.channelName(input.orgId, input.spaceId);
     const taskId = this.organization.createTask({
       orgId: input.orgId,
-      title: `Chat reply: ${agent.name}`,
-      description: this.mentionTaskDescription(input, messageId, threadId),
+      title: `Reply to ${from} in #${channel}`,
+      description: this.mentionTaskDescription(input, from, channel),
       status: TASK_STATUS.BACKLOG,
       assigneeAgentId: agent.id,
       risk: RISK_LEVEL.LOW,
@@ -191,15 +193,32 @@ export class ChatAgentWakeService {
     return `Chat mention: ${title.length > 64 ? `${title.slice(0, 61)}...` : title}`;
   }
 
-  private mentionTaskDescription(input: SendMessageInput, messageId: string, threadId: string): string {
+  private mentionTaskDescription(input: SendMessageInput, from: string, channel: string): string {
+    const said = input.bodyMd.trim();
     return [
-      `Source message: ${messageId}`,
-      `Source thread: ${threadId}`,
-      `Source space: ${input.spaceId}`,
-      `Sender: ${input.senderType}${input.senderId ? `:${input.senderId}` : ""}`,
+      `${from} addressed you in #${channel}:`,
+      `"${said.length > 400 ? `${said.slice(0, 397)}...` : said}"`,
       "",
-      "You were @mentioned in a chat message. Read the thread context, then reply in the source thread with send_message and pass the thread_id above.",
+      `Reply to ${from} in this thread. Answer what they asked, give your honest take, push back if you disagree, or hand work over — speak as yourself, the way a colleague would, not as a status report.`,
     ].join("\n");
+  }
+
+  private principalName(orgId: string, senderType: string, senderId: string | null): string {
+    if (senderId && senderType === "agent") {
+      const row = this.db.prepare("select name from agents where id = ? and org_id = ?").get(senderId, orgId) as { name: string } | undefined;
+      if (row) return row.name;
+    }
+    if (senderId && (senderType === "employee" || senderType === "board")) {
+      const row = this.db.prepare("select display_name from employees where id = ? and org_id = ?").get(senderId, orgId) as { display_name: string } | undefined;
+      if (row) return senderType === "board" ? `${row.display_name} (board)` : row.display_name;
+    }
+    return senderType === "board" ? "The board" : "A teammate";
+  }
+
+  private channelName(orgId: string, spaceId: string): string {
+    const row = this.db.prepare("select name from chat_spaces where id = ? and org_id = ?").get(spaceId, orgId) as { name: string } | undefined;
+    if (!row) throw new Error("Chat space was not found.");
+    return row.name;
   }
 
   private taskDescription(input: SendMessageInput, slash: SlashInvocation, messageId: string, threadId: string): string {
