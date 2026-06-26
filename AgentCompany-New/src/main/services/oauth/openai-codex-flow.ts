@@ -103,7 +103,7 @@ export const openaiCodexFlow: OAuthFlow = {
     try {
       callbacks.onAuth({ url: buildAuthorizeUrl(challenge, state), instructions: "Complete the ChatGPT sign-in in your browser." });
       const result = await server.waitForCode();
-      if (result.state && result.state !== state) throw new Error("OAuth state mismatch.");
+      if (result.state !== state) throw new Error("OAuth state mismatch.");
       const tokens = await exchangeCode(result.code, verifier);
       const accountId = extractAccountId(tokens.access);
       if (!accountId) throw new Error("Could not read the ChatGPT account id from the token.");
