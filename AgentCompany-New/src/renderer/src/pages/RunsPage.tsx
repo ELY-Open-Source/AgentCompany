@@ -52,7 +52,7 @@ export function RunsPage({ snapshot }: PageProps) {
           </div>
           <input
             className="input"
-            placeholder="Search runs"
+            aria-label="Search runs"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             style={{ marginBottom: 8 }}

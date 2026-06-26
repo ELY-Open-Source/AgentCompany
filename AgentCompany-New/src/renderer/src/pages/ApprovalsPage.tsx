@@ -159,7 +159,7 @@ function ApprovalDetailDialog({
         </div>
         <textarea
           className="input"
-          placeholder="Decision notes"
+          aria-label="Decision notes"
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
           rows={2}
