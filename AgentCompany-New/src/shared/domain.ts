@@ -1,28 +1,6 @@
-import type { BoardInterventionRecord as BoardInterventionRecordModel } from "./board-domain";
-import type {
-  ChatSpaceRecord,
-  ChatMessageRecord,
-  ChatMembershipRecord,
-  ChatThreadRecord,
-  ChatAttachmentRecord,
-  ChatMentionRecord,
-  ChatSlashInvocationRecord,
-  ChatPresenceRecord,
-  ChatReadStateRecord,
-} from "./chat-domain";
-import type { AuditReplayRunRecord } from "./audit-domain";
-import type { ComplianceExportRecord, LegalHoldRecord, RetentionFreezeRecord } from "./compliance-domain";
-import type { AccessDecisionRecord, EmployeeIdentityRecord, RoleGrantRecord, ServiceIdentityRecord } from "./identity-domain";
-import type { ApprovalAssignmentRecord, ApprovalRoutingRuleRecord, HiringPolicyRecord, OrgDepartmentRecord } from "./org-governance-domain";
-import type { ChaosDrillRecord, ChaosDrillRunRecord, FeatureFlagRecord, OperationalEventRecord, SloTargetRecord } from "./operations-domain";
-import type { ProviderAuthProfileRecord, ProviderAuthSessionRecord } from "./provider-auth-domain";
 import type { ProviderDataPolicy } from "./provider-policy-domain";
-import type { ProviderRequestRecord } from "./provider-request-domain";
-import type { ProviderRateLimitObservationRecord, ProviderRateLimitStateRecord } from "./provider-runtime-domain";
-import type { MigrationCutoverEventRecord, MigrationReconciliationItemRecord, RollbackSnapshotRecord } from "./rollback-domain";
-import type { EvalCaseRecord, EvalRunRecord, EvalSuiteRecord, PrBotGateRecord, SdlcReviewAgentRecord, SdlcReviewRunRecord } from "./sdlc-domain";
-import type { BrowserActionPolicyRecord, BrowserActionRecord, BrowserSessionContainerRecord, SocialAccountGrantRecord, SocialAccountRecord, SocialApprovalRouteRecord, SocialAuditRecord } from "./social-domain";
 export { BOARD_INTERVENTION_ACTION, BOARD_INTERVENTION_MODE, CHAT_THREAD_BOARD_STATE, type BoardInterventionAction, type BoardInterventionMode, type BoardInterventionRecord, type ChatThreadBoardState } from "./board-domain";
+export type { ChatSpaceRecord, ChatMessageRecord, ChatMembershipRecord, ChatThreadRecord, ChatAttachmentRecord, ChatMentionRecord, ChatSlashInvocationRecord, ChatPresenceRecord, ChatReadStateRecord } from "./chat-domain";
 export type { AuditReplayRunRecord } from "./audit-domain";
 export { COMPLIANCE_EXPORT_STATE, COMPLIANCE_EXPORT_TYPE, type ComplianceExportRecord, type ComplianceExportState, type ComplianceExportType, type ComplianceSubjectType, type LegalHoldEntityType, type LegalHoldRecord, type RetentionFreezeRecord, type RetentionFreezeScopeType } from "./compliance-domain";
 export { ACCESS_DECISION, IDENTITY_SOURCE, ROLE_KEY, type AccessDecision, type AccessDecisionRecord, type EmployeeIdentityRecord, type IdentitySource, type PrincipalType, type RoleGrantRecord, type RoleKey, type ServiceIdentityRecord } from "./identity-domain";
@@ -36,6 +14,7 @@ export type { MigrationCutoverEventRecord, MigrationReconciliationItemRecord, Ro
 export { EVAL_SUITE_KEY, PR_BOT_GATE_KEY, SDLC_REVIEW_AGENT_KEY, SDLC_REVIEW_TARGET_TYPE, SDLC_RUN_STATE, type EvalCaseRecord, type EvalRunRecord, type EvalSuiteKey, type EvalSuiteRecord, type PrBotGateKey, type PrBotGateRecord, type SdlcReviewAgentKey, type SdlcReviewAgentRecord, type SdlcReviewRunRecord, type SdlcReviewTargetType, type SdlcRunState } from "./sdlc-domain";
 export { SEARCH_ENTITY_TYPES, type SearchEntityType, type SearchResultRecord } from "./search-domain";
 export type { BrowserActionPolicyRecord, BrowserActionRecord, BrowserSessionContainerRecord, SocialAccountGrantRecord, SocialAccountRecord, SocialApprovalRouteRecord, SocialAuditRecord } from "./social-domain";
+export type { AppSnapshot } from "./snapshot-domain";
 export const TASK_STATUS = { BACKLOG: "backlog", IN_PROGRESS: "in_progress", REVIEW: "review", DONE: "done" } as const;
 export const APPROVAL_STATE = { PENDING: "pending", APPROVED: "approved", DECLINED: "declined" } as const;
 export const RISK_LEVEL = { LOW: "low", MEDIUM: "medium", HIGH: "high" } as const;
@@ -213,18 +192,6 @@ export interface SprintRecord {
   createdAt: string;
   updatedAt: string;
 }
-
-export type {
-  ChatSpaceRecord,
-  ChatMessageRecord,
-  ChatMembershipRecord,
-  ChatThreadRecord,
-  ChatAttachmentRecord,
-  ChatMentionRecord,
-  ChatSlashInvocationRecord,
-  ChatPresenceRecord,
-  ChatReadStateRecord,
-};
 
 export interface FileObjectRecord {
   id: string;
@@ -458,67 +425,4 @@ export interface AutomationRuleRecord {
   fireCount: number;
   createdAt: string;
   updatedAt: string;
-}
-
-export interface AppSnapshot {
-  activeOrgId: string | null;
-  organizations: OrganizationRecord[];
-  employees: EmployeeRecord[];
-  agents: AgentRecord[];
-  tasks: TaskRecord[];
-  workspaces: WorkspaceRecord[];
-  goals: GoalRecord[];
-  projects: ProjectRecord[];
-  taskRuns: TaskRunRecord[];
-  approvals: ApprovalRecord[];
-  chatSpaces: ChatSpaceRecord[];
-  chatMemberships: ChatMembershipRecord[];
-  chatMessages: ChatMessageRecord[];
-  chatThreads: ChatThreadRecord[];
-  chatAttachments: ChatAttachmentRecord[];
-  chatMentions: ChatMentionRecord[];
-  chatSlashInvocations: ChatSlashInvocationRecord[];
-  boardInterventions: BoardInterventionRecordModel[];
-  chatPresence: ChatPresenceRecord[];
-  chatReadStates: ChatReadStateRecord[];
-  files: FileObjectRecord[];
-  fileAccessGrants: FileAccessGrantRecord[];
-  fileHandoffRecords: FileHandoffRecord[];
-  scheduledPosts: ScheduledPostRecord[];
-  providers: ProviderRecord[];
-  providerAuthProfiles: ProviderAuthProfileRecord[];
-  providerAuthSessions: ProviderAuthSessionRecord[];
-  providerCatalog: ProviderCatalogEntry[];
-  providerRequests: ProviderRequestRecord[];
-  providerRateLimits: ProviderRateLimitStateRecord[];
-  providerRateLimitObservations: ProviderRateLimitObservationRecord[];
-  skillDefinitions: SkillDefinitionRecord[];
-  skillRevisions: SkillRevisionRecord[];
-  skillBindings: SkillBindingRecord[];
-  skillRuntimeSnapshots: SkillRuntimeSnapshotRecord[];
-  skillTests: SkillTestRecord[];
-  socialAccounts: SocialAccountRecord[];
-  socialAccountGrants: SocialAccountGrantRecord[];
-  browserSessionContainers: BrowserSessionContainerRecord[];
-  browserActionPolicies: BrowserActionPolicyRecord[];
-  socialApprovalRoutes: SocialApprovalRouteRecord[];
-  browserActions: BrowserActionRecord[];
-  socialAuditRecords: SocialAuditRecord[];
-  policyRules: PolicyRuleRecord[];
-  migrationReports: MigrationReportRecord[];
-  rollbackSnapshots: RollbackSnapshotRecord[];
-  migrationCutoverEvents: MigrationCutoverEventRecord[];
-  migrationReconciliationItems: MigrationReconciliationItemRecord[];
-  complianceExports: ComplianceExportRecord[]; legalHolds: LegalHoldRecord[]; retentionFreezes: RetentionFreezeRecord[];
-  employeeIdentities: EmployeeIdentityRecord[]; serviceIdentities: ServiceIdentityRecord[]; roleGrants: RoleGrantRecord[]; accessDecisions: AccessDecisionRecord[];
-  orgDepartments: OrgDepartmentRecord[]; hiringPolicies: HiringPolicyRecord[]; approvalRoutingRules: ApprovalRoutingRuleRecord[]; approvalAssignments: ApprovalAssignmentRecord[];
-  featureFlags: FeatureFlagRecord[]; sloTargets: SloTargetRecord[]; operationalEvents: OperationalEventRecord[]; chaosDrills: ChaosDrillRecord[]; chaosDrillRuns: ChaosDrillRunRecord[];
-  sdlcReviewAgents: SdlcReviewAgentRecord[]; sdlcReviewRuns: SdlcReviewRunRecord[]; evalSuites: EvalSuiteRecord[]; evalCases: EvalCaseRecord[]; evalRuns: EvalRunRecord[]; prBotGates: PrBotGateRecord[];
-  auditReplayRuns: AuditReplayRunRecord[];
-  auditEvents: AuditEventRecord[];
-  documents: DocumentRecord[];
-  knowledgeEntries: KnowledgeEntryRecord[];
-  automationRules: AutomationRuleRecord[];
-  meetings: MeetingRecord[];
-  sprints: SprintRecord[];
 }
