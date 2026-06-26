@@ -1,9 +1,10 @@
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
-import { basename, extname, resolve } from "node:path";
+import { basename, extname } from "node:path";
 import type { DatabaseSync } from "node:sqlite";
 import { FILE_SCAN_STATE, type FileScanState } from "../../../shared/domain";
 import { createId } from "../../../shared/ids";
+import { resolveWorkspacePath } from "./workspace-path";
 
 export interface FileScanResult {
   state: FileScanState;
@@ -149,7 +150,7 @@ export function recordWorkspaceFile(db: DatabaseSync, input: {
   workspaceRoot: string;
   relativePath: string;
 }): string {
-  const absolute = resolve(input.workspaceRoot, input.relativePath);
+  const { absolute } = resolveWorkspacePath(input.workspaceRoot, input.relativePath);
   const bytes = readFileSync(absolute);
   const name = basename(input.relativePath);
   const scan = scanFileContent(name, bytes);
