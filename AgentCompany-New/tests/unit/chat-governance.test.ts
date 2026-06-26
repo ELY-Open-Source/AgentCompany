@@ -370,6 +370,63 @@ describe("chat governance", () => {
     connection.close();
   });
 
+  test("bounds autonomous agent-to-agent wake loops until a human re-engages", () => {
+    const connection = createConnection();
+    const organization = new OrganizationService(connection.db);
+    const providers = new ProviderService(connection.db, providerAdapters, testVault);
+    const chat = new ChatService(connection.db);
+    let orgId = "";
+    let employeeId = "";
+    let speakerId = "";
+    let targetId = "";
+    let spaceId = "";
+    let threadId = "";
+
+    connection.transaction(() => {
+      orgId = organization.createOrganization({
+        organizationName: "Acme Operations",
+        employeeName: "Dana Lee",
+        mission: "Coordinate agents with auditable approvals.",
+        goal: "Ship a verified control plane.",
+      });
+      employeeId = (connection.db.prepare("select id from employees where org_id = ?").get(orgId) as { id: string }).id;
+      const providerId = (connection.db.prepare("select id from providers where org_id = ? and provider_key = 'openai'")
+        .get(orgId) as { id: string }).id;
+      providers.saveCredential({ orgId, providerId, secret: "sk-live-provider", model: "gpt-5.4" });
+      speakerId = organization.createAgent({ orgId, name: "Alice", role: "Engineer", department: "Engineering", modelProviderId: providerId, modelId: "gpt-5.4", budgetCents: 10000, managerAgentId: null });
+      targetId = organization.createAgent({ orgId, name: "Bob", role: "Engineer", department: "Engineering", modelProviderId: providerId, modelId: "gpt-5.4", budgetCents: 10000, managerAgentId: null });
+      spaceId = chat.createSpace({ orgId, spaceType: "project", name: "engineering", topic: "Eng", visibility: "workspace" });
+    });
+
+    const wakeRunCount = (): number => (connection.db.prepare(
+      "select count(*) as n from task_runs where org_id = ? and agent_id = ? and trigger = 'chat_mention'",
+    ).get(orgId, targetId) as { n: number }).n;
+
+    // Alice (an agent) keeps @mentioning Bob in one thread. Each post is an
+    // autonomous turn; only the first batch wakes Bob, then the budget is spent.
+    connection.transaction(() => {
+      const first = chat.sendMessage({ orgId, spaceId, threadId: null, senderType: "agent", senderId: speakerId, bodyMd: "@Bob turn 1", attachmentFileIds: [] });
+      threadId = (connection.db.prepare("select thread_id from chat_messages where id = ?").get(first) as { thread_id: string }).thread_id;
+      for (let turn = 2; turn <= 40; turn += 1) {
+        chat.sendMessage({ orgId, spaceId, threadId, senderType: "agent", senderId: speakerId, bodyMd: `@Bob turn ${turn}`, attachmentFileIds: [] });
+      }
+    });
+    const capped = wakeRunCount();
+    // A real exchange happened, but it is finite — far below the 40 posts.
+    expect(capped).toBeGreaterThanOrEqual(10);
+    expect(capped).toBeLessThanOrEqual(16);
+
+    // A human re-enters the thread: their message wakes Bob and grants the
+    // agents a fresh budget, so the next agent turn wakes him again.
+    connection.transaction(() => {
+      chat.sendMessage({ orgId, spaceId, threadId, senderType: "employee", senderId: employeeId, bodyMd: "Keep going @Bob", attachmentFileIds: [] });
+      chat.sendMessage({ orgId, spaceId, threadId, senderType: "agent", senderId: speakerId, bodyMd: "@Bob resuming", attachmentFileIds: [] });
+    });
+    expect(wakeRunCount()).toBeGreaterThan(capped);
+
+    connection.close();
+  });
+
   test("records board interventions and enforces thread control", () => {
     const connection = createConnection();
     const organization = new OrganizationService(connection.db);

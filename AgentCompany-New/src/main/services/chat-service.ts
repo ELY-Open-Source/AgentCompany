@@ -37,6 +37,16 @@ import { ChatAgentWakeService } from "./chat-agent-wake-service";
 const SPACE_TYPES = new Set<CreateChatSpaceInput["spaceType"]>(["company", "division", "department", "project", "pod", "ad_hoc", "direct"]);
 const SPACE_VISIBILITIES = new Set<CreateChatSpaceInput["visibility"]>(["workspace", "restricted"]);
 
+/**
+ * How many agent-authored messages a thread may accumulate after the last human
+ * message before agent-triggered @mention wake-ups stop. Two agents replying to
+ * each other each post a message, so this bounds an autonomous exchange to a
+ * finite length and hands control back to a person instead of letting the
+ * company talk to itself forever. A human (or board) message in the thread
+ * always wakes the mentioned agents and resets this budget.
+ */
+const MAX_AUTONOMOUS_THREAD_AGENT_TURNS = 16;
+
 export class ChatService {
   private readonly audit: AuditService;
   private readonly approvals: ApprovalService;
@@ -365,6 +375,10 @@ export class ChatService {
     const agentMentions = mentions.filter(
       (m) => m.target.type === "agent" && !(input.senderType === "agent" && input.senderId === m.target.id),
     );
+    if (agentMentions.length === 0) return;
+    // An agent's own message must not keep waking teammates once the thread has
+    // run its autonomous budget; only a human re-entering the thread can.
+    if (input.senderType === "agent" && this.autonomousThreadTurnsExhausted(input.orgId, threadId)) return;
     for (const mention of agentMentions) {
       try {
         this.agentWake.wakeFromMention(input, mention.target.id, messageId, threadId, now);
@@ -372,6 +386,25 @@ export class ChatService {
         // Agent may lack an enabled provider or service identity; skip silently.
       }
     }
+  }
+
+  /**
+   * True once a thread holds MAX_AUTONOMOUS_THREAD_AGENT_TURNS agent messages
+   * since the last human or board message — the point past which agent↔agent
+   * wake-ups would loop without human involvement. Counting only the messages
+   * after the last human turn lets a person re-engage and grant a fresh budget.
+   */
+  private autonomousThreadTurnsExhausted(orgId: string, threadId: string): boolean {
+    const row = this.db.prepare(`
+      select count(*) as turns
+      from chat_messages
+      where org_id = ? and thread_id = ? and sender_type = 'agent'
+        and created_at > coalesce((
+          select max(created_at) from chat_messages
+          where org_id = ? and thread_id = ? and sender_type in ('employee', 'board')
+        ), '')
+    `).get(orgId, threadId, orgId, threadId) as { turns: number };
+    return row.turns >= MAX_AUTONOMOUS_THREAD_AGENT_TURNS;
   }
 
   private requireSpace(orgId: string, spaceId: string): SpaceRow {
