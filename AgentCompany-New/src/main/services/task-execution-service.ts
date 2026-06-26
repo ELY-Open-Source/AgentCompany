@@ -307,6 +307,11 @@ export class TaskExecutionService {
 
   private enqueueRun(orgId: string, taskId: string): string {
     const task = this.requireTask(orgId, taskId);
+    // Autonomous execution honours the same gate as a manual run: a high-risk or
+    // filesystem task whose approval is still pending (or was declined) is left
+    // unqueued and retried once the operator approves it, instead of running
+    // unsupervised. enqueueHeartbeatRuns swallows the throw and moves on.
+    this.assertExecutionApproval(orgId, task);
     const agent = this.requireAssignedAgent(orgId, task);
     const provider = this.requireAgentProvider(orgId, agent);
     const workspace = this.workspace(task.workspace_id);

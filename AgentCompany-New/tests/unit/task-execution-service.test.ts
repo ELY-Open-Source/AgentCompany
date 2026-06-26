@@ -214,6 +214,70 @@ describe("task execution service", () => {
     connection.close();
   });
 
+  test("does not autonomously enqueue a high-risk task until its approval is granted", () => {
+    const connection = createConnection();
+    const organization = new OrganizationService(connection.db);
+    const approvals = new ApprovalService(connection.db);
+    const providers = new ProviderService(connection.db, providerAdapters, testVault);
+    const execution = new TaskExecutionService(connection.db, providers);
+    let orgId = "";
+    let employeeId = "";
+    let taskId = "";
+    let approvalId = "";
+
+    connection.transaction(() => {
+      orgId = organization.createOrganization({
+        organizationName: "Acme Operations",
+        employeeName: "Dana Lee",
+        mission: "Coordinate agents with auditable approvals.",
+        goal: "Ship a verified control plane.",
+        executionMode: "ai_cofounder",
+      });
+      employeeId = (connection.db.prepare("select id from employees where org_id = ?").get(orgId) as { id: string }).id;
+      const providerId = openAiProviderId(connection, orgId);
+      providers.saveCredential({ orgId, providerId, secret: "sk-live-provider", model: "gpt-5.4" });
+      const agentId = organization.createAgent({
+        orgId,
+        name: "Ada",
+        role: "Execution lead",
+        department: "Engineering",
+        modelProviderId: providerId,
+        modelId: "gpt-5.4",
+        budgetCents: 10000,
+        managerAgentId: null,
+        heartbeatEnabled: true,
+      });
+      taskId = organization.createTask({
+        orgId,
+        title: "Production deploy",
+        description: "Deploy a high-risk release.",
+        status: TASK_STATUS.IN_PROGRESS,
+        assigneeAgentId: agentId,
+        risk: RISK_LEVEL.HIGH,
+        projectId: null,
+        goalId: null,
+        workspaceId: null,
+        priority: TASK_PRIORITY.HIGH,
+        requiresFilesystem: false,
+      });
+      approvalId = (connection.db.prepare(`
+        select id from approvals where org_id = ? and source_entity_type = 'task' and source_entity_id = ?
+      `).get(orgId, taskId) as { id: string }).id;
+    });
+
+    // The autonomous heartbeat must not start the run while approval is pending.
+    expect(execution.enqueueHeartbeatRuns()).toEqual([]);
+    expect(connection.db.prepare("select count(*) as count from task_runs").get()).toEqual({ count: 0 });
+
+    // Once the operator approves, the same heartbeat enqueues it exactly once.
+    connection.transaction(() => approvals.decide({ orgId, approvalId, state: APPROVAL_STATE.APPROVED, decidedByEmployeeId: employeeId }));
+    const enqueued = execution.enqueueHeartbeatRuns();
+    expect(enqueued).toHaveLength(1);
+    expect(connection.db.prepare("select task_id, state, trigger from task_runs where id = ?").get(enqueued[0]))
+      .toMatchObject({ task_id: taskId, state: "queued", trigger: "heartbeat" });
+    connection.close();
+  });
+
   test("marks task runs failed when provider execution fails", async () => {
     const connection = createConnection();
     const organization = new OrganizationService(connection.db);
