@@ -164,6 +164,25 @@ test("onboards, hires, and creates work in the Electron shell", async () => {
     await page.getByRole("button", { name: "Set", exact: true }).click();
     await expect(page.getByRole("button", { name: "active", exact: true })).toBeDisabled();
 
+    // Virtual office sidebar toggle
+    await page.getByRole("button", { name: "Office" }).click();
+    await expect(page.locator(".office-sidebar")).toBeVisible();
+    await page.locator(".office-sidebar").getByRole("button", { name: "Close office" }).click();
+    await expect(page.locator(".office-sidebar")).not.toBeVisible();
+
+    // Composio settings panel
+    await page.getByRole("button", { name: "Settings" }).click();
+    await page.getByRole("button", { name: "Tools", exact: true }).click();
+    await expect(page.getByText("External Tools")).toBeVisible();
+    await expect(page.getByText("GitHub")).toBeVisible();
+
+    // @mention with canonical handle in chat
+    await page.getByRole("button", { name: "Messages" }).click();
+    await page.getByText("general").first().click();
+    await page.getByRole("textbox", { name: "Message" }).fill("@alexchen what is the status?");
+    await page.getByRole("button", { name: "Send" }).click();
+    await expect(page.getByText("Alex Chen").first()).toBeVisible();
+
     await verifyPagesDoNotOverflow(page);
   } finally {
     await app.close();
@@ -205,7 +224,7 @@ async function verifyPagesDoNotOverflow(page: Page): Promise<void> {
       await page.getByRole("button", { name: nav, exact: true }).click();
       await expectPageToFit(page);
     }
-    for (const tab of ["Workspace", "Billing", "Providers", "Skills", "Migration"]) {
+    for (const tab of ["Workspace", "Billing", "Providers", "Tools", "Skills", "Migration"]) {
       await page.getByRole("button", { name: "Settings" }).click();
       await page.getByRole("button", { name: tab, exact: true }).click();
       await expectPageToFit(page);
