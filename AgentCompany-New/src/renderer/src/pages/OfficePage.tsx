@@ -1,10 +1,10 @@
-import { useEffect, useRef, useMemo, useCallback } from "react";
+import { useEffect, useRef, useMemo } from "react";
 import type { PageProps } from "./types";
 import { activeOrgId } from "./types";
-import { drawScene, type OfficeAgent } from "./office/office-renderer";
+import { drawScene, layoutPositions, type OfficeAgent } from "./office/office-renderer";
 
-const FACE_COLORS = ["#4a90d9", "#50b866", "#9b59b6", "#e67e22", "#e74c3c", "#3498db", "#1abc9c", "#f39c12"];
-const SHIRT_COLORS = ["#5b8dd9", "#d95b7a", "#5bbf6f", "#d9a65b", "#9b6fd9", "#5bc4c4", "#d97b5b", "#7fd95b"];
+const FACE = ["#4a90d9", "#50b866", "#9b59b6", "#e67e22", "#e74c3c", "#1abc9c", "#f39c12", "#3498db"];
+const SHIRT = ["#5b8dd9", "#d95b7a", "#5bbf6f", "#d9a65b", "#9b6fd9", "#5bc4c4", "#d97b5b", "#7fd95b"];
 
 function hash(s: string): number {
   let h = 0;
@@ -12,24 +12,26 @@ function hash(s: string): number {
   return Math.abs(h);
 }
 
-function pick(palette: string[], seed: string): string {
-  return palette[hash(seed) % palette.length];
-}
-
 export function OfficePage({ snapshot }: PageProps) {
   const orgId = activeOrgId(snapshot);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const agentsRef = useRef<OfficeAgent[]>([]);
   const animRef = useRef(0);
-  const startRef = useRef(Date.now());
+  const lastFrameRef = useRef(0);
 
   const orgAgents = useMemo(() => snapshot.agents.filter((a) => a.orgId === orgId), [snapshot.agents, orgId]);
   const orgTasks = useMemo(() => snapshot.tasks.filter((t) => t.orgId === orgId), [snapshot.tasks, orgId]);
 
   useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const w = canvas.clientWidth;
+    const positions = layoutPositions(orgAgents.length, w);
     const existing = agentsRef.current;
+
     agentsRef.current = orgAgents.map((a, i) => {
       const prev = existing.find((e) => e.id === a.id);
+      const pos = positions[i];
       const status = resolveStatus(snapshot.chatPresence, snapshot.taskRuns, a.id);
       const task = orgTasks.find((t) => t.assigneeAgentId === a.id && t.status === "in_progress")?.title ?? null;
       return {
@@ -39,68 +41,81 @@ export function OfficePage({ snapshot }: PageProps) {
         department: a.department,
         status,
         task,
-        x: prev?.x ?? 100 + i * 120,
-        y: prev?.y ?? 200,
-        targetX: prev?.targetX ?? 100 + i * 120,
-        targetY: prev?.targetY ?? 200,
-        deskX: 0,
-        deskY: 0,
-        faceColor: pick(FACE_COLORS, a.name),
-        shirtColor: pick(SHIRT_COLORS, a.name + a.role),
-        frame: prev?.frame ?? hash(a.id) % 100,
-        facing: prev?.facing ?? 1,
+        x: prev?.x ?? pos.x,
+        y: prev?.y ?? pos.y,
+        targetX: pos.x,
+        targetY: pos.y,
+        faceColor: FACE[hash(a.name) % FACE.length],
+        shirtColor: SHIRT[hash(a.name + a.role) % SHIRT.length],
+        frame: hash(a.id) % 100,
       };
     });
   }, [orgAgents, orgTasks, snapshot.chatPresence, snapshot.taskRuns]);
 
-  const render = useCallback(() => {
+  useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
-    const dpr = window.devicePixelRatio || 1;
-    const w = canvas.clientWidth;
-    const h = canvas.clientHeight;
-    canvas.width = w * dpr;
-    canvas.height = h * dpr;
-    ctx.scale(dpr, dpr);
 
-    const time = Date.now() - startRef.current;
-    const agents = agentsRef.current;
+    let running = true;
+    const FPS_INTERVAL = 1000 / 30;
 
-    for (const agent of agents) {
-      const dx = agent.targetX - agent.x;
-      const dy = agent.targetY - agent.y;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      if (dist > 1) {
-        agent.x += (dx / dist) * 0.8;
-        agent.y += (dy / dist) * 0.8;
-        agent.frame += 0.1;
-        agent.facing = dx > 0 ? 1 : -1;
+    const tick = (now: number) => {
+      if (!running) return;
+      animRef.current = requestAnimationFrame(tick);
+
+      const elapsed = now - lastFrameRef.current;
+      if (elapsed < FPS_INTERVAL) return;
+      lastFrameRef.current = now - (elapsed % FPS_INTERVAL);
+
+      const dpr = window.devicePixelRatio || 1;
+      const w = canvas.clientWidth;
+      const h = canvas.clientHeight;
+      if (canvas.width !== w * dpr || canvas.height !== h * dpr) {
+        canvas.width = w * dpr;
+        canvas.height = h * dpr;
       }
-    }
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-    drawScene(ctx, w, h, agents, time);
-    animRef.current = requestAnimationFrame(render);
+      for (const agent of agentsRef.current) {
+        const dx = agent.targetX - agent.x;
+        const dy = agent.targetY - agent.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist > 1) {
+          agent.x += (dx / dist) * 0.7;
+          agent.y += (dy / dist) * 0.7;
+          agent.frame += 0.08;
+        }
+      }
+
+      drawScene(ctx, w, h, agentsRef.current, now);
+    };
+
+    animRef.current = requestAnimationFrame(tick);
+    return () => { running = false; cancelAnimationFrame(animRef.current); };
   }, []);
 
   useEffect(() => {
-    animRef.current = requestAnimationFrame(render);
-    return () => cancelAnimationFrame(animRef.current);
-  }, [render]);
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const w = canvas.clientWidth;
+    const positions = layoutPositions(agentsRef.current.length, w);
 
-  useEffect(() => {
     const wander = setInterval(() => {
-      for (const agent of agentsRef.current) {
+      agentsRef.current.forEach((agent, i) => {
+        const pos = positions[i];
+        if (!pos) return;
         if (agent.status === "idle") {
-          agent.targetX = agent.deskX + DESK_CENTER_OFFSET + (Math.random() * 100 - 50);
-          agent.targetY = agent.deskY + 56 + (Math.random() * 40 - 20);
+          agent.targetX = pos.x + ((hash(agent.id + String(Date.now()).slice(0, -3)) % 60) - 30);
+          agent.targetY = pos.y + ((hash(agent.name + String(Date.now()).slice(0, -3)) % 30) - 15);
         } else {
-          agent.targetX = agent.deskX + DESK_CENTER_OFFSET;
-          agent.targetY = agent.deskY + 56;
+          agent.targetX = pos.x;
+          agent.targetY = pos.y;
         }
-      }
-    }, 4000);
+      });
+    }, 5000);
+
     return () => clearInterval(wander);
   }, []);
 
@@ -110,8 +125,6 @@ export function OfficePage({ snapshot }: PageProps) {
     </div>
   );
 }
-
-const DESK_CENTER_OFFSET = 50;
 
 function resolveStatus(
   presence: Array<{ principalType: string; principalId: string; status: string }>,
