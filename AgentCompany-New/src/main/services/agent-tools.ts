@@ -111,6 +111,19 @@ export const AGENT_TOOLS: ToolDefinition[] = [
     },
   },
   {
+    name: "read_messages",
+    description: "Read recent messages from a channel or your direct mentions. Check what your teammates have been saying before you respond or start work.",
+    parameters: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        channel: { type: "string", description: "Channel name: 'engineering', 'product', 'general'. Omit to read your recent @mentions across all channels." },
+        limit: { type: "number", description: "Number of recent messages (default 10, max 30)." },
+      },
+      required: [],
+    },
+  },
+  {
     name: "create_document",
     description: "Create a company document (PRD, spec, memo, report, runbook, proposal, policy, guide). Use this for structured deliverables that the company should keep versioned.",
     parameters: {
@@ -144,6 +157,8 @@ export function dispatchAgentTool(
         return writeDeliverableTool(deps, ctx, call.arguments);
       case "send_message":
         return sendMessageTool(deps, ctx, call.arguments);
+      case "read_messages":
+        return readMessagesTool(deps, ctx, call.arguments);
       case "create_document":
         return createDocumentTool(deps, ctx, call.arguments);
       default:
@@ -332,6 +347,45 @@ function joinNames(names: string[]): string {
   if (names.length === 1) return names[0];
   if (names.length === 2) return `${names[0]} and ${names[1]}`;
   return `${names.slice(0, -1).join(", ")}, and ${names[names.length - 1]}`;
+}
+
+function readMessagesTool(deps: AgentToolDeps, ctx: AgentToolContext, args: JsonRecord): string {
+  const channel = optionalString(args.channel);
+  const limit = Math.min(Math.max(Number(args.limit) || 10, 1), 30);
+  if (channel) {
+    const space = deps.db.prepare(
+      "select id from chat_spaces where org_id = ? and lower(name) = lower(?) and space_type <> 'direct' limit 1",
+    ).get(ctx.orgId, channel) as { id: string } | undefined;
+    if (!space) throw new Error(`No channel named "${channel}".`);
+    const rows = deps.db.prepare(`
+      select m.body_md,
+             coalesce(a.name, e.display_name, m.sender_type) as sender_name,
+             m.thread_id
+      from chat_messages m
+      left join agents a on a.id = m.sender_id and m.sender_type = 'agent'
+      left join employees e on e.id = m.sender_id and m.sender_type = 'employee'
+      where m.space_id = ? and m.org_id = ? and m.deleted_at is null
+      order by m.created_at desc
+      limit ?
+    `).all(space.id, ctx.orgId, limit) as Array<{ body_md: string; sender_name: string; thread_id: string }>;
+    if (rows.length === 0) return `No recent messages in #${channel}.`;
+    return rows.reverse().map((m) => `[${m.sender_name}] (thread=${m.thread_id}): ${m.body_md}`).join("\n");
+  }
+  const rows = deps.db.prepare(`
+    select m.body_md,
+           coalesce(a.name, e.display_name, m.sender_type) as sender_name,
+           m.thread_id, s.name as channel_name
+    from chat_mentions cm
+    join chat_messages m on m.id = cm.message_id
+    join chat_spaces s on s.id = m.space_id
+    left join agents a on a.id = m.sender_id and m.sender_type = 'agent'
+    left join employees e on e.id = m.sender_id and m.sender_type = 'employee'
+    where cm.target_type = 'agent' and cm.target_id = ? and m.org_id = ? and m.deleted_at is null
+    order by m.created_at desc
+    limit ?
+  `).all(ctx.agent.id, ctx.orgId, limit) as Array<{ body_md: string; sender_name: string; thread_id: string; channel_name: string }>;
+  if (rows.length === 0) return "No recent mentions.";
+  return rows.reverse().map((m) => `[${m.sender_name} in #${m.channel_name}] (thread=${m.thread_id}): ${m.body_md}`).join("\n");
 }
 
 function createDocumentTool(deps: AgentToolDeps, ctx: AgentToolContext, args: JsonRecord): string {
