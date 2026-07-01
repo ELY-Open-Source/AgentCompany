@@ -3,6 +3,15 @@ import type { ToolDefinition, ToolCall } from "../provider-tool-turn";
 import { ComposioClient, type ComposioToolSchema } from "./composio-client";
 
 const COMPOSIO_TOOL_PREFIX = "composio_";
+const CACHE_TTL_MS = 5 * 60 * 1000;
+
+interface CacheEntry {
+  tools: ToolDefinition[];
+  fetchedAt: number;
+  toolkitsKey: string;
+}
+
+const toolCache = new Map<string, CacheEntry>();
 
 export function isComposioTool(toolName: string): boolean {
   return toolName.startsWith(COMPOSIO_TOOL_PREFIX);
@@ -34,9 +43,16 @@ export async function loadComposioTools(db: DatabaseSync, orgId: string): Promis
   if (!apiKey) return [];
   const toolkits = getEnabledToolkits(db, orgId);
   if (toolkits.length === 0) return [];
+  const toolkitsKey = toolkits.sort().join(",");
+  const cached = toolCache.get(orgId);
+  if (cached && cached.toolkitsKey === toolkitsKey && Date.now() - cached.fetchedAt < CACHE_TTL_MS) {
+    return cached.tools;
+  }
   const client = new ComposioClient(apiKey);
   const schemas = await client.getTools(toolkits);
-  return schemas.map(composioSchemaToToolDefinition);
+  const tools = schemas.map(composioSchemaToToolDefinition);
+  toolCache.set(orgId, { tools, fetchedAt: Date.now(), toolkitsKey });
+  return tools;
 }
 
 export async function executeComposioTool(

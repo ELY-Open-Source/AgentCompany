@@ -1,6 +1,7 @@
-import { useState, type FormEvent } from "react";
+import { useMemo, useState, type FormEvent } from "react";
 import { Button } from "../../shared/ui";
 import type { SnapshotActions } from "../../app/useSnapshot";
+import type { ComposioSettingRecord } from "../../../../shared/snapshot-domain";
 
 const AVAILABLE_TOOLKITS = [
   { id: "github", label: "GitHub" },
@@ -25,15 +26,35 @@ const AVAILABLE_TOOLKITS = [
   { id: "airtable", label: "Airtable" },
 ];
 
+function parseSavedToolkits(settings: ComposioSettingRecord[], orgId: string): Set<string> {
+  const row = settings.find((s) => s.orgId === orgId && s.key === "toolkits");
+  if (!row?.value) return new Set();
+  try {
+    const parsed = JSON.parse(row.value);
+    return new Set(Array.isArray(parsed) ? parsed.filter((v): v is string => typeof v === "string") : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function hasSavedKey(settings: ComposioSettingRecord[], orgId: string): boolean {
+  return settings.some((s) => s.orgId === orgId && s.key === "api_key" && s.value.length > 0);
+}
+
 export function ComposioPanel({
   orgId,
+  settings,
   actions,
 }: {
   orgId: string;
+  settings: ComposioSettingRecord[];
   actions: SnapshotActions;
 }) {
+  const savedToolkits = useMemo(() => parseSavedToolkits(settings, orgId), [settings, orgId]);
+  const keyConfigured = useMemo(() => hasSavedKey(settings, orgId), [settings, orgId]);
+
   const [apiKey, setApiKey] = useState("");
-  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [selected, setSelected] = useState<Set<string>>(savedToolkits);
   const [saved, setSaved] = useState(false);
 
   const toggle = (id: string) => {
@@ -47,12 +68,17 @@ export function ComposioPanel({
 
   const handleSave = async (e: FormEvent) => {
     e.preventDefault();
-    if (!apiKey.trim()) return;
+    const key = apiKey.trim();
+    if (!key && !keyConfigured) return;
+    const row = settings.find((s) => s.orgId === orgId && s.key === "api_key");
+    const effectiveKey = key || row?.value || "";
+    if (!effectiveKey) return;
     await actions.run(() => window.agentCompany.saveComposioSettings({
       orgId,
-      apiKey: apiKey.trim(),
+      apiKey: effectiveKey,
       toolkits: [...selected],
     }));
+    setApiKey("");
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };
@@ -71,6 +97,7 @@ export function ComposioPanel({
             className="input"
             value={apiKey}
             onChange={(e) => setApiKey(e.target.value)}
+            placeholder={keyConfigured ? "••••••••" : undefined}
             autoComplete="off"
             style={{ width: "100%", maxWidth: 400 }}
           />
@@ -109,7 +136,7 @@ export function ComposioPanel({
           </div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <Button tone="primary" type="submit" disabled={!apiKey.trim()}>
+          <Button tone="primary" type="submit" disabled={!apiKey.trim() && !keyConfigured}>
             Save
           </Button>
           {saved && <span style={{ fontSize: 13, color: "var(--green)" }}>Saved</span>}

@@ -76,7 +76,7 @@ export function SettingsPage({ snapshot, actions }: PageProps) {
               actions={actions}
             />
           )}
-          {tab === "tools" && <ComposioPanel orgId={orgId} actions={actions} />}
+          {tab === "tools" && <ComposioPanel orgId={orgId} settings={snapshot.composioSettings} actions={actions} />}
           {tab === "skills" && (
             <SkillsPanel
               orgId={orgId}
