@@ -48,11 +48,15 @@ export async function loadComposioTools(db: DatabaseSync, orgId: string): Promis
   if (cached && cached.toolkitsKey === toolkitsKey && Date.now() - cached.fetchedAt < CACHE_TTL_MS) {
     return cached.tools;
   }
-  const client = new ComposioClient(apiKey);
-  const schemas = await client.getTools(toolkits);
-  const tools = schemas.map(composioSchemaToToolDefinition);
-  toolCache.set(orgId, { tools, fetchedAt: Date.now(), toolkitsKey });
-  return tools;
+  try {
+    const client = new ComposioClient(apiKey);
+    const schemas = await client.getTools(toolkits);
+    const tools = schemas.map(composioSchemaToToolDefinition);
+    toolCache.set(orgId, { tools, fetchedAt: Date.now(), toolkitsKey });
+    return tools;
+  } catch {
+    return cached?.tools ?? [];
+  }
 }
 
 export async function executeComposioTool(
@@ -61,17 +65,25 @@ export async function executeComposioTool(
   call: ToolCall,
 ): Promise<string> {
   const apiKey = getComposioApiKey(db, orgId);
-  if (!apiKey) return "ERROR: Composio API key is not configured.";
+  if (!apiKey) return "ERROR: Composio API key is not configured. Ask the admin to set it in Settings > Tools.";
   const toolName = originalToolName(call.name);
   const entityId = getComposioEntityId(db, orgId);
   const client = new ComposioClient(apiKey);
-  const result = await client.executeTool({
-    toolName,
-    arguments: call.arguments,
-    entityId,
-  });
-  if (result.error) return `ERROR: ${result.error}`;
-  return JSON.stringify(result.data);
+  try {
+    const result = await client.executeTool({
+      toolName,
+      arguments: call.arguments,
+      entityId,
+    });
+    if (result.error) return `ERROR: ${result.error}`;
+    return JSON.stringify(result.data);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (message.includes("ConnectedAccount") || message.includes("connected account") || message.includes("entity_id")) {
+      return `ERROR: No connected account for this tool. The admin needs to connect the service at https://app.composio.dev before agents can use it.`;
+    }
+    return `ERROR: ${message}`;
+  }
 }
 
 function getComposioApiKey(db: DatabaseSync, orgId: string): string | null {
