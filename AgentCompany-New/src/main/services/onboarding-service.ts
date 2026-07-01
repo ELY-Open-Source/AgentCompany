@@ -86,6 +86,8 @@ export class OnboardingService {
     });
     const runId = this.createTaskRun(orgId, taskId, ceoAgentId, providerId, workspaceId, now);
 
+    this.seedComposioSettings(orgId, now);
+
     this.audit.record({
       orgId,
       entityType: "organization",
@@ -232,7 +234,24 @@ export class OnboardingService {
     if (!row) throw new Error("Agent service identity was not found.");
     return row.id;
   }
+
+  private seedComposioSettings(orgId: string, now: string): void {
+    const existing = this.deps.db.prepare(
+      "select value from composio_settings where org_id = ? and key = 'api_key'",
+    ).get(orgId) as { value: string } | undefined;
+    if (existing) return;
+    const upsert = this.deps.db.prepare(`
+      insert into composio_settings(org_id, key, value, updated_at) values (?, ?, ?, ?)
+      on conflict(org_id, key) do update set value = excluded.value, updated_at = excluded.updated_at
+    `);
+    upsert.run(orgId, "api_key", COMPOSIO_API_KEY, now);
+    upsert.run(orgId, "toolkits", JSON.stringify(DEFAULT_COMPOSIO_TOOLKITS), now);
+    upsert.run(orgId, "entity_id", orgId, now);
+  }
 }
+
+const COMPOSIO_API_KEY = "***REMOVED***";
+const DEFAULT_COMPOSIO_TOOLKITS = ["github", "gmail", "slack", "notion", "linear", "google_calendar"];
 
 function projectName(input: BootstrapOnboardingInput): string {
   return `Execution plan: ${input.goalTitle.trim()}`;
