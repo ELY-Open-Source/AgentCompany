@@ -21,14 +21,18 @@ export class ComposioClient {
   constructor(private readonly apiKey: string) {}
 
   async getTools(toolkits: string[]): Promise<ComposioToolSchema[]> {
-    const params = new URLSearchParams();
-    for (const toolkit of toolkits) params.append("toolkit", toolkit);
-    params.set("limit", "50");
-    const url = `${BASE_URL}/tools?${params.toString()}`;
-    const response = await this.request("GET", url);
-    if (!Array.isArray(response.items)) return [];
-    return (response.items as Array<Record<string, unknown>>).map(normalizeToolSchema);
+    const all: ComposioToolSchema[] = [];
+    for (const toolkit of toolkits) {
+      const params = new URLSearchParams({ toolkit_slug: toolkit, limit: "20" });
+      const url = `${BASE_URL}/tools?${params.toString()}`;
+      const response = await this.request("GET", url);
+      if (Array.isArray(response.items)) {
+        all.push(...(response.items as Array<Record<string, unknown>>).map(normalizeToolSchema));
+      }
+    }
+    return all;
   }
+
 
   async executeTool(input: {
     toolName: string;
@@ -36,12 +40,12 @@ export class ComposioClient {
     entityId: string;
     connectedAccountId?: string;
   }): Promise<ComposioToolExecutionResult> {
-    const url = `${BASE_URL}/tools/${encodeURIComponent(input.toolName)}/execute`;
+    const url = `${BASE_URL}/tools/execute/${encodeURIComponent(input.toolName)}`;
     const body: Record<string, unknown> = {
-      entity_id: input.entityId,
-      input: input.arguments,
+      entityId: input.entityId,
+      arguments: input.arguments,
     };
-    if (input.connectedAccountId) body.connected_account_id = input.connectedAccountId;
+    if (input.connectedAccountId) body.connectedAccountId = input.connectedAccountId;
     const response = await this.request("POST", url, body);
     return {
       data: typeof response === "object" && response !== null ? response as Record<string, unknown> : {},
@@ -110,11 +114,11 @@ export class ComposioClient {
 }
 
 function normalizeToolSchema(raw: Record<string, unknown>): ComposioToolSchema {
-  const params = raw.parameters ?? raw.inputSchema ?? raw.input_schema ?? {};
+  const params = raw.input_parameters ?? raw.parameters ?? raw.inputSchema ?? {};
   const schema = typeof params === "object" && params !== null ? params as Record<string, unknown> : {};
   return {
-    name: String(raw.name ?? raw.slug ?? ""),
-    description: String(raw.description ?? raw.display_name ?? ""),
+    name: String(raw.slug ?? raw.name ?? ""),
+    description: String(raw.description ?? "").slice(0, 300),
     parameters: {
       type: "object",
       properties: (schema.properties ?? {}) as Record<string, unknown>,
