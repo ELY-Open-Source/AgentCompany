@@ -180,6 +180,7 @@ export function Shell({
           <VirtualOffice
             agents={snapshot.agents}
             tasks={snapshot.tasks}
+            taskRuns={snapshot.taskRuns}
             presence={snapshot.chatPresence}
             orgId={organization.id}
           />
