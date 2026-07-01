@@ -135,7 +135,7 @@ export class TaskExecutionService {
           orgId,
           providerId: provider.id,
           workspaceId: task.workspace_id,
-          instructions: buildAgentInstructions({ agent, companyName: this.orgName(orgId), isCeo, hasReports }),
+          instructions: buildAgentInstructions({ agent, companyName: this.orgName(orgId), isCeo, hasReports, externalToolCount: externalTools.length }),
           initialUserTurn: buildTaskPrompt({
             task,
             agent,
