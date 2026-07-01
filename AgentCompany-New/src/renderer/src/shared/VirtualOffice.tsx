@@ -17,7 +17,6 @@ interface AgentDesk {
   agent: AgentRecord;
   status: PresenceStatus;
   currentTask: string | null;
-  runningNow: boolean;
 }
 
 function resolveDesks(props: VirtualOfficeProps): AgentDesk[] {
@@ -25,103 +24,102 @@ function resolveDesks(props: VirtualOfficeProps): AgentDesk[] {
   return agents.filter((a) => a.orgId === orgId).map((agent) => {
     const p = presence.find((r) => r.principalType === "agent" && r.principalId === agent.id);
     const activeTask = tasks.find((t) => t.orgId === orgId && t.assigneeAgentId === agent.id && t.status === "in_progress");
-    const runningNow = taskRuns.some((r) => r.agentId === agent.id && r.state === "running");
-    return { agent, status: mapStatus(p?.status, runningNow), currentTask: activeTask?.title ?? null, runningNow };
+    const running = taskRuns.some((r) => r.agentId === agent.id && r.state === "running");
+    return { agent, status: deriveStatus(p?.status, running), currentTask: activeTask?.title ?? null };
   });
 }
 
-function mapStatus(raw: string | undefined, running: boolean): PresenceStatus {
+function deriveStatus(raw: string | undefined, running: boolean): PresenceStatus {
   if (running) return "active";
-  if (!raw) return "idle";
   if (raw === "thinking") return "thinking";
   if (raw === "waiting_approval" || raw === "busy") return "busy";
   if (raw === "active" || raw === "online") return "active";
   return "idle";
 }
 
-const STATUS_COLOR: Record<PresenceStatus, string> = {
+const COLOR: Record<PresenceStatus, string> = {
   active: "#34d399",
   thinking: "#818cf8",
   busy: "#fbbf24",
-  idle: "rgba(120,120,120,0.35)",
-};
-
-const DESK_BG: CSSProperties = {
-  background: "rgba(255,255,255,0.03)",
-  border: "1px solid rgba(255,255,255,0.06)",
-  borderRadius: 10,
-  padding: "10px 6px 8px",
-  display: "flex",
-  flexDirection: "column",
-  alignItems: "center",
-  position: "relative",
-  cursor: "default",
-  transition: "border-color 0.15s, box-shadow 0.15s",
-};
-
-const MONITOR: CSSProperties = {
-  width: 28,
-  height: 18,
-  borderRadius: 3,
-  border: "1.5px solid rgba(255,255,255,0.12)",
-  marginBottom: 2,
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  fontSize: 8,
-  position: "relative",
-  overflow: "hidden",
+  idle: "rgba(120,120,120,0.3)",
 };
 
 export function VirtualOffice(props: VirtualOfficeProps) {
   const desks = resolveDesks(props);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
 
-  const departments = new Map<string, AgentDesk[]>();
+  const floors = new Map<string, AgentDesk[]>();
   for (const desk of desks) {
     const dept = desk.agent.department;
-    if (!departments.has(dept)) departments.set(dept, []);
-    departments.get(dept)!.push(desk);
+    if (!floors.has(dept)) floors.set(dept, []);
+    floors.get(dept)!.push(desk);
   }
 
   if (desks.length === 0) return null;
 
+  const floorEntries = [...floors.entries()];
+  const activeCount = desks.filter((d) => d.status === "active" || d.status === "thinking").length;
+
   return (
-    <div style={{ padding: "12px 10px", overflowY: "auto", height: "100%" }}>
-      {[...departments.entries()].map(([dept, deptDesks]) => (
-        <Room key={dept} label={dept} desks={deptDesks} hoveredId={hoveredId} onHover={setHoveredId} />
-      ))}
+    <div style={{ padding: "8px 6px", overflowY: "auto", height: "100%" }}>
+      <BuildingHeader total={desks.length} active={activeCount} />
+      <div style={buildingFrame}>
+        {floorEntries.map(([dept, deptDesks], index) => (
+          <Floor
+            key={dept}
+            label={dept}
+            level={floorEntries.length - index}
+            desks={deptDesks}
+            hoveredId={hoveredId}
+            onHover={setHoveredId}
+          />
+        ))}
+      </div>
     </div>
   );
 }
 
-function Room({ label, desks, hoveredId, onHover }: {
+function BuildingHeader({ total, active }: { total: number; active: number }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "0 4px 8px", justifyContent: "space-between" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+        <div style={{ width: 6, height: 6, borderRadius: "50%", background: active > 0 ? "#34d399" : "rgba(120,120,120,0.3)" }} />
+        <span style={{ fontSize: 10, color: "var(--text-3)" }}>{active}/{total}</span>
+      </div>
+    </div>
+  );
+}
+
+const buildingFrame: CSSProperties = {
+  border: "1px solid rgba(255,255,255,0.06)",
+  borderRadius: 12,
+  overflow: "hidden",
+  background: "rgba(0,0,0,0.08)",
+};
+
+function Floor({ label, level, desks, hoveredId, onHover }: {
   label: string;
+  level: number;
   desks: AgentDesk[];
   hoveredId: string | null;
   onHover: (id: string | null) => void;
 }) {
   return (
-    <div style={{ marginBottom: 14 }}>
+    <div style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
       <div style={{
-        fontSize: 10,
-        fontWeight: 600,
-        textTransform: "uppercase",
-        letterSpacing: "0.06em",
-        color: "var(--text-4)",
-        padding: "0 4px 5px",
+        display: "flex",
+        alignItems: "center",
+        gap: 4,
+        padding: "4px 8px 2px",
       }}>
-        {label}
+        <span style={{ fontSize: 8, fontWeight: 700, color: "var(--text-4)", fontVariantNumeric: "tabular-nums", width: 12 }}>{level}F</span>
+        <span style={{ fontSize: 9, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--text-4)" }}>{label}</span>
       </div>
       <div style={{
-        border: "1px solid rgba(255,255,255,0.05)",
-        borderRadius: 12,
-        padding: 6,
-        background: "rgba(255,255,255,0.015)",
-        display: "grid",
-        gridTemplateColumns: "repeat(auto-fill, 72px)",
-        gap: 4,
-        justifyContent: "start",
+        padding: "4px 6px 8px",
+        display: "flex",
+        flexWrap: "wrap",
+        gap: 3,
       }}>
         {desks.map((desk) => (
           <Workstation key={desk.agent.id} desk={desk} hovered={hoveredId === desk.agent.id} onHover={onHover} />
@@ -132,61 +130,93 @@ function Room({ label, desks, hoveredId, onHover }: {
 }
 
 function Workstation({ desk, hovered, onHover }: { desk: AgentDesk; hovered: boolean; onHover: (id: string | null) => void }) {
-  const color = STATUS_COLOR[desk.status];
-  const glowing = desk.status === "active" || desk.status === "thinking";
+  const color = COLOR[desk.status];
+  const alive = desk.status === "active" || desk.status === "thinking";
   return (
     <div
       style={{
-        ...DESK_BG,
-        borderColor: hovered ? "rgba(255,255,255,0.14)" : undefined,
-        boxShadow: glowing ? `0 0 12px -4px ${color}` : undefined,
+        width: 56,
+        padding: "5px 3px 4px",
+        borderRadius: 8,
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        position: "relative",
+        cursor: "default",
+        transition: "background 0.15s",
+        background: hovered ? "rgba(255,255,255,0.05)" : "transparent",
       }}
       onMouseEnter={() => onHover(desk.agent.id)}
       onMouseLeave={() => onHover(null)}
     >
-      <div style={{ ...MONITOR, borderColor: glowing ? color : undefined }}>
-        {glowing && <div style={{ width: "100%", height: "100%", background: `${color}22` }} />}
+      {/* Monitor */}
+      <div style={{
+        width: 24,
+        height: 15,
+        borderRadius: 2,
+        border: `1.5px solid ${alive ? color : "rgba(255,255,255,0.08)"}`,
+        marginBottom: 1,
+        position: "relative",
+        overflow: "hidden",
+        transition: "border-color 0.2s",
+      }}>
+        {alive && <ScreenGlow color={color} />}
       </div>
-      <div style={{ width: 6, height: 3, background: "rgba(255,255,255,0.08)", borderRadius: "0 0 2px 2px", marginBottom: 4 }} />
+      {/* Monitor stand */}
+      <div style={{ width: 4, height: 2, background: "rgba(255,255,255,0.06)" }} />
+      <div style={{ width: 10, height: 1, background: "rgba(255,255,255,0.06)", borderRadius: 1, marginBottom: 3 }} />
+      {/* Agent */}
       <div style={{ position: "relative" }}>
         <Avatar name={desk.agent.name} size="sm" bot />
         <div style={{
           position: "absolute",
           bottom: -1,
           right: -2,
-          width: 7,
-          height: 7,
+          width: 6,
+          height: 6,
           borderRadius: "50%",
           background: color,
           border: "1.5px solid var(--bg)",
-          boxShadow: glowing ? `0 0 5px ${color}` : undefined,
+          transition: "background 0.2s",
         }} />
       </div>
       <div style={{
-        fontSize: 9,
+        fontSize: 8,
         color: "var(--text-3)",
-        marginTop: 3,
+        marginTop: 2,
         textAlign: "center",
-        lineHeight: 1.15,
-        maxWidth: 64,
+        maxWidth: 52,
         overflow: "hidden",
         textOverflow: "ellipsis",
         whiteSpace: "nowrap",
       }}>
         {desk.agent.name.split(" ")[0]}
       </div>
-      {hovered && (
-        <Tooltip name={desk.agent.name} role={desk.agent.role} task={desk.currentTask} status={desk.status} />
-      )}
+      {hovered && <HoverCard desk={desk} />}
     </div>
   );
 }
 
-function Tooltip({ name, role, task, status }: { name: string; role: string; task: string | null; status: PresenceStatus }) {
+function ScreenGlow({ color }: { color: string }) {
   return (
     <div style={{
       position: "absolute",
-      bottom: "calc(100% + 6px)",
+      inset: 0,
+      background: `${color}33`,
+      animation: "office-pulse 2s ease-in-out infinite",
+    }}>
+      <div style={{ width: "60%", height: 2, background: `${color}55`, margin: "3px 2px", borderRadius: 1 }} />
+      <div style={{ width: "40%", height: 2, background: `${color}44`, margin: "1px 2px", borderRadius: 1 }} />
+    </div>
+  );
+}
+
+function HoverCard({ desk }: { desk: AgentDesk }) {
+  const color = COLOR[desk.status];
+  return (
+    <div style={{
+      position: "absolute",
+      bottom: "calc(100% + 4px)",
       left: "50%",
       transform: "translateX(-50%)",
       background: "var(--panel)",
@@ -194,22 +224,22 @@ function Tooltip({ name, role, task, status }: { name: string; role: string; tas
       borderRadius: 8,
       padding: "6px 10px",
       zIndex: 30,
-      boxShadow: "0 4px 16px rgba(0,0,0,0.18)",
+      boxShadow: "0 4px 20px rgba(0,0,0,0.2)",
       pointerEvents: "none",
-      minWidth: 120,
-      maxWidth: 200,
+      minWidth: 110,
+      maxWidth: 190,
     }}>
-      <div style={{ fontSize: 12, fontWeight: 560, color: "var(--text-1)", marginBottom: 1 }}>{name}</div>
-      <div style={{ fontSize: 10, color: "var(--text-3)", marginBottom: task ? 4 : 0 }}>{role}</div>
-      {task && (
+      <div style={{ fontSize: 11, fontWeight: 560, color: "var(--text-1)" }}>{desk.agent.name}</div>
+      <div style={{ fontSize: 9, color: "var(--text-3)", marginBottom: desk.currentTask ? 3 : 0 }}>{desk.agent.role}</div>
+      {desk.currentTask && (
         <div style={{
-          fontSize: 10,
-          color: STATUS_COLOR[status],
+          fontSize: 9,
+          color,
           overflow: "hidden",
           textOverflow: "ellipsis",
           whiteSpace: "nowrap",
         }}>
-          {task}
+          {desk.currentTask}
         </div>
       )}
     </div>

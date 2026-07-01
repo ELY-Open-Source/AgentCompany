@@ -434,6 +434,10 @@ a { color: inherit; }
   from { opacity: 0; transform: translateY(6px); }
   to { opacity: 1; transform: none; }
 }
+@keyframes office-pulse {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
 /* Split-layout routes fill the content area and let their panes scroll
    independently instead of scrolling the whole page. */
 .content.flush {
