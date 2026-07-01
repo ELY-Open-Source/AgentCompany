@@ -174,7 +174,7 @@ export function Shell({
       {officeOpen && (
         <aside className="office-sidebar">
           <div className="office-sidebar-header">
-            <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text-2)" }}>Office</span>
+            <span style={{ fontSize: 11, fontWeight: 600, color: "var(--text-3)" }}>Office</span>
             <IconButton icon="x" label="Close office" onClick={() => setOfficeOpen(false)} />
           </div>
           <VirtualOffice

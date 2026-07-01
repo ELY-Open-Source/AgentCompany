@@ -370,7 +370,7 @@ a { color: inherit; }
 }
 
 .office-sidebar {
-  width: 220px;
+  width: 172px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
@@ -379,12 +379,12 @@ a { color: inherit; }
   overflow: hidden;
 }
 .office-sidebar-header {
-  height: 48px;
+  height: 40px;
   flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 var(--sp-3);
+  padding: 0 var(--sp-2) 0 var(--sp-3);
   border-bottom: 1px solid var(--border-soft);
 }
 
