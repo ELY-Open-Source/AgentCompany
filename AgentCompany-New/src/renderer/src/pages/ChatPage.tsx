@@ -276,41 +276,22 @@ export function ChatPage({ snapshot, actions }: PageProps) {
         slashInvocations={slashInvocationsAll}
         files={files}
         context={{ employees, agents }}
-        attachmentFileId={attachmentFileId}
+        attachmentFileId={selectedThread ? threadAttachmentFileId : attachmentFileId}
         currentEmployeeId={employee.id}
-        onAttachmentChange={setAttachmentFileId}
-        onAttach={attachFile}
+        onAttachmentChange={selectedThread ? setThreadAttachmentFileId : setAttachmentFileId}
+        onAttach={selectedThread ? attachThreadFile : attachFile}
         onOpenThread={openThread}
         onApprove={(approvalId) => decideApproval(approvalId, "approved")}
         onDecline={(approvalId) => decideApproval(approvalId, "declined")}
         onEditMessage={editChatMessage}
         onDeleteMessage={deleteChatMessage}
         onOpenFile={openFile}
-        onSubmit={sendInChannel}
+        onSubmit={selectedThread ? sendInThread : sendInChannel}
         composerRef={composerRef}
+        activeThread={selectedThread}
+        threadMessages={threadMessages}
+        onCloseThread={closeThread}
       />
-
-      {selectedThread && (
-        <ChatThreadPanel
-          thread={selectedThread}
-          rootMessage={messagesInSpace.find((m) => m.id === selectedThread.rootMessageId) ?? null}
-          messages={threadMessages}
-          attachments={snapshot.chatAttachments}
-          mentions={mentionsAll}
-          slashInvocations={slashInvocationsAll}
-          boardInterventions={selectedBoardInterventions}
-          files={files}
-          context={{ employees, agents }}
-          canIntervene={canBoardIntervene}
-          attachmentFileId={threadAttachmentFileId}
-          onClose={closeThread}
-          onAttachmentChange={setThreadAttachmentFileId}
-          onAttach={attachThreadFile}
-          onSubmit={sendInThread}
-          onBoardSubmit={sendBoardIntervention}
-          onOpenFile={openFile}
-        />
-      )}
 
       <Dialog
         title="New space"

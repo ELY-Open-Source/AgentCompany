@@ -59,23 +59,25 @@ export function OfficePage({ snapshot }: PageProps) {
     if (!ctx) return;
 
     let running = true;
-    const FPS_INTERVAL = 1000 / 30;
+    const FPS_INTERVAL = 1000 / 24;
 
     const tick = (now: number) => {
       if (!running) return;
-      animRef.current = requestAnimationFrame(tick);
 
       const elapsed = now - lastFrameRef.current;
-      if (elapsed < FPS_INTERVAL) return;
-      lastFrameRef.current = now - (elapsed % FPS_INTERVAL);
+      if (elapsed < FPS_INTERVAL) {
+        animRef.current = requestAnimationFrame(tick);
+        return;
+      }
+      lastFrameRef.current = now;
 
       const dpr = window.devicePixelRatio || 1;
       const w = canvas.clientWidth;
       const h = canvas.clientHeight;
-      if (canvas.width !== w * dpr || canvas.height !== h * dpr) {
-        canvas.width = w * dpr;
-        canvas.height = h * dpr;
-      }
+      if (w === 0 || h === 0) { animRef.current = requestAnimationFrame(tick); return; }
+      const pw = Math.round(w * dpr);
+      const ph = Math.round(h * dpr);
+      if (canvas.width !== pw || canvas.height !== ph) { canvas.width = pw; canvas.height = ph; }
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
       for (const agent of agentsRef.current) {
@@ -90,6 +92,7 @@ export function OfficePage({ snapshot }: PageProps) {
       }
 
       drawScene(ctx, w, h, agentsRef.current, now);
+      animRef.current = requestAnimationFrame(tick);
     };
 
     animRef.current = requestAnimationFrame(tick);
