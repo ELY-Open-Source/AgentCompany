@@ -4,10 +4,11 @@ import { SkillsPanel } from "./settings/SkillsPanel";
 import { WorkspacePanel } from "./settings/WorkspacePanel";
 import { BillingPanel } from "./settings/BillingPanel";
 import { MigrationPanel } from "./settings/MigrationPanel";
+import { ComposioPanel } from "./settings/ComposioPanel";
 import type { PageProps } from "./types";
 import { activeOrgId, requireActiveEmployee, requireActiveOrganization } from "./types";
 
-type SettingsTab = "workspace" | "billing" | "providers" | "skills" | "migration";
+type SettingsTab = "workspace" | "billing" | "providers" | "tools" | "skills" | "migration";
 
 interface NavSpec {
   id: SettingsTab;
@@ -18,6 +19,7 @@ const TABS: NavSpec[] = [
   { id: "workspace", label: "Workspace" },
   { id: "billing", label: "Billing" },
   { id: "providers", label: "Providers" },
+  { id: "tools", label: "Tools" },
   { id: "skills", label: "Skills" },
   { id: "migration", label: "Migration" },
 ];
@@ -74,6 +76,7 @@ export function SettingsPage({ snapshot, actions }: PageProps) {
               actions={actions}
             />
           )}
+          {tab === "tools" && <ComposioPanel orgId={orgId} actions={actions} />}
           {tab === "skills" && (
             <SkillsPanel
               orgId={orgId}
