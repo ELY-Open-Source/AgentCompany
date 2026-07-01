@@ -74,6 +74,7 @@ export const IPC_CHANNELS = {
   deleteMeeting: "agentcompany:delete-meeting",
   createSprint: "agentcompany:create-sprint",
   deleteSprint: "agentcompany:delete-sprint",
+  saveComposioSettings: "agentcompany:save-composio-settings",
   search: "agentcompany:search",
   rendererEvent: "agentcompany:renderer-event",
   windowMinimize: "agentcompany:window-minimize",

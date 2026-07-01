@@ -7,3 +7,4 @@ export * from "./files";
 export * from "./governance";
 export * from "./collaboration";
 export * from "./onboarding";
+export * from "./composio";

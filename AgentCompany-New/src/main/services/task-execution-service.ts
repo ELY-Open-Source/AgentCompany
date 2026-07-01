@@ -22,6 +22,7 @@ import {
   type TaskRunIsolation,
   type WorkspaceRow,
 } from "./task-prompts";
+import { loadComposioTools } from "./composio/composio-tool-bridge";
 
 const TASK_RUN_STATE = {
   QUEUED: "queued",
@@ -121,6 +122,7 @@ export class TaskExecutionService {
       const chatContext = this.loadChatContext(orgId, isolation);
       const isCeo = !agent.manager_agent_id;
       const hasReports = this.agentHasReports(orgId, agent.id);
+      const externalTools = await loadComposioTools(this.db, orgId);
       const result = await runAgentLoop(
         {
           providers: this.providers,
@@ -147,6 +149,7 @@ export class TaskExecutionService {
             chatContext,
           }),
           toolContext,
+          externalTools,
         },
       );
       providerRequestId = result.lastRequestId;

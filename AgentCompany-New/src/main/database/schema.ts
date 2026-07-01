@@ -41,6 +41,7 @@ import { auditImmutabilityOrgTeardownSchema } from "./migrations/039-audit-immut
 import { documentsKnowledgeAutomationSchema } from "./migrations/040-documents-knowledge-automation";
 import { taskSubtasksDeleteSchema } from "./migrations/041-task-subtasks-delete";
 import { approvalNotesMeetingsSprintsSchema } from "./migrations/042-approval-notes-meetings-sprints";
+import { composioIntegrationSchema } from "./migrations/043-composio-integration";
 
 interface Migration {
   version: number;
@@ -91,6 +92,7 @@ const MIGRATIONS: Migration[] = [
   { version: 40, name: "documents_knowledge_automation", sql: documentsKnowledgeAutomationSchema },
   { version: 41, name: "task_subtasks_delete", sql: taskSubtasksDeleteSchema },
   { version: 42, name: "approval_notes_meetings_sprints", sql: approvalNotesMeetingsSprintsSchema },
+  { version: 43, name: "composio_integration", sql: composioIntegrationSchema },
 ];
 
 const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;

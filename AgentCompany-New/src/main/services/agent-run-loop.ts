@@ -1,7 +1,8 @@
 import type { ProviderService } from "./provider-service";
 import { AGENT_TOOLS, dispatchAgentTool, type AgentToolContext, type AgentToolDeps } from "./agent-tools";
 import { canonicalMentionHandle } from "../../shared/mention-handles";
-import type { AgentTurnMessage } from "./provider-tool-turn";
+import type { AgentTurnMessage, ToolDefinition } from "./provider-tool-turn";
+import { isComposioTool, executeComposioTool } from "./composio/composio-tool-bridge";
 
 const MAX_ITERATIONS = 12;
 
@@ -12,6 +13,7 @@ export interface AgentRunLoopInput {
   instructions: string;
   initialUserTurn: string;
   toolContext: AgentToolContext;
+  externalTools?: ToolDefinition[];
 }
 
 export interface AgentRunLoopResult {
@@ -35,6 +37,7 @@ export interface AgentRunLoopDeps {
  * iteration cap is hit (which throws rather than silently truncating).
  */
 export async function runAgentLoop(deps: AgentRunLoopDeps, input: AgentRunLoopInput): Promise<AgentRunLoopResult> {
+  const allTools = input.externalTools ? [...AGENT_TOOLS, ...input.externalTools] : AGENT_TOOLS;
   const messages: AgentTurnMessage[] = [{ role: "user", text: input.initialUserTurn }];
   let toolCallCount = 0;
   let lastRequestId = "";
@@ -46,7 +49,7 @@ export async function runAgentLoop(deps: AgentRunLoopDeps, input: AgentRunLoopIn
       workspaceId: input.workspaceId,
       instructions: input.instructions,
       messages,
-      tools: AGENT_TOOLS,
+      tools: allTools,
     });
     lastRequestId = turn.requestId;
 
@@ -61,16 +64,19 @@ export async function runAgentLoop(deps: AgentRunLoopDeps, input: AgentRunLoopIn
     }
 
     messages.push({ role: "assistant", text: turn.text, toolCalls: turn.toolCalls });
-    const results = turn.toolCalls.map((call) => {
+    const results: Array<{ toolCallId: string; toolName: string; output: string }> = [];
+    for (const call of turn.toolCalls) {
       toolCallCount += 1;
-      return {
-        toolCallId: call.id,
-        toolName: call.name,
-        output: dispatchAgentTool(deps.tools, input.toolContext, call, {
+      let output: string;
+      if (isComposioTool(call.name)) {
+        output = await executeComposioTool(deps.tools.db, input.orgId, call);
+      } else {
+        output = dispatchAgentTool(deps.tools, input.toolContext, call, {
           announceTaskAssignments: shouldAnnounceTaskAssignment(call, turn.toolCalls),
-        }),
-      };
-    });
+        });
+      }
+      results.push({ toolCallId: call.id, toolName: call.name, output });
+    }
     messages.push({ role: "tool", results });
     deps.onToolResults?.();
   }

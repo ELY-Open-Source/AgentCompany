@@ -316,6 +316,19 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     }
   });
 
+  ipcMain.handle(IPC_CHANNELS.saveComposioSettings, (_event, input) => mutate(() => {
+    const now = new Date().toISOString();
+    const db = deps.connection.db;
+    const upsert = db.prepare(`
+      insert into composio_settings(org_id, key, value, updated_at) values (?, ?, ?, ?)
+      on conflict(org_id, key) do update set value = excluded.value, updated_at = excluded.updated_at
+    `);
+    upsert.run(input.orgId, "api_key", input.apiKey, now);
+    upsert.run(input.orgId, "toolkits", JSON.stringify(input.toolkits), now);
+    upsert.run(input.orgId, "entity_id", input.orgId, now);
+    return null;
+  }));
+
   ipcMain.handle(IPC_CHANNELS.windowMinimize, () => deps.mainWindow.minimize());
   ipcMain.handle(IPC_CHANNELS.windowMaximize, () => deps.mainWindow.isMaximized() ? deps.mainWindow.unmaximize() : deps.mainWindow.maximize());
   ipcMain.handle(IPC_CHANNELS.windowClose, () => deps.mainWindow.close());

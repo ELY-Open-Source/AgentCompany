@@ -63,6 +63,7 @@ import type {
   RunTaskInput,
   RevokeProviderCredentialInput,
   SaveProviderCredentialInput,
+  SaveComposioSettingsInput,
   SearchInput,
   SendMessageInput,
   SetActiveOrganizationInput,
@@ -172,6 +173,7 @@ export interface DesktopApi {
   setLegalHoldState(input: SetLegalHoldStateInput): Promise<DesktopResult<AppSnapshot>>;
   createRetentionFreeze(input: CreateRetentionFreezeInput): Promise<DesktopResult<AppSnapshot>>;
   setRetentionFreezeState(input: SetRetentionFreezeStateInput): Promise<DesktopResult<AppSnapshot>>;
+  saveComposioSettings(input: SaveComposioSettingsInput): Promise<DesktopResult<AppSnapshot>>;
   search(input: SearchInput): Promise<DesktopResult<SearchResultRecord[]>>;
   subscribe(callback: (event: RendererEvent) => void): () => void;
   platform: "win32" | "darwin" | "linux";
