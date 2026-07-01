@@ -62,6 +62,7 @@ export interface ChatMentionRecord {
   targetId: string;
   offsetStart: number;
   offsetEnd: number;
+  wakeState: "none" | "woken" | "failed";
 }
 
 export interface ChatSlashInvocationRecord {

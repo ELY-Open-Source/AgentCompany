@@ -145,10 +145,19 @@ function renderBody(body: string, mentions: ChatMentionRecord[], context: Messag
     if (!token.startsWith("@")) throw new Error("Message mention token is invalid.");
     if (mention.offsetStart > lastIndex) parts.push(...formatInline(body.slice(lastIndex, mention.offsetStart), `s${lastIndex}`));
     const label = mentionLabel(mention, context);
+    const failed = mention.wakeState === "failed";
     parts.push(
       <span
         key={`m-${mention.messageId}-${mention.offsetStart}`}
-        style={{ background: "var(--accent-soft)", color: "var(--accent)", padding: "1px 5px", borderRadius: 4, fontWeight: 500 }}
+        title={failed ? "Agent could not be reached" : undefined}
+        style={{
+          background: failed ? "rgba(255,100,80,0.1)" : "var(--accent-soft)",
+          color: failed ? "var(--text-3)" : "var(--accent)",
+          padding: "1px 5px",
+          borderRadius: 4,
+          fontWeight: 500,
+          textDecoration: failed ? "line-through" : undefined,
+        }}
       >
         @{label}
       </span>,

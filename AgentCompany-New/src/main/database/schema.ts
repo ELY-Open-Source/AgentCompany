@@ -42,6 +42,7 @@ import { documentsKnowledgeAutomationSchema } from "./migrations/040-documents-k
 import { taskSubtasksDeleteSchema } from "./migrations/041-task-subtasks-delete";
 import { approvalNotesMeetingsSprintsSchema } from "./migrations/042-approval-notes-meetings-sprints";
 import { composioIntegrationSchema } from "./migrations/043-composio-integration";
+import { mentionWakeStateSchema } from "./migrations/044-mention-wake-state";
 
 interface Migration {
   version: number;
@@ -93,6 +94,7 @@ const MIGRATIONS: Migration[] = [
   { version: 41, name: "task_subtasks_delete", sql: taskSubtasksDeleteSchema },
   { version: 42, name: "approval_notes_meetings_sprints", sql: approvalNotesMeetingsSprintsSchema },
   { version: 43, name: "composio_integration", sql: composioIntegrationSchema },
+  { version: 44, name: "mention_wake_state", sql: mentionWakeStateSchema },
 ];
 
 const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;

@@ -209,14 +209,17 @@ export class ChatService {
       (m) => m.target.type === "agent" && !(input.senderType === "agent" && input.senderId === m.target.id),
     );
     if (agentMentions.length === 0) return;
-    // An agent's own message must not keep waking teammates once the thread has
-    // run its autonomous budget; only a human re-entering the thread can.
     if (input.senderType === "agent" && this.autonomousThreadTurnsExhausted(input.orgId, threadId)) return;
     for (const mention of agentMentions) {
       try {
         this.agentWake.wakeFromMention(input, mention.target.id, messageId, threadId, now);
-      } catch {
-        // Mentions remain delivery metadata even when the target has no runtime.
+        this.db.prepare(
+          "update chat_mentions set wake_state = 'woken' where message_id = ? and target_type = 'agent' and target_id = ?",
+        ).run(messageId, mention.target.id);
+      } catch (error) {
+        this.db.prepare(
+          "update chat_mentions set wake_state = 'failed' where message_id = ? and target_type = 'agent' and target_id = ?",
+        ).run(messageId, mention.target.id);
       }
     }
   }
