@@ -13,6 +13,7 @@ import {
   buildAgentInstructions,
   buildTaskPrompt,
   type ChatContextBlock,
+  type InboxContextBlock,
   type GoalRow,
   type ProjectRow,
   type SkillRuntimeSnapshotRow,
@@ -120,6 +121,7 @@ export class TaskExecutionService {
         workspace: workspace ? { id: workspace.id, localPath: workspace.local_path } : null,
       };
       const chatContext = this.loadChatContext(orgId, isolation);
+      const inboxContext = chatContext ? null : this.loadInboxContext(orgId, agent.id);
       const isCeo = !agent.manager_agent_id;
       const hasReports = this.agentHasReports(orgId, agent.id);
       const externalTools = await loadComposioTools(this.db, orgId);
@@ -147,6 +149,7 @@ export class TaskExecutionService {
             hasReports,
             managerName: this.agentName(orgId, agent.manager_agent_id),
             chatContext,
+            inboxContext,
           }),
           toolContext,
           externalTools,
@@ -367,6 +370,26 @@ export class TaskExecutionService {
     return {
       threadId: scope.sourceThreadId,
       transcript: messages.map((m) => `[${m.sender_name}]: ${m.body_md}`).join("\n"),
+    };
+  }
+
+  private loadInboxContext(orgId: string, agentId: string): InboxContextBlock | null {
+    const messages = this.db.prepare(`
+      select m.body_md,
+             coalesce(a.name, e.display_name, m.sender_type) as sender_name,
+             s.name as channel_name
+      from chat_mentions cm
+      join chat_messages m on m.id = cm.message_id
+      join chat_spaces s on s.id = m.space_id
+      left join agents a on a.id = m.sender_id and m.sender_type = 'agent'
+      left join employees e on e.id = m.sender_id and m.sender_type = 'employee'
+      where cm.target_type = 'agent' and cm.target_id = ? and m.org_id = ? and m.deleted_at is null
+      order by m.created_at desc
+      limit 10
+    `).all(agentId, orgId) as Array<{ body_md: string; sender_name: string; channel_name: string }>;
+    if (messages.length === 0) return null;
+    return {
+      transcript: messages.reverse().map((m) => `[${m.sender_name} in #${m.channel_name}]: ${m.body_md}`).join("\n"),
     };
   }
 
