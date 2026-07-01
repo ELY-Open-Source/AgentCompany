@@ -29,6 +29,10 @@ function list<T>(db: DatabaseSync, table: string, orderBy: string): T[] {
   return all<Row>(db.prepare(`select * from ${table} order by ${orderBy}`)).map((row) => camel(row) as T);
 }
 
+function recentList<T>(db: DatabaseSync, table: string, orderBy: string, limit: number): T[] {
+  return all<Row>(db.prepare(`select * from ${table} order by ${orderBy} limit ${limit}`)).map((row) => camel(row) as T);
+}
+
 export class SnapshotService {
   constructor(private readonly db: DatabaseSync) {}
 
@@ -90,15 +94,15 @@ export class SnapshotService {
       workspaces,
       goals: list(this.db, "goals", "created_at asc"),
       projects: list(this.db, "projects", "created_at asc"),
-      taskRuns: list(this.db, "task_runs", "created_at asc"),
+      taskRuns: recentList<AppSnapshot["taskRuns"][number]>(this.db, "task_runs", "created_at desc", 200).reverse(),
       approvals: list(this.db, "approvals", "created_at desc"),
       chatSpaces: list(this.db, "chat_spaces", "created_at asc"),
       chatMemberships: list(this.db, "chat_memberships", "space_id asc, principal_type asc, principal_id asc"),
-      chatMessages: list(this.db, "chat_messages", "created_at asc"),
-      chatThreads: list(this.db, "chat_threads", "updated_at desc"),
-      chatAttachments: list(this.db, "chat_attachments", "message_id asc"),
-      chatMentions: list(this.db, "chat_mentions", "message_id asc, offset_start asc"),
-      chatSlashInvocations: list(this.db, "chat_slash_invocations", "created_at asc"),
+      chatMessages: recentList<AppSnapshot["chatMessages"][number]>(this.db, "chat_messages", "created_at desc", 500).reverse(),
+      chatThreads: recentList(this.db, "chat_threads", "updated_at desc", 200),
+      chatAttachments: recentList(this.db, "chat_attachments", "message_id desc", 500),
+      chatMentions: recentList(this.db, "chat_mentions", "message_id desc, offset_start asc", 500),
+      chatSlashInvocations: recentList(this.db, "chat_slash_invocations", "created_at desc", 200),
       boardInterventions: list(this.db, "board_interventions", "created_at asc"),
       chatPresence: list(this.db, "chat_presence", "last_seen_at desc"),
       chatReadStates: list(this.db, "chat_read_state", "last_read_at desc"),
@@ -110,7 +114,7 @@ export class SnapshotService {
       providerAuthProfiles,
       providerAuthSessions,
       providerCatalog: PROVIDER_CATALOG,
-      providerRequests: list(this.db, "provider_requests", "created_at desc"),
+      providerRequests: recentList(this.db, "provider_requests", "created_at desc", 100),
       providerRateLimits,
       providerRateLimitObservations,
       skillDefinitions: list(this.db, "skill_definitions", "created_at asc"),

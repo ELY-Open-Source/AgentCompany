@@ -3,7 +3,6 @@ import { Field } from "../shared/ui";
 import { Dialog } from "../shared/Dialog";
 import { ChatSidebar } from "./chat/ChatSidebar";
 import { ChatConversation } from "./chat/ChatConversation";
-import { ChatThreadPanel } from "./chat/ChatThreadPanel";
 import {
   collectParticipants,
   filterApprovalsForSpace,
@@ -61,10 +60,8 @@ export function ChatPage({ snapshot, actions }: PageProps) {
   );
 
   const [selectedSpaceId, setSelectedSpaceId] = useState<string | null>(null);
-  const [openThreadId, setOpenThreadId] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [attachmentFileId, setAttachmentFileId] = useState<string>("");
-  const [threadAttachmentFileId, setThreadAttachmentFileId] = useState<string>("");
   const composerRef = useRef<HTMLTextAreaElement | null>(null);
 
   const firstAvailableSpaceId = channels[0]?.id ?? directs[0]?.id ?? null;
@@ -97,29 +94,11 @@ export function ChatPage({ snapshot, actions }: PageProps) {
     [threadsAll, activeSpace],
   );
   const rootMessages = messagesInSpace.filter((message) => isRootMessage(message, threadsInSpace));
-  const selectedThread = threadsInSpace.find((t) => t.id === openThreadId) ?? null;
-  const threadMessages = selectedThread
-    ? messagesInSpace.filter((m) => m.threadId === selectedThread.id && m.id !== selectedThread.rootMessageId)
-    : [];
-  const selectedBoardInterventions = useMemo(
-    () => (selectedThread ? boardInterventionsAll.filter((item) => item.threadId === selectedThread.id) : []),
-    [boardInterventionsAll, selectedThread],
-  );
   const participants = useMemo(
     () => collectParticipants(messagesInSpace, employees, agents),
     [messagesInSpace, employees, agents],
   );
   const pendingApprovalsInSpace = filterApprovalsForSpace(approvalsAll, activeSpace);
-
-  const openThread = (threadId: string) => {
-    setOpenThreadId(threadId);
-    setThreadAttachmentFileId("");
-  };
-
-  const closeThread = () => {
-    setOpenThreadId(null);
-    setThreadAttachmentFileId("");
-  };
 
   const sendInChannel = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -140,46 +119,6 @@ export function ChatPage({ snapshot, actions }: PageProps) {
     }));
   };
 
-  const sendInThread = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!activeSpace || !selectedThread) return;
-    const form = new FormData(event.currentTarget);
-    const body = value(form, "message");
-    if (!body) return;
-    event.currentTarget.reset();
-    setThreadAttachmentFileId("");
-    void actions.run(() => window.agentCompany.sendMessage({
-      orgId,
-      spaceId: activeSpace.id,
-      threadId: selectedThread.id,
-      senderType: "employee",
-      senderId: employee.id,
-      bodyMd: body,
-      attachmentFileIds: threadAttachmentFileId ? [threadAttachmentFileId] : [],
-    }));
-  };
-
-  const sendBoardIntervention = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!activeSpace || !selectedThread) return;
-    const form = new FormData(event.currentTarget);
-    const action = value(form, "action");
-    const target = value(form, "target");
-    const details = value(form, "details");
-    if (!action || !details) return;
-    event.currentTarget.reset();
-    const targetMention = action === "takeover" && target && target !== "board" ? ` @${target}` : "";
-    void actions.run(() => window.agentCompany.sendMessage({
-      orgId,
-      spaceId: activeSpace.id,
-      threadId: selectedThread.id,
-      senderType: "board",
-      senderId: employee.id,
-      bodyMd: `/board ${action}${targetMention} ${details}`,
-      attachmentFileIds: [],
-    }));
-  };
-
   const createSpace = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
@@ -197,7 +136,6 @@ export function ChatPage({ snapshot, actions }: PageProps) {
       const created = result.chatSpaces.find((space) => space.orgId === orgId && !existingSpaceIds.has(space.id));
       if (!created) throw new Error("Created chat space is missing from snapshot.");
       setSelectedSpaceId(created.id);
-      setOpenThreadId(null);
       setCreateOpen(false);
     });
   };
@@ -231,10 +169,6 @@ export function ChatPage({ snapshot, actions }: PageProps) {
     importAttachment(setAttachmentFileId);
   };
 
-  const attachThreadFile = () => {
-    importAttachment(setThreadAttachmentFileId);
-  };
-
   const importAttachment = (onSelect: (fileId: string) => void) => {
     void window.agentCompany.importFile({ orgId }).then((result) => {
       if (!result.ok) throw new Error(result.error.message);
@@ -259,7 +193,6 @@ export function ChatPage({ snapshot, actions }: PageProps) {
         activeSpaceId={activeSpaceId}
         onSelect={(spaceId) => {
           setSelectedSpaceId(spaceId);
-          closeThread();
         }}
         onCreateSpace={() => setCreateOpen(true)}
       />
@@ -276,21 +209,18 @@ export function ChatPage({ snapshot, actions }: PageProps) {
         slashInvocations={slashInvocationsAll}
         files={files}
         context={{ employees, agents }}
-        attachmentFileId={selectedThread ? threadAttachmentFileId : attachmentFileId}
+        attachmentFileId={attachmentFileId}
         currentEmployeeId={employee.id}
-        onAttachmentChange={selectedThread ? setThreadAttachmentFileId : setAttachmentFileId}
-        onAttach={selectedThread ? attachThreadFile : attachFile}
-        onOpenThread={openThread}
+        onAttachmentChange={setAttachmentFileId}
+        onAttach={attachFile}
+        onOpenThread={() => {}}
         onApprove={(approvalId) => decideApproval(approvalId, "approved")}
         onDecline={(approvalId) => decideApproval(approvalId, "declined")}
         onEditMessage={editChatMessage}
         onDeleteMessage={deleteChatMessage}
         onOpenFile={openFile}
-        onSubmit={selectedThread ? sendInThread : sendInChannel}
+        onSubmit={sendInChannel}
         composerRef={composerRef}
-        activeThread={selectedThread}
-        threadMessages={threadMessages}
-        onCloseThread={closeThread}
       />
 
       <Dialog

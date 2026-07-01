@@ -44,9 +44,11 @@ export function registerIpcHandlers(deps: IpcDeps): void {
   const providerOAuth = new ProviderOAuthService();
   const skills = new SkillService(deps.connection.db, deps.artifactRoot);
   const notifyDataChanged = () => {
-    if (!deps.mainWindow.isDestroyed()) {
-      deps.mainWindow.webContents.send(IPC_CHANNELS.rendererEvent, { type: "snapshot-changed" });
-    }
+    try {
+      if (!deps.mainWindow.isDestroyed() && !deps.mainWindow.webContents.isDestroyed()) {
+        deps.mainWindow.webContents.send(IPC_CHANNELS.rendererEvent, { type: "snapshot-changed" });
+      }
+    } catch { /* renderer may have been disposed during agent run */ }
   };
   const taskExecution = new TaskExecutionService(deps.connection.db, providers, skills, notifyDataChanged);
   const social = new SocialService(deps.connection.db);
