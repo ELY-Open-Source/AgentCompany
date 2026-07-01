@@ -16,6 +16,7 @@ import { RunsPage } from "../pages/RunsPage";
 import { MeetingsPage } from "../pages/MeetingsPage";
 import { SprintsPage } from "../pages/SprintsPage";
 import { SettingsPage } from "../pages/SettingsPage";
+import { OfficePage } from "../pages/OfficePage";
 
 export function App() {
   const { snapshot, actions } = useSnapshot();
@@ -51,6 +52,7 @@ export function App() {
     sprints: <SprintsPage {...pageProps} />,
     approvals: <ApprovalsPage {...pageProps} />,
     social: <SocialPage {...pageProps} />,
+    office: <OfficePage {...pageProps} />,
     settings: <SettingsPage {...pageProps} />,
   }[route];
 

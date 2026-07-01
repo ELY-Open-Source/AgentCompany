@@ -369,25 +369,6 @@ a { color: inherit; }
   white-space: nowrap;
 }
 
-.office-sidebar {
-  width: 172px;
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  border-left: 1px solid var(--border-soft);
-  background: var(--bg);
-  overflow: hidden;
-}
-.office-sidebar-header {
-  height: 40px;
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 var(--sp-2) 0 var(--sp-3);
-  border-bottom: 1px solid var(--border-soft);
-}
-
 .main {
   min-width: 0;
   flex: 1;

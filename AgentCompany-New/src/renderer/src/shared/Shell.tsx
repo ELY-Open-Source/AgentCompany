@@ -5,7 +5,6 @@ import type { IconName } from "./Icon";
 import { OrgSwitcher } from "./OrgSwitcher";
 import { SearchDialog } from "./SearchDialog";
 import { TopbarSlotContext } from "./topbar-context";
-import { VirtualOffice } from "./VirtualOffice";
 
 export type RouteId =
   | "home"
@@ -21,6 +20,7 @@ export type RouteId =
   | "sprints"
   | "approvals"
   | "social"
+  | "office"
   | "settings";
 
 interface NavSpec {
@@ -31,7 +31,7 @@ interface NavSpec {
 
 /** Routes whose pages own a full-height, multi-pane layout with their own
  * internal scroll regions, so the content area must not scroll as one block. */
-const FLUSH_ROUTES = new Set<RouteId>(["chat", "settings", "files", "social", "runs"]);
+const FLUSH_ROUTES = new Set<RouteId>(["chat", "settings", "files", "social", "runs", "office"]);
 
 /** The daily-driver surfaces — the core operating loop. */
 const primaryNav: NavSpec[] = [
@@ -52,6 +52,7 @@ const secondaryNav: NavSpec[] = [
   { id: "meetings", label: "Meetings", icon: "calendar" },
   { id: "sprints", label: "Sprints", icon: "target" },
   { id: "social", label: "Social", icon: "social" },
+  { id: "office", label: "Office", icon: "team" },
 ];
 
 const allNav: NavSpec[] = [...primaryNav, ...secondaryNav];
@@ -74,7 +75,6 @@ export function Shell({
   children: ReactNode;
 }) {
   const [searchOpen, setSearchOpen] = useState(false);
-  const [officeOpen, setOfficeOpen] = useState(false);
   const [actionsSlot, setActionsSlot] = useState<HTMLElement | null>(null);
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
@@ -126,15 +126,6 @@ export function Shell({
         <nav className="nav">
           <button
             type="button"
-            aria-label="Office"
-            className={`nav-item ${officeOpen ? "active" : ""}`.trim()}
-            onClick={() => setOfficeOpen((v) => !v)}
-          >
-            <span className="icon-box"><Icon name="team" size={18} /></span>
-            <span>Office</span>
-          </button>
-          <button
-            type="button"
             aria-label="Settings"
             aria-current={route === "settings" ? "page" : undefined}
             className={`nav-item ${route === "settings" ? "active" : ""}`.trim()}
@@ -171,21 +162,6 @@ export function Shell({
           </TopbarSlotContext.Provider>
         </div>
       </main>
-      {officeOpen && (
-        <aside className="office-sidebar">
-          <div className="office-sidebar-header">
-            <span style={{ fontSize: 11, fontWeight: 600, color: "var(--text-3)" }}>Office</span>
-            <IconButton icon="x" label="Close office" onClick={() => setOfficeOpen(false)} />
-          </div>
-          <VirtualOffice
-            agents={snapshot.agents}
-            tasks={snapshot.tasks}
-            taskRuns={snapshot.taskRuns}
-            presence={snapshot.chatPresence}
-            orgId={organization.id}
-          />
-        </aside>
-      )}
       <SearchDialog
         snapshot={snapshot}
         open={searchOpen}

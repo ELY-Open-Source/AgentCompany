@@ -164,11 +164,9 @@ test("onboards, hires, and creates work in the Electron shell", async () => {
     await page.getByRole("button", { name: "Set", exact: true }).click();
     await expect(page.getByRole("button", { name: "active", exact: true })).toBeDisabled();
 
-    // Virtual office sidebar toggle
+    // Virtual office page
     await page.getByRole("button", { name: "Office" }).click();
-    await expect(page.locator(".office-sidebar")).toBeVisible();
-    await page.locator(".office-sidebar").getByRole("button", { name: "Close office" }).click();
-    await expect(page.locator(".office-sidebar")).not.toBeVisible();
+    await expect(page.locator("canvas")).toBeVisible();
 
     // Composio settings panel
     await page.getByRole("button", { name: "Settings" }).click();
@@ -220,7 +218,7 @@ function createSkillDirectory(): string {
 async function verifyPagesDoNotOverflow(page: Page): Promise<void> {
   for (const size of [{ width: 1280, height: 860 }, { width: 980, height: 700 }]) {
     await page.setViewportSize(size);
-    for (const nav of ["Home", "Team", "Work", "Messages", "Files", "Approvals", "Social", "Settings"]) {
+    for (const nav of ["Home", "Team", "Work", "Messages", "Files", "Approvals", "Social", "Office", "Settings"]) {
       await page.getByRole("button", { name: nav, exact: true }).click();
       await expectPageToFit(page);
     }
