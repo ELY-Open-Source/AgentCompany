@@ -1,17 +1,19 @@
 import { useRef, useState, type MutableRefObject } from "react";
 import { Avatar } from "../../shared/ui";
 import type { AgentRecord, EmployeeRecord } from "../../../../shared/domain";
+import { canonicalMentionHandle } from "../../../../shared/mention-handles";
 
 interface MentionCandidate {
   handle: string;
+  displayName: string;
   label: string;
   bot: boolean;
 }
 
 function buildCandidates(agents: AgentRecord[], employees: EmployeeRecord[]): MentionCandidate[] {
   return [
-    ...agents.map((a) => ({ handle: a.name, label: `${a.name} · ${a.role}`, bot: true })),
-    ...employees.map((e) => ({ handle: e.displayName, label: `${e.displayName} · ${e.role}`, bot: false })),
+    ...agents.map((a) => ({ handle: canonicalMentionHandle(a.name), displayName: a.name, label: `${a.name} · ${a.role}`, bot: true })),
+    ...employees.map((e) => ({ handle: canonicalMentionHandle(e.displayName), displayName: e.displayName, label: `${e.displayName} · ${e.role}`, bot: false })),
   ];
 }
 
@@ -41,7 +43,10 @@ export function MentionTextarea({
   const ref = textareaRef ?? innerRef;
   const candidates = buildCandidates(agents, employees);
   const filtered = query !== null
-    ? candidates.filter((c) => c.handle.toLowerCase().includes(query.toLowerCase()))
+    ? candidates.filter((c) => {
+      const q = query.toLowerCase();
+      return c.handle.includes(q) || c.displayName.toLowerCase().includes(q);
+    })
     : [];
 
   const close = () => setQuery(null);
@@ -138,7 +143,7 @@ export function MentionTextarea({
                 textAlign: "left",
               }}
             >
-              <Avatar name={c.handle} size="sm" bot={c.bot} />
+              <Avatar name={c.displayName} size="sm" bot={c.bot} />
               <span style={{ fontWeight: 500 }}>{c.label}</span>
             </button>
           ))}

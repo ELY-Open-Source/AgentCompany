@@ -7,7 +7,7 @@ import { DatabaseConnection } from "../../src/main/database/connection";
 import { OrganizationService } from "../../src/main/services/organization-service";
 import { ChatService } from "../../src/main/services/chat-service";
 import { runAgentLoop } from "../../src/main/services/agent-run-loop";
-import { canonicalMentionHandle } from "../../src/main/services/mention-handles";
+import { canonicalMentionHandle } from "../../src/shared/mention-handles";
 import type { AgentToolContext } from "../../src/main/services/agent-tools";
 import type { AgentTurnResult, ToolCall } from "../../src/main/services/provider-tool-turn";
 

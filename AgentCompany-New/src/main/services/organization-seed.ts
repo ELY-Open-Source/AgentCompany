@@ -8,7 +8,7 @@ import { IdentityAccessService } from "./identity-access-service";
 import { OrgGovernanceService } from "./org-governance-service";
 import { OperationsService } from "./operations-service";
 import { SdlcService } from "./sdlc-service";
-import { assertUsableMentionName } from "./mention-handles";
+import { assertUsableMentionName } from "../../shared/mention-handles";
 
 /**
  * Seeds a brand-new organization in one transaction's worth of writes: the org

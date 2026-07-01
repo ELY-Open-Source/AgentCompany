@@ -1,5 +1,5 @@
 import type { DatabaseSync } from "node:sqlite";
-import { canonicalMentionHandle } from "./mention-handles";
+import { canonicalMentionHandle } from "../../shared/mention-handles";
 
 export interface MentionTarget {
   type: "employee" | "agent" | "board" | "org_group";

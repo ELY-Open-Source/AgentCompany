@@ -7,7 +7,7 @@ import { ensureAgentHeartbeat, resolveGoalKickoff, type GoalKickoffPlan } from "
 import { PolicyService } from "./policy-service";
 import { IdentityAccessService } from "./identity-access-service";
 import { OrgGovernanceService } from "./org-governance-service";
-import { assertUsableMentionName } from "./mention-handles";
+import { assertUsableMentionName } from "../../shared/mention-handles";
 import { seedOrganization } from "./organization-seed";
 
 export class OrganizationService {

@@ -1,6 +1,6 @@
 import type { ProviderService } from "./provider-service";
 import { AGENT_TOOLS, dispatchAgentTool, type AgentToolContext, type AgentToolDeps } from "./agent-tools";
-import { canonicalMentionHandle } from "./mention-handles";
+import { canonicalMentionHandle } from "../../shared/mention-handles";
 import type { AgentTurnMessage } from "./provider-tool-turn";
 
 const MAX_ITERATIONS = 12;

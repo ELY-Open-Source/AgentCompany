@@ -6,7 +6,7 @@ import type { ChatService } from "./chat-service";
 import { writeDeliverable } from "./deliverable-writer";
 import { DocumentService } from "./document-service";
 import { recordWorkspaceFile } from "./files/file-object-store";
-import { canonicalMentionHandle } from "./mention-handles";
+import { canonicalMentionHandle } from "../../shared/mention-handles";
 import type { JsonRecord } from "./provider-http";
 import type { ToolCall, ToolDefinition } from "./provider-tool-turn";
 

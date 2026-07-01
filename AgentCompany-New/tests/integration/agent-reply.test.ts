@@ -9,7 +9,7 @@ import { providerAdapters } from "../../src/main/services/provider-adapters";
 import { TaskExecutionService } from "../../src/main/services/task-execution-service";
 import { SnapshotService } from "../../src/main/services/snapshot-service";
 import { claimNextQueuedRun } from "../../src/main/app/task-queue-worker";
-import { canonicalMentionHandle } from "../../src/main/services/mention-handles";
+import { canonicalMentionHandle } from "../../src/shared/mention-handles";
 import type { AgentTurnResult, ProviderToolTurnInput, ToolCall } from "../../src/main/services/provider-tool-turn";
 
 const testVault = {
