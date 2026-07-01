@@ -141,6 +141,9 @@ export class ChatService {
     if (!slash || slash.command !== "agent") {
       this.wakeAgentMentions(input, mentions, id, threadId, now);
     }
+    if (input.senderType === "employee" || input.senderType === "board") {
+      this.wakeThreadParticipants(input, mentions, id, threadId, now);
+    }
     this.handoffs.record({
       orgId: input.orgId,
       spaceId: input.spaceId,
@@ -220,6 +223,26 @@ export class ChatService {
         this.db.prepare(
           "update chat_mentions set wake_state = 'failed' where message_id = ? and target_type = 'agent' and target_id = ?",
         ).run(messageId, mention.target.id);
+      }
+    }
+  }
+
+  private wakeThreadParticipants(input: SendMessageInput, alreadyMentioned: ResolvedMention[], messageId: string, threadId: string, now: string): void {
+    if (!input.threadId) return;
+    const mentionedAgentIds = new Set(
+      alreadyMentioned.filter((m) => m.target.type === "agent").map((m) => m.target.id),
+    );
+    const participants = this.db.prepare(`
+      select distinct m.sender_id as agent_id
+      from chat_messages m
+      where m.thread_id = ? and m.org_id = ? and m.sender_type = 'agent' and m.deleted_at is null
+    `).all(input.threadId, input.orgId) as Array<{ agent_id: string }>;
+    for (const row of participants) {
+      if (mentionedAgentIds.has(row.agent_id)) continue;
+      try {
+        this.agentWake.wakeFromMention(input, row.agent_id, messageId, threadId, now);
+      } catch {
+        // Agent may not have an enabled provider.
       }
     }
   }
