@@ -1,7 +1,7 @@
-import type { ReactNode } from "react";
 import { Avatar, Icon, IconButton } from "../../shared/ui";
-import type { AgentRecord, ChatMessageRecord, ChatPresenceRecord, ChatSpaceRecord } from "../../../../shared/domain";
-import { countMessagesIn } from "./chat-helpers";
+import type { ChatPresenceRecord } from "../../../../shared/domain";
+import { formatRelative } from "../types";
+import type { ConversationItem } from "./chat-helpers";
 
 function presenceColor(status: string | undefined): string | null {
   switch (status) {
@@ -18,20 +18,19 @@ function presenceColor(status: string | undefined): string | null {
   }
 }
 
+/**
+ * The conversation list: every channel and direct conversation is one row —
+ * avatar, name, last-message preview, time, unread — newest first, the way
+ * messengers do it.
+ */
 export function ChatSidebar({
-  channels,
-  directs,
-  agents,
-  messages,
+  conversations,
   presence,
   activeSpaceId,
   onSelect,
   onCreateSpace,
 }: {
-  channels: ChatSpaceRecord[];
-  directs: ChatSpaceRecord[];
-  agents: AgentRecord[];
-  messages: ChatMessageRecord[];
+  conversations: ConversationItem[];
   presence: ChatPresenceRecord[];
   activeSpaceId: string | null;
   onSelect: (spaceId: string) => void;
@@ -45,101 +44,99 @@ export function ChatSidebar({
         <IconButton icon="plus" label="New space" onClick={onCreateSpace} />
       </div>
       <div className="pane-scroll">
-        <NavGroup label="Channels">
-          {channels.length === 0 ? (
-            <Empty>No channels.</Empty>
-          ) : channels.map((space) => (
-            <ChannelItem
-              key={space.id}
-              space={space}
-              active={space.id === activeSpaceId}
-              count={countMessagesIn(space.id, messages)}
-              onClick={() => onSelect(space.id)}
+        <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+          {conversations.map((conversation) => (
+            <ConversationRow
+              key={conversation.space.id}
+              conversation={conversation}
+              active={conversation.space.id === activeSpaceId}
+              presenceStatus={conversation.counterpart ? presenceByPrincipal.get(conversation.counterpart.id) : undefined}
+              onClick={() => onSelect(conversation.space.id)}
             />
           ))}
-        </NavGroup>
-        {directs.length > 0 && (
-          <NavGroup label="Direct">
-            {directs.map((space) => (
-              <DirectItem
-                key={space.id}
-                space={space}
-                agents={agents}
-                presenceByPrincipal={presenceByPrincipal}
-                active={space.id === activeSpaceId}
-                count={countMessagesIn(space.id, messages)}
-                onClick={() => onSelect(space.id)}
-              />
-            ))}
-          </NavGroup>
-        )}
+        </div>
       </div>
     </aside>
   );
 }
 
-function NavGroup({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div style={{ marginTop: 10 }}>
-      <div style={{ fontSize: 12, color: "var(--text-3)", padding: "6px 8px", fontWeight: 540, letterSpacing: "0.02em" }}>{label}</div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>{children}</div>
-    </div>
-  );
-}
-
-function Empty({ children }: { children: ReactNode }) {
-  return <div style={{ padding: "4px 8px", color: "var(--text-3)", fontSize: 12 }}>{children}</div>;
-}
-
-function ChannelItem({
-  space,
+function ConversationRow({
+  conversation,
   active,
-  count,
+  presenceStatus,
   onClick,
 }: {
-  space: ChatSpaceRecord;
+  conversation: ConversationItem;
   active: boolean;
-  count: number;
+  presenceStatus: string | undefined;
   onClick: () => void;
 }) {
+  const dotColor = presenceColor(presenceStatus);
   return (
-    <button type="button" className={`nav-item ${active ? "active" : ""}`.trim()} onClick={onClick}>
-      <Icon name={space.visibility === "restricted" ? "lock" : "hash"} size={16} color={active ? "var(--text-1)" : "var(--text-3)"} />
-      <span>{space.name}</span>
-      {count > 0 && <span className="nav-badge">{count}</span>}
-    </button>
-  );
-}
-
-function DirectItem({
-  space,
-  agents,
-  presenceByPrincipal,
-  active,
-  count,
-  onClick,
-}: {
-  space: ChatSpaceRecord;
-  agents: AgentRecord[];
-  presenceByPrincipal: Map<string, string>;
-  active: boolean;
-  count: number;
-  onClick: () => void;
-}) {
-  const counterpart = agents.find((agent) => space.name.includes(agent.name));
-  const dotColor = counterpart ? presenceColor(presenceByPrincipal.get(counterpart.id)) : null;
-  return (
-    <button type="button" className={`nav-item ${active ? "active" : ""}`.trim()} onClick={onClick}>
-      {counterpart ? (
-        <span className="presence">
-          <Avatar name={counterpart.name} size="sm" bot />
+    <button
+      type="button"
+      className={`convo-item ${active ? "active" : ""}`.trim()}
+      onClick={onClick}
+    >
+      {conversation.isDirect ? (
+        <span className="presence" style={{ marginTop: 2 }}>
+          <Avatar name={conversation.counterpart?.name ?? conversation.title} size="sm" bot={conversation.counterpart?.type !== "employee"} />
           {dotColor && <span className="presence-dot" style={{ background: dotColor }} />}
         </span>
       ) : (
-        <Icon name="user" size={16} />
+        <span
+          style={{
+            width: 22,
+            height: 22,
+            borderRadius: 6,
+            background: "var(--panel-3)",
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            flexShrink: 0,
+            marginTop: 2,
+          }}
+        >
+          <Icon name={conversation.space.visibility === "restricted" ? "lock" : "hash"} size={13} color="var(--text-3)" />
+        </span>
       )}
-      <span>{space.name}</span>
-      {count > 0 && <span className="nav-badge">{count}</span>}
+      <span style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 1 }}>
+        <span className="row" style={{ gap: 8 }}>
+          <span
+            style={{
+              fontWeight: conversation.unread > 0 ? 600 : 520,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+              flex: 1,
+              minWidth: 0,
+            }}
+          >
+            {conversation.title}
+          </span>
+          <span style={{ fontSize: 11, color: "var(--text-3)", flexShrink: 0 }}>
+            {conversation.preview ? formatRelative(conversation.lastActivityAt) : ""}
+          </span>
+        </span>
+        <span className="row" style={{ gap: 8 }}>
+          <span
+            style={{
+              fontSize: 12,
+              color: "var(--text-3)",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+              flex: 1,
+              minWidth: 0,
+            }}
+          >
+            {conversation.preview ?? conversation.space.topic}
+          </span>
+          {conversation.unread > 0 && (
+            <span className="nav-badge" style={{ flexShrink: 0 }}>{conversation.unread > 99 ? "99+" : conversation.unread}</span>
+          )}
+        </span>
+      </span>
     </button>
   );
 }

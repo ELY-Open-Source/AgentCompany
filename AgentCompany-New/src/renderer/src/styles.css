@@ -207,6 +207,25 @@ a { color: inherit; }
 }
 .nav-divider { height: 1px; background: var(--border-soft); margin: var(--sp-2); }
 
+.convo-item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-2);
+  padding: 8px var(--sp-2);
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text-2);
+  font-size: var(--fs-body);
+  text-align: left;
+  width: 100%;
+  min-width: 0;
+  cursor: pointer;
+  transition: background var(--motion-fast) var(--ease-out), color var(--motion-fast) var(--ease-out);
+}
+.convo-item:hover { background: var(--hover); color: var(--text-1); }
+.convo-item.active { background: var(--panel-3); color: var(--text-1); }
+
 /* Selectable list row used by master-detail panes (Runs, etc.). width:100%
    + min-width:0 lets the inner flex child ellipsize instead of pushing the
    row past the pane and forcing a horizontal scrollbar. */

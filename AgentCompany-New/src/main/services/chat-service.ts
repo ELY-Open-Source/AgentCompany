@@ -212,7 +212,9 @@ export class ChatService {
     const employee = this.db.prepare("select id from employees where id = ? and org_id = ?")
       .get(input.employeeId, input.orgId) as { id: string } | undefined;
     if (!employee) throw new Error("Employee was not found.");
-    this.requireMembership(input.spaceId, { type: "employee", id: input.employeeId });
+    // Read state is per-employee bookkeeping, not access control: the board
+    // observes every conversation in its org (agent↔agent directs included),
+    // so opening one clears its unread count even without membership.
     const latest = this.db.prepare(`
       select id from chat_messages
       where space_id = ? and org_id = ?

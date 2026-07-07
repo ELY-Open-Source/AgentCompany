@@ -5,6 +5,7 @@ import { ChatSidebar } from "./chat/ChatSidebar";
 import { ChatConversation } from "./chat/ChatConversation";
 import { ChatThreadPanel } from "./chat/ChatThreadPanel";
 import {
+  buildConversations,
   collectParticipants,
   filterApprovalsForSpace,
 } from "./chat/chat-helpers";
@@ -45,8 +46,18 @@ export function ChatPage({ snapshot, actions }: PageProps) {
     () => snapshot.approvals.filter((a) => a.orgId === orgId && a.state === "pending"),
     [snapshot.approvals, orgId],
   );
-  const channels = useMemo(() => spaces.filter((space) => space.spaceType !== "direct"), [spaces]);
-  const directs = useMemo(() => spaces.filter((space) => space.spaceType === "direct"), [spaces]);
+  const conversations = useMemo(
+    () => buildConversations({
+      spaces,
+      memberships: snapshot.chatMemberships,
+      messages: messagesAll,
+      readStates: snapshot.chatReadStates,
+      employees,
+      agents,
+      currentEmployeeId: employee.id,
+    }),
+    [spaces, snapshot.chatMemberships, messagesAll, snapshot.chatReadStates, employees, agents, employee.id],
+  );
   const canBoardIntervene = useMemo(
     () =>
       snapshot.roleGrants.some(
@@ -66,7 +77,7 @@ export function ChatPage({ snapshot, actions }: PageProps) {
   const [threadAttachmentFileId, setThreadAttachmentFileId] = useState<string>("");
   const composerRef = useRef<HTMLTextAreaElement | null>(null);
 
-  const firstAvailableSpaceId = channels[0]?.id ?? directs[0]?.id ?? null;
+  const firstAvailableSpaceId = conversations[0]?.space.id ?? null;
   const activeSpaceId = selectedSpaceId && spaces.some((space) => space.id === selectedSpaceId)
     ? selectedSpaceId
     : firstAvailableSpaceId;
@@ -245,10 +256,7 @@ export function ChatPage({ snapshot, actions }: PageProps) {
   return (
     <div className="split-main">
       <ChatSidebar
-        channels={channels}
-        directs={directs}
-        agents={agents}
-        messages={messagesAll}
+        conversations={conversations}
         presence={snapshot.chatPresence}
         activeSpaceId={activeSpaceId}
         onSelect={(spaceId) => {
