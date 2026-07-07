@@ -27,7 +27,8 @@
     "package:mac:arm": "pnpm build && electron-builder --mac --arm64 --publish never",
     "package:mac:x64": "pnpm build && electron-builder --mac --x64 --publish never",
     "package:mac": "pnpm build && electron-builder --mac --x64 --arm64 --publish never",
-    "package:linux": "pnpm build && electron-builder --linux --x64 --publish never"
+    "package:linux": "pnpm build && electron-builder --linux --x64 --publish never",
+    "postinstall": "node scripts/ensure-electron.cjs"
   },
   "dependencies": {
     "lucide-react": "0.468.0",
