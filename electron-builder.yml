@@ -7,9 +7,11 @@ directories:
 files:
   - out/**/*
   - package.json
+  - resources/icon.png
 asar: true
 mac:
   category: public.app-category.business
+  icon: resources/icon-mac.png
   hardenedRuntime: true
   gatekeeperAssess: false
   entitlements: resources/entitlements.mac.plist
@@ -24,6 +26,7 @@ mac:
         - x64
         - arm64
 win:
+  icon: resources/icon.ico
   target:
     - target: nsis
       arch:

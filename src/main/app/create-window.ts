@@ -15,6 +15,9 @@ export function createMainWindow(options: CreateWindowOptions): BrowserWindow {
     minWidth: 980,
     minHeight: 700,
     title: "AgentCompany",
+    // macOS takes the window image from the app bundle; Windows and Linux
+    // want it on the window itself (dev runs included).
+    ...(process.platform === "darwin" ? {} : { icon: join(__dirname, "../../resources/icon.png") }),
     show: false,
     titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "hidden",
     webPreferences: {
