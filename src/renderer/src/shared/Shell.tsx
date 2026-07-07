@@ -27,24 +27,17 @@ interface NavSpec {
  * internal scroll regions, so the content area must not scroll as one block. */
 const FLUSH_ROUTES = new Set<RouteId>(["chat", "settings", "files", "runs", "office"]);
 
-/** The daily-driver surfaces — the core operating loop. */
-const primaryNav: NavSpec[] = [
+const allNav: NavSpec[] = [
   { id: "home", label: "Home" },
   { id: "work", label: "Work" },
   { id: "team", label: "Team" },
+  { id: "office", label: "Office" },
   { id: "chat", label: "Messages" },
   { id: "runs", label: "Runs" },
   { id: "files", label: "Files" },
   { id: "approvals", label: "Approvals" },
-];
-
-/** Less-frequent surfaces, demoted under a divider so the primary set leads. */
-const secondaryNav: NavSpec[] = [
   { id: "connectors", label: "Connectors" },
-  { id: "office", label: "Office" },
 ];
-
-const allNav: NavSpec[] = [...primaryNav, ...secondaryNav];
 
 export function Shell({
   snapshot,
@@ -101,13 +94,7 @@ export function Shell({
           <span className="search-kbd">⌘K</span>
         </button>
         <nav className="nav">
-          {primaryNav.map((item) => (
-            <NavButton key={item.id} item={item} active={route === item.id} badge={badges[item.id]} onSelect={setRoute} />
-          ))}
-        </nav>
-        <div className="nav-divider" />
-        <nav className="nav">
-          {secondaryNav.map((item) => (
+          {allNav.map((item) => (
             <NavButton key={item.id} item={item} active={route === item.id} badge={badges[item.id]} onSelect={setRoute} />
           ))}
         </nav>

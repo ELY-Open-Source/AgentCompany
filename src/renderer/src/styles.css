@@ -205,7 +205,6 @@ a { color: inherit; }
   color: var(--text-3);
   font-variant-numeric: tabular-nums;
 }
-.nav-divider { height: 1px; background: var(--border-soft); margin: var(--sp-2); }
 
 .convo-item {
   display: flex;
