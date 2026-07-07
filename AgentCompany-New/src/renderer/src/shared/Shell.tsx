@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import type { AppSnapshot } from "../../../shared/domain";
 import { Avatar, Icon, IconButton } from "./ui";
-import type { IconName } from "./Icon";
+import { NavIcon } from "./NavIcon";
 import { OrgSwitcher } from "./OrgSwitcher";
 import { SearchDialog } from "./SearchDialog";
 import { TopbarSlotContext } from "./topbar-context";
@@ -22,7 +22,6 @@ export type RouteId =
 interface NavSpec {
   id: RouteId;
   label: string;
-  icon: IconName;
 }
 
 /** Routes whose pages own a full-height, multi-pane layout with their own
@@ -31,20 +30,20 @@ const FLUSH_ROUTES = new Set<RouteId>(["chat", "settings", "files", "social", "r
 
 /** The daily-driver surfaces — the core operating loop. */
 const primaryNav: NavSpec[] = [
-  { id: "home", label: "Home", icon: "home" },
-  { id: "work", label: "Work", icon: "work" },
-  { id: "team", label: "Team", icon: "team" },
-  { id: "chat", label: "Messages", icon: "chat" },
-  { id: "runs", label: "Runs", icon: "send" },
-  { id: "files", label: "Files", icon: "folder" },
-  { id: "approvals", label: "Approvals", icon: "approve" },
+  { id: "home", label: "Home" },
+  { id: "work", label: "Work" },
+  { id: "team", label: "Team" },
+  { id: "chat", label: "Messages" },
+  { id: "runs", label: "Runs" },
+  { id: "files", label: "Files" },
+  { id: "approvals", label: "Approvals" },
 ];
 
 /** Less-frequent surfaces, demoted under a divider so the primary set leads. */
 const secondaryNav: NavSpec[] = [
-  { id: "docs", label: "Documents", icon: "file" },
-  { id: "social", label: "Social", icon: "social" },
-  { id: "office", label: "Office", icon: "team" },
+  { id: "docs", label: "Documents" },
+  { id: "social", label: "Social" },
+  { id: "office", label: "Office" },
 ];
 
 const allNav: NavSpec[] = [...primaryNav, ...secondaryNav];
@@ -123,7 +122,7 @@ export function Shell({
             className={`nav-item ${route === "settings" ? "active" : ""}`.trim()}
             onClick={() => setRoute("settings")}
           >
-            <span className="icon-box"><Icon name="settings" size={18} /></span>
+            <span className="icon-box"><NavIcon route="settings" /></span>
             <span>Settings</span>
           </button>
         </nav>
@@ -184,7 +183,7 @@ function NavButton({
       className={`nav-item ${active ? "active" : ""}`.trim()}
       onClick={() => onSelect(item.id)}
     >
-      <span className="icon-box"><Icon name={item.icon} size={18} /></span>
+      <span className="icon-box"><NavIcon route={item.id} /></span>
       <span>{item.label}</span>
       {renderBadge(badge)}
     </button>
