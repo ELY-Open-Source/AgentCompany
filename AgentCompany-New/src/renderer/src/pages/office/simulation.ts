@@ -1,6 +1,11 @@
-import { buildFloorPlan } from "./floor-plan";
-import type { Camera, FloorPlan, OfficeAgentInput, Rect, Vec } from "./office-types";
+import { buildFloorPlan, findPath } from "./floor-plan";
+import type { AmenitySpot, Camera, FloorPlan, OfficeAgentInput, Rect, Vec } from "./office-types";
 import { appearanceFor, type Carrying, type Facing, type SpriteAppearance } from "./sprites";
+
+export type AgentBehavior =
+  | { kind: "seated" }
+  | { kind: "walking"; path: Vec[]; next: number; destination: "amenity" | "seat"; spot: AmenitySpot | null }
+  | { kind: "dwelling"; spot: AmenitySpot; remainingMs: number };
 
 export interface AgentSim {
   input: OfficeAgentInput;
@@ -13,6 +18,9 @@ export interface AgentSim {
   facing: Facing;
   walkPhase: number;
   carrying: Carrying;
+  behavior: AgentBehavior;
+  carryRemainingMs: number;
+  settledMs: number;
 }
 
 export interface PlayerSim {
@@ -33,8 +41,17 @@ export interface MoveInput {
 }
 
 const PLAYER_SPEED = 0.14;
+const AGENT_SPEED = 0.085;
 const MAX_STEP_MS = 100;
 const WALK_CYCLE = 0.02;
+/** An idle agent wanders off roughly every minute and a half. */
+const MEAN_TRIP_INTERVAL_MS = 90_000;
+/** Nobody leaves their desk in the first moments after settling in. */
+const SETTLE_MS = 20_000;
+const DWELL_MIN_MS = 6_000;
+const DWELL_SPREAD_MS = 8_000;
+const CARRY_MIN_MS = 20_000;
+const CARRY_SPREAD_MS = 20_000;
 
 /**
  * Holds the living state of the office: who sits where and where everyone
@@ -46,9 +63,11 @@ export class OfficeSimulation {
   agents: AgentSim[] = [];
   player: PlayerSim | null = null;
   private openDeskDemand = -1;
+  private readonly random: () => number;
 
-  constructor() {
+  constructor(random: () => number = Math.random) {
     this.plan = buildFloorPlan(0);
+    this.random = random;
   }
 
   /**
@@ -73,10 +92,139 @@ export class OfficeSimulation {
     };
   }
 
-  /** Advances the world by one frame: board-member movement and collision. */
+  /**
+   * Advances the world by one frame: board-member movement plus agent life -
+   * idle agents wander to the restroom, snack bar, or coffee machine, dwell,
+   * and carry their coffee back; working agents head straight to their desk.
+   */
   step(dtMs: number, input: MoveInput): void {
     const dt = Math.min(dtMs, MAX_STEP_MS);
     if (this.player) this.stepPlayer(this.player, dt, input);
+    for (const agent of this.agents) this.stepAgent(agent, dt);
+  }
+
+  private stepAgent(agent: AgentSim, dt: number): void {
+    if (agent.carryRemainingMs > 0) {
+      agent.carryRemainingMs -= dt;
+      if (agent.carryRemainingMs <= 0) {
+        agent.carryRemainingMs = 0;
+        agent.carrying = null;
+      }
+    }
+    const idle = agent.input.activity === "idle";
+    switch (agent.behavior.kind) {
+      case "seated": {
+        if (!idle) {
+          agent.settledMs = 0;
+          return;
+        }
+        agent.settledMs += dt;
+        if (agent.settledMs >= SETTLE_MS && this.random() < dt / MEAN_TRIP_INTERVAL_MS) {
+          agent.settledMs = 0;
+          this.startTrip(agent);
+        }
+        return;
+      }
+      case "walking": {
+        if (!idle && agent.behavior.destination === "amenity") {
+          this.sendHome(agent);
+          return;
+        }
+        this.walkAlong(agent, dt);
+        return;
+      }
+      case "dwelling": {
+        if (!idle) {
+          this.finishDwell(agent);
+          return;
+        }
+        agent.behavior.remainingMs -= dt;
+        if (agent.behavior.remainingMs <= 0) this.finishDwell(agent);
+        return;
+      }
+    }
+  }
+
+  private startTrip(agent: AgentSim): void {
+    const spot = this.pickAmenity();
+    agent.behavior = {
+      kind: "walking",
+      path: findPath(this.plan, { x: agent.x, y: agent.y }, spot.stand),
+      next: 1,
+      destination: "amenity",
+      spot,
+    };
+  }
+
+  private pickAmenity(): AmenitySpot {
+    const roll = this.random();
+    const kind = roll < 0.4 ? "coffee" : roll < 0.65 ? "snack" : "restroom";
+    const options = this.plan.amenities.filter((spot) => spot.kind === kind);
+    return options[Math.floor(this.random() * options.length) % options.length];
+  }
+
+  private finishDwell(agent: AgentSim): void {
+    if (agent.behavior.kind === "dwelling") {
+      const kind = agent.behavior.spot.kind;
+      if (kind === "coffee" || kind === "snack") {
+        agent.carrying = kind;
+        agent.carryRemainingMs = CARRY_MIN_MS + this.random() * CARRY_SPREAD_MS;
+      }
+    }
+    this.sendHome(agent);
+  }
+
+  private sendHome(agent: AgentSim): void {
+    agent.behavior = {
+      kind: "walking",
+      path: findPath(this.plan, { x: agent.x, y: agent.y }, agent.seat),
+      next: 1,
+      destination: "seat",
+      spot: null,
+    };
+  }
+
+  private walkAlong(agent: AgentSim, dt: number): void {
+    if (agent.behavior.kind !== "walking") return;
+    let budget = AGENT_SPEED * dt;
+    while (budget > 0) {
+      const target = agent.behavior.path[agent.behavior.next];
+      if (!target) {
+        this.arrive(agent);
+        return;
+      }
+      const dx = target.x - agent.x;
+      const dy = target.y - agent.y;
+      const distance = Math.hypot(dx, dy);
+      if (distance <= budget) {
+        agent.x = target.x;
+        agent.y = target.y;
+        agent.behavior.next += 1;
+        budget -= distance;
+        continue;
+      }
+      agent.x += (dx / distance) * budget;
+      agent.y += (dy / distance) * budget;
+      agent.facing = Math.abs(dx) >= Math.abs(dy) ? (dx < 0 ? "west" : "east") : (dy < 0 ? "north" : "south");
+      budget = 0;
+    }
+    agent.walkPhase += dt * WALK_CYCLE;
+  }
+
+  private arrive(agent: AgentSim): void {
+    if (agent.behavior.kind !== "walking") return;
+    agent.walkPhase = 0;
+    if (agent.behavior.destination === "amenity" && agent.behavior.spot) {
+      agent.facing = "north";
+      agent.behavior = {
+        kind: "dwelling",
+        spot: agent.behavior.spot,
+        remainingMs: DWELL_MIN_MS + this.random() * DWELL_SPREAD_MS,
+      };
+      return;
+    }
+    agent.facing = "south";
+    agent.behavior = { kind: "seated" };
   }
 
   /**
@@ -131,7 +279,8 @@ export class OfficeSimulation {
   sync(inputs: OfficeAgentInput[]): void {
     const ceoId = inputs.find((input) => input.roleLevel === "c_suite")?.id ?? null;
     const openCount = inputs.filter((input) => input.id !== ceoId).length;
-    if (openCount !== this.openDeskDemand) {
+    const planRebuilt = openCount !== this.openDeskDemand;
+    if (planRebuilt) {
       this.openDeskDemand = openCount;
       this.plan = buildFloorPlan(openCount);
     }
@@ -143,7 +292,7 @@ export class OfficeSimulation {
       const deskIndex = isCeo ? null : openIndex++;
       const seat = isCeo ? this.plan.ceoSeat : this.plan.desks[deskIndex!].seat;
       const prev = existing.get(input.id);
-      return {
+      const agent: AgentSim = {
         input,
         x: prev?.x ?? seat.x,
         y: prev?.y ?? seat.y,
@@ -154,7 +303,14 @@ export class OfficeSimulation {
         facing: prev?.facing ?? "south",
         walkPhase: prev?.walkPhase ?? 0,
         carrying: prev?.carrying ?? null,
+        behavior: prev?.behavior ?? { kind: "seated" },
+        carryRemainingMs: prev?.carryRemainingMs ?? 0,
+        settledMs: prev?.settledMs ?? 0,
       };
+      if (planRebuilt && prev && (agent.x !== seat.x || agent.y !== seat.y)) {
+        this.sendHome(agent);
+      }
+      return agent;
     });
   }
 }

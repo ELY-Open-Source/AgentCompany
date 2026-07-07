@@ -1,10 +1,10 @@
 import { describe, expect, test } from "vitest";
 import { OfficeSimulation, cameraFor, type MoveInput } from "../../src/renderer/src/pages/office/simulation";
-import type { OfficeAgentInput } from "../../src/renderer/src/pages/office/office-types";
+import type { AgentActivity, OfficeAgentInput } from "../../src/renderer/src/pages/office/office-types";
 
 const IDLE: MoveInput = { up: false, down: false, left: false, right: false };
 
-function agentInput(id: string, roleLevel = "staff"): OfficeAgentInput {
+function agentInput(id: string, roleLevel = "staff", activity: AgentActivity = "idle"): OfficeAgentInput {
   return {
     id,
     name: `Agent ${id}`,
@@ -12,7 +12,7 @@ function agentInput(id: string, roleLevel = "staff"): OfficeAgentInput {
     title: "Engineer",
     department: "Engineering",
     roleLevel,
-    activity: "idle",
+    activity,
     taskTitle: null,
   };
 }
@@ -92,6 +92,59 @@ describe("office simulation", () => {
     const straight = sim2.player!.x - start2;
     expect(diagonal).toBeLessThanOrEqual(straight + 0.5);
     expect(diagonal).toBeGreaterThan(straight * 0.7);
+  });
+
+  test("idle agents take a coffee break and carry the cup back to their desk", () => {
+    const sim = new OfficeSimulation(() => 0);
+    sim.sync([agentInput("a")]);
+    const agent = sim.agents[0];
+    const coffee = sim.plan.amenities.find((spot) => spot.kind === "coffee")!;
+
+    let reachedCoffee = false;
+    let backSeated = false;
+    for (let i = 0; i < 6000; i++) {
+      sim.step(16, IDLE);
+      if (agent.behavior.kind === "dwelling") {
+        expect(agent.x).toBe(coffee.stand.x);
+        expect(agent.y).toBe(coffee.stand.y);
+        reachedCoffee = true;
+      }
+      if (reachedCoffee && agent.behavior.kind === "seated") {
+        backSeated = true;
+        break;
+      }
+    }
+    expect(reachedCoffee).toBe(true);
+    expect(backSeated).toBe(true);
+    expect(agent.x).toBe(agent.seat.x);
+    expect(agent.y).toBe(agent.seat.y);
+    expect(agent.carrying).toBe("coffee");
+  });
+
+  test("working agents never leave their desks", () => {
+    const sim = new OfficeSimulation(() => 0);
+    sim.sync([agentInput("a", "staff", "active")]);
+    const agent = sim.agents[0];
+    for (let i = 0; i < 600; i++) sim.step(16, IDLE);
+    expect(agent.behavior.kind).toBe("seated");
+    expect(agent.x).toBe(agent.seat.x);
+    expect(agent.y).toBe(agent.seat.y);
+  });
+
+  test("an agent called to work abandons the break and returns to their desk", () => {
+    const sim = new OfficeSimulation(() => 0);
+    sim.sync([agentInput("a")]);
+    const agent = sim.agents[0];
+    for (let i = 0; i < 3000 && agent.behavior.kind === "seated"; i++) sim.step(16, IDLE);
+    for (let i = 0; i < 30; i++) sim.step(16, IDLE);
+    expect(agent.behavior.kind).toBe("walking");
+    expect(agent.x === agent.seat.x && agent.y === agent.seat.y).toBe(false);
+
+    sim.sync([agentInput("a", "staff", "active")]);
+    for (let i = 0; i < 6000 && sim.agents[0].behavior.kind !== "seated"; i++) sim.step(16, IDLE);
+    expect(sim.agents[0].behavior.kind).toBe("seated");
+    expect(sim.agents[0].x).toBe(sim.agents[0].seat.x);
+    expect(sim.agents[0].y).toBe(sim.agents[0].seat.y);
   });
 
   test("clicks hit the agent drawn at that spot, frontmost first", () => {
