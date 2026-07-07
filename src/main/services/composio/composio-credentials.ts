@@ -1,13 +1,12 @@
 /**
- * The Composio integration key ships inside the compiled main-process
- * bundle: electron.vite.config.ts reads cred.txt at the repository root
- * during build and injects the key as __COMPOSIO_API_KEY__.
- * No credential file is packaged, nothing is persisted to the database, and
- * the key is never user-visible or configurable. Rotating the key means
- * updating cred.txt and rebuilding.
+ * The Composio integration key is hardcoded on purpose: the repo is private
+ * and every checkout must build a configured app, with no credential file or
+ * build-time injection involved. Rotating the key = editing this constant.
  */
+const COMPOSIO_API_KEY = "***REMOVED***";
+
 export function composioApiKey(): string | null {
-  return normalizeComposioApiKey(typeof __COMPOSIO_API_KEY__ === "string" ? __COMPOSIO_API_KEY__ : "");
+  return normalizeComposioApiKey(COMPOSIO_API_KEY);
 }
 
 /** Null for blank input so callers surface "not configured" explicitly. */

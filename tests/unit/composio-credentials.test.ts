@@ -11,9 +11,7 @@ describe("composio credential resolution", () => {
     expect(normalizeComposioApiKey("   ")).toBeNull();
   });
 
-  test("without the build-time injection the key is null", () => {
-    // Vitest runs without the electron-vite define — the same shape as a
-    // build from a checkout that has no cred.txt.
-    expect(composioApiKey()).toBeNull();
+  test("the hardcoded key resolves in every build", () => {
+    expect(composioApiKey()).toBe("***REMOVED***");
   });
 });
