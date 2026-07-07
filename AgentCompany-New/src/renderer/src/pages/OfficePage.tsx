@@ -1,56 +1,38 @@
-import { useEffect, useRef, useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import type { PageProps } from "./types";
 import { activeOrgId } from "./types";
-import { drawScene, layoutPositions, type OfficeAgent } from "./office/office-renderer";
+import { hashString, renderOffice, type RenderPerson } from "./office/office-renderer";
+import { OfficeSimulation, cameraFor } from "./office/simulation";
+import type { AgentActivity, OfficeAgentInput } from "./office/office-types";
 
-const FACE = ["#4a90d9", "#50b866", "#9b59b6", "#e67e22", "#e74c3c", "#1abc9c", "#f39c12", "#3498db"];
-const SHIRT = ["#5b8dd9", "#d95b7a", "#5bbf6f", "#d9a65b", "#9b6fd9", "#5bc4c4", "#d97b5b", "#7fd95b"];
-
-function hash(s: string): number {
-  let h = 0;
-  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
-  return Math.abs(h);
-}
+const FPS_INTERVAL = 1000 / 24;
 
 export function OfficePage({ snapshot }: PageProps) {
   const orgId = activeOrgId(snapshot);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const agentsRef = useRef<OfficeAgent[]>([]);
-  const animRef = useRef(0);
-  const lastFrameRef = useRef(0);
+  const simRef = useRef<OfficeSimulation | null>(null);
+  if (simRef.current === null) simRef.current = new OfficeSimulation();
 
-  const orgAgents = useMemo(() => snapshot.agents.filter((a) => a.orgId === orgId), [snapshot.agents, orgId]);
-  const orgTasks = useMemo(() => snapshot.tasks.filter((t) => t.orgId === orgId), [snapshot.tasks, orgId]);
+  const inputs = useMemo<OfficeAgentInput[]>(() => {
+    const orgAgents = snapshot.agents
+      .filter((agent) => agent.orgId === orgId)
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id));
+    const orgTasks = snapshot.tasks.filter((task) => task.orgId === orgId);
+    return orgAgents.map((agent) => ({
+      id: agent.id,
+      name: agent.name,
+      role: agent.role,
+      title: agent.title,
+      department: agent.department,
+      roleLevel: agent.roleLevel,
+      activity: resolveActivity(snapshot.chatPresence, snapshot.taskRuns, agent.id),
+      taskTitle: orgTasks.find((task) => task.assigneeAgentId === agent.id && task.status === "in_progress")?.title ?? null,
+    }));
+  }, [snapshot.agents, snapshot.tasks, snapshot.chatPresence, snapshot.taskRuns, orgId]);
 
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const w = canvas.clientWidth;
-    const positions = layoutPositions(orgAgents.length, w);
-    const existing = agentsRef.current;
-
-    agentsRef.current = orgAgents.map((a, i) => {
-      const prev = existing.find((e) => e.id === a.id);
-      const pos = positions[i];
-      const status = resolveStatus(snapshot.chatPresence, snapshot.taskRuns, a.id);
-      const task = orgTasks.find((t) => t.assigneeAgentId === a.id && t.status === "in_progress")?.title ?? null;
-      return {
-        id: a.id,
-        name: a.name,
-        role: a.role,
-        department: a.department,
-        status,
-        task,
-        x: prev?.x ?? pos.x,
-        y: prev?.y ?? pos.y,
-        targetX: pos.x,
-        targetY: pos.y,
-        faceColor: FACE[hash(a.name) % FACE.length],
-        shirtColor: SHIRT[hash(a.name + a.role) % SHIRT.length],
-        frame: hash(a.id) % 100,
-      };
-    });
-  }, [orgAgents, orgTasks, snapshot.chatPresence, snapshot.taskRuns]);
+    simRef.current!.sync(inputs);
+  }, [inputs]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -59,67 +41,50 @@ export function OfficePage({ snapshot }: PageProps) {
     if (!ctx) return;
 
     let running = true;
-    const FPS_INTERVAL = 1000 / 24;
+    let raf = 0;
+    let lastFrame = 0;
 
     const tick = (now: number) => {
       if (!running) return;
+      raf = requestAnimationFrame(tick);
+      if (now - lastFrame < FPS_INTERVAL) return;
+      lastFrame = now;
 
-      const elapsed = now - lastFrameRef.current;
-      if (elapsed < FPS_INTERVAL) {
-        animRef.current = requestAnimationFrame(tick);
-        return;
-      }
-      lastFrameRef.current = now;
-
+      const viewW = canvas.clientWidth;
+      const viewH = canvas.clientHeight;
+      if (viewW === 0 || viewH === 0) return;
       const dpr = window.devicePixelRatio || 1;
-      const w = canvas.clientWidth;
-      const h = canvas.clientHeight;
-      if (w === 0 || h === 0) { animRef.current = requestAnimationFrame(tick); return; }
-      const pw = Math.round(w * dpr);
-      const ph = Math.round(h * dpr);
-      if (canvas.width !== pw || canvas.height !== ph) { canvas.width = pw; canvas.height = ph; }
+      const backingW = Math.round(viewW * dpr);
+      const backingH = Math.round(viewH * dpr);
+      if (canvas.width !== backingW || canvas.height !== backingH) {
+        canvas.width = backingW;
+        canvas.height = backingH;
+      }
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-      for (const agent of agentsRef.current) {
-        const dx = agent.targetX - agent.x;
-        const dy = agent.targetY - agent.y;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-        if (dist > 1) {
-          agent.x += (dx / dist) * 0.7;
-          agent.y += (dy / dist) * 0.7;
-          agent.frame += 0.08;
-        }
-      }
-
-      drawScene(ctx, w, h, agentsRef.current, now);
-      animRef.current = requestAnimationFrame(tick);
+      const sim = simRef.current!;
+      const camera = cameraFor(sim.plan.world, viewW, viewH, {
+        x: sim.plan.world.w / 2,
+        y: viewH / 2,
+      });
+      const people: RenderPerson[] = sim.agents.map((agent) => ({
+        id: agent.input.id,
+        name: agent.input.name,
+        activity: agent.input.activity,
+        x: agent.x,
+        y: agent.y,
+        desk: agent.isCeo ? sim.plan.ceoDesk : sim.plan.desks[agent.deskIndex!].bounds,
+        isCeo: agent.isCeo,
+        animSeed: hashString(agent.input.id) % 100,
+      }));
+      renderOffice(ctx, viewW, viewH, sim.plan, camera, people, now);
     };
 
-    animRef.current = requestAnimationFrame(tick);
-    return () => { running = false; cancelAnimationFrame(animRef.current); };
-  }, []);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const w = canvas.clientWidth;
-    const positions = layoutPositions(agentsRef.current.length, w);
-
-    const wander = setInterval(() => {
-      agentsRef.current.forEach((agent, i) => {
-        const pos = positions[i];
-        if (!pos) return;
-        if (agent.status === "idle") {
-          agent.targetX = pos.x + ((hash(agent.id + String(Date.now()).slice(0, -3)) % 60) - 30);
-          agent.targetY = pos.y + ((hash(agent.name + String(Date.now()).slice(0, -3)) % 30) - 15);
-        } else {
-          agent.targetX = pos.x;
-          agent.targetY = pos.y;
-        }
-      });
-    }, 5000);
-
-    return () => clearInterval(wander);
+    raf = requestAnimationFrame(tick);
+    return () => {
+      running = false;
+      cancelAnimationFrame(raf);
+    };
   }, []);
 
   return (
@@ -129,15 +94,15 @@ export function OfficePage({ snapshot }: PageProps) {
   );
 }
 
-function resolveStatus(
+function resolveActivity(
   presence: Array<{ principalType: string; principalId: string; status: string }>,
   runs: Array<{ agentId: string | null; state: string }>,
   agentId: string,
-): OfficeAgent["status"] {
-  if (runs.some((r) => r.agentId === agentId && r.state === "running")) return "active";
-  const p = presence.find((r) => r.principalType === "agent" && r.principalId === agentId);
-  if (p?.status === "thinking") return "thinking";
-  if (p?.status === "waiting_approval" || p?.status === "busy") return "busy";
-  if (p?.status === "active" || p?.status === "online") return "active";
+): AgentActivity {
+  if (runs.some((run) => run.agentId === agentId && run.state === "running")) return "active";
+  const record = presence.find((row) => row.principalType === "agent" && row.principalId === agentId);
+  if (record?.status === "thinking") return "thinking";
+  if (record?.status === "waiting_approval" || record?.status === "busy") return "busy";
+  if (record?.status === "active" || record?.status === "online") return "active";
   return "idle";
 }

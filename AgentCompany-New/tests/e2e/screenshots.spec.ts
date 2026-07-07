@@ -48,6 +48,7 @@ test("captures every page for visual review", async () => {
     await go(page, "Approvals", outDir, "15-approvals");
     await go(page, "Social", outDir, "16-social");
     await go(page, "Settings", outDir, "17-settings");
+    await go(page, "Office", outDir, "18-office");
 
     for (const tab of ["Workspace", "Billing", "Skills", "Migration"]) {
       await page.getByRole("button", { name: "Settings" }).click();
