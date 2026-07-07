@@ -1,6 +1,7 @@
 import type { DatabaseSync } from "node:sqlite";
 import type { ToolDefinition, ToolCall } from "../provider-tool-turn";
 import { ComposioClient, type ComposioToolSchema } from "./composio-client";
+import { resolveComposioApiKey } from "./composio-credentials";
 import { ConnectorGrantsService } from "./connector-grants";
 
 const COMPOSIO_TOOL_PREFIX = "composio_";
@@ -114,10 +115,7 @@ export async function executeComposioTool(
 }
 
 function getComposioApiKey(db: DatabaseSync, orgId: string): string | null {
-  const row = db.prepare(
-    "select value from composio_settings where org_id = ? and key = 'api_key' limit 1",
-  ).get(orgId) as { value: string } | undefined;
-  return row?.value ?? null;
+  return resolveComposioApiKey(db, orgId);
 }
 
 export function getComposioUserId(db: DatabaseSync, orgId: string): string {

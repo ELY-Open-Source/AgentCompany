@@ -411,6 +411,27 @@ export interface KnowledgeEntryRecord {
   updatedAt: string;
 }
 
+export interface ConnectorAccountRecord {
+  id: string;
+  orgId: string;
+  toolkitSlug: string;
+  toolkitName: string;
+  authConfigId: string;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ConnectorGrantRecord {
+  id: string;
+  orgId: string;
+  agentId: string;
+  toolkitSlug: string;
+  grantedByType: string;
+  grantedById: string | null;
+  createdAt: string;
+}
+
 export interface AutomationRuleRecord {
   id: string;
   orgId: string;

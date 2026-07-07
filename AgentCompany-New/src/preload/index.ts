@@ -83,6 +83,11 @@ const api: DesktopApi = {
   createRetentionFreeze: (input) => invoke(IPC_CHANNELS.createRetentionFreeze, input),
   setRetentionFreezeState: (input) => invoke(IPC_CHANNELS.setRetentionFreezeState, input),
   saveComposioSettings: (input) => invoke(IPC_CHANNELS.saveComposioSettings, input),
+  listComposioToolkits: (input) => invoke(IPC_CHANNELS.listComposioToolkits, input),
+  connectComposioToolkit: (input) => invoke(IPC_CHANNELS.connectComposioToolkit, input),
+  refreshComposioAccounts: (input) => invoke(IPC_CHANNELS.refreshComposioAccounts, input),
+  grantConnector: (input) => invoke(IPC_CHANNELS.grantConnector, input),
+  revokeConnector: (input) => invoke(IPC_CHANNELS.revokeConnector, input),
   search: (input) => invoke(IPC_CHANNELS.search, input),
   subscribe: (callback) => {
     const listener = (_event: Electron.IpcRendererEvent, payload: RendererEvent) => callback(payload);

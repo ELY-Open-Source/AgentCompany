@@ -17,6 +17,8 @@ import type {
   ApprovalRecord,
   AuditEventRecord,
   AutomationRuleRecord,
+  ConnectorAccountRecord,
+  ConnectorGrantRecord,
   DocumentRecord,
   EmployeeRecord,
   FileAccessGrantRecord,
@@ -139,6 +141,8 @@ export interface AppSnapshot {
   meetings: MeetingRecord[];
   sprints: SprintRecord[];
   composioSettings: ComposioSettingRecord[];
+  connectorAccounts: ConnectorAccountRecord[];
+  connectorGrants: ConnectorGrantRecord[];
 }
 
 export interface ComposioSettingRecord {

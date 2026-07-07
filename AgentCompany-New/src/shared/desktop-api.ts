@@ -64,6 +64,12 @@ import type {
   RevokeProviderCredentialInput,
   SaveProviderCredentialInput,
   SaveComposioSettingsInput,
+  ComposioToolkitSummaryDto,
+  ConnectComposioToolkitInput,
+  ConnectComposioToolkitResult,
+  ConnectorGrantInput,
+  ListComposioToolkitsInput,
+  RefreshComposioAccountsInput,
   SearchInput,
   SendMessageInput,
   SetActiveOrganizationInput,
@@ -174,6 +180,11 @@ export interface DesktopApi {
   createRetentionFreeze(input: CreateRetentionFreezeInput): Promise<DesktopResult<AppSnapshot>>;
   setRetentionFreezeState(input: SetRetentionFreezeStateInput): Promise<DesktopResult<AppSnapshot>>;
   saveComposioSettings(input: SaveComposioSettingsInput): Promise<DesktopResult<AppSnapshot>>;
+  listComposioToolkits(input: ListComposioToolkitsInput): Promise<DesktopResult<ComposioToolkitSummaryDto[]>>;
+  connectComposioToolkit(input: ConnectComposioToolkitInput): Promise<DesktopResult<ConnectComposioToolkitResult>>;
+  refreshComposioAccounts(input: RefreshComposioAccountsInput): Promise<DesktopResult<AppSnapshot>>;
+  grantConnector(input: ConnectorGrantInput): Promise<DesktopResult<AppSnapshot>>;
+  revokeConnector(input: ConnectorGrantInput): Promise<DesktopResult<AppSnapshot>>;
   search(input: SearchInput): Promise<DesktopResult<SearchResultRecord[]>>;
   subscribe(callback: (event: RendererEvent) => void): () => void;
   platform: "win32" | "darwin" | "linux";

@@ -27,6 +27,8 @@ import { KnowledgeService } from "../services/knowledge-service";
 import { AutomationService } from "../services/automation-service";
 import { MeetingService } from "../services/meeting-service";
 import { SprintService } from "../services/sprint-service";
+import { ComposioConnectionService } from "../services/composio/composio-connection-service";
+import { ConnectorGrantsService } from "../services/composio/connector-grants";
 import { coalesce } from "./coalesce";
 import { normalizeExternalBrowserUrl } from "./external-url";
 
@@ -318,6 +320,47 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       return fail("search_failed", error instanceof Error ? error.message : String(error));
     }
   });
+
+  const composioConnections = new ComposioConnectionService(deps.connection.db, process.cwd());
+  const connectorGrants = new ConnectorGrantsService(deps.connection.db);
+
+  ipcMain.handle(IPC_CHANNELS.listComposioToolkits, async (_event, input) => {
+    try {
+      return ok(await composioConnections.listToolkits(input.orgId));
+    } catch (error) {
+      return fail("composio_toolkits_failed", error instanceof Error ? error.message : String(error));
+    }
+  });
+  ipcMain.handle(IPC_CHANNELS.connectComposioToolkit, async (_event, input) => {
+    try {
+      const result = await composioConnections.connectToolkit(input.orgId, input.toolkitSlug, input.toolkitName);
+      notifyDataChanged();
+      return ok(result);
+    } catch (error) {
+      return fail("composio_connect_failed", error instanceof Error ? error.message : String(error));
+    }
+  });
+  ipcMain.handle(IPC_CHANNELS.refreshComposioAccounts, async (_event, input) => {
+    try {
+      await composioConnections.refreshAccounts(input.orgId);
+      notifyDataChanged();
+      return ok(snapshot.load());
+    } catch (error) {
+      return fail("composio_refresh_failed", error instanceof Error ? error.message : String(error));
+    }
+  });
+  ipcMain.handle(IPC_CHANNELS.grantConnector, (_event, input) => mutate(() => connectorGrants.grant({
+    orgId: input.orgId,
+    agentId: input.agentId,
+    toolkitSlug: input.toolkitSlug,
+    grantedByType: "employee",
+    grantedById: input.employeeId,
+  })));
+  ipcMain.handle(IPC_CHANNELS.revokeConnector, (_event, input) => mutate(() => connectorGrants.revoke({
+    orgId: input.orgId,
+    agentId: input.agentId,
+    toolkitSlug: input.toolkitSlug,
+  })));
 
   ipcMain.handle(IPC_CHANNELS.saveComposioSettings, (_event, input) => mutate(() => {
     const now = new Date().toISOString();
