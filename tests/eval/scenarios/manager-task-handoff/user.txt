@@ -1,9 +1,0 @@
-Inbound from CEO (channel=eng_direct): "We are getting p99 latency spikes on the /api/companies endpoint after the v48 migration. Figure out what broke and fix it by end of week."
-
-Your ICs:
-- agent_ic_be1 (senior backend IC, SQL + Node)
-- agent_ic_be2 (mid backend IC, API + schema)
-- agent_ic_fe (frontend, React)
-- agent_ic_sre (SRE, metrics + profiling)
-
-Trigger: message. Decompose the CEO directive into 2-4 IC-sized tasks now. Use /api/task/create for each. Do not write a plan document.

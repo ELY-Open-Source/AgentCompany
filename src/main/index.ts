@@ -1,37 +1,57 @@
-import "./install-main-warning-suppressions";
-import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
 import { app } from "electron";
-import { configureMainProcess } from "./main-process-setup";
-import { createMainRuntime } from "./main-runtime";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { DatabaseConnection } from "./database/connection";
+import { createMainWindow } from "./app/create-window";
+import { registerIpcHandlers } from "./app/ipc-handlers";
+import { startProviderBackgroundWorker } from "./app/provider-background-worker";
+import { recoverInterruptedWork } from "./app/startup-recovery";
+import { startTaskQueueWorker } from "./app/task-queue-worker";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-configureMainProcess("AgentCompany");
-
-const profileDir = process.env.AGENTCOMPANY_PROFILE_DIR ?? join(app.getPath("userData"), "profile");
-const isDev = Boolean(process.env.ELECTRON_RENDERER_URL);
-const devServerOrigin = process.env.ELECTRON_RENDERER_URL ? new URL(process.env.ELECTRON_RENDERER_URL).origin : null;
-const hasSingleInstanceLock =
-  process.env.AGENTCOMPANY_DISABLE_SINGLE_INSTANCE === "true"
-    ? true
-    : app.requestSingleInstanceLock();
-
-const runtime = createMainRuntime({
-  hasSingleInstanceLock,
-  isDev,
-  devServerOrigin,
-  profileDir,
-  windowStatePath: join(profileDir, "window-state.json"),
-  preloadPath: join(__dirname, "../preload/index.js"),
-  rendererDist: join(__dirname, "../renderer"),
-  iconPath: resolve(__dirname, "../../assets/icon.png"),
-  workerPath: join(__dirname, "worker.js"),
-  devServerUrl: process.env.ELECTRON_RENDERER_URL,
-});
-
-if (hasSingleInstanceLock) {
-  void runtime.bootstrap();
-} else {
+// A losing second instance must never touch the database: quit is
+// asynchronous, so all startup work stays behind the lock check.
+if (!app.requestSingleInstanceLock()) {
   app.quit();
+} else {
+  app.whenReady().then(() => {
+    const profileDir = process.env.AGENTCOMPANY_NEW_PROFILE_DIR ?? join(app.getPath("userData"), "profile");
+    const connection = new DatabaseConnection(join(profileDir, "agentcompany.db"));
+    connection.transaction(() => recoverInterruptedWork(connection.db));
+    const win = createMainWindow({
+      preloadPath: join(__dirname, "../preload/index.js"),
+      rendererDist: join(__dirname, "../renderer"),
+      devServerUrl: process.env.ELECTRON_RENDERER_URL,
+    });
+
+    registerIpcHandlers({
+      connection,
+      mainWindow: win,
+      artifactRoot: join(profileDir, "artifacts"),
+    });
+    const stopProviderBackgroundWorker = startProviderBackgroundWorker({
+      db: connection.db,
+      mainWindow: win,
+    });
+    const autonomousExecution = process.env.AGENTCOMPANY_NEW_AUTORUN !== "0";
+    const stopTaskQueueWorker = autonomousExecution
+      ? startTaskQueueWorker({ connection, mainWindow: win })
+      : () => {};
+
+    app.on("second-instance", () => {
+      if (win.isMinimized()) win.restore();
+      win.focus();
+    });
+
+    app.on("before-quit", () => {
+      stopProviderBackgroundWorker();
+      stopTaskQueueWorker();
+      connection.close();
+    });
+  });
+
+  app.on("window-all-closed", () => {
+    if (process.platform !== "darwin") app.quit();
+  });
 }

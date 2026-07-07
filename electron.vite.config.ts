@@ -1,54 +1,51 @@
-import { resolve } from "node:path";
-import react from "@vitejs/plugin-react";
-import tailwindcss from "@tailwindcss/vite";
+import { fileURLToPath } from "node:url";
+import { dirname, resolve } from "node:path";
 import { defineConfig, externalizeDepsPlugin } from "electron-vite";
+import react from "@vitejs/plugin-react";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
   main: {
     plugins: [externalizeDepsPlugin()],
     resolve: {
       alias: {
-        "@shared": resolve("src/shared"),
-        "@main": resolve("src/main"),
+        "@shared": resolve(__dirname, "src/shared"),
+        "@main": resolve(__dirname, "src/main"),
       },
     },
     build: {
       rollupOptions: {
-        input: {
-          index: resolve("src/main/index.ts"),
-          worker: resolve("src/main/worker/entry/index.ts"),
-        },
+        input: resolve(__dirname, "src/main/index.ts"),
       },
     },
   },
   preload: {
-    plugins: [externalizeDepsPlugin({ exclude: ["zod"] })],
+    plugins: [externalizeDepsPlugin()],
     resolve: {
       alias: {
-        "@shared": resolve("src/shared"),
-        "@preload": resolve("src/preload"),
+        "@shared": resolve(__dirname, "src/shared"),
+        "@preload": resolve(__dirname, "src/preload"),
       },
     },
     build: {
       rollupOptions: {
-        input: {
-          index: resolve("src/preload/index.ts"),
-        },
+        input: resolve(__dirname, "src/preload/index.ts"),
         output: {
           format: "cjs",
-          entryFileNames: "[name].js",
-          chunkFileNames: "chunks/[name]-[hash].js",
+          entryFileNames: "index.js",
         },
       },
     },
   },
   renderer: {
+    root: resolve(__dirname, "src/renderer"),
     resolve: {
       alias: {
-        "@shared": resolve("src/shared"),
-        "@renderer": resolve("src/renderer"),
+        "@shared": resolve(__dirname, "src/shared"),
+        "@renderer": resolve(__dirname, "src/renderer"),
       },
     },
-    plugins: [react(), tailwindcss()],
+    plugins: [react()],
   },
 });

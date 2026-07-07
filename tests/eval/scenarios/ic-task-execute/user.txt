@@ -1,3 +1,0 @@
-Trigger: task_dispatch. Task taskId=t_1138 "Fix the off-by-one in src/utils/paginate.ts. Unit test at tests/paginate.test.ts should go from RED to GREEN."
-
-Start execution now. Read the file, edit, run the test, and mark_complete when green. No plan document.

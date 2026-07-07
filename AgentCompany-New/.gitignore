@@ -1,9 +1,0 @@
-node_modules/
-out/
-release/
-test-results/
-playwright-report/
-coverage/
-*.tsbuildinfo
-design-source/
-cred.txt

@@ -1,7 +1,0 @@
-Inbound message m_77 (channel=peer_dm, from=VP Engineering):
-
-Subject: "Blocking on your PRD"
-
-"The onboarding revamp ticket is in my backlog but I don't have a PRD from your side. Without it my ICs cannot start. What's the ETA?"
-
-Trigger: peer_request. Unread count: 1. Mark m_77 read and send a reply that gives VP Engineering a concrete ETA or a concrete blocker and owner. Do not write a plan document first.

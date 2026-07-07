@@ -1,43 +1,29 @@
-// AgentCompany TypeScript configuration.
-//
-// Three tsconfig files live at repo root; TypeScript supports JSONC-style
-// comments in tsconfig files, so this header is safe.
-//
-//   tsconfig.json       -- default config used by the editor/LSP and by tsc
-//                          (pnpm typecheck). Includes src + tests +
-//                          electron.vite.config.ts. Strict mode, noEmit.
-//   tsconfig.check.json -- extends tsconfig.json but excludes tests. Intended
-//                          for strict production typecheck paths that should
-//                          not be influenced by test files.
-//   tsconfig.base.json  -- NodeNext base config with emit enabled (outDir:
-//                          dist, rootDir: src). Currently ORPHAN: no workspace
-//                          package in this repo extends it. Kept as a reference
-//                          for a future monorepo split (see
-//                          docs/proposals/M5-monorepo-split.md). If the M5
-//                          split does not happen, this file is a candidate
-//                          for deletion per .planning/review2/08-*.
 {
   "compilerOptions": {
     "target": "ES2022",
     "useDefineForClassFields": true,
-    "lib": ["ES2023", "DOM", "DOM.Iterable"],
-    "module": "ESNext",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "allowJs": false,
     "skipLibCheck": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "strict": true,
+    "forceConsistentCasingInFileNames": true,
+    "module": "ESNext",
     "moduleResolution": "Bundler",
-    "allowImportingTsExtensions": false,
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true,
     "jsx": "react-jsx",
-    "strict": true,
+    "types": ["node", "electron", "vitest/globals"],
     "baseUrl": ".",
     "paths": {
-      "@shared/*": ["src/shared/*"],
       "@main/*": ["src/main/*"],
+      "@preload/*": ["src/preload/*"],
       "@renderer/*": ["src/renderer/*"],
-      "@preload/*": ["src/preload/*"]
-    },
-    "types": ["node"]
+      "@shared/*": ["src/shared/*"]
+    }
   },
-  "include": ["src", "electron.vite.config.ts", "tests"]
+  "include": ["src", "tests", "electron.vite.config.ts", "vitest.config.ts", "eslint.config.mjs"],
+  "references": []
 }

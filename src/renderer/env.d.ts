@@ -1,10 +1,7 @@
-/// <reference types="vite/client" />
-import type { DesktopApi } from "@shared/contracts";
+import type { DesktopApi } from "../shared/desktop-api";
 
 declare global {
   interface Window {
     agentCompany: DesktopApi;
   }
 }
-
-export {};

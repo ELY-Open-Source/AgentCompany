@@ -1,1 +1,0 @@
-Trigger: bootstrap wake. Zero active direct reports. Start Team Building now — file three to five hire_agent POSTs and one approve_ceo_strategy POST against the internal HTTP API. Do not write a plan document. Execute tool calls.
