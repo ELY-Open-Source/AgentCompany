@@ -140,14 +140,6 @@ export interface AppSnapshot {
   automationRules: AutomationRuleRecord[];
   meetings: MeetingRecord[];
   sprints: SprintRecord[];
-  composioSettings: ComposioSettingRecord[];
   connectorAccounts: ConnectorAccountRecord[];
   connectorGrants: ConnectorGrantRecord[];
-}
-
-export interface ComposioSettingRecord {
-  orgId: string;
-  key: string;
-  value: string;
-  updatedAt: string;
 }

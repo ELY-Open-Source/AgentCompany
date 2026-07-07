@@ -329,9 +329,9 @@ export function registerIpcHandlers(deps: IpcDeps): void {
   const composioConnections = new ComposioConnectionService(deps.connection.db);
   const connectorGrants = new ConnectorGrantsService(deps.connection.db);
 
-  ipcMain.handle(IPC_CHANNELS.listComposioToolkits, async (_event, input) => {
+  ipcMain.handle(IPC_CHANNELS.listComposioToolkits, async () => {
     try {
-      return ok(await composioConnections.listToolkits(input.orgId));
+      return ok(await composioConnections.listToolkits());
     } catch (error) {
       return fail("composio_toolkits_failed", error instanceof Error ? error.message : String(error));
     }

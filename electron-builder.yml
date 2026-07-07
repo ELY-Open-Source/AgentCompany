@@ -8,9 +8,6 @@ files:
   - out/**/*
   - package.json
   - resources/icon.png
-extraResources:
-  - from: cred.txt
-    to: cred.txt
 asar: true
 mac:
   category: public.app-category.business

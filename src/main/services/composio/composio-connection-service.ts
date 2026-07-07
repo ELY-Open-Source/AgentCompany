@@ -1,7 +1,7 @@
 import type { DatabaseSync } from "node:sqlite";
 import type { ComposioToolkitSummaryDto, ConnectComposioToolkitResult } from "../../../shared/commands";
 import { ComposioClient, type ComposioToolkitSummary } from "./composio-client";
-import { resolveComposioApiKey } from "./composio-credentials";
+import { composioApiKey } from "./composio-credentials";
 import { getComposioUserId } from "./composio-tool-bridge";
 import { normalizeSlug } from "./connector-grants";
 
@@ -18,8 +18,8 @@ let catalogCache: { fetchedAt: number; toolkits: ComposioToolkitSummary[] } | nu
 export class ComposioConnectionService {
   constructor(private readonly db: DatabaseSync) {}
 
-  listToolkits(orgId: string): Promise<ComposioToolkitSummaryDto[]> {
-    const client = this.requireClient(orgId);
+  listToolkits(): Promise<ComposioToolkitSummaryDto[]> {
+    const client = this.requireClient();
     return this.catalog(client);
   }
 
@@ -31,7 +31,7 @@ export class ComposioConnectionService {
    */
   async connectToolkit(orgId: string, toolkitSlug: string, toolkitName: string): Promise<ConnectComposioToolkitResult> {
     const slug = normalizeSlug(toolkitSlug);
-    const client = this.requireClient(orgId);
+    const client = this.requireClient();
     const authConfigId = await this.ensureAuthConfig(client, orgId, slug);
     const account = await client.createConnectedAccount({
       authConfigId,
@@ -54,7 +54,7 @@ export class ComposioConnectionService {
 
   /** Pulls account statuses from Composio and updates the local mirror. */
   async refreshAccounts(orgId: string): Promise<void> {
-    const client = this.requireClient(orgId);
+    const client = this.requireClient();
     const accounts = await client.listConnectedAccounts(getComposioUserId(this.db, orgId));
     const now = new Date().toISOString();
     for (const account of accounts) {
@@ -80,9 +80,9 @@ export class ComposioConnectionService {
     }
   }
 
-  private requireClient(orgId: string): ComposioClient {
-    const apiKey = resolveComposioApiKey(this.db, orgId);
-    if (!apiKey) throw new Error("Composio API key is not configured for this company.");
+  private requireClient(): ComposioClient {
+    const apiKey = composioApiKey();
+    if (!apiKey) throw new Error("The Composio integration is not configured in this build.");
     return new ComposioClient(apiKey);
   }
 

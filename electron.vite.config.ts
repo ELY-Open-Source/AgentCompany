@@ -1,3 +1,4 @@
+import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { defineConfig, externalizeDepsPlugin } from "electron-vite";
@@ -5,9 +6,26 @@ import react from "@vitejs/plugin-react";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
+/**
+ * The Composio integration key is compiled into the main-process bundle so
+ * no credential file ever ships with the app. It lives in the gitignored
+ * cred.txt at the repository root (first line "Composio apikey: ak_...");
+ * a checkout without the file builds an app whose connector features report
+ * the integration as unconfigured. Rotation = update cred.txt, rebuild.
+ */
+function composioApiKeyForBuild(): string {
+  const credPath = resolve(__dirname, "cred.txt");
+  if (!existsSync(credPath)) return "";
+  const firstLine = readFileSync(credPath, "utf8").split("\n")[0] ?? "";
+  return firstLine.split(":").slice(1).join(":").trim();
+}
+
 export default defineConfig({
   main: {
     plugins: [externalizeDepsPlugin()],
+    define: {
+      __COMPOSIO_API_KEY__: JSON.stringify(composioApiKeyForBuild()),
+    },
     resolve: {
       alias: {
         "@shared": resolve(__dirname, "src/shared"),

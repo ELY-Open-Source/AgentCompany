@@ -44,6 +44,7 @@ import { approvalNotesMeetingsSprintsSchema } from "./migrations/042-approval-no
 import { composioIntegrationSchema } from "./migrations/043-composio-integration";
 import { mentionWakeStateSchema } from "./migrations/044-mention-wake-state";
 import { connectorGrantsSchema } from "./migrations/045-connector-grants";
+import { composioKeyPurgeSchema } from "./migrations/046-composio-key-purge";
 
 interface Migration {
   version: number;
@@ -97,6 +98,7 @@ const MIGRATIONS: Migration[] = [
   { version: 43, name: "composio_integration", sql: composioIntegrationSchema },
   { version: 44, name: "mention_wake_state", sql: mentionWakeStateSchema },
   { version: 45, name: "connector_grants", sql: connectorGrantsSchema },
+  { version: 46, name: "composio_key_purge", sql: composioKeyPurgeSchema },
 ];
 
 const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;

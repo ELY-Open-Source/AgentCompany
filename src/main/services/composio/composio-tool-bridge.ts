@@ -1,7 +1,7 @@
 import type { DatabaseSync } from "node:sqlite";
 import type { ToolDefinition, ToolCall } from "../provider-tool-turn";
 import { ComposioClient, type ComposioToolSchema } from "./composio-client";
-import { resolveComposioApiKey } from "./composio-credentials";
+import { composioApiKey } from "./composio-credentials";
 import { ConnectorGrantsService } from "./connector-grants";
 
 const COMPOSIO_TOOL_PREFIX = "composio_";
@@ -53,7 +53,7 @@ export function composioSchemaToToolDefinition(schema: ComposioToolSchema): Tool
  * granted this agent.
  */
 export async function loadComposioTools(db: DatabaseSync, orgId: string, agentId: string): Promise<ToolDefinition[]> {
-  const apiKey = getComposioApiKey(db, orgId);
+  const apiKey = composioApiKey();
   if (!apiKey) return [];
   const grants = new ConnectorGrantsService(db);
   const toolkits = grants.toolkitsForAgent(orgId, agentId);
@@ -84,8 +84,8 @@ export async function executeComposioTool(
   agentId: string,
   call: ToolCall,
 ): Promise<string> {
-  const apiKey = getComposioApiKey(db, orgId);
-  if (!apiKey) return "ERROR: Composio API key is not configured for this company.";
+  const apiKey = composioApiKey();
+  if (!apiKey) return "ERROR: The Composio integration is not configured in this build.";
   const toolSlug = originalToolName(call.name);
   const toolkit = toolkitForTool(toolSlug);
   const grants = new ConnectorGrantsService(db);
@@ -112,10 +112,6 @@ export async function executeComposioTool(
   } catch (error) {
     return `ERROR: ${error instanceof Error ? error.message : String(error)}`;
   }
-}
-
-function getComposioApiKey(db: DatabaseSync, orgId: string): string | null {
-  return resolveComposioApiKey(db, orgId);
 }
 
 export function getComposioUserId(db: DatabaseSync, orgId: string): string {

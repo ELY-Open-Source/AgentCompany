@@ -166,7 +166,6 @@ export class SnapshotService {
         .map((rule) => ({ ...rule, enabled: toBool(rule.enabled) })),
       meetings: list(this.db, "meetings", "scheduled_at desc"),
       sprints: list(this.db, "sprints", "start_date desc"),
-      composioSettings: list(this.db, "composio_settings", "org_id asc, key asc"),
       connectorAccounts: list(this.db, "connector_accounts", "toolkit_slug asc"),
       connectorGrants: list(this.db, "agent_connector_grants", "toolkit_slug asc, created_at asc"),
     };
