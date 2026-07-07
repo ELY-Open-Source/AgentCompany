@@ -106,29 +106,11 @@ test("onboards, hires, and creates work in the Electron shell", async () => {
     await page.getByRole("button", { name: "Approvals" }).click();
     await expect(page.getByText("Escalate release").first()).toBeVisible();
 
-    await page.getByRole("button", { name: "Social" }).click();
-    await page.getByRole("button", { name: "Connect account" }).click();
-    await page.getByLabel("Handle").fill("@acme");
-    await page.getByLabel("Display name").fill("Acme Social");
-    await page.locator(".modal").getByRole("button", { name: "Connect" }).click();
-    await expect(page.getByText("@acme").first()).toBeVisible();
-    await page.getByRole("button", { name: "Draft post" }).click();
-    await page.getByLabel("Body").fill("Pilot starts Friday.");
-    await page.getByLabel("Scheduled for").fill("2027-01-15T09:30");
-    await page.locator(".modal").getByRole("button", { name: "Save" }).click();
-    await expect(page.getByText("Draft").first()).toBeVisible();
-    await page.getByRole("button", { name: "Schedule" }).click();
-    await expect(page.getByText("Awaiting approval").first()).toBeVisible();
-    await expect(page.getByRole("button", { name: "Publish" })).toBeDisabled();
-
-    await page.getByRole("button", { name: "Approvals" }).click();
-    await expect(page.getByText("Approve social post").first()).toBeVisible();
-    await page.getByLabel("Filter risk").selectOption("medium");
-    await page.getByRole("button", { name: /^Approve$/ }).first().click();
-    await page.getByRole("button", { name: "Social" }).click();
-    await expect(page.getByText("Approved").first()).toBeVisible();
-    await page.getByRole("button", { name: "Publish" }).click();
-    await expect(page.getByText("Published").first()).toBeVisible();
+    // The Connectors page shell renders whether or not the Composio catalog
+    // is reachable from the test machine.
+    await page.getByRole("button", { name: "Connectors", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Connectors" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Refresh" })).toBeVisible();
 
     await page.getByRole("button", { name: "Settings" }).click();
     await page.getByRole("button", { name: "Providers" }).click();
@@ -218,7 +200,7 @@ function createSkillDirectory(): string {
 async function verifyPagesDoNotOverflow(page: Page): Promise<void> {
   for (const size of [{ width: 1280, height: 860 }, { width: 980, height: 700 }]) {
     await page.setViewportSize(size);
-    for (const nav of ["Home", "Team", "Work", "Messages", "Files", "Approvals", "Social", "Office", "Settings"]) {
+    for (const nav of ["Home", "Team", "Work", "Messages", "Files", "Approvals", "Connectors", "Office", "Settings"]) {
       await page.getByRole("button", { name: nav, exact: true }).click();
       await expectPageToFit(page);
     }

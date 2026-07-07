@@ -8,7 +8,7 @@ import { WorkPage } from "../pages/WorkPage";
 import { ChatPage } from "../pages/ChatPage";
 import { FilesPage } from "../pages/FilesPage";
 import { ApprovalsPage } from "../pages/ApprovalsPage";
-import { SocialPage } from "../pages/SocialPage";
+import { ConnectorsPage } from "../pages/ConnectorsPage";
 import { DocumentsPage } from "../pages/DocumentsPage";
 import { RunsPage } from "../pages/RunsPage";
 import { SettingsPage } from "../pages/SettingsPage";
@@ -43,7 +43,7 @@ export function App() {
     docs: <DocumentsPage {...pageProps} />,
     runs: <RunsPage {...pageProps} />,
     approvals: <ApprovalsPage {...pageProps} />,
-    social: <SocialPage {...pageProps} />,
+    connectors: <ConnectorsPage {...pageProps} />,
     office: <OfficePage {...pageProps} />,
     settings: <SettingsPage {...pageProps} />,
   }[route];

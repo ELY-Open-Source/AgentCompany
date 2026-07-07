@@ -134,7 +134,7 @@ function routeFor(entityType: SearchEntityType): RouteId {
   if (entityType === "chat_space" || entityType === "chat_message") return "chat";
   if (entityType === "file") return "files";
   if (entityType === "provider") return "settings";
-  if (entityType === "social_account" || entityType === "scheduled_post") return "social";
+  if (entityType === "social_account" || entityType === "scheduled_post") return "connectors";
   return "work";
 }
 

@@ -46,7 +46,7 @@ test("captures every page for visual review", async () => {
     await go(page, "Messages", outDir, "13-messages");
     await go(page, "Files", outDir, "14-files");
     await go(page, "Approvals", outDir, "15-approvals");
-    await go(page, "Social", outDir, "16-social");
+    await go(page, "Connectors", outDir, "16-connectors");
     await go(page, "Settings", outDir, "17-settings");
     await go(page, "Office", outDir, "18-office");
 

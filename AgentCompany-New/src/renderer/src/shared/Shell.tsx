@@ -15,7 +15,7 @@ export type RouteId =
   | "docs"
   | "runs"
   | "approvals"
-  | "social"
+  | "connectors"
   | "office"
   | "settings";
 
@@ -26,7 +26,7 @@ interface NavSpec {
 
 /** Routes whose pages own a full-height, multi-pane layout with their own
  * internal scroll regions, so the content area must not scroll as one block. */
-const FLUSH_ROUTES = new Set<RouteId>(["chat", "settings", "files", "social", "runs", "office"]);
+const FLUSH_ROUTES = new Set<RouteId>(["chat", "settings", "files", "runs", "office"]);
 
 /** The daily-driver surfaces — the core operating loop. */
 const primaryNav: NavSpec[] = [
@@ -42,7 +42,7 @@ const primaryNav: NavSpec[] = [
 /** Less-frequent surfaces, demoted under a divider so the primary set leads. */
 const secondaryNav: NavSpec[] = [
   { id: "docs", label: "Documents" },
-  { id: "social", label: "Social" },
+  { id: "connectors", label: "Connectors" },
   { id: "office", label: "Office" },
 ];
 

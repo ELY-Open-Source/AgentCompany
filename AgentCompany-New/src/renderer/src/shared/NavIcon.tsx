@@ -23,7 +23,7 @@ const NAV_ICONS: Record<RouteId, typeof Home> = {
   files: Folder,
   approvals: ShieldCheck,
   docs: DocumentText2,
-  social: Plug2,
+  connectors: Plug2,
   office: Buildings2,
   settings: Gear,
 };
