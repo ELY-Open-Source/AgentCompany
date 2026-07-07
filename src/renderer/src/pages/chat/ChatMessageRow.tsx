@@ -16,10 +16,7 @@ export function ChatMessageRow({
   mentions,
   slashInvocations,
   files,
-  replyCount,
-  onOpenThread,
   context,
-  compact = false,
   canModify = false,
   onEdit,
   onDelete,
@@ -30,10 +27,7 @@ export function ChatMessageRow({
   mentions: ChatMentionRecord[];
   slashInvocations: ChatSlashInvocationRecord[];
   files: FileObjectRecord[];
-  replyCount: number;
-  onOpenThread: (() => void) | null;
   context: MessageContext;
-  compact?: boolean;
   canModify?: boolean;
   onEdit?: (bodyMd: string) => void;
   onDelete?: () => void;
@@ -54,8 +48,8 @@ export function ChatMessageRow({
     setEditing(false);
   };
   return (
-    <div style={{ display: "flex", gap: compact ? 10 : 12, marginBottom: compact ? 12 : 18 }}>
-      <Avatar name={name} size={compact ? "sm" : ""} bot={bot} />
+    <div style={{ display: "flex", gap: 12, marginBottom: 18 }}>
+      <Avatar name={name} bot={bot} />
       <div style={{ flex: 1, minWidth: 0 }}>
         <div className="row" style={{ alignItems: "baseline", gap: 8, marginBottom: 2 }}>
           <span style={{ fontSize: 14, fontWeight: 540 }}>{name}</span>
@@ -103,28 +97,6 @@ export function ChatMessageRow({
               return <AttachmentCard key={file.id} file={file} handoff={handoff} onOpen={onOpenFile ? () => onOpenFile(file.id) : null} />;
             })}
           </div>
-        )}
-        {onOpenThread && (
-          <button
-            type="button"
-            aria-label="Open thread"
-            onClick={onOpenThread}
-            style={{
-              marginTop: 8,
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 6,
-              fontSize: 11.5,
-              color: "var(--accent)",
-              cursor: "pointer",
-              padding: "3px 8px",
-              borderRadius: 6,
-              background: "var(--accent-soft)",
-              border: 0,
-            }}
-          >
-            <Icon name="chat" size={14} /> {replyCount > 0 ? `${replyCount} ${replyCount === 1 ? "reply" : "replies"}` : "Thread"} →
-          </button>
         )}
       </div>
     </div>

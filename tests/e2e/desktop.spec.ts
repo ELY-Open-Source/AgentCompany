@@ -106,12 +106,9 @@ test("onboards, hires, and creates work in the Electron shell", async () => {
     await page.getByRole("button", { name: "Send" }).click();
     await expect(page.getByText("@Board").first()).toBeVisible();
     await expect(page.getByText("/escalate").first()).toBeVisible();
-    // Threads open in place: the center pane becomes the thread and the
-    // channel composer is gone until you go back.
-    await page.getByRole("button", { name: "Open thread" }).first().click();
-    await expect(page.getByRole("textbox", { name: "Thread reply" })).toBeVisible();
-    await expect(page.getByRole("textbox", { name: "Message" })).not.toBeVisible();
-    await page.getByRole("button", { name: "Close thread" }).click();
+    // Conversations are flat: every message lives in the channel pane and no
+    // thread affordance exists.
+    await expect(page.getByRole("button", { name: "Open thread" })).toHaveCount(0);
     await expect(page.getByRole("textbox", { name: "Message" })).toBeVisible();
     await page.getByRole("button", { name: "Approvals" }).click();
     await expect(page.getByText("Escalate release").first()).toBeVisible();

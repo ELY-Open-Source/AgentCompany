@@ -7,7 +7,6 @@ import type {
   ChatMessageRecord,
   ChatSpaceRecord,
   ChatSlashInvocationRecord,
-  ChatThreadRecord,
   FileObjectRecord,
 } from "../../../../shared/domain";
 import { ChatComposer } from "./ChatComposer";
@@ -18,7 +17,6 @@ export function ChatConversation({
   space,
   participants,
   messagesInSpace,
-  threadsInSpace,
   pendingApprovals,
   attachments,
   mentions,
@@ -29,7 +27,6 @@ export function ChatConversation({
   currentEmployeeId,
   onAttachmentChange,
   onAttach,
-  onOpenThread,
   onApprove,
   onDecline,
   onEditMessage,
@@ -41,7 +38,6 @@ export function ChatConversation({
   space: ChatSpaceRecord | null;
   participants: string[];
   messagesInSpace: ChatMessageRecord[];
-  threadsInSpace: ChatThreadRecord[];
   pendingApprovals: ApprovalRecord[];
   attachments: ChatAttachmentRecord[];
   mentions: ChatMentionRecord[];
@@ -52,7 +48,6 @@ export function ChatConversation({
   currentEmployeeId: string;
   onAttachmentChange: (next: string) => void;
   onAttach: () => void;
-  onOpenThread: (threadId: string) => void;
   onApprove: (approvalId: string) => void;
   onDecline: (approvalId: string) => void;
   onEditMessage: (messageId: string, bodyMd: string) => void;
@@ -74,7 +69,6 @@ export function ChatConversation({
           <ChatTimeline
             key={space.id}
             messagesInSpace={filtered}
-            threadsInSpace={threadsInSpace}
             pendingApprovals={pendingApprovals}
             attachments={attachments}
             mentions={mentions}
@@ -82,7 +76,6 @@ export function ChatConversation({
             files={files}
             context={context}
             currentEmployeeId={currentEmployeeId}
-            onOpenThread={onOpenThread}
             onApprove={onApprove}
             onDecline={onDecline}
             onEditMessage={onEditMessage}

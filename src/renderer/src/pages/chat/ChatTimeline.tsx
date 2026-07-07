@@ -6,7 +6,6 @@ import type {
   ChatMentionRecord,
   ChatMessageRecord,
   ChatSlashInvocationRecord,
-  ChatThreadRecord,
   FileObjectRecord,
 } from "../../../../shared/domain";
 import { ChatMessageRow } from "./ChatMessageRow";
@@ -30,7 +29,6 @@ function groupBy<T>(items: T[], keyOf: (item: T) => string): Map<string, T[]> {
 
 export function ChatTimeline({
   messagesInSpace,
-  threadsInSpace,
   pendingApprovals,
   attachments,
   mentions,
@@ -38,7 +36,6 @@ export function ChatTimeline({
   files,
   context,
   currentEmployeeId,
-  onOpenThread,
   onApprove,
   onDecline,
   onEditMessage,
@@ -46,7 +43,6 @@ export function ChatTimeline({
   onOpenFile,
 }: {
   messagesInSpace: ChatMessageRecord[];
-  threadsInSpace: ChatThreadRecord[];
   pendingApprovals: ApprovalRecord[];
   attachments: ChatAttachmentRecord[];
   mentions: ChatMentionRecord[];
@@ -54,7 +50,6 @@ export function ChatTimeline({
   files: FileObjectRecord[];
   context: MessageContext;
   currentEmployeeId: string;
-  onOpenThread: (threadId: string) => void;
   onApprove: (approvalId: string) => void;
   onDecline: (approvalId: string) => void;
   onEditMessage: (messageId: string, bodyMd: string) => void;
@@ -66,15 +61,6 @@ export function ChatTimeline({
   const attachmentsByMessage = groupBy(attachments, (item) => item.messageId);
   const mentionsByMessage = groupBy(mentions, (item) => item.messageId);
   const invocationsByMessage = groupBy(slashInvocations, (item) => item.messageId);
-  const threadByRoot = new Map<string, ChatThreadRecord>();
-  for (const thread of threadsInSpace) {
-    if (thread.rootMessageId) threadByRoot.set(thread.rootMessageId, thread);
-  }
-  const replyCountByThread = new Map<string, number>();
-  for (const message of messagesInSpace) {
-    if (!message.threadId) continue;
-    replyCountByThread.set(message.threadId, (replyCountByThread.get(message.threadId) ?? 0) + 1);
-  }
 
   const hiddenCount = Math.max(0, messagesInSpace.length - visibleCount);
   const visible = hiddenCount > 0 ? messagesInSpace.slice(hiddenCount) : messagesInSpace;
@@ -96,10 +82,6 @@ export function ChatTimeline({
       lastDay = day;
       elements.push(<DayDivider key={`day-${day}`} label={day} />);
     }
-    const thread = threadByRoot.get(message.id) ?? null;
-    const replyCount = thread
-      ? Math.max(0, (replyCountByThread.get(thread.id) ?? 0) - (thread.rootMessageId && message.threadId === thread.id ? 1 : 0))
-      : 0;
     elements.push(
       <ChatMessageRow
         key={message.id}
@@ -108,8 +90,6 @@ export function ChatTimeline({
         mentions={mentionsByMessage.get(message.id) ?? EMPTY_MENTIONS}
         slashInvocations={invocationsByMessage.get(message.id) ?? EMPTY_INVOCATIONS}
         files={files}
-        replyCount={replyCount}
-        onOpenThread={thread ? () => onOpenThread(thread.id) : null}
         context={context}
         canModify={message.senderType === "employee" && message.senderId === currentEmployeeId && !message.deletedAt}
         onEdit={(bodyMd) => onEditMessage(message.id, bodyMd)}
