@@ -1,4 +1,4 @@
-import { dialog, ipcMain, shell, type BrowserWindow } from "electron";
+import { app, dialog, ipcMain, shell, type BrowserWindow } from "electron";
 import type { DatabaseConnection } from "../database/connection";
 import { IPC_CHANNELS } from "../../shared/ipc";
 import { fail, ok, type DesktopResult } from "../../shared/result";
@@ -107,6 +107,19 @@ export function registerIpcHandlers(deps: IpcDeps): void {
 
   ipcMain.handle(IPC_CHANNELS.createOrganization, (_event, input) => mutate(() => organization.createOrganization(input)));
   ipcMain.handle(IPC_CHANNELS.setActiveOrganization, (_event, input) => mutate(() => organization.setActiveOrganization(input.orgId)));
+  ipcMain.handle(IPC_CHANNELS.setUiPreferences, (_event, input) => {
+    const before = snapshot.load().uiPreferences.language;
+    const result = mutate(() => organization.updateUiPreferences(input));
+    if (result.ok && result.data.uiPreferences.language !== before) {
+      // Chromium's locale is fixed at launch; a language change needs a
+      // fresh process to take effect.
+      setTimeout(() => {
+        app.relaunch();
+        app.quit();
+      }, 150);
+    }
+    return result;
+  });
   ipcMain.handle(IPC_CHANNELS.deleteOrganization, (_event, input) => mutate(() => organization.deleteOrganization(input.orgId)));
   ipcMain.handle(IPC_CHANNELS.createAgent, (_event, input) => mutate(() => organization.createAgent(input)));
   ipcMain.handle(IPC_CHANNELS.updateAgent, (_event, input) => mutate(() => organization.updateAgent(input)));

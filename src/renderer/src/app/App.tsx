@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Shell, type RouteId } from "../shared/Shell";
 import { Onboarding } from "./Onboarding";
 import { useSnapshot } from "./useSnapshot";
@@ -21,6 +21,19 @@ export function App() {
   // organization exists from Launch onward, so the org-count check alone
   // would flip to the shell mid-onboarding.
   const [finishingSetup, setFinishingSetup] = useState(false);
+
+  const theme = snapshot?.uiPreferences.theme ?? "system";
+  useEffect(() => {
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    const apply = () => {
+      const resolved = theme === "system" ? (media.matches ? "dark" : "light") : theme;
+      document.documentElement.dataset.theme = resolved;
+    };
+    apply();
+    if (theme !== "system") return;
+    media.addEventListener("change", apply);
+    return () => media.removeEventListener("change", apply);
+  }, [theme]);
 
   if (!snapshot) {
     return <div className="app-shell" style={{ display: "grid", placeItems: "center" }} />;

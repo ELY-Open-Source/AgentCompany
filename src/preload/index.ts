@@ -11,6 +11,7 @@ const api: DesktopApi = {
   bootstrapOnboarding: (input) => invoke(IPC_CHANNELS.bootstrapOnboarding, input),
   createOrganization: (input) => invoke(IPC_CHANNELS.createOrganization, input),
   setActiveOrganization: (input) => invoke(IPC_CHANNELS.setActiveOrganization, input),
+  setUiPreferences: (input) => invoke(IPC_CHANNELS.setUiPreferences, input),
   deleteOrganization: (input) => invoke(IPC_CHANNELS.deleteOrganization, input),
   createAgent: (input) => invoke(IPC_CHANNELS.createAgent, input),
   updateAgent: (input) => invoke(IPC_CHANNELS.updateAgent, input),

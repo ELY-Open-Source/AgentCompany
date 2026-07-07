@@ -71,6 +71,7 @@ import type {
   SearchInput,
   SendMessageInput,
   SetActiveOrganizationInput,
+  SetUiPreferencesInput,
   SetFilePinnedInput,
   SetFeatureFlagInput,
   SetLegalHoldStateInput,
@@ -105,6 +106,7 @@ export interface DesktopApi {
   loadSnapshot(): Promise<DesktopResult<AppSnapshot>>;
   bootstrapOnboarding(input: BootstrapOnboardingInput): Promise<DesktopResult<BootstrapOnboardingSummary>>;
   setActiveOrganization(input: SetActiveOrganizationInput): Promise<DesktopResult<AppSnapshot>>;
+  setUiPreferences(input: SetUiPreferencesInput): Promise<DesktopResult<AppSnapshot>>;
   deleteOrganization(input: DeleteOrganizationInput): Promise<DesktopResult<AppSnapshot>>;
   createOrganization(input: CreateOrganizationInput): Promise<DesktopResult<AppSnapshot>>;
   createAgent(input: CreateAgentInput): Promise<DesktopResult<AppSnapshot>>;

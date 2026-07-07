@@ -33,8 +33,8 @@
 }
 .button:hover { background: var(--panel-2); }
 .button:active:not(:disabled) { transform: scale(0.97); }
-.button.primary { background: var(--text-1); color: #fff; border-color: var(--text-1); }
-.button.primary:hover { background: #2c2c2c; }
+.button.primary { background: var(--btn-primary-bg); color: var(--btn-primary-fg); border-color: var(--btn-primary-bg); }
+.button.primary:hover { background: var(--btn-primary-hover); }
 .button.ghost { border-color: transparent; background: transparent; color: var(--text-2); }
 .button.ghost:hover { background: var(--hover); color: var(--text-1); }
 .button.small { height: 28px; padding: 0 var(--sp-2); font-size: var(--fs-caption); }

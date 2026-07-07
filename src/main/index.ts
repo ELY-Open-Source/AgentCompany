@@ -18,9 +18,14 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
+  const profileDir = process.env.AGENTCOMPANY_NEW_PROFILE_DIR ?? join(app.getPath("userData"), "profile");
+  // The database opens before ready: Chromium's UI locale (form-control
+  // strings, date formatting) is only settable pre-ready, and it follows the
+  // stored language preference instead of the OS locale.
+  const connection = new DatabaseConnection(join(profileDir, "agentcompany.db"));
+  app.commandLine.appendSwitch("lang", storedLanguage(connection.db) === "zh" ? "zh-CN" : "en-US");
+
   app.whenReady().then(() => {
-    const profileDir = process.env.AGENTCOMPANY_NEW_PROFILE_DIR ?? join(app.getPath("userData"), "profile");
-    const connection = new DatabaseConnection(join(profileDir, "agentcompany.db"));
     connection.transaction(() => recoverInterruptedWork(connection.db));
     const win = createMainWindow({
       preloadPath: join(__dirname, "../preload/index.js"),
@@ -58,6 +63,11 @@ if (!app.requestSingleInstanceLock()) {
   app.on("window-all-closed", () => {
     if (process.platform !== "darwin") app.quit();
   });
+}
+
+function storedLanguage(db: DatabaseSync): string {
+  const row = db.prepare("select language from app_state where id = 1").get() as { language: string } | undefined;
+  return row?.language ?? "en";
 }
 
 /**

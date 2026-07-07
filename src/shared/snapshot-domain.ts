@@ -62,8 +62,17 @@ import type {
   SocialAuditRecord,
 } from "./social-domain";
 
+export type UiTheme = "system" | "light" | "dark";
+export type UiLanguage = "en" | "zh";
+
+export interface UiPreferences {
+  theme: UiTheme;
+  language: UiLanguage;
+}
+
 export interface AppSnapshot {
   activeOrgId: string | null;
+  uiPreferences: UiPreferences;
   organizations: OrganizationRecord[];
   employees: EmployeeRecord[];
   agents: AgentRecord[];

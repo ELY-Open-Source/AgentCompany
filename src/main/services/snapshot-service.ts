@@ -87,6 +87,7 @@ export class SnapshotService {
 
     return {
       activeOrgId,
+      uiPreferences: this.resolveUiPreferences(),
       organizations,
       employees: list(this.db, "employees", "created_at asc"),
       agents,
@@ -177,6 +178,14 @@ export class SnapshotService {
     const stored = row?.active_org_id ?? null;
     if (stored && known.includes(stored)) return stored;
     return known[0] ?? null;
+  }
+
+  private resolveUiPreferences(): AppSnapshot["uiPreferences"] {
+    const row = this.db.prepare("select theme, language from app_state where id = 1")
+      .get() as { theme: string; language: string } | undefined;
+    const theme = row?.theme === "light" || row?.theme === "dark" ? row.theme : "system";
+    const language = row?.language === "zh" ? "zh" : "en";
+    return { theme, language };
   }
 }
 

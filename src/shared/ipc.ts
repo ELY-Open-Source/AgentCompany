@@ -2,6 +2,7 @@ export const IPC_CHANNELS = {
   loadSnapshot: "agentcompany:load-snapshot",
   bootstrapOnboarding: "agentcompany:bootstrap-onboarding",
   setActiveOrganization: "agentcompany:set-active-organization",
+  setUiPreferences: "agentcompany:set-ui-preferences",
   deleteOrganization: "agentcompany:delete-organization",
   createOrganization: "agentcompany:create-organization",
   createAgent: "agentcompany:create-agent",

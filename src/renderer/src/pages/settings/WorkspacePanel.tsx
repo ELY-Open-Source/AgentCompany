@@ -1,5 +1,12 @@
 import { useState, type FormEvent } from "react";
-import type { OrganizationRecord, ProjectRecord, WorkspaceRecord } from "../../../../shared/domain";
+import type {
+  OrganizationRecord,
+  ProjectRecord,
+  UiLanguage,
+  UiPreferences,
+  UiTheme,
+  WorkspaceRecord,
+} from "../../../../shared/domain";
 import { Button, Field, Icon, Pill } from "../../shared/ui";
 import { Dialog } from "../../shared/Dialog";
 import type { SnapshotActions } from "../../app/useSnapshot";
@@ -17,12 +24,14 @@ export function WorkspacePanel({
   workspaces,
   projects,
   orgId,
+  uiPreferences,
   actions,
 }: {
   organization: OrganizationRecord;
   workspaces: WorkspaceRecord[];
   projects: ProjectRecord[];
   orgId: string;
+  uiPreferences: UiPreferences;
   actions: SnapshotActions;
 }) {
   const [createOpen, setCreateOpen] = useState(false);
@@ -61,6 +70,37 @@ export function WorkspacePanel({
         <KeyValue label="Mission" value={organization.mission || "—"} />
         <KeyValue label="Goal" value={organization.goal || "—"} />
         <KeyValue label="Description" value={organization.description || "—"} />
+      </div>
+
+      <div className="section-label" style={{ marginBottom: 8 }}>Appearance</div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 240px))", gap: 12, marginBottom: 28 }}>
+        <Field label="Theme">
+          <select
+            className="input"
+            aria-label="Theme"
+            value={uiPreferences.theme}
+            onChange={(event) =>
+              void actions.run(() => window.agentCompany.setUiPreferences({ theme: event.target.value as UiTheme }))
+            }
+          >
+            <option value="system">System</option>
+            <option value="light">Light</option>
+            <option value="dark">Dark</option>
+          </select>
+        </Field>
+        <Field label="Language">
+          <select
+            className="input"
+            aria-label="Language"
+            value={uiPreferences.language}
+            onChange={(event) =>
+              void actions.run(() => window.agentCompany.setUiPreferences({ language: event.target.value as UiLanguage }))
+            }
+          >
+            <option value="en">English</option>
+            <option value="zh">中文</option>
+          </select>
+        </Field>
       </div>
 
       <div className="row reveal-row" style={{ marginBottom: 8 }}>

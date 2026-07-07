@@ -47,6 +47,18 @@ export class OrganizationService {
     });
   }
 
+  updateUiPreferences(input: { theme?: "system" | "light" | "dark"; language?: "en" | "zh" }): void {
+    const current = this.db.prepare("select theme, language from app_state where id = 1")
+      .get() as { theme: string; language: string } | undefined;
+    const theme = input.theme ?? current?.theme ?? "system";
+    const language = input.language ?? current?.language ?? "en";
+    this.db.prepare(`
+      insert into app_state(id, active_org_id, theme, language, updated_at)
+      values (1, null, ?, ?, ?)
+      on conflict(id) do update set theme = excluded.theme, language = excluded.language, updated_at = excluded.updated_at
+    `).run(theme, language, new Date().toISOString());
+  }
+
   deleteOrganization(orgId: string): void {
     const row = this.db.prepare("select id from organizations where id = ?")
       .get(orgId) as { id: string } | undefined;

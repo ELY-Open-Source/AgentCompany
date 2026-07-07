@@ -1,7 +1,12 @@
-import type { ApprovalState, IdentitySource, PrincipalType, RiskLevel, RoleKey, TaskPriority, TaskStatus } from "../domain";
+import type { ApprovalState, IdentitySource, PrincipalType, RiskLevel, RoleKey, TaskPriority, TaskStatus, UiLanguage, UiTheme } from "../domain";
 
 export interface SetActiveOrganizationInput {
   orgId: string;
+}
+
+export interface SetUiPreferencesInput {
+  theme?: UiTheme;
+  language?: UiLanguage;
 }
 
 export interface DeleteOrganizationInput {

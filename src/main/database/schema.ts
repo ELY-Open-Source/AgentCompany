@@ -46,6 +46,7 @@ import { mentionWakeStateSchema } from "./migrations/044-mention-wake-state";
 import { connectorGrantsSchema } from "./migrations/045-connector-grants";
 import { composioKeyPurgeSchema } from "./migrations/046-composio-key-purge";
 import { authConfigPurgeSchema } from "./migrations/047-auth-config-purge";
+import { uiPreferencesSchema } from "./migrations/048-ui-preferences";
 
 interface Migration {
   version: number;
@@ -101,6 +102,7 @@ const MIGRATIONS: Migration[] = [
   { version: 45, name: "connector_grants", sql: connectorGrantsSchema },
   { version: 46, name: "composio_key_purge", sql: composioKeyPurgeSchema },
   { version: 47, name: "auth_config_purge", sql: authConfigPurgeSchema },
+  { version: 48, name: "ui_preferences", sql: uiPreferencesSchema },
 ];
 
 const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;
