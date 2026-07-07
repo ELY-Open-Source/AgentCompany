@@ -2,7 +2,6 @@ import type { DesktopResult } from "./result";
 import type { AppSnapshot, SearchResultRecord } from "./domain";
 import type { ProviderModelEntry } from "./provider-models";
 import type {
-  BindSkillInput,
   BootstrapOnboardingInput,
   BootstrapOnboardingSummary,
   CancelProviderResponseInput,
@@ -67,7 +66,6 @@ import type {
   ConnectComposioToolkitInput,
   ConnectComposioToolkitResult,
   ConnectorCatalogEntry,
-  ConnectorGrantInput,
   RefreshComposioAccountsInput,
   SearchInput,
   SendMessageInput,
@@ -153,7 +151,6 @@ export interface DesktopApi {
   cancelProviderResponse(input: CancelProviderResponseInput): Promise<DesktopResult<AppSnapshot>>;
   importSkillDirectory(input: ImportSkillDirectoryInput): Promise<DesktopResult<AppSnapshot>>;
   syncSkillsFromDisk(input: SyncSkillsFromDiskInput): Promise<DesktopResult<AppSnapshot>>;
-  bindSkill(input: BindSkillInput): Promise<DesktopResult<AppSnapshot>>;
   resolveAgentSkills(input: ResolveAgentSkillsInput): Promise<DesktopResult<AppSnapshot>>;
   runSkillTests(input: RunSkillTestsInput): Promise<DesktopResult<AppSnapshot>>;
   createSocialAccount(input: CreateSocialAccountInput): Promise<DesktopResult<AppSnapshot>>;
@@ -182,8 +179,6 @@ export interface DesktopApi {
   listConnectorCatalog(): Promise<DesktopResult<ConnectorCatalogEntry[]>>;
   connectComposioToolkit(input: ConnectComposioToolkitInput): Promise<DesktopResult<ConnectComposioToolkitResult>>;
   refreshComposioAccounts(input: RefreshComposioAccountsInput): Promise<DesktopResult<AppSnapshot>>;
-  grantConnector(input: ConnectorGrantInput): Promise<DesktopResult<AppSnapshot>>;
-  revokeConnector(input: ConnectorGrantInput): Promise<DesktopResult<AppSnapshot>>;
   search(input: SearchInput): Promise<DesktopResult<SearchResultRecord[]>>;
   subscribe(callback: (event: RendererEvent) => void): () => void;
   platform: "win32" | "darwin" | "linux";

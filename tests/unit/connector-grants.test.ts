@@ -83,7 +83,8 @@ describe("connector grants", () => {
 
     const grants = new ConnectorGrantsService(h.connection.db);
     expect(grants.toolkitsForAgent(h.orgId, h.danaId)).toEqual(["github"]);
-    expect(grants.toolkitsForAgent(h.orgId, h.ceoId)).toEqual([]);
+    // The CEO holds every active connection by role, without a grant row.
+    expect(grants.toolkitsForAgent(h.orgId, h.ceoId)).toEqual(["github"]);
 
     const listing = dispatchAgentTool(h.deps, h.danaCtx, call("list_connectors", {}));
     expect(listing).toContain("GitHub (github): granted to Dana");

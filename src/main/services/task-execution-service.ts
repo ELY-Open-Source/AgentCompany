@@ -428,12 +428,7 @@ export class TaskExecutionService {
   }
 
   private resolveSkillRuntimeSnapshot(orgId: string, agentId: string, runId: string): SkillRuntimeSnapshotRow | null {
-    const hasEnabledSkill = this.db.prepare(`
-      select id from skill_bindings
-      where org_id = ? and agent_id = ? and enabled = 1
-      limit 1
-    `).get(orgId, agentId);
-    if (!hasEnabledSkill) return null;
+    if (!this.skills.hasRuntimeSkills(orgId, agentId)) return null;
     const snapshotId = this.skills.resolveRuntimeSnapshot({ orgId, agentId, runId });
     const snapshot = this.db.prepare(`
       select id, compiled_prompt, tools_manifest, source_revision_ids

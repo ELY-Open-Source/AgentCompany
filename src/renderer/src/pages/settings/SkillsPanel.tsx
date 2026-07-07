@@ -39,12 +39,6 @@ export function SkillsPanel({ orgId, skills, revisions, bindings, tests, agents,
     })).then((result) => { if (result) setImportOpen(false); });
   };
 
-  const bind = (skill: SkillDefinitionRecord, agentId: string) => {
-    const latest = revisions.find((revision) => revision.skillId === skill.id);
-    if (!latest) return;
-    void actions.run(() => window.agentCompany.bindSkill({ orgId, agentId, skillId: skill.id, revisionId: latest.id }));
-  };
-
   const runTests = (revisionId: string) => {
     void actions.run(() => window.agentCompany.runSkillTests({ orgId, revisionId }));
   };
@@ -61,9 +55,9 @@ export function SkillsPanel({ orgId, skills, revisions, bindings, tests, agents,
       <div className="card" style={{ padding: 0, overflow: "hidden" }}>
         <div
           className="table-row head"
-          style={{ gridTemplateColumns: "minmax(0, 1.4fr) 92px 132px minmax(0, 1.2fr) minmax(220px, 1.4fr)" }}
+          style={{ gridTemplateColumns: "minmax(0, 1.4fr) 92px 132px minmax(0, 1.2fr) 132px" }}
         >
-          <div>Skill</div><div>Version</div><div>Tests</div><div>Bindings</div><div>Actions</div>
+          <div>Skill</div><div>Version</div><div>Tests</div><div>Held by</div><div>Actions</div>
         </div>
         {skills.map((skill, index) => {
           const last = index === skills.length - 1;
@@ -74,7 +68,7 @@ export function SkillsPanel({ orgId, skills, revisions, bindings, tests, agents,
             <div
               key={skill.id}
               className="table-row"
-              style={{ gridTemplateColumns: "minmax(0, 1.4fr) 92px 132px minmax(0, 1.2fr) minmax(220px, 1.4fr)", borderBottom: last ? "none" : "1px solid var(--border-soft)" }}
+              style={{ gridTemplateColumns: "minmax(0, 1.4fr) 92px 132px minmax(0, 1.2fr) 132px", borderBottom: last ? "none" : "1px solid var(--border-soft)" }}
             >
               <div style={{ minWidth: 0 }}>
                 <div style={{ fontWeight: 540, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{skill.name}</div>
@@ -87,9 +81,8 @@ export function SkillsPanel({ orgId, skills, revisions, bindings, tests, agents,
                   <Pill key={binding.id}>{agentName(binding.agentId, agents)}</Pill>
                 ))}
               </div>
-              <div className="row" style={{ gap: 8, minWidth: 0 }}>
+              <div className="row" style={{ minWidth: 0 }}>
                 <Button size="small" onClick={() => { if (latest && revisionTests.length > 0) runTests(latest.id); }} disabled={!latest || revisionTests.length === 0}>Run tests</Button>
-                <BindAgent skill={skill} agents={agents} onBind={(agentId) => bind(skill, agentId)} disabled={!latest} />
               </div>
             </div>
           );
@@ -101,35 +94,6 @@ export function SkillsPanel({ orgId, skills, revisions, bindings, tests, agents,
         <Field label="Version (semver)"><input className="input" name="versionSemver" required defaultValue="1.0.0" /></Field>
       </Dialog>
     </div>
-  );
-}
-
-function BindAgent({
-  skill: _skill,
-  agents,
-  onBind,
-  disabled,
-}: {
-  skill: SkillDefinitionRecord;
-  agents: AgentRecord[];
-  onBind: (agentId: string) => void;
-  disabled: boolean;
-}) {
-  if (agents.length === 0) return null;
-  return (
-    <select
-      className="input"
-      style={{ height: 28, padding: "0 8px", fontSize: 12 }}
-      defaultValue=""
-      disabled={disabled}
-      onChange={(event) => {
-        if (event.target.value) onBind(event.target.value);
-        event.target.value = "";
-      }}
-    >
-      <option value="">Pick an agent…</option>
-      {agents.map((agent) => <option key={agent.id} value={agent.id}>{agent.name}</option>)}
-    </select>
   );
 }
 

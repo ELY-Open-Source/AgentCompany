@@ -19,10 +19,3 @@ export interface ConnectComposioToolkitResult {
 export interface RefreshComposioAccountsInput {
   orgId: string;
 }
-
-export interface ConnectorGrantInput {
-  orgId: string;
-  agentId: string;
-  toolkitSlug: string;
-  employeeId: string;
-}

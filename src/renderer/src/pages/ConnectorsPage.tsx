@@ -1,19 +1,18 @@
 import { useMemo } from "react";
 import { Button } from "../shared/ui";
 import type { PageProps } from "./types";
-import { activeOrgId, requireActiveEmployee } from "./types";
+import { activeOrgId } from "./types";
 import { ConnectedList } from "./connectors/ConnectedList";
 import { ToolkitCatalog } from "./connectors/ToolkitCatalog";
 import { useConnectorCatalog } from "./connectors/useConnectorCatalog";
 
 /**
- * The company's connector control room: what is connected, who may use it,
- * and the configured catalog to connect more. Connections are org-level; the
- * grant chips decide which agents carry each toolkit's tools.
+ * The company's connector control room: what is connected, who holds it, and
+ * the configured catalog to connect more. Connections are org-level; the CEO
+ * decides which agents carry each toolkit's tools.
  */
 export function ConnectorsPage({ snapshot, actions }: PageProps) {
   const orgId = activeOrgId(snapshot);
-  const employee = requireActiveEmployee(snapshot);
   const { catalog, busySlug, connectError, connect, retry } = useConnectorCatalog(orgId, actions);
 
   const accounts = useMemo(
@@ -40,12 +39,6 @@ export function ConnectorsPage({ snapshot, actions }: PageProps) {
     return map;
   }, [catalog]);
 
-  const grant = (agentId: string, toolkitSlug: string) =>
-    void actions.run(() => window.agentCompany.grantConnector({ orgId, agentId, toolkitSlug, employeeId: employee.id }));
-
-  const revoke = (agentId: string, toolkitSlug: string) =>
-    void actions.run(() => window.agentCompany.revokeConnector({ orgId, agentId, toolkitSlug, employeeId: employee.id }));
-
   return (
     <div style={{ maxWidth: 1060 }}>
       <h2 style={{ margin: "0 0 18px", fontSize: 16, fontWeight: 600 }}>Connectors</h2>
@@ -65,14 +58,7 @@ export function ConnectorsPage({ snapshot, actions }: PageProps) {
         </div>
       )}
 
-      <ConnectedList
-        accounts={accounts}
-        grants={grants}
-        agents={agents}
-        logoBySlug={logoBySlug}
-        onGrant={grant}
-        onRevoke={revoke}
-      />
+      <ConnectedList accounts={accounts} grants={grants} agents={agents} logoBySlug={logoBySlug} />
 
       {catalog.phase === "error" && (
         <div className="row" style={{ gap: 10, padding: "24px 0" }}>

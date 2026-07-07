@@ -6,6 +6,7 @@ import type { ChatService } from "./chat-service";
 import { canonicalMentionHandle } from "../../shared/mention-handles";
 import { readMessagesTool } from "./agent-read-messages";
 import { grantConnectorTool, listConnectorsTool } from "./agent-connector-tools";
+import { grantSkillTool, listSkillsTool } from "./agent-skill-tools";
 import { createDocumentTool, writeDeliverableTool } from "./agent-deliverable-tools";
 import { describeSend } from "./agent-message-presence";
 import { optionalString, optionalStringArray, requireString } from "./agent-tool-args";
@@ -172,6 +173,37 @@ export const AGENT_TOOLS: ToolDefinition[] = [
       required: ["agent_name", "toolkit"],
     },
   },
+  {
+    name: "list_skills",
+    description: "See the company's skill library and who holds each skill. You carry every skill automatically as CEO; teammates only run with skills you grant them.",
+    parameters: { type: "object", additionalProperties: false, properties: {}, required: [] },
+  },
+  {
+    name: "grant_skill",
+    description: "CEO only: grant a teammate one of the company's skills so its instructions join their next run. Match the skill to the job.",
+    parameters: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        agent_name: { type: "string", description: "The teammate receiving the skill." },
+        skill: { type: "string", description: "Skill slug from list_skills, e.g. 'release-gate'." },
+      },
+      required: ["agent_name", "skill"],
+    },
+  },
+  {
+    name: "revoke_skill",
+    description: "CEO only: withdraw a teammate's skill.",
+    parameters: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        agent_name: { type: "string", description: "The teammate losing the skill." },
+        skill: { type: "string", description: "Skill slug, e.g. 'release-gate'." },
+      },
+      required: ["agent_name", "skill"],
+    },
+  },
 ];
 
 export function dispatchAgentTool(
@@ -202,6 +234,12 @@ export function dispatchAgentTool(
         return grantConnectorTool(deps, ctx, call.arguments, "grant");
       case "revoke_connector":
         return grantConnectorTool(deps, ctx, call.arguments, "revoke");
+      case "list_skills":
+        return listSkillsTool(deps, ctx);
+      case "grant_skill":
+        return grantSkillTool(deps, ctx, call.arguments, "grant");
+      case "revoke_skill":
+        return grantSkillTool(deps, ctx, call.arguments, "revoke");
       default:
         return `ERROR: unknown tool "${call.name}".`;
     }

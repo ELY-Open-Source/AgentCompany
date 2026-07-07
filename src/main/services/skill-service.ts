@@ -122,25 +122,79 @@ export class SkillService {
     return id;
   }
 
-  resolveRuntimeSnapshot(input: ResolveAgentSkillsInput): string {
-    const agent = this.db.prepare("select id from agents where id = ? and org_id = ?")
-      .get(input.agentId, input.orgId) as { id: string } | undefined;
+  unbind(input: { orgId: string; agentId: string; skillId: string }): void {
+    const existing = this.db.prepare("select id from skill_bindings where org_id = ? and agent_id = ? and skill_id = ?")
+      .get(input.orgId, input.agentId, input.skillId) as { id: string } | undefined;
+    if (!existing) return;
+    this.db.prepare("delete from skill_bindings where id = ?").run(existing.id);
+    this.audit.record({
+      orgId: input.orgId,
+      entityType: "skill_binding",
+      entityId: existing.id,
+      actorType: "system",
+      actorId: null,
+      action: "unbound",
+      payload: { agentId: input.agentId, skillId: input.skillId },
+    });
+  }
+
+  /**
+   * True when a run for this agent would compile at least one skill: the CEO
+   * carries every active skill by role; other agents need enabled bindings.
+   */
+  hasRuntimeSkills(orgId: string, agentId: string): boolean {
+    if (this.isCSuite(orgId, agentId)) {
+      return Boolean(this.db.prepare(`
+        select sd.id from skill_definitions sd
+        join skill_revisions sr on sr.skill_id = sd.id
+        where sd.org_id = ? and sd.status = 'active'
+        limit 1
+      `).get(orgId));
+    }
+    return Boolean(this.db.prepare(
+      "select id from skill_bindings where org_id = ? and agent_id = ? and enabled = 1 limit 1",
+    ).get(orgId, agentId));
+  }
+
+  private isCSuite(orgId: string, agentId: string): boolean {
+    const agent = this.db.prepare("select role_level from agents where id = ? and org_id = ?")
+      .get(agentId, orgId) as { role_level: string } | undefined;
     if (!agent) throw new Error("Agent was not found.");
+    return agent.role_level === "c_suite";
+  }
+
+  resolveRuntimeSnapshot(input: ResolveAgentSkillsInput): string {
+    const cSuite = this.isCSuite(input.orgId, input.agentId);
     const existingSnapshot = this.db.prepare("select id from skill_runtime_snapshots where agent_id = ? and run_id = ?")
       .get(input.agentId, input.runId) as { id: string } | undefined;
     if (existingSnapshot) throw new Error("Skill runtime snapshot already exists for this run.");
-    const rows = this.db.prepare(`
-      select
-        sr.id as revision_id,
-        sr.version_semver,
-        sr.manifest_json,
-        sa.object_key
-      from skill_bindings sb
-      join skill_revisions sr on sr.id = sb.pinned_revision_id
-      join skill_artifacts sa on sa.revision_id = sr.id and sa.artifact_type in ('entrypoint', 'markdown')
-      where sb.org_id = ? and sb.agent_id = ? and sb.enabled = 1
-      order by sb.priority asc, sr.published_at asc
-    `).all(input.orgId, input.agentId) as unknown as RuntimeSkillRow[];
+    const rows = (cSuite
+      ? this.db.prepare(`
+          select
+            sr.id as revision_id,
+            sr.version_semver,
+            sr.manifest_json,
+            sa.object_key
+          from skill_definitions sd
+          join skill_revisions sr on sr.id = (
+            select id from skill_revisions where skill_id = sd.id order by published_at desc, id desc limit 1
+          )
+          join skill_artifacts sa on sa.revision_id = sr.id and sa.artifact_type in ('entrypoint', 'markdown')
+          where sd.org_id = ? and sd.status = 'active'
+          order by sr.published_at asc
+        `).all(input.orgId)
+      : this.db.prepare(`
+          select
+            sr.id as revision_id,
+            sr.version_semver,
+            sr.manifest_json,
+            sa.object_key
+          from skill_bindings sb
+          join skill_revisions sr on sr.id = sb.pinned_revision_id
+          join skill_artifacts sa on sa.revision_id = sr.id and sa.artifact_type in ('entrypoint', 'markdown')
+          where sb.org_id = ? and sb.agent_id = ? and sb.enabled = 1
+          order by sb.priority asc, sr.published_at asc
+        `).all(input.orgId, input.agentId)) as unknown as RuntimeSkillRow[];
     if (rows.length === 0) throw new Error("Agent has no enabled skills.");
 
     const compiledParts: string[] = [];

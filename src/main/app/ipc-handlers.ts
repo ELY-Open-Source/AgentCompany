@@ -28,7 +28,6 @@ import { AutomationService } from "../services/automation-service";
 import { MeetingService } from "../services/meeting-service";
 import { SprintService } from "../services/sprint-service";
 import { ComposioConnectionService } from "../services/composio/composio-connection-service";
-import { ConnectorGrantsService } from "../services/composio/connector-grants";
 import { syncSkillsFromDisk } from "../services/skill-discovery";
 import { coalesce } from "./coalesce";
 import { normalizeExternalBrowserUrl } from "./external-url";
@@ -257,7 +256,6 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     syncSkillsFromDisk(deps.connection.db, skills, input.orgId);
     return null;
   }));
-  ipcMain.handle(IPC_CHANNELS.bindSkill, (_event, input) => mutate(() => skills.bind(input)));
   ipcMain.handle(IPC_CHANNELS.resolveAgentSkills, (_event, input) => mutate(() => skills.resolveRuntimeSnapshot(input)));
   ipcMain.handle(IPC_CHANNELS.runSkillTests, (_event, input) => mutate(() => skills.runTests(input)));
   ipcMain.handle(IPC_CHANNELS.createSocialAccount, (_event, input) => mutate(() => social.createAccount(input)));
@@ -327,7 +325,6 @@ export function registerIpcHandlers(deps: IpcDeps): void {
   });
 
   const composioConnections = new ComposioConnectionService(deps.connection.db);
-  const connectorGrants = new ConnectorGrantsService(deps.connection.db);
 
   ipcMain.handle(IPC_CHANNELS.listConnectorCatalog, async () => {
     try {
@@ -354,19 +351,6 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       return fail("composio_refresh_failed", error instanceof Error ? error.message : String(error));
     }
   });
-  ipcMain.handle(IPC_CHANNELS.grantConnector, (_event, input) => mutate(() => connectorGrants.grant({
-    orgId: input.orgId,
-    agentId: input.agentId,
-    toolkitSlug: input.toolkitSlug,
-    grantedByType: "employee",
-    grantedById: input.employeeId,
-  })));
-  ipcMain.handle(IPC_CHANNELS.revokeConnector, (_event, input) => mutate(() => connectorGrants.revoke({
-    orgId: input.orgId,
-    agentId: input.agentId,
-    toolkitSlug: input.toolkitSlug,
-  })));
-
   ipcMain.handle(IPC_CHANNELS.windowMinimize, () => deps.mainWindow.minimize());
   ipcMain.handle(IPC_CHANNELS.windowMaximize, () => deps.mainWindow.isMaximized() ? deps.mainWindow.unmaximize() : deps.mainWindow.maximize());
   ipcMain.handle(IPC_CHANNELS.windowClose, () => deps.mainWindow.close());

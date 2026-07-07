@@ -18,9 +18,9 @@ export interface ConnectorGrantRow {
 
 /**
  * Which agents may use which connected toolkits. Connections belong to the
- * company (one connected account per toolkit per org); the CEO hands
- * individual toolkits to individual agents, and both the tool loadout and
- * the execution guard read from these grants.
+ * company (one connected account per toolkit per org); the CEO carries every
+ * active connection by role and hands individual toolkits to individual
+ * agents. Both the tool loadout and the execution guard read from here.
  */
 export class ConnectorGrantsService {
   constructor(private readonly db: DatabaseSync) {}
@@ -46,8 +46,17 @@ export class ConnectorGrantsService {
       .run(input.orgId, input.agentId, normalizeSlug(input.toolkitSlug));
   }
 
-  /** Toolkits this agent may use: granted AND actively connected. */
+  /**
+   * Toolkits this agent may use. The CEO carries every actively connected
+   * toolkit by role; every other agent needs a grant AND an active
+   * connection.
+   */
   toolkitsForAgent(orgId: string, agentId: string): string[] {
+    const acting = this.db.prepare("select role_level from agents where id = ? and org_id = ?")
+      .get(agentId, orgId) as { role_level: string } | undefined;
+    if (acting?.role_level === "c_suite") {
+      return this.activeAccounts(orgId).map((account) => account.toolkitSlug);
+    }
     const rows = this.db.prepare(`
       select g.toolkit_slug as slug
       from agent_connector_grants g

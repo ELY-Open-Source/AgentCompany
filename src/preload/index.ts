@@ -57,7 +57,6 @@ const api: DesktopApi = {
   cancelProviderResponse: (input) => invoke(IPC_CHANNELS.cancelProviderResponse, input),
   importSkillDirectory: (input) => invoke(IPC_CHANNELS.importSkillDirectory, input),
   syncSkillsFromDisk: (input) => invoke(IPC_CHANNELS.syncSkillsFromDisk, input),
-  bindSkill: (input) => invoke(IPC_CHANNELS.bindSkill, input),
   resolveAgentSkills: (input) => invoke(IPC_CHANNELS.resolveAgentSkills, input),
   runSkillTests: (input) => invoke(IPC_CHANNELS.runSkillTests, input),
   createSocialAccount: (input) => invoke(IPC_CHANNELS.createSocialAccount, input),
@@ -86,8 +85,6 @@ const api: DesktopApi = {
   listConnectorCatalog: () => invoke(IPC_CHANNELS.listConnectorCatalog),
   connectComposioToolkit: (input) => invoke(IPC_CHANNELS.connectComposioToolkit, input),
   refreshComposioAccounts: (input) => invoke(IPC_CHANNELS.refreshComposioAccounts, input),
-  grantConnector: (input) => invoke(IPC_CHANNELS.grantConnector, input),
-  revokeConnector: (input) => invoke(IPC_CHANNELS.revokeConnector, input),
   search: (input) => invoke(IPC_CHANNELS.search, input),
   subscribe: (callback) => {
     const listener = (_event: Electron.IpcRendererEvent, payload: RendererEvent) => callback(payload);
