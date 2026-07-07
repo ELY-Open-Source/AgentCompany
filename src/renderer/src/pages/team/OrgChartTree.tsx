@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Avatar } from "../../shared/ui";
 import type { AgentRecord, EmployeeRecord } from "../../../../shared/domain";
+import { t } from "../../i18n/i18n";
 
 const NODE_W = 208;
 const NODE_H = 64;
@@ -104,9 +105,9 @@ export function OrgChartTree({
   return (
     <div className="org-chart">
       <div className="org-zoom">
-        <button type="button" className="org-zoom-btn" aria-label="Zoom out" disabled={scale <= ZOOM_MIN} onClick={() => zoomTo(scale - ZOOM_STEP)}>−</button>
-        <button type="button" className="org-zoom-label" aria-label="Reset zoom" onClick={() => zoomTo(1)}>{Math.round(scale * 100)}%</button>
-        <button type="button" className="org-zoom-btn" aria-label="Zoom in" disabled={scale >= ZOOM_MAX} onClick={() => zoomTo(scale + ZOOM_STEP)}>+</button>
+        <button type="button" className="org-zoom-btn" aria-label={t("Zoom out")} disabled={scale <= ZOOM_MIN} onClick={() => zoomTo(scale - ZOOM_STEP)}>−</button>
+        <button type="button" className="org-zoom-label" aria-label={t("Reset zoom")} onClick={() => zoomTo(1)}>{Math.round(scale * 100)}%</button>
+        <button type="button" className="org-zoom-btn" aria-label={t("Zoom in")} disabled={scale >= ZOOM_MAX} onClick={() => zoomTo(scale + ZOOM_STEP)}>+</button>
       </div>
       <div className="org-scroll" ref={scrollRef}>
         <div className="org-sizer" style={{ width: width * scale, height: height * scale }}>
@@ -171,7 +172,7 @@ function buildLayout(
     ? { id: boardChair.id, name: boardChair.displayName, role: boardChair.role, human: true, agentId: null, children: roots, x: 0, y: 0, width: 0 }
     : roots.length === 1
       ? roots[0]
-      : { id: "__org__", name: "Organization", role: "Reporting lines", human: false, agentId: null, children: roots, x: 0, y: 0, width: 0 };
+      : { id: "__org__", name: t("Organization"), role: t("Reporting lines"), human: false, agentId: null, children: roots, x: 0, y: 0, width: 0 };
 
   measure(root);
   let maxDepth = 0;

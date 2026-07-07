@@ -7,6 +7,7 @@ import { HiringPipeline } from "./team/HiringPipeline";
 import type { AgentRecord, EmployeeRecord, ProviderRecord } from "../../../shared/domain";
 import type { PageProps } from "./types";
 import { activeOrgId, money } from "./types";
+import { t } from "../i18n/i18n";
 
 function text(form: FormData, key: string): string {
   return String(form.get(key) ?? "").trim();
@@ -96,32 +97,32 @@ export function TeamPage({ snapshot, actions }: PageProps) {
   return (
     <div className="page">
       <TopbarActions>
-        <Button tone="ghost" onClick={() => cycleFilter(filter, setFilter)} title="Filter">
+        <Button tone="ghost" onClick={() => cycleFilter(filter, setFilter)} title={t("Filter")}>
           <Icon name="filter" size={16} /> {filterLabel(filter)}
         </Button>
-        <Button tone="primary" onClick={openHireDialog}><Icon name="plus" size={16} /> Hire</Button>
+        <Button tone="primary" onClick={openHireDialog}><Icon name="plus" size={16} /> {t("Hire")}</Button>
       </TopbarActions>
-      <h1 className="page-h1">Team</h1>
+      <h1 className="page-h1">{t("Team")}</h1>
       <p className="page-sub">
-        {employees.length + agents.length} {employees.length + agents.length === 1 ? "member" : "members"} ·
-        {" "}{employees.length} {employees.length === 1 ? "human" : "humans"} ·
-        {" "}{agents.length} {agents.length === 1 ? "agent" : "agents"}
+        {employees.length + agents.length === 1 ? t("{n} member", { n: employees.length + agents.length }) : t("{n} members", { n: employees.length + agents.length })} ·{" "}
+        {employees.length === 1 ? t("{n} human", { n: employees.length }) : t("{n} humans", { n: employees.length })} ·{" "}
+        {agents.length === 1 ? t("{n} agent", { n: agents.length }) : t("{n} agents", { n: agents.length })}
       </p>
 
       <section className="card" style={{ padding: 32, marginBottom: 28 }}>
-        <div className="section-label">Org</div>
+        <div className="section-label">{t("Org")}</div>
         <OrgChartTree boardChair={employees[0] ?? null} agents={agents} onSelectAgent={setEditAgentId} />
       </section>
 
       <HiringPipeline agents={agents} approvals={snapshot.approvals.filter((a) => a.orgId === orgId)} />
 
-      <div className="section-label" style={{ marginBottom: 10 }}>Roster</div>
+      <div className="section-label" style={{ marginBottom: 10 }}>{t("Roster")}</div>
       <div className="card" style={{ padding: 0, overflow: "hidden" }}>
         <div
           className="table-row head"
           style={{ gridTemplateColumns: "minmax(0, 2fr) minmax(0, 1.2fr) minmax(0, 1.4fr) minmax(0, 1.4fr) 60px" }}
         >
-          <div>Member</div><div>Department</div><div>Model</div><div>Budget</div><div />
+          <div>{t("Member")}</div><div>{t("Department")}</div><div>{t("Model")}</div><div>{t("Budget")}</div><div />
         </div>
         {rosterRows.map((row, index) => (
           <RosterRow
@@ -133,58 +134,58 @@ export function TeamPage({ snapshot, actions }: PageProps) {
         ))}
       </div>
 
-      <Dialog title="Hire agent" open={hireOpen} submitLabel="Hire" onClose={() => setHireOpen(false)} onSubmit={submit}>
-        <Field label="Name"><input className="input" name="name" required /></Field>
-        <Field label="Role"><input className="input" name="role" required /></Field>
-        <Field label="Title"><input className="input" name="title" /></Field>
-        <Field label="Department"><input className="input" name="department" required /></Field>
-        <Field label="Provider">
+      <Dialog title={t("Hire agent")} open={hireOpen} submitLabel={t("Hire")} onClose={() => setHireOpen(false)} onSubmit={submit}>
+        <Field label={t("Name")}><input className="input" name="name" required /></Field>
+        <Field label={t("Role")}><input className="input" name="role" required /></Field>
+        <Field label={t("Title")}><input className="input" name="title" /></Field>
+        <Field label={t("Department")}><input className="input" name="department" required /></Field>
+        <Field label={t("Provider")}>
           <select className="input" name="modelProviderId" value={hireProviderId} onChange={(event) => updateHireProvider(event.currentTarget.value)}>
-            <option value="">Unassigned</option>
+            <option value="">{t("Unassigned")}</option>
             {providers.map((provider) => <option key={provider.id} value={provider.id}>{provider.label}</option>)}
           </select>
         </Field>
-        <Field label="Model">
+        <Field label={t("Model")}>
           <input className="input" name="modelId" list="agent-model-suggestions" value={hireModelId} onChange={(event) => setHireModelId(event.currentTarget.value)} />
         </Field>
-        <Field label="Manager">
+        <Field label={t("Manager")}>
           <select className="input" name="managerAgentId" defaultValue="">
-            <option value="">None</option>
+            <option value="">{t("None")}</option>
             {agents.map((agent) => <option key={agent.id} value={agent.id}>{agent.name} · {agent.role}</option>)}
           </select>
         </Field>
-        <Field label="Monthly budget"><input className="input" name="budget" type="number" min="0" step="1" defaultValue="250" /></Field>
-        <Field label="Seniority">
+        <Field label={t("Monthly budget")}><input className="input" name="budget" type="number" min="0" step="1" defaultValue="250" /></Field>
+        <Field label={t("Seniority")}>
           <select className="input" name="roleLevel" defaultValue="staff">
-            <option value="staff">Staff</option>
-            <option value="lead">Lead</option>
-            <option value="director">Director</option>
-            <option value="c_suite">Executive</option>
+            <option value="staff">{t("Staff")}</option>
+            <option value="lead">{t("Lead")}</option>
+            <option value="director">{t("Director")}</option>
+            <option value="c_suite">{t("Executive")}</option>
           </select>
         </Field>
       </Dialog>
 
       {editingAgent && (
-        <Dialog key={editingAgent.id} title={`Edit ${editingAgent.name}`} open submitLabel="Save" onClose={() => setEditAgentId(null)} onSubmit={submitEdit}>
-          <Field label="Role"><input className="input" name="role" defaultValue={editingAgent.role} required /></Field>
-          <Field label="Title"><input className="input" name="title" defaultValue={editingAgent.title} /></Field>
-          <Field label="Department"><input className="input" name="department" defaultValue={editingAgent.department} required /></Field>
-          <Field label="Monthly budget"><input className="input" name="budget" type="number" min="0" step="1" defaultValue={editingAgent.budgetCents / 100} /></Field>
-          <Field label="Provider">
+        <Dialog key={editingAgent.id} title={t("Edit {name}", { name: editingAgent.name })} open submitLabel={t("Save")} onClose={() => setEditAgentId(null)} onSubmit={submitEdit}>
+          <Field label={t("Role")}><input className="input" name="role" defaultValue={editingAgent.role} required /></Field>
+          <Field label={t("Title")}><input className="input" name="title" defaultValue={editingAgent.title} /></Field>
+          <Field label={t("Department")}><input className="input" name="department" defaultValue={editingAgent.department} required /></Field>
+          <Field label={t("Monthly budget")}><input className="input" name="budget" type="number" min="0" step="1" defaultValue={editingAgent.budgetCents / 100} /></Field>
+          <Field label={t("Provider")}>
             <select className="input" name="modelProviderId" defaultValue={editingAgent.modelProviderId ?? ""}>
-              <option value="">Unassigned</option>
+              <option value="">{t("Unassigned")}</option>
               {providers.map((provider) => <option key={provider.id} value={provider.id}>{provider.label}</option>)}
             </select>
           </Field>
-          <Field label="Model">
+          <Field label={t("Model")}>
             <input className="input" name="modelId" defaultValue={editingAgent.modelId ?? ""} list="agent-model-suggestions" />
           </Field>
-          <Field label="Seniority">
+          <Field label={t("Seniority")}>
             <select className="input" name="roleLevel" defaultValue={editingAgent.roleLevel}>
-              <option value="staff">Staff</option>
-              <option value="lead">Lead</option>
-              <option value="director">Director</option>
-              <option value="c_suite">Executive</option>
+              <option value="staff">{t("Staff")}</option>
+              <option value="lead">{t("Lead")}</option>
+              <option value="director">{t("Director")}</option>
+              <option value="c_suite">{t("Executive")}</option>
             </select>
           </Field>
         </Dialog>
@@ -227,7 +228,7 @@ function buildRoster(
         id: employee.id,
         name: employee.displayName,
         role: employee.role,
-        dept: "Executive",
+        dept: t("Executive"),
         model: "—",
         providerLabel: "—",
         budgetCents: null,
@@ -301,7 +302,7 @@ function RosterRow({ row, last, onEdit }: { row: RosterEntry; last: boolean; onE
         )}
       </div>
       <div style={{ textAlign: "right" }}>
-        {onEdit && <IconButton icon="edit" label={`Edit ${row.name}`} onClick={onEdit} />}
+        {onEdit && <IconButton icon="edit" label={t("Edit {name}", { name: row.name })} onClick={onEdit} />}
       </div>
     </div>
   );
@@ -314,7 +315,7 @@ function cycleFilter(current: "all" | "human" | "agent", set: (value: "all" | "h
 }
 
 function filterLabel(filter: "all" | "human" | "agent"): string {
-  if (filter === "human") return "Humans only";
-  if (filter === "agent") return "Agents only";
-  return "All";
+  if (filter === "human") return t("Humans only");
+  if (filter === "agent") return t("Agents only");
+  return t("All");
 }

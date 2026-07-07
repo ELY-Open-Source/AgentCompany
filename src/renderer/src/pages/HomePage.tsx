@@ -15,6 +15,7 @@ import { NewTaskDialog } from "./NewTaskDialog";
 import { AgentWorkloadChart, CostTrendChart, RunActivityChart, SuccessRateChart } from "./home/DashboardCharts";
 import type { PageProps } from "./types";
 import { activeOrgId, formatRelative, formatTime, money, requireActiveEmployee, requireActiveOrganization } from "./types";
+import { t } from "../i18n/i18n";
 
 const STRIP: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 16, marginBottom: 16 };
 const METRICS: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 16, marginBottom: 16 };
@@ -49,7 +50,7 @@ export function HomePage({ snapshot, actions, navigate }: PageProps) {
   return (
     <div className="page-wide" style={{ maxWidth: 1240 }}>
       <TopbarActions>
-        <Button tone="primary" onClick={() => setNewTaskOpen(true)}><Icon name="plus" size={16} /> New task</Button>
+        <Button tone="primary" onClick={() => setNewTaskOpen(true)}><Icon name="plus" size={16} /> {t("New task")}</Button>
       </TopbarActions>
       <h1 className="page-h1">{greeting}, {firstName}</h1>
       <p className="page-sub">{renderSummary(pendingApprovals.length, agents.length)}</p>
@@ -95,13 +96,13 @@ function GoalCard({
   const percent = progress?.percent ?? 0;
   return (
     <section className="card">
-      <div className="card-label" style={{ marginBottom: 12 }}>Quarter goal</div>
+      <div className="card-label" style={{ marginBottom: 12 }}>{t("Quarter goal")}</div>
       <div style={{ fontSize: 16, fontWeight: 540, lineHeight: 1.4, letterSpacing: "-0.01em", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", minHeight: 44 }}>
-        {goal ? goal.title : `Set the first goal for ${organizationName}.`}
+        {goal ? goal.title : t("Set the first goal for {organizationName}.", { organizationName })}
       </div>
       <div className="row" style={{ alignItems: "baseline", gap: 8, marginTop: 16 }}>
         <span className="num" style={{ fontSize: 18, fontWeight: 600 }}>{progress ? `${percent}%` : "—"}</span>
-        <span style={{ fontSize: 12, color: "var(--text-3)" }}>{progress ? statusLabel(progress.status) : "no work yet"}</span>
+        <span style={{ fontSize: 12, color: "var(--text-3)" }}>{progress ? statusLabel(progress.status) : t("no work yet")}</span>
       </div>
       <div style={{ marginTop: 12, height: 4, background: "var(--panel-3)", borderRadius: 999, overflow: "hidden" }}>
         <div style={{ width: `${percent}%`, height: "100%", background: "var(--text-1)", transition: "width var(--motion-slow) var(--ease-out)" }} />
@@ -125,10 +126,10 @@ function SpendCard({
   const fillPct = capCents > 0 ? Math.min(100, Math.round((totalBudgetCents / capCents) * 100)) : 0;
   return (
     <section className="card">
-      <div className="card-label" style={{ marginBottom: 12 }}>Monthly budget</div>
+      <div className="card-label" style={{ marginBottom: 12 }}>{t("Monthly budget")}</div>
       <div className="row" style={{ alignItems: "baseline", gap: 6 }}>
         <span className="num" style={{ fontSize: 18, fontWeight: 600 }}>{money(totalBudgetCents)}</span>
-        <span style={{ fontSize: 12, color: "var(--text-3)" }}>{capCents > 0 ? `/ ${money(capCents)}` : "allocated"}</span>
+        <span style={{ fontSize: 12, color: "var(--text-3)" }}>{capCents > 0 ? `/ ${money(capCents)}` : t("allocated")}</span>
       </div>
       <div style={{ marginTop: 12, height: 4, background: "var(--panel-3)", borderRadius: 999, overflow: "hidden" }}>
         <div style={{ width: `${fillPct}%`, height: "100%", background: "var(--text-1)" }} />
@@ -143,7 +144,7 @@ function SpendCard({
             </div>
           );
         })}
-        {connected.length === 0 && <span style={{ fontSize: 14, color: "var(--text-3)" }}>No providers connected</span>}
+        {connected.length === 0 && <span style={{ fontSize: 14, color: "var(--text-3)" }}>{t("No providers connected")}</span>}
       </div>
     </section>
   );
@@ -165,12 +166,12 @@ function WaitingCard({
   return (
     <section className="card">
       <div className="row" style={{ marginBottom: 12 }}>
-        <span className="card-label">Waiting on you</span>
+        <span className="card-label">{t("Waiting on you")}</span>
         {approvals.length > 0 && <span style={{ marginLeft: "auto" }}><Pill tone="amber">{approvals.length}</Pill></span>}
       </div>
       {approvals.length === 0 ? (
         <div className="row" style={{ gap: 8, color: "var(--text-3)", fontSize: 14 }}>
-          <Icon name="check" size={16} /><span>You're all caught up</span>
+          <Icon name="check" size={16} /><span>{t("You're all caught up")}</span>
         </div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -178,11 +179,11 @@ function WaitingCard({
             <div key={approval.id}>
               <div style={{ fontSize: 14, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{approval.title}</div>
               <div style={{ fontSize: 12, color: "var(--text-3)", margin: "2px 0 8px" }}>
-                {humanizeLabel(approval.kind)} · {humanizeLabel(approval.risk)} risk · from {resolveRequester(approval, employees, agents)}
+                {t("{kind} · {risk} risk · from {requester}", { kind: humanizeLabel(approval.kind), risk: humanizeLabel(approval.risk), requester: resolveRequester(approval, employees, agents) })}
               </div>
               <div className="row" style={{ gap: 8 }}>
-                <Button tone="primary" size="small" onClick={() => onApprove(approval.id)}>Approve</Button>
-                <Button size="small" onClick={onOpen}>Open</Button>
+                <Button tone="primary" size="small" onClick={() => onApprove(approval.id)}>{t("Approve")}</Button>
+                <Button size="small" onClick={onOpen}>{t("Open")}</Button>
               </div>
             </div>
           ))}
@@ -207,8 +208,8 @@ function RunActivityCard({
   return (
     <section className="card">
       <div className="row" style={{ marginBottom: 12 }}>
-        <span className="card-label">Agent runs</span>
-        <button type="button" className="link-button" style={{ marginLeft: "auto", fontSize: 12 }} onClick={onViewAll}>All runs →</button>
+        <span className="card-label">{t("Agent runs")}</span>
+        <button type="button" className="link-button" style={{ marginLeft: "auto", fontSize: 12 }} onClick={onViewAll}>{t("All runs")} →</button>
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         {recent.map((run) => {
@@ -219,14 +220,14 @@ function RunActivityCard({
               {agent && <Avatar name={agent.name} size="sm" bot />}
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{task?.title ?? run.taskId}</div>
-                <div style={{ fontSize: 12, color: "var(--text-3)" }}>{agent?.name ?? "Agent"} · {run.trigger}</div>
+                <div style={{ fontSize: 12, color: "var(--text-3)" }}>{agent?.name ?? t("Agent")} · {run.trigger}</div>
               </div>
               <Pill tone={runStateTone(run.state)}>{runStateLabel(run.state)}</Pill>
               <span className="mono" style={{ fontSize: 12, color: "var(--text-3)", flexShrink: 0 }}>{formatRelative(run.createdAt)}</span>
             </div>
           );
         })}
-        {recent.length === 0 && <div style={{ fontSize: 14, color: "var(--text-3)" }}>No runs yet</div>}
+        {recent.length === 0 && <div style={{ fontSize: 14, color: "var(--text-3)" }}>{t("No runs yet")}</div>}
       </div>
     </section>
   );
@@ -249,8 +250,8 @@ function RecentMessagesCard({
   return (
     <section className="card">
       <div className="row" style={{ marginBottom: 12 }}>
-        <span className="card-label">Recent messages</span>
-        <button type="button" className="link-button" style={{ marginLeft: "auto", fontSize: 12 }} onClick={onViewAll}>Open chat →</button>
+        <span className="card-label">{t("Recent messages")}</span>
+        <button type="button" className="link-button" style={{ marginLeft: "auto", fontSize: 12 }} onClick={onViewAll}>{t("Open chat")} →</button>
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         {recent.map((msg) => {
@@ -273,7 +274,7 @@ function RecentMessagesCard({
             </div>
           );
         })}
-        {recent.length === 0 && <div style={{ fontSize: 14, color: "var(--text-3)" }}>No messages yet</div>}
+        {recent.length === 0 && <div style={{ fontSize: 14, color: "var(--text-3)" }}>{t("No messages yet")}</div>}
       </div>
     </section>
   );
@@ -291,20 +292,24 @@ function computeGoalProgress(goal: GoalRecord | null, tasks: TaskRecord[]): { pe
 }
 
 function statusLabel(status: "ahead" | "on_track" | "behind"): string {
-  if (status === "ahead") return "ahead";
-  if (status === "behind") return "behind";
-  return "on track";
+  if (status === "ahead") return t("ahead");
+  if (status === "behind") return t("behind");
+  return t("on track");
 }
 
 function greetingFor(hour: number): string {
-  if (hour < 12) return "Good morning";
-  if (hour < 17) return "Good afternoon";
-  return "Good evening";
+  if (hour < 12) return t("Good morning");
+  if (hour < 17) return t("Good afternoon");
+  return t("Good evening");
 }
 
 function renderSummary(pending: number, agents: number): string {
-  const things = `${pending} ${pending === 1 ? "thing" : "things"} waiting on you`;
-  const onDeck = `${agents} ${agents === 1 ? "agent" : "agents"} on deck`;
+  const things = pending === 1
+    ? t("{n} thing waiting on you", { n: pending })
+    : t("{n} things waiting on you", { n: pending });
+  const onDeck = agents === 1
+    ? t("{n} agent on deck", { n: agents })
+    : t("{n} agents on deck", { n: agents });
   return `${things} · ${onDeck}`;
 }
 
@@ -323,7 +328,7 @@ function resolveRequester(approval: ApprovalRecord, employees: EmployeeRecord[],
     const agent = agents.find((item) => item.id === approval.requestedById);
     if (agent) return agent.name;
   }
-  return "System";
+  return t("System");
 }
 
 function runStateTone(state: string): "red" | "amber" | "violet" | "green" | undefined {
@@ -335,9 +340,9 @@ function runStateTone(state: string): "red" | "amber" | "violet" | "green" | und
 }
 
 function runStateLabel(state: string): string {
-  if (state === "queued") return "Queued";
-  if (state === "running") return "Running";
-  if (state === "completed") return "Done";
-  if (state === "failed") return "Failed";
+  if (state === "queued") return t("Queued");
+  if (state === "running") return t("Running");
+  if (state === "completed") return t("Done");
+  if (state === "failed") return t("Failed");
   return state;
 }

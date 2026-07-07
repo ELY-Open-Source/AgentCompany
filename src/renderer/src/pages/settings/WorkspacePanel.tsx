@@ -9,6 +9,7 @@ import type {
 } from "../../../../shared/domain";
 import { Button, Field, Icon, Pill } from "../../shared/ui";
 import { Dialog } from "../../shared/Dialog";
+import { t } from "../../i18n/i18n";
 import type { SnapshotActions } from "../../app/useSnapshot";
 
 function text(form: FormData, key: string): string {
@@ -57,41 +58,41 @@ export function WorkspacePanel({
 
   return (
     <div className="page">
-      <h1 className="page-h1">General</h1>
+      <h1 className="page-h1">{t("General")}</h1>
 
       <div className="row" style={{ gap: 8, margin: "16px 0 24px" }}>
-        <Pill tone="violet" dot>{organization.executionMode === "ai_ceo" ? "AI CEO" : "AI Co-Founder"}</Pill>
-        {organization.autoApproveHires ? <Pill tone="green" dot>Auto-approve hires</Pill> : <Pill>Hires require approval</Pill>}
-        {organization.reviewDeliverables ? <Pill tone="amber" dot>Reviews deliverables</Pill> : <Pill>Ships without review</Pill>}
+        <Pill tone="violet" dot>{organization.executionMode === "ai_ceo" ? t("AI CEO") : t("AI Co-Founder")}</Pill>
+        {organization.autoApproveHires ? <Pill tone="green" dot>{t("Auto-approve hires")}</Pill> : <Pill>{t("Hires require approval")}</Pill>}
+        {organization.reviewDeliverables ? <Pill tone="amber" dot>{t("Reviews deliverables")}</Pill> : <Pill>{t("Ships without review")}</Pill>}
       </div>
 
       <div style={{ marginBottom: 28 }}>
-        <KeyValue label="Name" value={organization.name} />
-        <KeyValue label="Mission" value={organization.mission || "—"} />
-        <KeyValue label="Goal" value={organization.goal || "—"} />
-        <KeyValue label="Description" value={organization.description || "—"} />
+        <KeyValue label={t("Name")} value={organization.name} />
+        <KeyValue label={t("Mission")} value={organization.mission || "—"} />
+        <KeyValue label={t("Goal")} value={organization.goal || "—"} />
+        <KeyValue label={t("Description")} value={organization.description || "—"} />
       </div>
 
-      <div className="section-label" style={{ marginBottom: 8 }}>Appearance</div>
+      <div className="section-label" style={{ marginBottom: 8 }}>{t("Appearance")}</div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 240px))", gap: 12, marginBottom: 28 }}>
-        <Field label="Theme">
+        <Field label={t("Theme")}>
           <select
             className="input"
-            aria-label="Theme"
+            aria-label={t("Theme")}
             value={uiPreferences.theme}
             onChange={(event) =>
               void actions.run(() => window.agentCompany.setUiPreferences({ theme: event.target.value as UiTheme }))
             }
           >
-            <option value="system">System</option>
-            <option value="light">Light</option>
-            <option value="dark">Dark</option>
+            <option value="system">{t("System")}</option>
+            <option value="light">{t("Light")}</option>
+            <option value="dark">{t("Dark")}</option>
           </select>
         </Field>
-        <Field label="Language">
+        <Field label={t("Language")}>
           <select
             className="input"
-            aria-label="Language"
+            aria-label={t("Language")}
             value={uiPreferences.language}
             onChange={(event) =>
               void actions.run(() => window.agentCompany.setUiPreferences({ language: event.target.value as UiLanguage }))
@@ -104,9 +105,9 @@ export function WorkspacePanel({
       </div>
 
       <div className="row reveal-row" style={{ marginBottom: 8 }}>
-        <div className="section-label">Workspaces</div>
+        <div className="section-label">{t("Workspaces")}</div>
         <span className="reveal" style={{ marginLeft: "auto" }}>
-          <Button tone="ghost" onClick={() => setCreateOpen(true)}><Icon name="plus" size={16} /> Add</Button>
+          <Button tone="ghost" onClick={() => setCreateOpen(true)}><Icon name="plus" size={16} /> {t("Add")}</Button>
         </span>
       </div>
       {workspaces.map((workspace) => (
@@ -116,27 +117,27 @@ export function WorkspacePanel({
             <div style={{ fontSize: 12, color: "var(--text-3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{workspace.localPath}</div>
           </div>
           <div style={{ marginLeft: "auto" }}>
-            {workspace.isPrimary && <Pill tone="violet">Primary</Pill>}
+            {workspace.isPrimary && <Pill tone="violet">{t("Primary")}</Pill>}
           </div>
         </div>
       ))}
 
-      <Dialog title="Add workspace" open={createOpen} submitLabel="Create" onClose={() => setCreateOpen(false)} onSubmit={submit}>
-        <Field label="Name"><input className="input" name="name" required /></Field>
-        <Field label="Local path">
+      <Dialog title={t("Add workspace")} open={createOpen} submitLabel={t("Create")} onClose={() => setCreateOpen(false)} onSubmit={submit}>
+        <Field label={t("Name")}><input className="input" name="name" required /></Field>
+        <Field label={t("Local path")}>
           <div className="row" style={{ gap: 6 }}>
             <input className="input" name="localPath" required style={{ flex: 1 }} />
             <Button tone="ghost" onClick={() => {
               const form = document.querySelector<HTMLFormElement>("form:has([name='localPath'])");
               if (form) void chooseDirectory(form);
             }}>
-              <Icon name="folder" size={16} /> Browse
+              <Icon name="folder" size={16} /> {t("Browse")}
             </Button>
           </div>
         </Field>
-        <Field label="Project">
+        <Field label={t("Project")}>
           <select className="input" name="projectId" defaultValue="">
-            <option value="">None</option>
+            <option value="">{t("None")}</option>
             {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
         </Field>

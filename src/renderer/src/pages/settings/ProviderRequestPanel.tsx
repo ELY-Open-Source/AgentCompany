@@ -3,6 +3,7 @@ import type { ProviderCatalogEntry, ProviderRecord, ProviderRequestRecord, Works
 import { PROVIDER_DATA_POLICY, PROVIDER_EXECUTION_MODE, PROVIDER_REQUEST_STATE, type ProviderExecutionMode } from "../../../../shared/domain";
 import type { SnapshotActions } from "../../app/useSnapshot";
 import { Button, Field, Icon, Pill, Segmented } from "../../shared/ui";
+import { t } from "../../i18n/i18n";
 
 interface ProviderRequestPanelProps {
   orgId: string;
@@ -14,8 +15,8 @@ interface ProviderRequestPanelProps {
 }
 
 const MODE_OPTIONS: ReadonlyArray<{ id: ProviderExecutionMode; label: string }> = [
-  { id: PROVIDER_EXECUTION_MODE.FOREGROUND, label: "Foreground" },
-  { id: PROVIDER_EXECUTION_MODE.BACKGROUND, label: "Background" },
+  { id: PROVIDER_EXECUTION_MODE.FOREGROUND, label: t("Foreground") },
+  { id: PROVIDER_EXECUTION_MODE.BACKGROUND, label: t("Background") },
 ];
 
 const ACTIVE_REQUEST_STATES = new Set<string>([
@@ -64,13 +65,13 @@ export function ProviderRequestPanel({
 
   return (
     <>
-      <div className="section-label" style={{ marginBottom: 10 }}>Requests</div>
+      <div className="section-label" style={{ marginBottom: 10 }}>{t("Requests")}</div>
       <form className="card" style={{ marginBottom: 10 }} onSubmit={submit}>
         <div style={{ display: "grid", gridTemplateColumns: "minmax(150px, 1fr) minmax(150px, 1fr) minmax(200px, 1fr) auto", gap: 10, alignItems: "end" }}>
-          <Field label="Provider">
+          <Field label={t("Provider")}>
             <select
               className="input"
-              aria-label="Request provider"
+              aria-label={t("Request provider")}
               value={selectedProvider?.id ?? ""}
               onChange={(event) => setProviderId(event.target.value)}
             >
@@ -79,22 +80,22 @@ export function ProviderRequestPanel({
               ))}
             </select>
           </Field>
-          <Field label="Workspace">
+          <Field label={t("Workspace")}>
             <select
               className="input"
-              aria-label="Request workspace"
+              aria-label={t("Request workspace")}
               value={effectiveWorkspaceId}
               disabled={workspaces.length === 0}
               onChange={(event) => setWorkspaceId(event.target.value)}
             >
-              {workspaces.length === 0 && <option value="">Organization</option>}
+              {workspaces.length === 0 && <option value="">{t("Organization")}</option>}
               {workspaces.map((workspace) => (
                 <option key={workspace.id} value={workspace.id}>{workspace.name}</option>
               ))}
             </select>
           </Field>
           <div className="field">
-            <span>Mode</span>
+            <span>{t("Mode")}</span>
             <div style={{ alignSelf: "flex-start" }}>
               <Segmented
                 value={selectedMode}
@@ -106,21 +107,21 @@ export function ProviderRequestPanel({
           <Button type="submit" tone="primary">
             <span className="row" style={{ gap: 6 }}>
               <Icon name="send" size={16} />
-              Run
+              {t("Run")}
             </span>
           </Button>
         </div>
-        <Field label="Prompt">
-          <textarea className="input" aria-label="Request prompt" name="prompt" required rows={3} style={{ resize: "vertical" }} />
+        <Field label={t("Prompt")}>
+          <textarea className="input" aria-label={t("Request prompt")} name="prompt" required rows={3} style={{ resize: "vertical" }} />
         </Field>
-        <Field label="Instructions">
-          <input className="input" aria-label="Request instructions" name="instructions" />
+        <Field label={t("Instructions")}>
+          <input className="input" aria-label={t("Request instructions")} name="instructions" />
         </Field>
       </form>
       {recentRequests.length > 0 && (
         <div className="card" style={{ padding: 0, overflowX: "auto", marginBottom: 28 }}>
           <div className="table-row head" style={{ gridTemplateColumns: "minmax(120px, 1fr) minmax(120px, 1fr) 92px 100px minmax(120px, 1fr) 86px", minWidth: 760 }}>
-            <div>Provider</div><div>Workspace</div><div>Mode</div><div>State</div><div>Output</div><div>Action</div>
+            <div>{t("Provider")}</div><div>{t("Workspace")}</div><div>{t("Mode")}</div><div>{t("State")}</div><div>{t("Output")}</div><div>{t("Action")}</div>
           </div>
           {recentRequests.map((request, index) => (
             <ProviderRequestRow
@@ -171,14 +172,14 @@ function ProviderRequestRow({
         <div style={{ fontWeight: 540, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{provider.label}</div>
         <div className="mono" style={{ fontSize: 12, color: "var(--text-3)" }}>{request.model}</div>
       </div>
-      <div className="mono" style={{ color: "var(--text-2)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{workspace?.name ?? "Organization"}</div>
+      <div className="mono" style={{ color: "var(--text-2)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{workspace?.name ?? t("Organization")}</div>
       <div className="mono" style={{ color: "var(--text-2)" }}>{request.executionMode}</div>
       <div><Pill tone={stateTone(request.state)}>{request.state}</Pill></div>
-      <div className="mono" style={{ color: "var(--text-2)" }}>{request.outputCharCount} chars</div>
+      <div className="mono" style={{ color: "var(--text-2)" }}>{t("{count} chars", { count: request.outputCharCount })}</div>
       <Button size="small" tone="ghost" onClick={cancel} disabled={!canCancel}>
         <span className="row" style={{ gap: 5 }}>
           <Icon name="x" size={12} />
-          Cancel
+          {t("Cancel")}
         </span>
       </Button>
     </div>

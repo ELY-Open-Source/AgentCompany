@@ -4,6 +4,7 @@ import type {
   FileAccessGrantRecord,
   FileObjectRecord,
 } from "../../../../shared/domain";
+import { t } from "../../i18n/i18n";
 
 export type ViewMode = "grid" | "list";
 
@@ -100,13 +101,13 @@ export function resolveOwnerName(file: FileObjectRecord, employees: EmployeeReco
     const agent = agents.find((item) => item.id === file.ownerId);
     if (agent) return agent.name;
   }
-  return "System";
+  return t("System");
 }
 
 export function labelFor(section: Section): string {
-  if (section.kind === "all") return "All files";
-  if (section.kind === "recent") return "Recent";
-  if (section.kind === "pinned") return "Pinned";
-  if (section.kind === "agent") return "By agent";
+  if (section.kind === "all") return t("All files");
+  if (section.kind === "recent") return t("Recent");
+  if (section.kind === "pinned") return t("Pinned");
+  if (section.kind === "agent") return t("By agent");
   return section.value;
 }

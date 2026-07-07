@@ -6,6 +6,8 @@ export interface CreateWindowOptions {
   preloadPath: string;
   rendererDist: string;
   devServerUrl?: string;
+  /** UI language for renderer strings; injected synchronously via argv. */
+  language: string;
 }
 
 export function createMainWindow(options: CreateWindowOptions): BrowserWindow {
@@ -27,6 +29,7 @@ export function createMainWindow(options: CreateWindowOptions): BrowserWindow {
       sandbox: true,
       webSecurity: true,
       allowRunningInsecureContent: false,
+      additionalArguments: [`--app-language=${options.language}`],
     },
   });
 

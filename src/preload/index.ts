@@ -94,6 +94,7 @@ const api: DesktopApi = {
     return () => ipcRenderer.removeListener(IPC_CHANNELS.rendererEvent, listener);
   },
   platform: process.platform as DesktopApi["platform"],
+  language: (process.argv.find((arg) => arg.startsWith("--app-language="))?.slice("--app-language=".length) === "zh" ? "zh" : "en") as DesktopApi["language"],
   windowMinimize: () => invoke<void>(IPC_CHANNELS.windowMinimize),
   windowMaximize: () => invoke<void>(IPC_CHANNELS.windowMaximize),
   windowClose: () => invoke<void>(IPC_CHANNELS.windowClose),

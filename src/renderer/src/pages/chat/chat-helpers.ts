@@ -9,6 +9,7 @@ import type {
   EmployeeRecord,
   FileObjectRecord,
 } from "../../../../shared/domain";
+import { t } from "../../i18n/i18n";
 
 export interface MessageContext {
   employees: EmployeeRecord[];
@@ -26,8 +27,8 @@ export function senderName(message: ChatMessageRecord, context: MessageContext):
     if (!agent) throw new Error("Message agent sender is missing.");
     return agent.name;
   }
-  if (message.senderType === "board") return "Board";
-  return "System";
+  if (message.senderType === "board") return t("Board");
+  return t("System");
 }
 
 export function messageAttachments(
@@ -172,7 +173,7 @@ function resolveCounterpart(
 }
 
 function previewText(message: ChatMessageRecord): string {
-  if (message.deletedAt) return "Message deleted";
+  if (message.deletedAt) return t("Message deleted");
   const firstLine = message.bodyMd.split("\n").find((line) => line.trim()) ?? "";
   return firstLine.trim();
 }
@@ -181,10 +182,10 @@ export function formatDay(iso: string): string {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return "—";
   const today = new Date();
-  if (sameDay(date, today)) return "Today";
+  if (sameDay(date, today)) return t("Today");
   const yesterday = new Date(today);
   yesterday.setDate(yesterday.getDate() - 1);
-  if (sameDay(date, yesterday)) return "Yesterday";
+  if (sameDay(date, yesterday)) return t("Yesterday");
   return date.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
 }
 

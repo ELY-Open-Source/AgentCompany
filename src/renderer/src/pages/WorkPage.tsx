@@ -25,20 +25,21 @@ import { TimelineView } from "./work/TimelineView";
 import { canRun, latestTaskRun, nextStatus, prettyRunState, providerFor, runTone } from "./work/task-helpers";
 import type { PageProps } from "./types";
 import { activeOrgId } from "./types";
+import { t } from "../i18n/i18n";
 
 type View = "board" | "list" | "timeline";
 
 const COLUMNS: ReadonlyArray<{ id: TaskStatus; label: string; tone: string }> = [
-  { id: TASK_STATUS.BACKLOG, label: "Backlog", tone: "var(--text-4)" },
-  { id: TASK_STATUS.IN_PROGRESS, label: "In progress", tone: "var(--accent)" },
-  { id: TASK_STATUS.REVIEW, label: "In review", tone: "var(--amber)" },
-  { id: TASK_STATUS.DONE, label: "Done", tone: "var(--green)" },
+  { id: TASK_STATUS.BACKLOG, label: t("Backlog"), tone: "var(--text-4)" },
+  { id: TASK_STATUS.IN_PROGRESS, label: t("In progress"), tone: "var(--accent)" },
+  { id: TASK_STATUS.REVIEW, label: t("In review"), tone: "var(--amber)" },
+  { id: TASK_STATUS.DONE, label: t("Done"), tone: "var(--green)" },
 ];
 
 const VIEW_OPTIONS: ReadonlyArray<{ id: View; label: string }> = [
-  { id: "board", label: "Board" },
-  { id: "list", label: "List" },
-  { id: "timeline", label: "Timeline" },
+  { id: "board", label: t("Board") },
+  { id: "list", label: t("List") },
+  { id: "timeline", label: t("Timeline") },
 ];
 
 export function WorkPage({ snapshot, actions }: PageProps) {
@@ -94,13 +95,13 @@ export function WorkPage({ snapshot, actions }: PageProps) {
           onPriority={setPriorityFilter}
           onAssignee={setAssigneeFilter}
         />
-        <Button tone="ghost" onClick={() => setNewGoalOpen(true)}><Icon name="plus" size={16} /> Goal</Button>
-        <Button tone="ghost" onClick={() => setNewProjectOpen(true)}><Icon name="plus" size={16} /> Project</Button>
-        <Button tone="primary" onClick={() => setNewTaskOpen(true)}><Icon name="plus" size={16} /> New task</Button>
+        <Button tone="ghost" onClick={() => setNewGoalOpen(true)}><Icon name="plus" size={16} /> {t("Goal")}</Button>
+        <Button tone="ghost" onClick={() => setNewProjectOpen(true)}><Icon name="plus" size={16} /> {t("Project")}</Button>
+        <Button tone="primary" onClick={() => setNewTaskOpen(true)}><Icon name="plus" size={16} /> {t("New task")}</Button>
       </TopbarActions>
-      <h1 className="page-h1">Work</h1>
+      <h1 className="page-h1">{t("Work")}</h1>
       <p className="page-sub">
-        {tasks.length} {tasks.length === 1 ? "task" : "tasks"} · {assigneeCount} {assigneeCount === 1 ? "assignee" : "assignees"}
+        {tasks.length === 1 ? t("{n} task", { n: tasks.length }) : t("{n} tasks", { n: tasks.length })} · {assigneeCount === 1 ? t("{n} assignee", { n: assigneeCount }) : t("{n} assignees", { n: assigneeCount })}
       </p>
 
       <ProjectOverview projects={projects} tasks={allTasks} agents={agents} workspaces={workspaces} chatSpaces={chatSpaces} />
@@ -171,22 +172,22 @@ function WorkFilter({
 }) {
   const active = priority !== "all" || assignee !== "all";
   const priorities: ReadonlyArray<{ id: TaskPriority | "all"; label: string }> = [
-    { id: "all", label: "All priorities" },
-    { id: TASK_PRIORITY.HIGH, label: "High" },
-    { id: TASK_PRIORITY.NORMAL, label: "Normal" },
-    { id: TASK_PRIORITY.LOW, label: "Low" },
+    { id: "all", label: t("All priorities") },
+    { id: TASK_PRIORITY.HIGH, label: t("High") },
+    { id: TASK_PRIORITY.NORMAL, label: t("Normal") },
+    { id: TASK_PRIORITY.LOW, label: t("Low") },
   ];
   return (
     <Popover
       trigger={({ toggle }) => (
-        <button type="button" className="button ghost" aria-label="Filter tasks" onClick={toggle}>
+        <button type="button" className="button ghost" aria-label={t("Filter tasks")} onClick={toggle}>
           <Icon name="filter" size={16} color={active ? "var(--accent)" : "currentColor"} />
         </button>
       )}
     >
       {() => (
         <>
-          <MenuLabel>Priority</MenuLabel>
+          <MenuLabel>{t("Priority")}</MenuLabel>
           {priorities.map((option) => (
             <MenuRow key={option.id} active={priority === option.id} onClick={() => onPriority(option.id)}>
               {option.label}
@@ -194,9 +195,9 @@ function WorkFilter({
             </MenuRow>
           ))}
           <MenuDivider />
-          <MenuLabel>Assignee</MenuLabel>
+          <MenuLabel>{t("Assignee")}</MenuLabel>
           <MenuRow active={assignee === "all"} onClick={() => onAssignee("all")}>
-            All assignees
+            {t("All assignees")}
             {assignee === "all" && <span className="menu-check"><Icon name="check" size={16} /></span>}
           </MenuRow>
           {agents.map((agent) => (
@@ -246,7 +247,7 @@ function BoardView({
               <span style={{ width: 8, height: 8, borderRadius: 2, background: column.tone, flexShrink: 0 }} />
               <span style={{ fontSize: 12, fontWeight: 540 }}>{column.label}</span>
               <span className="num" style={{ fontSize: 12, color: "var(--text-3)" }}>{columnTasks.length}</span>
-              <IconButton icon="plus" label="Add task" onClick={onCreate} />
+              <IconButton icon="plus" label={t("Add task")} onClick={onCreate} />
             </div>
             {columnTasks.map((task) => (
               <TaskCard
@@ -334,8 +335,8 @@ function TaskCard({
         {latestRun && <Pill tone={runTone(latestRun.state)}>{prettyRunState(latestRun.state)}</Pill>}
         <div style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center" }} onClick={(event) => event.stopPropagation()}>
           {assignee && <Avatar name={assignee.name} size="sm" bot />}
-          {assignee && <IconButton icon="send" label={canRun(provider) ? `Run ${task.title}` : "Connect a provider to run"} onClick={onRun} disabled={!canRun(provider)} />}
-          {nextStatus(task.status) && <IconButton icon="check" label="Advance" onClick={onAdvance} />}
+          {assignee && <IconButton icon="send" label={canRun(provider) ? t("Run {title}", { title: task.title }) : t("Connect a provider to run")} onClick={onRun} disabled={!canRun(provider)} />}
+          {nextStatus(task.status) && <IconButton icon="check" label={t("Advance")} onClick={onAdvance} />}
         </div>
       </div>
     </div>

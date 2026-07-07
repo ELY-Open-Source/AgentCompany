@@ -1,6 +1,7 @@
 import { Avatar, IconButton, Pill } from "../../shared/ui";
 import type { AgentRecord, ProjectRecord, ProviderRecord, TaskRecord } from "../../../../shared/domain";
 import { canRun, prettyStatus, providerFor } from "./task-helpers";
+import { t } from "../../i18n/i18n";
 
 const GRID = "minmax(0, 3fr) 110px 96px minmax(0, 1.2fr) 88px";
 
@@ -22,7 +23,7 @@ export function ListView({
   return (
     <div className="card" style={{ padding: 0, overflow: "hidden" }}>
       <div className="table-row head" style={{ gridTemplateColumns: GRID }}>
-        <div>Title</div><div>Status</div><div>Priority</div><div>Assignee</div><div />
+        <div>{t("Title")}</div><div>{t("Status")}</div><div>{t("Priority")}</div><div>{t("Assignee")}</div><div />
       </div>
       {tasks.map((task, index) => {
         const assignee = agents.find((agent) => agent.id === task.assigneeAgentId) ?? null;
@@ -47,7 +48,7 @@ export function ListView({
               {project && <span style={{ flexShrink: 0 }}><Pill>{truncate(project.name, 24)}</Pill></span>}
             </div>
             <div><Pill>{prettyStatus(task.status)}</Pill></div>
-            <div><Pill tone={task.priority === "high" ? "amber" : undefined}>{task.priority}</Pill></div>
+            <div><Pill tone={task.priority === "high" ? "amber" : undefined}>{task.priority === "high" ? t("high") : task.priority === "low" ? t("low") : t("normal")}</Pill></div>
             <div style={{ minWidth: 0 }}>
               {assignee ? (
                 <div className="row" style={{ gap: 8, minWidth: 0 }}>
@@ -61,8 +62,8 @@ export function ListView({
               )}
             </div>
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 4 }} onClick={(event) => event.stopPropagation()}>
-              {assignee && <IconButton icon="send" label={`Run ${task.title}`} onClick={() => onRun(task)} disabled={!canRun(provider)} />}
-              <IconButton icon="more" label={`Open ${task.title}`} onClick={() => onOpen(task)} />
+              {assignee && <IconButton icon="send" label={t("Run {title}", { title: task.title })} onClick={() => onRun(task)} disabled={!canRun(provider)} />}
+              <IconButton icon="more" label={t("Open {title}", { title: task.title })} onClick={() => onOpen(task)} />
             </div>
           </div>
         );

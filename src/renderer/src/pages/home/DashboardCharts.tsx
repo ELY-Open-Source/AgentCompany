@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from "react";
 import type { AgentRecord, TaskRecord, TaskRunRecord } from "../../../../shared/domain";
 import { TASK_STATUS } from "../../../../shared/domain";
+import { t } from "../../i18n/i18n";
 
 const CHART_H = 116;
 const CHART_W = 260;
@@ -29,10 +30,10 @@ export function AgentWorkloadChart({ agents, tasks }: { agents: AgentRecord[]; t
   const max = Math.max(1, ...data.map((d) => d.count));
   const barW = data.length > 0 ? (CHART_W - (data.length - 1) * BAR_GAP) / data.length : 0;
   const [hover, setHover] = useState<number | null>(null);
-  const readout = hover !== null && data[hover] ? `${data[hover]!.name} · ${data[hover]!.count}` : `${total} open`;
+  const readout = hover !== null && data[hover] ? `${data[hover]!.name} · ${data[hover]!.count}` : t("{n} open", { n: total });
 
   return (
-    <ChartCard title="Agent workload" readout={readout}>
+    <ChartCard title={t("Agent workload")} readout={readout}>
       <svg viewBox={`0 0 ${CHART_W} ${CHART_H}`} style={{ width: "100%", height: CHART_H }}>
         {data.map((d, i) => {
           const h = (d.count / max) * (CHART_H - 22);
@@ -65,10 +66,10 @@ export function RunActivityChart({ taskRuns }: { taskRuns: TaskRunRecord[] }) {
   const max = Math.max(1, ...buckets.map((b) => b.count));
   const barW = (CHART_W - 6 * BAR_GAP) / 7;
   const [hover, setHover] = useState<number | null>(null);
-  const readout = hover !== null && buckets[hover] ? `${buckets[hover]!.label} · ${buckets[hover]!.count}` : `${total} this week`;
+  const readout = hover !== null && buckets[hover] ? `${buckets[hover]!.label} · ${buckets[hover]!.count}` : t("{n} this week", { n: total });
 
   return (
-    <ChartCard title="Run activity" readout={readout}>
+    <ChartCard title={t("Run activity")} readout={readout}>
       <svg viewBox={`0 0 ${CHART_W} ${CHART_H}`} style={{ width: "100%", height: CHART_H }}>
         {buckets.map((b, i) => {
           const h = (b.count / max) * (CHART_H - 24);
@@ -104,7 +105,7 @@ export function SuccessRateChart({ taskRuns }: { taskRuns: TaskRunRecord[] }) {
   const offset = circumference - (rate / 100) * circumference;
 
   return (
-    <ChartCard title="Success rate" readout={`${completed} ok · ${failed} failed`}>
+    <ChartCard title={t("Success rate")} readout={t("{ok} ok · {failed} failed", { ok: completed, failed })}>
       <svg viewBox="0 0 100 100" style={{ width: 96, height: 96, margin: "4px auto", display: "block" }}>
         <circle cx="50" cy="50" r="42" fill="none" stroke="var(--panel-3)" strokeWidth="8" />
         <circle
@@ -140,10 +141,10 @@ export function CostTrendChart({ providerRequests }: { providerRequests: Array<{
   const [hover, setHover] = useState<number | null>(null);
   const readout = hover !== null && charBuckets[hover]
     ? `${charBuckets[hover]!.label} · ${kchars(charBuckets[hover]!.chars)}`
-    : `${kchars(totalChars)} this week`;
+    : t("{n} this week", { n: kchars(totalChars) });
 
   return (
-    <ChartCard title="Token usage" readout={readout}>
+    <ChartCard title={t("Token usage")} readout={readout}>
       <svg viewBox={`0 0 ${CHART_W} ${CHART_H}`} style={{ width: "100%", height: CHART_H }}>
         <polyline points={points} fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
         {coords.map((c, i) => (
@@ -163,16 +164,17 @@ function kchars(chars: number): string {
   return String(chars);
 }
 
+const weekdayFormat = new Intl.DateTimeFormat(undefined, { weekday: "short" });
+
 function last7DayBuckets(dates: string[]): Array<{ label: string; count: number }> {
   const now = Date.now();
-  const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
   return Array.from({ length: 7 }, (_, i) => {
     const offset = 6 - i;
     const start = new Date(now - offset * 86400000);
     start.setHours(0, 0, 0, 0);
     const end = new Date(start.getTime() + 86400000);
     const count = dates.filter((d) => { const t = new Date(d).getTime(); return t >= start.getTime() && t < end.getTime(); }).length;
-    return { label: dayNames[start.getDay()] ?? "", count };
+    return { label: weekdayFormat.format(start), count };
   });
 }
 

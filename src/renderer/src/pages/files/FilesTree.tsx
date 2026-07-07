@@ -1,6 +1,7 @@
 import { Icon } from "../../shared/ui";
 import type { AgentRecord, FileObjectRecord } from "../../../../shared/domain";
 import { isRecent, type Section } from "./file-helpers";
+import { t } from "../../i18n/i18n";
 
 export function FilesTree({
   files,
@@ -20,31 +21,31 @@ export function FilesTree({
   const recent = files.filter((file) => isRecent(file.createdAt));
   return (
     <aside style={{ overflowY: "auto", minHeight: 0, paddingBottom: 40 }}>
-      <div className="section-label">Library</div>
+      <div className="section-label">{t("Library")}</div>
       <TreeItem
         icon="folder"
-        label="All files"
+        label={t("All files")}
         count={files.length}
         active={section.kind === "all"}
         onClick={() => onChange({ kind: "all" })}
       />
       <TreeItem
         icon="sparkle"
-        label="Recent"
+        label={t("Recent")}
         count={recent.length}
         active={section.kind === "recent"}
         onClick={() => onChange({ kind: "recent" })}
       />
       <TreeItem
         icon="pin"
-        label="Pinned"
+        label={t("Pinned")}
         count={pinnedFiles.length}
         active={section.kind === "pinned"}
         onClick={() => onChange({ kind: "pinned" })}
       />
       {departments.length > 0 && (
         <>
-          <div className="section-label" style={{ marginTop: 22 }}>Spaces</div>
+          <div className="section-label" style={{ marginTop: 22 }}>{t("Spaces")}</div>
           {departments.map((department) => (
             <TreeItem
               key={department.name}
@@ -59,7 +60,7 @@ export function FilesTree({
       )}
       {filesByAgent.length > 0 && (
         <>
-          <div className="section-label" style={{ marginTop: 22 }}>By agent</div>
+          <div className="section-label" style={{ marginTop: 22 }}>{t("By agent")}</div>
           {filesByAgent.map(({ agent, count }) => (
             <TreeItem
               key={agent.id}

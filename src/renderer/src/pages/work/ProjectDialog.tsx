@@ -3,6 +3,7 @@ import { Field } from "../../shared/ui";
 import { Dialog } from "../../shared/Dialog";
 import type { AgentRecord, GoalRecord } from "../../../../shared/domain";
 import type { SnapshotActions } from "../../app/useSnapshot";
+import { t } from "../../i18n/i18n";
 
 function text(form: FormData, key: string): string {
   return String(form.get(key) ?? "").trim();
@@ -40,18 +41,18 @@ export function ProjectDialog({
   };
 
   return (
-    <Dialog title="New project" open={open} submitLabel="Create" onClose={onClose} onSubmit={submit}>
-      <Field label="Name"><input className="input" name="name" required /></Field>
-      <Field label="Description"><textarea className="input" name="description" required /></Field>
-      <Field label="Goal">
+    <Dialog title={t("New project")} open={open} submitLabel={t("Create")} onClose={onClose} onSubmit={submit}>
+      <Field label={t("Name")}><input className="input" name="name" required /></Field>
+      <Field label={t("Description")}><textarea className="input" name="description" required /></Field>
+      <Field label={t("Goal")}>
         <select className="input" name="goalId" defaultValue="">
-          <option value="">None</option>
+          <option value="">{t("None")}</option>
           {goals.map((goal) => <option key={goal.id} value={goal.id}>{goal.title}</option>)}
         </select>
       </Field>
-      <Field label="Lead agent">
+      <Field label={t("Lead agent")}>
         <select className="input" name="leadAgentId" defaultValue="">
-          <option value="">Unassigned</option>
+          <option value="">{t("Unassigned")}</option>
           {agents.map((agent) => <option key={agent.id} value={agent.id}>{agent.name} · {agent.role}</option>)}
         </select>
       </Field>

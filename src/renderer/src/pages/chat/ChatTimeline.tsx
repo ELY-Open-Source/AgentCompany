@@ -10,6 +10,7 @@ import type {
 } from "../../../../shared/domain";
 import { ChatMessageRow } from "./ChatMessageRow";
 import { formatDay, type MessageContext } from "./chat-helpers";
+import { t } from "../../i18n/i18n";
 
 const WINDOW_SIZE = 150;
 const EMPTY_ATTACHMENTS: ChatAttachmentRecord[] = [];
@@ -70,7 +71,7 @@ export function ChatTimeline({
     elements.push(
       <div key="show-earlier" style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
         <Button size="small" onClick={() => setVisibleCount((count) => count + WINDOW_SIZE)}>
-          Show earlier messages
+          {t("Show earlier messages")}
         </Button>
       </div>,
     );
@@ -121,14 +122,14 @@ function ApprovalInline({ approval, onApprove, onDecline }: { approval: Approval
     <div style={{ margin: "14px 0 18px 44px", maxWidth: 480, border: "1px solid var(--border-strong)", borderRadius: 12, background: "var(--panel)", padding: 14 }}>
       <div className="row" style={{ marginBottom: 8 }}>
         <Icon name="approve" size={14} color="var(--amber)" />
-        <span style={{ fontSize: 12, color: "var(--amber)", fontWeight: 540 }}>Approval needed</span>
+        <span style={{ fontSize: 12, color: "var(--amber)", fontWeight: 540 }}>{t("Approval needed")}</span>
         <Pill tone={approval.risk === "high" ? "red" : approval.risk === "medium" ? "amber" : undefined}>{approval.risk}</Pill>
       </div>
       <div style={{ fontSize: 14, fontWeight: 540, marginBottom: 4 }}>{approval.title}</div>
       <div style={{ fontSize: 12, color: "var(--text-3)", marginBottom: 12, lineHeight: 1.5 }}>{approval.details}</div>
       <div className="row" style={{ gap: 6 }}>
-        <Button tone="primary" size="small" onClick={onApprove}>Approve</Button>
-        <Button size="small" onClick={onDecline}>Decline</Button>
+        <Button tone="primary" size="small" onClick={onApprove}>{t("Approve")}</Button>
+        <Button size="small" onClick={onDecline}>{t("Decline")}</Button>
       </div>
     </div>
   );

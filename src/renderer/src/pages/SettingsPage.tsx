@@ -3,6 +3,7 @@ import { ProvidersPanel } from "./settings/ProvidersPanel";
 import { SkillsPanel } from "./settings/SkillsPanel";
 import { WorkspacePanel } from "./settings/WorkspacePanel";
 import { AdvancedPanel } from "./settings/AdvancedPanel";
+import { t } from "../i18n/i18n";
 import type { PageProps } from "./types";
 import { activeOrgId, requireActiveEmployee, requireActiveOrganization } from "./types";
 
@@ -14,10 +15,10 @@ interface NavSpec {
 }
 
 const TABS: NavSpec[] = [
-  { id: "general", label: "General" },
-  { id: "providers", label: "Providers" },
-  { id: "skills", label: "Skills" },
-  { id: "advanced", label: "Advanced" },
+  { id: "general", label: t("General") },
+  { id: "providers", label: t("Providers") },
+  { id: "skills", label: t("Skills") },
+  { id: "advanced", label: t("Advanced") },
 ];
 
 export function SettingsPage({ snapshot, actions }: PageProps) {
@@ -47,7 +48,7 @@ export function SettingsPage({ snapshot, actions }: PageProps) {
   return (
     <div className="split-main">
       <aside className="secondary-pane">
-        <div style={{ fontSize: 14, fontWeight: 600, padding: "4px 8px 14px" }}>Settings</div>
+        <div style={{ fontSize: 14, fontWeight: 600, padding: "4px 8px 14px" }}>{t("Settings")}</div>
         <div className="pane-scroll">
           <NavGroup items={TABS} active={tab} onChange={setTab} />
         </div>

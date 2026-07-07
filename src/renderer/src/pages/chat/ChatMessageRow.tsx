@@ -9,6 +9,7 @@ import type {
 } from "../../../../shared/domain";
 import { formatTime } from "../types";
 import { messageAttachments, senderName, type MessageContext } from "./chat-helpers";
+import { t } from "../../i18n/i18n";
 
 export function ChatMessageRow({
   message,
@@ -54,11 +55,11 @@ export function ChatMessageRow({
         <div className="row" style={{ alignItems: "baseline", gap: 8, marginBottom: 2 }}>
           <span style={{ fontSize: 14, fontWeight: 540 }}>{name}</span>
           <span className="mono" style={{ fontSize: 12, color: "var(--text-3)" }}>{formatTime(message.createdAt)}</span>
-          {message.editedAt && !deleted && <span style={{ fontSize: 12, color: "var(--text-3)" }}>(edited)</span>}
+          {message.editedAt && !deleted && <span style={{ fontSize: 12, color: "var(--text-3)" }}>{t("(edited)")}</span>}
           {canModify && !editing && (
             <span style={{ marginLeft: "auto", display: "flex", gap: 2 }}>
-              <IconButton icon="edit" label="Edit message" size={16} onClick={() => setEditing(true)} />
-              <IconButton icon="x" label="Delete message" size={16} onClick={onDelete} />
+              <IconButton icon="edit" label={t("Edit message")} size={16} onClick={() => setEditing(true)} />
+              <IconButton icon="x" label={t("Delete message")} size={16} onClick={onDelete} />
             </span>
           )}
         </div>
@@ -68,20 +69,20 @@ export function ChatMessageRow({
           </div>
         )}
         {deleted ? (
-          <div style={{ fontSize: 14, color: "var(--text-3)", fontStyle: "italic" }}>Message deleted</div>
+          <div style={{ fontSize: 14, color: "var(--text-3)", fontStyle: "italic" }}>{t("Message deleted")}</div>
         ) : editing ? (
           <form onSubmit={submitEdit}>
             <textarea
               name="body"
               defaultValue={message.bodyMd}
               autoFocus
-              aria-label="Edit message"
+              aria-label={t("Edit message")}
               className="input"
               style={{ minHeight: 60, marginBottom: 6 }}
             />
             <div className="row" style={{ gap: 6 }}>
-              <Button tone="primary" size="small" type="submit">Save</Button>
-              <Button tone="ghost" size="small" onClick={() => setEditing(false)}>Cancel</Button>
+              <Button tone="primary" size="small" type="submit">{t("Save")}</Button>
+              <Button tone="ghost" size="small" onClick={() => setEditing(false)}>{t("Cancel")}</Button>
             </div>
           </form>
         ) : (
@@ -121,7 +122,7 @@ function renderBody(body: string, mentions: ChatMentionRecord[], context: Messag
     parts.push(
       <span
         key={`m-${mention.messageId}-${mention.offsetStart}`}
-        title={failed ? "Agent could not be reached" : undefined}
+        title={failed ? t("Agent could not be reached") : undefined}
         style={{
           background: failed ? "rgba(255,100,80,0.1)" : "var(--accent-soft)",
           color: failed ? "var(--text-3)" : "var(--accent)",
@@ -175,8 +176,8 @@ function mentionLabel(mention: ChatMentionRecord, context: MessageContext): stri
     if (!agent) throw new Error("Message mention agent target is missing.");
     return agent.name;
   }
-  if (mention.targetType === "board") return "Board";
-  if (mention.targetType === "org_group" && mention.targetId.endsWith(":oncall")) return "OnCall";
+  if (mention.targetType === "board") return t("Board");
+  if (mention.targetType === "org_group" && mention.targetId.endsWith(":oncall")) return t("OnCall");
   throw new Error("Message mention target type is unsupported.");
 }
 
@@ -213,13 +214,13 @@ function AttachmentCard({ file, handoff = false, onOpen }: { file: FileObjectRec
           <span style={{ fontSize: 12, fontWeight: 540, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{file.name}</span>
           {handoff && (
             <span className="pill violet" style={{ flexShrink: 0 }}>
-              <Icon name="bot" size={10} /> AI → AI
+              <Icon name="bot" size={10} /> {t("AI → AI")}
             </span>
           )}
         </div>
         <div style={{ fontSize: 12, color: "var(--text-3)" }}>{file.kind.toUpperCase()}</div>
       </div>
-      {canOpen && <IconButton icon="arrowUpRight" label={`Open ${file.name}`} onClick={onOpen ?? undefined} />}
+      {canOpen && <IconButton icon="arrowUpRight" label={t("Open {name}", { name: file.name })} onClick={onOpen ?? undefined} />}
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { Button, Icon, Pill } from "../../shared/ui";
 import type { ConnectorCatalogEntry } from "../../../../shared/commands";
+import { t } from "../../i18n/i18n";
 
 /** Deterministic tile color for a toolkit's letter glyph. */
 const TILE_COLORS = ["#5e6ad2", "#3b82a0", "#7c5cb0", "#3f8f5f", "#b0684f", "#a05c86", "#6f7d3d", "#4f6fb0"];
@@ -65,14 +66,14 @@ export function ToolkitCatalog({
   return (
     <section>
       <div className="row" style={{ marginBottom: 12, gap: 10 }}>
-        <div className="section-label" style={{ flex: 1 }}>Catalog</div>
+        <div className="section-label" style={{ flex: 1 }}>{t("Catalog")}</div>
         <div className="row" style={{ gap: 6, background: "var(--panel-2)", borderRadius: 8, padding: "5px 10px", width: 240 }}>
           <Icon name="search" size={13} color="var(--text-3)" />
           <input
-            aria-label="Search connectors"
+            aria-label={t("Search connectors")}
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search connectors"
+            placeholder={t("Search connectors")}
             style={{ border: 0, outline: 0, background: "transparent", fontSize: 13, flex: 1, minWidth: 0, color: "var(--text-1)" }}
           />
         </div>
@@ -98,10 +99,10 @@ export function ToolkitCatalog({
                 {entry.name}
               </span>
               {connected ? (
-                <Pill tone="green" dot>Connected</Pill>
+                <Pill tone="green" dot>{t("Connected")}</Pill>
               ) : (
                 <Button size="small" disabled={busySlug !== null} onClick={() => onConnect(entry.slug)}>
-                  {busySlug === entry.slug ? "Opening…" : "Connect"}
+                  {busySlug === entry.slug ? t("Opening…") : t("Connect")}
                 </Button>
               )}
             </div>

@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { Button, Pill } from "../../shared/ui";
 import { Dialog } from "../../shared/Dialog";
+import { t } from "../../i18n/i18n";
 import type {
   AgentRecord,
   ProviderCatalogEntry,
@@ -56,11 +57,11 @@ export function ProvidersPanel({ orgId, employeeId, providers, authProfiles, cat
 
   return (
     <div className="page">
-      <h1 className="page-h1">Providers</h1>
+      <h1 className="page-h1">{t("Providers")}</h1>
 
       {connected.length > 0 && (
         <>
-          <div className="section-label" style={{ margin: "16px 0 10px" }}>Connected</div>
+          <div className="section-label" style={{ margin: "16px 0 10px" }}>{t("Connected")}</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 28 }}>
             {connected.map((provider) => (
               <ProviderRow
@@ -85,7 +86,7 @@ export function ProvidersPanel({ orgId, employeeId, providers, authProfiles, cat
 
       {available.length > 0 && (
         <>
-          <div className="section-label" style={{ marginBottom: 10 }}>Available</div>
+          <div className="section-label" style={{ marginBottom: 10 }}>{t("Available")}</div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 10 }}>
             {available.map((provider) => (
               <ProviderCard key={provider.id} provider={provider} onConnect={() => setActive(provider)} />
@@ -95,9 +96,9 @@ export function ProvidersPanel({ orgId, employeeId, providers, authProfiles, cat
       )}
 
       <Dialog
-        title={active ? `Connect ${active.label}` : "Connect provider"}
+        title={active ? t("Connect {label}", { label: active.label }) : t("Connect provider")}
         open={Boolean(active)}
-        submitLabel="Save"
+        submitLabel={t("Save")}
         hideSubmit={activeIsOAuth}
         onClose={close}
         onSubmit={save}
@@ -133,13 +134,13 @@ function ProviderPolicyTable({
 }) {
   return (
     <>
-      <div className="section-label" style={{ marginBottom: 10 }}>Runtime policy</div>
+      <div className="section-label" style={{ marginBottom: 10 }}>{t("Runtime policy")}</div>
       <div className="card" style={{ padding: 0, overflowX: "auto", marginBottom: 28 }}>
         <div
           className="table-row head"
           style={{ gridTemplateColumns: POLICY_GRID, minWidth: 780 }}
         >
-          <div>Provider</div><div>Scope</div><div>Data policy</div><div>Background</div><div>Monthly limit</div><div>Usage</div>
+          <div>{t("Provider")}</div><div>{t("Scope")}</div><div>{t("Data policy")}</div><div>{t("Background")}</div><div>{t("Monthly limit")}</div><div>{t("Usage")}</div>
         </div>
         {providers.map((provider, index) => {
           const rateLimit = requireProviderRateLimit(provider, providerRateLimits);
@@ -207,35 +208,35 @@ function ProviderPolicyRow({
       </div>
       <select
         className="input"
-        aria-label={`${provider.label} workspace scope`}
+        aria-label={t("{label} workspace scope", { label: provider.label })}
         value={workspaceScope}
         onChange={(event) => setWorkspaceScope(event.target.value === "workspace" ? "workspace" : "organization")}
       >
-        <option value="organization">Organization</option>
-        <option value="workspace">Workspace</option>
+        <option value="organization">{t("Organization")}</option>
+        <option value="workspace">{t("Workspace")}</option>
       </select>
       <select
         className="input"
-        aria-label={`${provider.label} data policy`}
+        aria-label={t("{label} data policy", { label: provider.label })}
         value={dataPolicy}
         onChange={(event) => updateDataPolicy(event.target.value as ProviderRecord["dataPolicy"])}
       >
-        <option value={PROVIDER_DATA_POLICY.STANDARD}>Standard retention</option>
-        <option value={PROVIDER_DATA_POLICY.ZERO_DATA_RETENTION}>Zero data retention</option>
+        <option value={PROVIDER_DATA_POLICY.STANDARD}>{t("Standard retention")}</option>
+        <option value={PROVIDER_DATA_POLICY.ZERO_DATA_RETENTION}>{t("Zero data retention")}</option>
       </select>
       <label className="row" style={{ gap: 8, fontSize: 12, color: "var(--text-2)" }}>
         <input
-          aria-label={`${provider.label} background execution`}
+          aria-label={t("{label} background execution", { label: provider.label })}
           type="checkbox"
           checked={backgroundEnabled}
           disabled={dataPolicy === PROVIDER_DATA_POLICY.ZERO_DATA_RETENTION}
           onChange={(event) => setBackgroundEnabled(event.target.checked)}
         />
-        Allow
+        {t("Allow")}
       </label>
       <input
         className="input"
-        aria-label={`${provider.label} monthly request limit`}
+        aria-label={t("{label} monthly request limit", { label: provider.label })}
         type="number"
         min={1}
         value={monthlyRequestLimit}
@@ -243,8 +244,8 @@ function ProviderPolicyRow({
       />
       <div>
         <div className="num mono">{rateLimit.requestCount} / {rateLimit.monthlyRequestLimit}</div>
-        <button type="button" className="button small" aria-label={`Save ${provider.label} policy`} onClick={savePolicy}>
-          Save
+        <button type="button" className="button small" aria-label={t("Save {label} policy", { label: provider.label })} onClick={savePolicy}>
+          {t("Save")}
         </button>
       </div>
     </div>
@@ -289,21 +290,21 @@ function ProviderRow({
       </div>
       <ProviderHealth provider={provider} />
       <div className="num mono" style={{ fontSize: 13, minWidth: 72, textAlign: "right" }}>
-        {boundCount} {boundCount === 1 ? "agent" : "agents"}
+        {boundCount === 1 ? t("{count} agent", { count: boundCount }) : t("{count} agents", { count: boundCount })}
       </div>
       <span className="reveal row" style={{ gap: 6 }}>
-        <Button onClick={onCheck}>Check</Button>
-        <Button onClick={onManage}>Manage</Button>
-        <Button tone="ghost" onClick={onRevoke}>Revoke</Button>
+        <Button onClick={onCheck}>{t("Check")}</Button>
+        <Button onClick={onManage}>{t("Manage")}</Button>
+        <Button tone="ghost" onClick={onRevoke}>{t("Revoke")}</Button>
       </span>
     </div>
   );
 }
 
 function ProviderHealth({ provider }: { provider: ProviderRecord }) {
-  if (provider.healthState === "healthy") return <Pill tone="green">Healthy</Pill>;
-  if (provider.healthState === "failed") return <Pill tone="red">Failed</Pill>;
-  return <Pill>Unchecked</Pill>;
+  if (provider.healthState === "healthy") return <Pill tone="green">{t("Healthy")}</Pill>;
+  if (provider.healthState === "failed") return <Pill tone="red">{t("Failed")}</Pill>;
+  return <Pill>{t("Unchecked")}</Pill>;
 }
 
 function ProviderCard({ provider, onConnect }: { provider: ProviderRecord; onConnect: () => void }) {
@@ -328,16 +329,16 @@ function ProviderCard({ provider, onConnect }: { provider: ProviderRecord; onCon
         </div>
       </div>
       <Pill>{readableAuth(provider.authType)}</Pill>
-      <Button size="small" onClick={onConnect}>Connect</Button>
+      <Button size="small" onClick={onConnect}>{t("Connect")}</Button>
     </div>
   );
 }
 
 function readableAuth(authType: ProviderRecord["authType"]): string {
-  if (authType === "api_key") return "API key";
-  if (authType === "oauth_pkce") return "OAuth";
-  if (authType === "account_subscription") return "Account";
-  if (authType === "cloud") return "Cloud";
+  if (authType === "api_key") return t("API key");
+  if (authType === "oauth_pkce") return t("OAuth");
+  if (authType === "account_subscription") return t("Account");
+  if (authType === "cloud") return t("Cloud");
   return authType;
 }
 

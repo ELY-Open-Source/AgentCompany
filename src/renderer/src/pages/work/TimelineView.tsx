@@ -1,10 +1,11 @@
 import { TASK_STATUS, type GoalRecord, type ProjectRecord, type TaskRecord, type TaskStatus } from "../../../../shared/domain";
+import { t } from "../../i18n/i18n";
 
 const SEGMENTS: ReadonlyArray<{ id: TaskStatus; label: string; tone: string }> = [
-  { id: TASK_STATUS.DONE, label: "Done", tone: "var(--green)" },
-  { id: TASK_STATUS.REVIEW, label: "In review", tone: "var(--amber)" },
-  { id: TASK_STATUS.IN_PROGRESS, label: "In progress", tone: "var(--accent)" },
-  { id: TASK_STATUS.BACKLOG, label: "Backlog", tone: "var(--panel-3)" },
+  { id: TASK_STATUS.DONE, label: t("Done"), tone: "var(--green)" },
+  { id: TASK_STATUS.REVIEW, label: t("In review"), tone: "var(--amber)" },
+  { id: TASK_STATUS.IN_PROGRESS, label: t("In progress"), tone: "var(--accent)" },
+  { id: TASK_STATUS.BACKLOG, label: t("Backlog"), tone: "var(--panel-3)" },
 ];
 
 /**
@@ -62,7 +63,7 @@ export function TimelineView({ tasks, goals, projects }: { tasks: TaskRecord[]; 
       {unlinked.length > 0 && (
         <section className="card" style={{ padding: 18 }}>
           <div className="row" style={{ gap: 12 }}>
-            <span style={{ fontWeight: 560, fontSize: 14, color: "var(--text-2)", flex: 1 }}>Unlinked tasks</span>
+            <span style={{ fontWeight: 560, fontSize: 14, color: "var(--text-2)", flex: 1 }}>{t("Unlinked tasks")}</span>
             <CompletionReadout tasks={unlinked} />
           </div>
           <StatusBar tasks={unlinked} height={6} style={{ marginTop: 12 }} />

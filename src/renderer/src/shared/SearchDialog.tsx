@@ -3,23 +3,24 @@ import type { AppSnapshot, SearchEntityType, SearchResultRecord } from "../../..
 import { SEARCH_ENTITY_TYPES } from "../../../shared/domain";
 import type { RouteId } from "./Shell";
 import { Button, Icon, Pill } from "./ui";
+import { t } from "../i18n/i18n";
 
 type SearchFilter = "all" | SearchEntityType;
 
 const LABELS: Record<SearchEntityType, string> = {
-  employee: "Employee",
-  agent: "Agent",
-  task: "Task",
-  goal: "Goal",
-  project: "Project",
-  workspace: "Workspace",
-  approval: "Approval",
-  chat_space: "Space",
-  chat_message: "Message",
-  file: "File",
-  provider: "Provider",
-  social_account: "Social",
-  scheduled_post: "Post",
+  employee: t("Employee"),
+  agent: t("Agent"),
+  task: t("Task"),
+  goal: t("Goal"),
+  project: t("Project"),
+  workspace: t("Workspace"),
+  approval: t("Approval"),
+  chat_space: t("Space"),
+  chat_message: t("Message"),
+  file: t("File"),
+  provider: t("Provider"),
+  social_account: t("Social"),
+  scheduled_post: t("Post"),
 };
 
 export function SearchDialog({
@@ -80,28 +81,28 @@ export function SearchDialog({
   };
 
   return (
-    <div role="dialog" aria-modal="true" aria-label="Search" style={overlayStyle}>
+    <div role="dialog" aria-modal="true" aria-label={t("Search")} style={overlayStyle}>
       <form onSubmit={submit} style={panelStyle}>
         <div className="row" style={{ padding: "10px 12px", borderBottom: "1px solid var(--border-soft)" }}>
           <Icon name="search" size={14} color="var(--text-3)" />
           <input
             autoFocus
-            aria-label="Search query"
+            aria-label={t("Search query")}
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             style={inputStyle}
           />
           <select
-            aria-label="Search filter"
+            aria-label={t("Search filter")}
             className="input"
             value={filter}
             onChange={(event) => setFilter(event.target.value as SearchFilter)}
             style={{ width: 150, height: 28, padding: "2px 8px", fontSize: 12 }}
           >
-            <option value="all">All</option>
+            <option value="all">{t("All")}</option>
             {SEARCH_ENTITY_TYPES.map((type) => <option key={type} value={type}>{LABELS[type]}</option>)}
           </select>
-          <Button size="small" onClick={onClose}>Close</Button>
+          <Button size="small" onClick={onClose}>{t("Close")}</Button>
         </div>
         <div style={{ maxHeight: 420, overflow: "auto", padding: 8 }}>
           {visibleResults.map((result) => (

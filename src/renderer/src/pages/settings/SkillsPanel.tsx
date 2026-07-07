@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Button, Field, Icon, Pill } from "../../shared/ui";
 import { Dialog } from "../../shared/Dialog";
+import { t } from "../../i18n/i18n";
 import type {
   AgentRecord,
   SkillBindingRecord,
@@ -46,9 +47,9 @@ export function SkillsPanel({ orgId, skills, revisions, bindings, tests, agents,
   return (
     <div className="page reveal-row">
       <div className="row" style={{ marginBottom: 24 }}>
-        <h1 className="page-h1" style={{ margin: 0 }}>Skills</h1>
+        <h1 className="page-h1" style={{ margin: 0 }}>{t("Skills")}</h1>
         <div className="reveal" style={{ marginLeft: "auto" }}>
-          <Button tone="primary" onClick={() => setImportOpen(true)}><Icon name="plus" size={16} /> Import</Button>
+          <Button tone="primary" onClick={() => setImportOpen(true)}><Icon name="plus" size={16} /> {t("Import")}</Button>
         </div>
       </div>
 
@@ -57,7 +58,7 @@ export function SkillsPanel({ orgId, skills, revisions, bindings, tests, agents,
           className="table-row head"
           style={{ gridTemplateColumns: "minmax(0, 1.4fr) 92px 132px minmax(0, 1.2fr) 132px" }}
         >
-          <div>Skill</div><div>Version</div><div>Tests</div><div>Held by</div><div>Actions</div>
+          <div>{t("Skill")}</div><div>{t("Version")}</div><div>{t("Tests")}</div><div>{t("Held by")}</div><div>{t("Actions")}</div>
         </div>
         {skills.map((skill, index) => {
           const last = index === skills.length - 1;
@@ -82,16 +83,16 @@ export function SkillsPanel({ orgId, skills, revisions, bindings, tests, agents,
                 ))}
               </div>
               <div className="row" style={{ minWidth: 0 }}>
-                <Button size="small" onClick={() => { if (latest && revisionTests.length > 0) runTests(latest.id); }} disabled={!latest || revisionTests.length === 0}>Run tests</Button>
+                <Button size="small" onClick={() => { if (latest && revisionTests.length > 0) runTests(latest.id); }} disabled={!latest || revisionTests.length === 0}>{t("Run tests")}</Button>
               </div>
             </div>
           );
         })}
       </div>
 
-      <Dialog title="Import skill" open={importOpen} submitLabel="Import" onClose={() => setImportOpen(false)} onSubmit={importSkill}>
-        <Field label="Directory path"><input className="input" name="directoryPath" required /></Field>
-        <Field label="Version (semver)"><input className="input" name="versionSemver" required defaultValue="1.0.0" /></Field>
+      <Dialog title={t("Import skill")} open={importOpen} submitLabel={t("Import")} onClose={() => setImportOpen(false)} onSubmit={importSkill}>
+        <Field label={t("Directory path")}><input className="input" name="directoryPath" required /></Field>
+        <Field label={t("Version (semver)")}><input className="input" name="versionSemver" required defaultValue="1.0.0" /></Field>
       </Dialog>
     </div>
   );
@@ -102,13 +103,13 @@ function agentName(agentId: string, agents: AgentRecord[]): string {
 }
 
 function testSummary(tests: SkillTestRecord[]): string {
-  if (tests.length === 0) return "No tests";
+  if (tests.length === 0) return t("No tests");
   const completed = tests.filter((test) => test.lastResult);
-  if (completed.length === 0) return "Never run";
+  if (completed.length === 0) return t("Never run");
   const passed = completed.filter((test) => testStatus(test) === "passed").length;
   const failed = completed.length - passed;
-  if (failed > 0) return `${failed} failed`;
-  return `${passed}/${tests.length} passed`;
+  if (failed > 0) return t("{n} failed", { n: failed });
+  return t("{passed}/{total} passed", { passed, total: tests.length });
 }
 
 function testStatus(test: SkillTestRecord): "passed" | "failed" {

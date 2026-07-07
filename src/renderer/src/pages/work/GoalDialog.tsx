@@ -3,6 +3,7 @@ import { Field } from "../../shared/ui";
 import { Dialog } from "../../shared/Dialog";
 import type { AgentRecord } from "../../../../shared/domain";
 import type { SnapshotActions } from "../../app/useSnapshot";
+import { t } from "../../i18n/i18n";
 
 function text(form: FormData, key: string): string {
   return String(form.get(key) ?? "").trim();
@@ -37,12 +38,12 @@ export function GoalDialog({
   };
 
   return (
-    <Dialog title="New goal" open={open} submitLabel="Create" onClose={onClose} onSubmit={submit}>
-      <Field label="Title"><input className="input" name="title" required /></Field>
-      <Field label="Description"><textarea className="input" name="description" required /></Field>
-      <Field label="Owner agent">
+    <Dialog title={t("New goal")} open={open} submitLabel={t("Create")} onClose={onClose} onSubmit={submit}>
+      <Field label={t("Title")}><input className="input" name="title" required /></Field>
+      <Field label={t("Description")}><textarea className="input" name="description" required /></Field>
+      <Field label={t("Owner agent")}>
         <select className="input" name="ownerAgentId" defaultValue="">
-          <option value="">Unassigned</option>
+          <option value="">{t("Unassigned")}</option>
           {agents.filter((agent) => agent.lifecycle === "active").map((agent) => (
             <option key={agent.id} value={agent.id}>{agent.name} · {agent.role}</option>
           ))}

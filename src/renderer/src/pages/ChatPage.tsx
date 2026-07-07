@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { Field } from "../shared/ui";
 import { Dialog } from "../shared/Dialog";
+import { t } from "../i18n/i18n";
 import { ChatSidebar } from "./chat/ChatSidebar";
 import { ChatConversation } from "./chat/ChatConversation";
 import {
@@ -203,39 +204,39 @@ export function ChatPage({ snapshot, actions }: PageProps) {
       />
 
       <Dialog
-        title="New space"
+        title={t("New space")}
         open={createOpen}
-        submitLabel="Create"
+        submitLabel={t("Create")}
         onClose={() => setCreateOpen(false)}
         onSubmit={createSpace}
       >
-        <Field label="Name"><input className="input" name="name" required /></Field>
-        <Field label="Topic"><input className="input" name="topic" required /></Field>
-        <Field label="Type">
+        <Field label={t("Name")}><input className="input" name="name" required /></Field>
+        <Field label={t("Topic")}><input className="input" name="topic" required /></Field>
+        <Field label={t("Type")}>
           <select className="input" name="spaceType" defaultValue="project">
-            <option value="company">Company</option>
-            <option value="division">Division</option>
-            <option value="department">Department</option>
-            <option value="project">Project</option>
-            <option value="pod">Pod</option>
-            <option value="ad_hoc">Ad-hoc</option>
-            <option value="direct">Direct</option>
+            <option value="company">{t("Company")}</option>
+            <option value="division">{t("Division")}</option>
+            <option value="department">{t("Department")}</option>
+            <option value="project">{t("Project")}</option>
+            <option value="pod">{t("Pod")}</option>
+            <option value="ad_hoc">{t("Ad-hoc")}</option>
+            <option value="direct">{t("Direct")}</option>
           </select>
         </Field>
-        <Field label="Visibility">
+        <Field label={t("Visibility")}>
           <select className="input" name="visibility" defaultValue="workspace">
-            <option value="workspace">Workspace</option>
-            <option value="restricted">Restricted</option>
+            <option value="workspace">{t("Workspace")}</option>
+            <option value="restricted">{t("Restricted")}</option>
           </select>
         </Field>
-        <Field label="Employees">
+        <Field label={t("Employees")}>
           <select className="input" name="memberEmployeeIds" multiple size={Math.max(1, Math.min(4, employees.length))}>
             {employees.filter((item) => item.id !== employee.id).map((item) => (
               <option key={item.id} value={item.id}>{item.displayName}</option>
             ))}
           </select>
         </Field>
-        <Field label="Agents">
+        <Field label={t("Agents")}>
           <select className="input" name="memberAgentIds" multiple size={Math.max(1, Math.min(4, agents.length))}>
             {agents.map((agent) => <option key={agent.id} value={agent.id}>{agent.name}</option>)}
           </select>

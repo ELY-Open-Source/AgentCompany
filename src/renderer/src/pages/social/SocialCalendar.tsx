@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { IconButton } from "../../shared/ui";
 import type { ScheduledPostRecord, SocialAccountRecord, SocialPlatform } from "../../../../shared/domain";
 import { PLATFORM_COLOR_TOKENS } from "./platform-tokens";
+import { t } from "../../i18n/i18n";
 
 interface MonthAnchor {
   year: number;
@@ -31,8 +32,8 @@ export function SocialCalendar({
       <div className="row" style={{ marginBottom: 14 }}>
         <div className="card-label">{monthLabel}</div>
         <div style={{ marginLeft: "auto", display: "flex", gap: 2 }}>
-          <IconButton icon="chevronLeft" label="Previous month" onClick={() => setMonth(stepMonth({ year, month }, -1))} />
-          <IconButton icon="chevron" label="Next month" onClick={() => setMonth(stepMonth({ year, month }, 1))} />
+          <IconButton icon="chevronLeft" label={t("Previous month")} onClick={() => setMonth(stepMonth({ year, month }, -1))} />
+          <IconButton icon="chevron" label={t("Next month")} onClick={() => setMonth(stepMonth({ year, month }, 1))} />
         </div>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4, marginBottom: 6 }}>

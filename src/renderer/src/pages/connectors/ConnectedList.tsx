@@ -1,6 +1,7 @@
 import { Button, IconButton, Pill } from "../../shared/ui";
 import type { AgentRecord, ConnectorAccountRecord, ConnectorGrantRecord } from "../../../../shared/domain";
 import { ToolkitTile } from "./ToolkitCatalog";
+import { t } from "../../i18n/i18n";
 
 const STATUS_TONE: Record<string, "green" | "amber" | "red" | undefined> = {
   ACTIVE: "green",
@@ -41,7 +42,7 @@ export function ConnectedList({
   const agentNames = new Map(agents.map((agent) => [agent.id, agent.name]));
   return (
     <section style={{ marginBottom: 24 }}>
-      <div className="section-label" style={{ marginBottom: 12 }}>Connected</div>
+      <div className="section-label" style={{ marginBottom: 12 }}>{t("Connected")}</div>
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         {accounts.map((account) => {
           const holders = grants
@@ -62,11 +63,11 @@ export function ConnectedList({
                 <Pill tone={STATUS_TONE[account.status]} dot>{account.status.charAt(0) + account.status.slice(1).toLowerCase()}</Pill>
                 <span className="row" style={{ gap: 6, marginLeft: "auto" }}>
                   <Button size="small" disabled={busy} onClick={() => onReconnect(account.toolkitSlug)}>
-                    {busySlug === account.toolkitSlug && busyAction === "connect" ? "Opening…" : "Reconnect"}
+                    {busySlug === account.toolkitSlug && busyAction === "connect" ? t("Opening…") : t("Reconnect")}
                   </Button>
                   <IconButton
                     icon="x"
-                    label={`Delete ${account.toolkitName} connection`}
+                    label={t("Delete {name} connection", { name: account.toolkitName })}
                     disabled={busy}
                     onClick={() => onDelete(account.toolkitSlug)}
                   />

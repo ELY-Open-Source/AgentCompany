@@ -5,6 +5,7 @@ import { FILE_SCAN_STATE, type FileObjectRecord, type FileScanState } from "../.
 import { MenuLabel, MenuRow, Popover } from "../shared/Popover";
 import type { PageProps } from "./types";
 import { activeOrgId, formatBytes } from "./types";
+import { t } from "../i18n/i18n";
 import { FilesTree } from "./files/FilesTree";
 import { FilesTable } from "./files/FilesTable";
 import { FilesGrid, PinnedCard } from "./files/FilesGrid";
@@ -70,23 +71,23 @@ export function FilesPage({ snapshot, actions }: PageProps) {
             value={view}
             onChange={setView}
             options={[
-              { id: "grid", label: "Grid" },
-              { id: "list", label: "List" },
+              { id: "grid", label: t("Grid") },
+              { id: "list", label: t("List") },
             ]}
           />
           <Button tone="primary" onClick={upload}>
-            <Icon name="upload" size={16} /> Upload
+            <Icon name="upload" size={16} /> {t("Upload")}
           </Button>
         </TopbarActions>
-        <h1 className="page-h1">Files</h1>
+        <h1 className="page-h1">{t("Files")}</h1>
         <p className="page-sub">
-          {visibleFiles.length} {visibleFiles.length === 1 ? "file" : "files"} · {formatBytes(totalBytes)}
+          {visibleFiles.length === 1 ? t("{n} file", { n: visibleFiles.length }) : t("{n} files", { n: visibleFiles.length })} · {formatBytes(totalBytes)}
         </p>
 
         <div className="pane-scroll" style={{ paddingBottom: 40 }}>
           {pinnedFiles.length > 0 && section.kind === "all" && (
             <>
-              <div className="section-label" style={{ marginBottom: 10 }}>Pinned</div>
+              <div className="section-label" style={{ marginBottom: 10 }}>{t("Pinned")}</div>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 12, marginBottom: 28 }}>
                 {pinnedFiles.slice(0, 8).map((file) => (
                   <PinnedCard
@@ -104,7 +105,7 @@ export function FilesPage({ snapshot, actions }: PageProps) {
 
           <div className="row" style={{ marginBottom: 10 }}>
             <div className="section-label">{labelFor(section)}</div>
-            <div style={{ marginLeft: "auto", fontSize: 12, color: "var(--text-3)" }}>Modified ↓</div>
+            <div style={{ marginLeft: "auto", fontSize: 12, color: "var(--text-3)" }}>{t("Modified")} ↓</div>
           </div>
 
           {view === "list" ? (
@@ -140,21 +141,21 @@ function FilesFilter({
   onScan: (next: FileScanState | "all") => void;
 }) {
   const options: ReadonlyArray<{ id: FileScanState | "all"; label: string }> = [
-    { id: "all", label: "All files" },
-    { id: FILE_SCAN_STATE.APPROVED, label: "Clean" },
-    { id: FILE_SCAN_STATE.BLOCKED, label: "Blocked" },
+    { id: "all", label: t("All files") },
+    { id: FILE_SCAN_STATE.APPROVED, label: t("Clean") },
+    { id: FILE_SCAN_STATE.BLOCKED, label: t("Blocked") },
   ];
   return (
     <Popover
       trigger={({ toggle }) => (
-        <button type="button" className="button ghost" aria-label="Filter files" onClick={toggle}>
+        <button type="button" className="button ghost" aria-label={t("Filter files")} onClick={toggle}>
           <Icon name="filter" size={16} color={scan !== "all" ? "var(--accent)" : "currentColor"} />
         </button>
       )}
     >
       {() => (
         <>
-          <MenuLabel>Scan status</MenuLabel>
+          <MenuLabel>{t("Scan status")}</MenuLabel>
           {options.map((option) => (
             <MenuRow key={option.id} active={scan === option.id} onClick={() => onScan(option.id)}>
               {option.label}

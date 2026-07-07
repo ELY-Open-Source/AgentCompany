@@ -4,6 +4,7 @@ import { Button } from "../shared/ui";
 import { ToolkitCatalog } from "../pages/connectors/ToolkitCatalog";
 import { useConnectorCatalog } from "../pages/connectors/useConnectorCatalog";
 import type { SnapshotActions } from "./useSnapshot";
+import { t } from "../i18n/i18n";
 
 /**
  * The post-launch onboarding step: the company exists, so connections can be
@@ -34,7 +35,7 @@ export function ConnectorsStep({
 
   return (
     <div className="form-grid">
-      <h2 className="page-h1">Connectors</h2>
+      <h2 className="page-h1">{t("Connectors")}</h2>
       {catalog.phase === "error" && (
         <div className="row" style={{ gap: 10 }}>
           <span
@@ -50,7 +51,7 @@ export function ConnectorsStep({
           >
             {catalog.message}
           </span>
-          <Button size="small" onClick={retry}>Retry</Button>
+          <Button size="small" onClick={retry}>{t("Retry")}</Button>
         </div>
       )}
       {catalog.phase === "ready" && (
@@ -77,7 +78,7 @@ export function ConnectorsStep({
         </div>
       )}
       <div className="modal-actions" style={{ marginTop: 4 }}>
-        <Button tone="primary" onClick={onFinish}>Finish</Button>
+        <Button tone="primary" onClick={onFinish}>{t("Finish")}</Button>
       </div>
     </div>
   );

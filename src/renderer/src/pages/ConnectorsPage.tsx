@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { Button } from "../shared/ui";
+import { t } from "../i18n/i18n";
 import type { PageProps } from "./types";
 import { activeOrgId } from "./types";
 import { ConnectedList } from "./connectors/ConnectedList";
@@ -41,7 +42,7 @@ export function ConnectorsPage({ snapshot, actions }: PageProps) {
 
   return (
     <div style={{ maxWidth: 1060 }}>
-      <h2 style={{ margin: "0 0 18px", fontSize: 16, fontWeight: 600 }}>Connectors</h2>
+      <h2 style={{ margin: "0 0 18px", fontSize: 16, fontWeight: 600 }}>{t("Connectors")}</h2>
 
       {connectError && (
         <div
@@ -84,7 +85,7 @@ export function ConnectorsPage({ snapshot, actions }: PageProps) {
           >
             {catalog.message}
           </span>
-          <Button size="small" onClick={retry}>Retry</Button>
+          <Button size="small" onClick={retry}>{t("Retry")}</Button>
         </div>
       )}
       {catalog.phase === "ready" && (

@@ -10,20 +10,21 @@ import type {
 import { APPROVAL_STATE, RISK_LEVEL } from "../../../shared/domain";
 import type { PageProps } from "./types";
 import { activeOrgId, formatRelative, requireActiveEmployee } from "./types";
+import { t } from "../i18n/i18n";
 
 type RiskFilter = "all" | RiskLevel;
 
 const RISK_FILTERS: ReadonlyArray<{ id: RiskFilter; label: string }> = [
-  { id: "all", label: "All risk" },
-  { id: RISK_LEVEL.HIGH, label: "High" },
-  { id: RISK_LEVEL.MEDIUM, label: "Medium" },
-  { id: RISK_LEVEL.LOW, label: "Low" },
+  { id: "all", label: t("All risk") },
+  { id: RISK_LEVEL.HIGH, label: t("High") },
+  { id: RISK_LEVEL.MEDIUM, label: t("Medium") },
+  { id: RISK_LEVEL.LOW, label: t("Low") },
 ];
 
 const RISK_TONES: Record<RiskLevel, { label: string; color: string }> = {
-  [RISK_LEVEL.HIGH]: { label: "High risk", color: "var(--red)" },
-  [RISK_LEVEL.MEDIUM]: { label: "Medium risk", color: "var(--amber)" },
-  [RISK_LEVEL.LOW]: { label: "Low risk", color: "var(--text-3)" },
+  [RISK_LEVEL.HIGH]: { label: t("High risk"), color: "var(--red)" },
+  [RISK_LEVEL.MEDIUM]: { label: t("Medium risk"), color: "var(--amber)" },
+  [RISK_LEVEL.LOW]: { label: t("Low risk"), color: "var(--text-3)" },
 };
 
 export function ApprovalsPage({ snapshot, actions }: PageProps) {
@@ -66,21 +67,21 @@ export function ApprovalsPage({ snapshot, actions }: PageProps) {
     <div className="page">
       <TopbarActions>
         <RiskMenu filter={filter} onChange={setFilter} />
-        <Button tone="primary" onClick={approveAllLowRisk}>Approve all low risk</Button>
+        <Button tone="primary" onClick={approveAllLowRisk}>{t("Approve all low risk")}</Button>
       </TopbarActions>
-      <h1 className="page-h1">Approvals</h1>
+      <h1 className="page-h1">{t("Approvals")}</h1>
       <p className="page-sub">
-        {pending.length} pending · {approved7d} approved this week
+        {t("{pending} pending · {approved} approved this week", { pending: pending.length, approved: approved7d })}
       </p>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12, marginBottom: 24 }}>
-        <StatTile label="Pending" value={String(pending.length)} tone="amber" />
-        <StatTile label="Median time" value={formatMinutes(medianTime)} />
-        <StatTile label="Approved (7d)" value={String(approved7d)} />
-        <StatTile label="Declined (7d)" value={String(declined7d)} />
+        <StatTile label={t("Pending")} value={String(pending.length)} tone="amber" />
+        <StatTile label={t("Median time")} value={formatMinutes(medianTime)} />
+        <StatTile label={t("Approved (7d)")} value={String(approved7d)} />
+        <StatTile label={t("Declined (7d)")} value={String(declined7d)} />
       </div>
 
-      {filteredPending.length > 0 && <div className="section-label" style={{ marginBottom: 10 }}>Pending</div>}
+      {filteredPending.length > 0 && <div className="section-label" style={{ marginBottom: 10 }}>{t("Pending")}</div>}
       {filteredPending.map((approval) => (
         <ApprovalRow
           key={approval.id}
@@ -95,7 +96,7 @@ export function ApprovalsPage({ snapshot, actions }: PageProps) {
 
       {decided.length > 0 && (
         <>
-          <div className="section-label" style={{ margin: "32px 0 10px" }}>Recently decided</div>
+          <div className="section-label" style={{ margin: "32px 0 10px" }}>{t("Recently decided")}</div>
           <div className="card" style={{ padding: 0, overflow: "hidden" }}>
             {decided.slice(0, 24).map((approval, index) => (
               <DecidedRow
@@ -140,7 +141,7 @@ function ApprovalDetailDialog({
       <div className="modal" role="dialog" aria-label={approval.title} onMouseDown={(event) => event.stopPropagation()}>
         <div className="row" style={{ alignItems: "flex-start", gap: 10, marginBottom: 12 }}>
           <h2 className="modal-title" style={{ margin: 0, flex: 1 }}>{approval.title}</h2>
-          <IconButton icon="x" label="Close" onClick={onClose} />
+          <IconButton icon="x" label={t("Close")} onClick={onClose} />
         </div>
         <div className="row" style={{ flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
           <span style={{ fontSize: 12, color: tone.color, fontWeight: 540, letterSpacing: "0.02em" }}>{tone.label}</span>
@@ -151,23 +152,23 @@ function ApprovalDetailDialog({
           {approval.details}
         </p>
         <div style={{ display: "grid", gridTemplateColumns: "100px 1fr", gap: "10px 14px", fontSize: 12 }}>
-          <span style={{ color: "var(--text-3)" }}>Requested by</span>
+          <span style={{ color: "var(--text-3)" }}>{t("Requested by")}</span>
           <span>{requester}</span>
-          {approval.sourceEntityType && (<><span style={{ color: "var(--text-3)" }}>Source</span><span>{humanizeKind(approval.sourceEntityType)}</span></>)}
-          <span style={{ color: "var(--text-3)" }}>Requested</span>
+          {approval.sourceEntityType && (<><span style={{ color: "var(--text-3)" }}>{t("Source")}</span><span>{humanizeKind(approval.sourceEntityType)}</span></>)}
+          <span style={{ color: "var(--text-3)" }}>{t("Requested")}</span>
           <span>{formatRelative(approval.createdAt)}</span>
         </div>
         <textarea
           className="input"
-          aria-label="Decision notes"
+          aria-label={t("Decision notes")}
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
           rows={2}
           style={{ marginTop: 14 }}
         />
         <div className="modal-actions">
-          <Button onClick={() => onDecide("declined", notes || undefined)}>Decline</Button>
-          <Button tone="primary" onClick={() => onDecide("approved", notes || undefined)}>Approve</Button>
+          <Button onClick={() => onDecide("declined", notes || undefined)}>{t("Decline")}</Button>
+          <Button tone="primary" onClick={() => onDecide("approved", notes || undefined)}>{t("Approve")}</Button>
         </div>
       </div>
     </div>
@@ -186,7 +187,7 @@ function RiskMenu({ filter, onChange }: { filter: RiskFilter; onChange: (next: R
       value={filter}
       onChange={(event) => onChange(event.target.value as RiskFilter)}
       style={{ padding: "0 10px" }}
-      aria-label="Filter risk"
+      aria-label={t("Filter risk")}
     >
       {RISK_FILTERS.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
     </select>
@@ -251,13 +252,13 @@ function ApprovalRow({
         </div>
         <div className="row" style={{ gap: 8 }}>
           <Avatar name={requester} size="sm" bot={isBot} />
-          <span style={{ fontSize: 12, color: "var(--text-3)" }}>Requested by {requester} · {formatRelative(approval.createdAt)}</span>
+          <span style={{ fontSize: 12, color: "var(--text-3)" }}>{t("Requested by {requester}", { requester })} · {formatRelative(approval.createdAt)}</span>
         </div>
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end" }}>
-        <Button tone="primary" onClick={onApprove}>Approve</Button>
-        <Button onClick={onEdit}>Edit</Button>
-        <Button tone="ghost" onClick={onDecline}>Decline</Button>
+        <Button tone="primary" onClick={onApprove}>{t("Approve")}</Button>
+        <Button onClick={onEdit}>{t("Edit")}</Button>
+        <Button tone="ghost" onClick={onDecline}>{t("Decline")}</Button>
       </div>
     </div>
   );
@@ -275,7 +276,7 @@ function DecidedRow({
   last: boolean;
 }) {
   const approved = approval.state === APPROVAL_STATE.APPROVED;
-  const decidedLabel = approved ? "Approved" : "Declined";
+  const decidedLabel = approved ? t("Approved") : t("Declined");
   return (
     <div
       className="row"
@@ -298,17 +299,17 @@ function DecidedRow({
 
 function resolveRequester(approval: ApprovalRecord, employees: EmployeeRecord[], agents: AgentRecord[]): string {
   if (approval.requestedByType === "employee" && approval.requestedById) {
-    return employees.find((item) => item.id === approval.requestedById)?.displayName ?? "Unknown";
+    return employees.find((item) => item.id === approval.requestedById)?.displayName ?? t("Unknown");
   }
   if (approval.requestedByType === "agent" && approval.requestedById) {
-    return agents.find((item) => item.id === approval.requestedById)?.name ?? "Agent";
+    return agents.find((item) => item.id === approval.requestedById)?.name ?? t("Agent");
   }
-  return "System";
+  return t("System");
 }
 
 function resolveDecider(approval: ApprovalRecord, employees: EmployeeRecord[]): string {
   if (!approval.decidedByEmployeeId) return "—";
-  return employees.find((item) => item.id === approval.decidedByEmployeeId)?.displayName ?? "Unknown";
+  return employees.find((item) => item.id === approval.decidedByEmployeeId)?.displayName ?? t("Unknown");
 }
 
 function withinDays(iso: string | null, days: number): boolean {

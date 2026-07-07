@@ -2,6 +2,7 @@ import { Avatar, Icon, IconButton } from "../../shared/ui";
 import type { ChatPresenceRecord } from "../../../../shared/domain";
 import { formatRelative } from "../types";
 import type { ConversationItem } from "./chat-helpers";
+import { t } from "../../i18n/i18n";
 
 function presenceColor(status: string | undefined): string | null {
   switch (status) {
@@ -40,8 +41,8 @@ export function ChatSidebar({
   return (
     <aside className="secondary-pane">
       <div className="row" style={{ padding: "4px 8px 12px" }}>
-        <div style={{ fontSize: 14, fontWeight: 600 }}>Messages</div>
-        <IconButton icon="plus" label="New space" onClick={onCreateSpace} />
+        <div style={{ fontSize: 14, fontWeight: 600 }}>{t("Messages")}</div>
+        <IconButton icon="plus" label={t("New space")} onClick={onCreateSpace} />
       </div>
       <div className="pane-scroll">
         <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>

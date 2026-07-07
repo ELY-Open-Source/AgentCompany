@@ -15,12 +15,13 @@ import { TASK_STATUS } from "../../../../shared/domain";
 import { auditEventLabel, formatRelative } from "../types";
 import { canRun, nextStatus, prettyRunState, prettyStatus, providerFor, runsForTask, runTone } from "./task-helpers";
 import type { SnapshotActions } from "../../app/useSnapshot";
+import { t } from "../../i18n/i18n";
 
 type Tab = "overview" | "subtasks" | "activity";
 const TABS: Array<{ id: Tab; label: string }> = [
-  { id: "overview", label: "Overview" },
-  { id: "subtasks", label: "Subtasks" },
-  { id: "activity", label: "Activity" },
+  { id: "overview", label: t("Overview") },
+  { id: "subtasks", label: t("Subtasks") },
+  { id: "activity", label: t("Activity") },
 ];
 
 export function TaskDetailDialog({
@@ -98,14 +99,14 @@ export function TaskDetailDialog({
         <div className="row" style={{ alignItems: "flex-start", gap: 10, marginBottom: 8 }}>
           {task.priority === "high" && <span style={{ width: 3, height: 18, background: "var(--red)", borderRadius: 2, marginTop: 2, flexShrink: 0 }} />}
           <h2 className="modal-title" style={{ margin: 0, flex: 1 }}>{task.title}</h2>
-          <IconButton icon="edit" label="Edit" onClick={() => setEditing(true)} />
-          <IconButton icon="x" label="Close" onClick={onClose} />
+          <IconButton icon="edit" label={t("Edit")} onClick={() => setEditing(true)} />
+          <IconButton icon="x" label={t("Close")} onClick={onClose} />
         </div>
         <div className="row" style={{ flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
           <Pill>{prettyStatus(task.status)}</Pill>
-          <Pill tone={task.priority === "high" ? "amber" : undefined}>{task.priority}</Pill>
-          {task.risk === "high" && <Pill tone="red">high risk</Pill>}
-          {task.requiresFilesystem && <Pill>workspace</Pill>}
+          <Pill tone={task.priority === "high" ? "amber" : undefined}>{task.priority === "high" ? t("high") : task.priority === "low" ? t("low") : t("normal")}</Pill>
+          {task.risk === "high" && <Pill tone="red">{t("high risk")}</Pill>}
+          {task.requiresFilesystem && <Pill>{t("workspace")}</Pill>}
         </div>
 
         <div style={{ marginBottom: 12 }}><Segmented value={tab} onChange={setTab} options={TABS} /></div>
@@ -121,8 +122,8 @@ export function TaskDetailDialog({
         )}
 
         <div className="modal-actions">
-          <Button tone="ghost" onClick={deleteTask}><Icon name="x" size={16} /> Delete</Button>
-          {assignee && <Button onClick={() => onRun(task)} disabled={!canRun(provider)}><Icon name="send" size={16} /> Run</Button>}
+          <Button tone="ghost" onClick={deleteTask}><Icon name="x" size={16} /> {t("Delete")}</Button>
+          {assignee && <Button onClick={() => onRun(task)} disabled={!canRun(provider)}><Icon name="send" size={16} /> {t("Run")}</Button>}
           {advanceTo && <Button tone="primary" onClick={() => onAdvance(task)}><Icon name="check" size={16} /> {prettyStatus(advanceTo)}</Button>}
         </div>
 
@@ -143,17 +144,17 @@ function OverviewTab({ task, assignee, project, goal, workspace, provider, runs 
         <p style={{ margin: "0 0 14px", color: "var(--text-2)", fontSize: 14, lineHeight: 1.55, whiteSpace: "pre-wrap" }}>{task.description}</p>
       )}
       <div style={{ display: "grid", gridTemplateColumns: "100px 1fr", gap: "8px 14px", fontSize: 12 }}>
-        <MetaLabel>Assignee</MetaLabel>
+        <MetaLabel>{t("Assignee")}</MetaLabel>
         <div className="row" style={{ gap: 8 }}>
-          {assignee ? (<><Avatar name={assignee.name} size="sm" bot /><span>{assignee.name}</span>{provider && <span style={{ color: "var(--text-3)" }}>({provider.label})</span>}</>) : <span style={{ color: "var(--text-4)" }}>Unassigned</span>}
+          {assignee ? (<><Avatar name={assignee.name} size="sm" bot /><span>{assignee.name}</span>{provider && <span style={{ color: "var(--text-3)" }}>({provider.label})</span>}</>) : <span style={{ color: "var(--text-4)" }}>{t("Unassigned")}</span>}
         </div>
-        {project && (<><MetaLabel>Project</MetaLabel><div>{project.name}</div></>)}
-        {goal && (<><MetaLabel>Goal</MetaLabel><div>{goal.title}</div></>)}
-        {workspace && (<><MetaLabel>Workspace</MetaLabel><div>{workspace.name}</div></>)}
+        {project && (<><MetaLabel>{t("Project")}</MetaLabel><div>{project.name}</div></>)}
+        {goal && (<><MetaLabel>{t("Goal")}</MetaLabel><div>{goal.title}</div></>)}
+        {workspace && (<><MetaLabel>{t("Workspace")}</MetaLabel><div>{workspace.name}</div></>)}
       </div>
       {runs.length > 0 && (
         <div style={{ marginTop: 16 }}>
-          <div className="section-label">Runs</div>
+          <div className="section-label">{t("Runs")}</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             {runs.map((run) => (
               <div key={run.id} style={{ display: "flex", flexDirection: "column", gap: 2 }}>
@@ -177,7 +178,7 @@ function OverviewTab({ task, assignee, project, goal, workspace, provider, runs 
 function SubtasksTab({ subtasks, agents }: { subtasks: TaskRecord[]; agents: AgentRecord[] }) {
   return (
     <div style={{ minHeight: 60 }}>
-      {subtasks.length === 0 && <div style={{ fontSize: 14, color: "var(--text-3)" }}>No subtasks</div>}
+      {subtasks.length === 0 && <div style={{ fontSize: 14, color: "var(--text-3)" }}>{t("No subtasks")}</div>}
       {subtasks.map((st) => {
         const owner = agents.find((a) => a.id === st.assigneeAgentId);
         return (
@@ -198,7 +199,7 @@ function ActivityTab({ audit, approvals }: { audit: AuditEventRecord[]; approval
     <div style={{ minHeight: 60 }}>
       {approvals.length > 0 && (
         <div style={{ marginBottom: 12 }}>
-          <div className="section-label">Approvals</div>
+          <div className="section-label">{t("Approvals")}</div>
           {approvals.map((a) => (
             <div key={a.id} className="row" style={{ gap: 8, padding: "6px 0" }}>
               <Pill tone={a.state === "approved" ? "green" : a.state === "pending" ? "amber" : "red"}>{a.state}</Pill>
@@ -208,8 +209,8 @@ function ActivityTab({ audit, approvals }: { audit: AuditEventRecord[]; approval
           ))}
         </div>
       )}
-      <div className="section-label">Events</div>
-      {audit.length === 0 && <div style={{ fontSize: 14, color: "var(--text-3)" }}>No events</div>}
+      <div className="section-label">{t("Events")}</div>
+      {audit.length === 0 && <div style={{ fontSize: 14, color: "var(--text-3)" }}>{t("No events")}</div>}
       {audit.map((e) => (
         <div key={e.id} className="row" style={{ gap: 8, padding: "5px 0" }}>
           <span className="mono" style={{ fontSize: 12, color: "var(--text-3)", flexShrink: 0 }}>{formatRelative(e.createdAt)}</span>
@@ -228,36 +229,36 @@ function EditOverlay({ task, agents, allTasks, onSubmit, onCancel }: {
   return (
     <div style={{ position: "absolute", inset: 0, background: "var(--bg)", borderRadius: 14, padding: 24, overflow: "auto", zIndex: 2 }}>
       <form onSubmit={onSubmit}>
-        <h3 style={{ margin: "0 0 14px", fontSize: 15, fontWeight: 600 }}>Edit task</h3>
-        <Field label="Title"><input className="input" name="title" defaultValue={task.title} required /></Field>
-        <Field label="Description"><textarea className="input" name="description" rows={4} defaultValue={task.description} /></Field>
-        <Field label="Assignee">
+        <h3 style={{ margin: "0 0 14px", fontSize: 15, fontWeight: 600 }}>{t("Edit task")}</h3>
+        <Field label={t("Title")}><input className="input" name="title" defaultValue={task.title} required /></Field>
+        <Field label={t("Description")}><textarea className="input" name="description" rows={4} defaultValue={task.description} /></Field>
+        <Field label={t("Assignee")}>
           <select className="input" name="assigneeAgentId" defaultValue={task.assigneeAgentId ?? ""}>
-            <option value="">Unassigned</option>
+            <option value="">{t("Unassigned")}</option>
             {agents.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
           </select>
         </Field>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-          <Field label="Risk">
+          <Field label={t("Risk")}>
             <select className="input" name="risk" defaultValue={task.risk}>
-              <option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option>
+              <option value="low">{t("Low")}</option><option value="medium">{t("Medium")}</option><option value="high">{t("High")}</option>
             </select>
           </Field>
-          <Field label="Priority">
+          <Field label={t("Priority")}>
             <select className="input" name="priority" defaultValue={task.priority}>
-              <option value="low">Low</option><option value="normal">Normal</option><option value="high">High</option>
+              <option value="low">{t("Low")}</option><option value="normal">{t("Normal")}</option><option value="high">{t("High")}</option>
             </select>
           </Field>
         </div>
-        <Field label="Parent task">
+        <Field label={t("Parent task")}>
           <select className="input" name="parentTaskId" defaultValue={task.parentTaskId ?? ""}>
-            <option value="">None</option>
+            <option value="">{t("None")}</option>
             {otherTasks.map((t) => <option key={t.id} value={t.id}>{t.title}</option>)}
           </select>
         </Field>
         <div className="modal-actions">
-          <Button onClick={onCancel}>Cancel</Button>
-          <Button tone="primary" type="submit">Save</Button>
+          <Button onClick={onCancel}>{t("Cancel")}</Button>
+          <Button tone="primary" type="submit">{t("Save")}</Button>
         </div>
       </form>
     </div>

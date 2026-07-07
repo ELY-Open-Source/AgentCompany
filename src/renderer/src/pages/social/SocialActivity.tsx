@@ -7,6 +7,7 @@ import type {
   SocialAuditRecord,
 } from "../../../../shared/domain";
 import { formatRelative } from "../types";
+import { t } from "../../i18n/i18n";
 
 interface ActivityEntry {
   id: string;
@@ -37,7 +38,7 @@ export function SocialActivity({
     return account ? account.handle : "—";
   };
   const employeeName = (id: string | null): string => {
-    if (!id) return "System";
+    if (!id) return t("System");
     return employees.find((item) => item.id === id)?.displayName ?? id;
   };
 
@@ -68,7 +69,7 @@ export function SocialActivity({
 
   return (
     <div style={{ marginTop: 28 }}>
-      <div className="section-label" style={{ marginBottom: 10 }}>Access &amp; activity</div>
+      <div className="section-label" style={{ marginBottom: 10 }}>{t("Access & activity")}</div>
       {grants.length > 0 && (
         <div className="card" style={{ padding: 0, overflow: "hidden", marginBottom: 12 }}>
           {grants.map((grant, index) => (
@@ -99,7 +100,7 @@ export function SocialActivity({
               <span style={{ fontSize: 12, color: "var(--text-3)" }}>{accountHandle(entry.accountId)}</span>
               <Pill tone={policyTone(entry.policyDecision)}>{humanize(entry.policyDecision)}</Pill>
               <span style={{ marginLeft: "auto", fontSize: 12, color: "var(--text-3)" }}>
-                {entry.actorType === "agent" ? "agent" : employeeName(entry.actorId)} · {formatRelative(entry.createdAt)}
+                {entry.actorType === "agent" ? t("agent") : employeeName(entry.actorId)} · {formatRelative(entry.createdAt)}
               </span>
             </div>
           ))}
@@ -129,10 +130,10 @@ function scopeSummary(scopeJson: string): string {
       const actions = (parsed as { actions: unknown[] }).actions.filter((item): item is string => typeof item === "string");
       const ceiling = (parsed as { riskCeiling?: unknown }).riskCeiling;
       const risk = typeof ceiling === "string" ? ` · ≤${ceiling}` : "";
-      return `${actions.length} action${actions.length === 1 ? "" : "s"}${risk}`;
+      return `${actions.length === 1 ? t("{count} action", { count: actions.length }) : t("{count} actions", { count: actions.length })}${risk}`;
     }
   } catch {
-    return "scoped";
+    return t("scoped");
   }
-  return "scoped";
+  return t("scoped");
 }

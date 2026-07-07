@@ -1,5 +1,6 @@
 import type { FormEvent, ReactNode } from "react";
 import { Button } from "./ui";
+import { t } from "../i18n/i18n";
 
 export function Dialog({
   title,
@@ -25,7 +26,7 @@ export function Dialog({
         <h2 className="modal-title">{title}</h2>
         <div style={{ display: "grid", gap: 12 }}>{children}</div>
         <div className="modal-actions">
-          <Button tone="ghost" onClick={onClose}>{hideSubmit ? "Close" : "Cancel"}</Button>
+          <Button tone="ghost" onClick={onClose}>{hideSubmit ? t("Close") : t("Cancel")}</Button>
           {!hideSubmit && <Button tone="primary" type="submit">{submitLabel}</Button>}
         </div>
       </form>

@@ -1,6 +1,7 @@
 import { Avatar } from "../../shared/ui";
 import type { AgentRecord, ApprovalRecord } from "../../../../shared/domain";
 import { formatRelative } from "../types";
+import { t } from "../../i18n/i18n";
 
 interface PipelineStage {
   id: string;
@@ -9,10 +10,10 @@ interface PipelineStage {
 }
 
 const STAGES: PipelineStage[] = [
-  { id: "pending_approval", label: "Pending approval", color: "var(--amber)" },
-  { id: "approved", label: "Approved", color: "var(--green)" },
-  { id: "active", label: "Active", color: "var(--accent)" },
-  { id: "rejected", label: "Rejected", color: "var(--red)" },
+  { id: "pending_approval", label: t("Pending approval"), color: "var(--amber)" },
+  { id: "approved", label: t("Approved"), color: "var(--green)" },
+  { id: "active", label: t("Active"), color: "var(--accent)" },
+  { id: "rejected", label: t("Rejected"), color: "var(--red)" },
 ];
 
 interface PipelineEntry {
@@ -37,7 +38,7 @@ export function HiringPipeline({ agents, approvals }: { agents: AgentRecord[]; a
 
   return (
     <section style={{ marginBottom: 24 }}>
-      <div className="section-label" style={{ marginBottom: 12 }}>Hiring pipeline</div>
+      <div className="section-label" style={{ marginBottom: 12 }}>{t("Hiring pipeline")}</div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 12 }}>
         {STAGES.map((stage) => {
           const stageEntries = entries.filter((e) => e.stage === stage.id);

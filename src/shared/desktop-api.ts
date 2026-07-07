@@ -186,6 +186,7 @@ export interface DesktopApi {
   search(input: SearchInput): Promise<DesktopResult<SearchResultRecord[]>>;
   subscribe(callback: (event: RendererEvent) => void): () => void;
   platform: "win32" | "darwin" | "linux";
+  language: "en" | "zh";
   windowMinimize(): Promise<void>;
   windowMaximize(): Promise<void>;
   windowClose(): Promise<void>;

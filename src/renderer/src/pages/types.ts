@@ -5,6 +5,7 @@ import type {
 } from "../../../shared/domain";
 import type { SnapshotActions } from "../app/useSnapshot";
 import type { RouteId } from "../shared/Shell";
+import { t } from "../i18n/i18n";
 
 export interface PageProps {
   snapshot: AppSnapshot;
@@ -68,13 +69,13 @@ export function formatRelative(iso: string, reference: Date = new Date()): strin
   if (Number.isNaN(target)) return "—";
   const diff = reference.getTime() - target;
   const minutes = Math.round(diff / 60_000);
-  if (minutes < 1) return "just now";
-  if (minutes < 60) return `${minutes}m ago`;
+  if (minutes < 1) return t("just now");
+  if (minutes < 60) return t("{n}m ago", { n: minutes });
   const hours = Math.round(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
+  if (hours < 24) return t("{n}h ago", { n: hours });
   const days = Math.round(hours / 24);
-  if (days < 7) return `${days}d ago`;
+  if (days < 7) return t("{n}d ago", { n: days });
   const weeks = Math.round(days / 7);
-  if (weeks < 5) return `${weeks}w ago`;
+  if (weeks < 5) return t("{n}w ago", { n: weeks });
   return new Date(iso).toLocaleDateString();
 }

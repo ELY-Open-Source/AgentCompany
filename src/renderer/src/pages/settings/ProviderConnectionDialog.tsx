@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { ProviderCatalogEntry, ProviderRecord } from "../../../../shared/domain";
 import { ProviderOAuthConnect } from "../../shared/ProviderOAuthConnect";
 import { Field } from "../../shared/ui";
+import { t } from "../../i18n/i18n";
 
 interface CloudFields {
   baseUrl: string;
@@ -23,7 +24,7 @@ export function ProviderConnectFields({
     return (
       <>
         <p style={{ fontSize: 12, color: "var(--text-3)", lineHeight: 1.5, margin: 0 }}>{entry.credentialHelp}</p>
-        <Field label="API key"><input className="input" name="secret" type="password" required autoFocus /></Field>
+        <Field label={t("API key")}><input className="input" name="secret" type="password" required autoFocus /></Field>
         <ModelPicker entry={entry} provider={provider} />
       </>
     );
@@ -51,7 +52,7 @@ export function ProviderOAuthFields({
   return (
     <>
       <p style={{ fontSize: 12, color: "var(--text-3)", lineHeight: 1.5, margin: 0 }}>{entry.credentialHelp}</p>
-      <Field label="Default model">
+      <Field label={t("Default model")}>
         {entry.models.length ? (
           <select className="input" value={model} onChange={(event) => setModel(event.target.value)}>
             {entry.models.map((option) => (
@@ -78,7 +79,7 @@ function CompatFieldsForm({ entry, provider }: { entry: ProviderCatalogEntry; pr
   return (
     <>
       <p style={{ fontSize: 12, color: "var(--text-3)", lineHeight: 1.5, margin: 0 }}>{entry.credentialHelp}</p>
-      <Field label="Base URL">
+      <Field label={t("Base URL")}>
         <input
           className="input"
           name="cloudBaseUrl"
@@ -86,7 +87,7 @@ function CompatFieldsForm({ entry, provider }: { entry: ProviderCatalogEntry; pr
           onChange={(event) => setBaseUrl(event.target.value)}
         />
       </Field>
-      <Field label="API key"><input className="input" name="secret" type="password" required /></Field>
+      <Field label={t("API key")}><input className="input" name="secret" type="password" required /></Field>
       <ModelPicker entry={entry} provider={provider} />
     </>
   );
@@ -114,7 +115,7 @@ function ModelPicker({ entry, provider }: { entry: ProviderCatalogEntry; provide
   };
 
   return (
-    <Field label="Default model">
+    <Field label={t("Default model")}>
       {models.length ? (
         <select className="input" name="model" value={value} onChange={(event) => setValue(event.target.value)}>
           {models.map((model) => (
@@ -126,7 +127,7 @@ function ModelPicker({ entry, provider }: { entry: ProviderCatalogEntry; provide
       )}
       {connected && (
         <button type="button" className="button ghost" style={{ marginTop: 6 }} disabled={loading} onClick={refresh}>
-          {loading ? "Loading models..." : "Refresh models"}
+          {loading ? t("Loading models...") : t("Refresh models")}
         </button>
       )}
       {error && <div style={{ color: "var(--red)", fontSize: 12, marginTop: 4 }}>{error}</div>}
@@ -140,22 +141,22 @@ function CloudFieldsForm({ entry, provider }: { entry: ProviderCatalogEntry; pro
   return (
     <>
       <p style={{ fontSize: 12, color: "var(--text-3)", lineHeight: 1.5, margin: 0 }}>{entry.credentialHelp}</p>
-      <Field label="Base URL">
+      <Field label={t("Base URL")}>
         <input className="input" name="cloudBaseUrl" value={state.baseUrl} onChange={(event) => update({ baseUrl: event.target.value })} />
       </Field>
-      <Field label="Region">
+      <Field label={t("Region")}>
         <input className="input" name="cloudRegion" value={state.region} onChange={(event) => update({ region: event.target.value })} />
       </Field>
-      <Field label="Project / resource">
+      <Field label={t("Project / resource")}>
         <input className="input" name="cloudProject" value={state.projectId} onChange={(event) => update({ projectId: event.target.value })} />
       </Field>
-      <Field label="Deployment / model id">
+      <Field label={t("Deployment / model id")}>
         <input className="input" name="cloudDeployment" value={state.deployment} onChange={(event) => update({ deployment: event.target.value })} />
       </Field>
-      <Field label="Credential">
+      <Field label={t("Credential")}>
         <input className="input" name="secret" type="password" required autoFocus />
       </Field>
-      <Field label="Default model">
+      <Field label={t("Default model")}>
         <input className="input" name="model" defaultValue={provider.model ?? entry.defaultModel ?? ""} />
       </Field>
     </>

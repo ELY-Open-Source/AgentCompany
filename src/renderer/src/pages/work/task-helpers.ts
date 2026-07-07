@@ -5,6 +5,7 @@ import {
   type TaskRunRecord,
   type TaskStatus,
 } from "../../../../shared/domain";
+import { t } from "../../i18n/i18n";
 
 export function nextStatus(status: TaskStatus): TaskStatus | null {
   if (status === TASK_STATUS.BACKLOG) return TASK_STATUS.IN_PROGRESS;
@@ -14,10 +15,17 @@ export function nextStatus(status: TaskStatus): TaskStatus | null {
 }
 
 export function prettyStatus(status: TaskStatus): string {
-  return status.replaceAll("_", " ");
+  if (status === TASK_STATUS.BACKLOG) return t("backlog");
+  if (status === TASK_STATUS.IN_PROGRESS) return t("in progress");
+  if (status === TASK_STATUS.REVIEW) return t("review");
+  return t("done");
 }
 
 export function prettyRunState(state: string): string {
+  if (state === "queued") return t("queued");
+  if (state === "running") return t("running");
+  if (state === "completed") return t("completed");
+  if (state === "failed") return t("failed");
   return state.replaceAll("_", " ");
 }
 

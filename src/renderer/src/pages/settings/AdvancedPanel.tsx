@@ -9,6 +9,7 @@ import type {
 import type { SnapshotActions } from "../../app/useSnapshot";
 import { BillingPanel } from "./BillingPanel";
 import { ProviderRequestPanel } from "./ProviderRequestPanel";
+import { t } from "../../i18n/i18n";
 
 /** The low-frequency operator surfaces, one section each. */
 export function AdvancedPanel({
@@ -33,7 +34,7 @@ export function AdvancedPanel({
   const connected = providers.filter((provider) => provider.enabled);
   return (
     <div className="page">
-      <h1 className="page-h1">Advanced</h1>
+      <h1 className="page-h1">{t("Advanced")}</h1>
 
       {connected.length > 0 && (
         <div style={{ marginTop: 16 }}>

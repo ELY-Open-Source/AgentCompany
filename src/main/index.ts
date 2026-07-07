@@ -23,7 +23,8 @@ if (!app.requestSingleInstanceLock()) {
   // strings, date formatting) is only settable pre-ready, and it follows the
   // stored language preference instead of the OS locale.
   const connection = new DatabaseConnection(join(profileDir, "agentcompany.db"));
-  app.commandLine.appendSwitch("lang", storedLanguage(connection.db) === "zh" ? "zh-CN" : "en-US");
+  const language = storedLanguage(connection.db);
+  app.commandLine.appendSwitch("lang", language === "zh" ? "zh-CN" : "en-US");
 
   app.whenReady().then(() => {
     connection.transaction(() => recoverInterruptedWork(connection.db));
@@ -31,6 +32,7 @@ if (!app.requestSingleInstanceLock()) {
       preloadPath: join(__dirname, "../preload/index.js"),
       rendererDist: join(__dirname, "../renderer"),
       devServerUrl: process.env.ELECTRON_RENDERER_URL,
+      language,
     });
 
     registerIpcHandlers({

@@ -1,5 +1,6 @@
 import { Avatar, Pill } from "../../shared/ui";
 import { TASK_STATUS, type AgentRecord, type ChatSpaceRecord, type ProjectRecord, type TaskRecord, type WorkspaceRecord } from "../../../../shared/domain";
+import { t } from "../../i18n/i18n";
 
 export function ProjectOverview({
   projects,
@@ -17,7 +18,7 @@ export function ProjectOverview({
   if (projects.length === 0) return null;
   return (
     <section style={{ marginBottom: 18 }}>
-      <div className="section-label" style={{ marginBottom: 10 }}>Projects</div>
+      <div className="section-label" style={{ marginBottom: 10 }}>{t("Projects")}</div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 10 }}>
         {projects.map((project) => (
           <ProjectCard
@@ -55,7 +56,7 @@ function ProjectCard({
           <div style={{ fontWeight: 560, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{project.name}</div>
           <div className="row" style={{ marginTop: 8, gap: 6, flexWrap: "wrap" }}>
             <Pill>{project.status.replace(/_/g, " ")}</Pill>
-            <Pill>{done} / {tasks.length} tasks</Pill>
+            <Pill>{t("{done} / {total} tasks", { done, total: tasks.length })}</Pill>
             {workspace && <Pill>{workspace.name}</Pill>}
             {room && <Pill>#{room.name}</Pill>}
           </div>

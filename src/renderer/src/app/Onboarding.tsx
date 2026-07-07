@@ -8,6 +8,7 @@ import { Button, Field, Icon, IconButton, Pill } from "../shared/ui";
 import type { SnapshotActions } from "./useSnapshot";
 import { ProviderStep } from "./OnboardingProviderStep";
 import { ConnectorsStep } from "./OnboardingConnectorsStep";
+import { t } from "../i18n/i18n";
 
 type Step = "welcome" | "provider" | "company" | "mode" | "mission" | "connectors";
 
@@ -26,12 +27,12 @@ export interface Draft {
 }
 
 const STEPS: Array<{ id: Step; label: string }> = [
-  { id: "welcome", label: "Start" },
-  { id: "provider", label: "Provider" },
-  { id: "company", label: "Company" },
-  { id: "mode", label: "Mode" },
-  { id: "mission", label: "Goal" },
-  { id: "connectors", label: "Connectors" },
+  { id: "welcome", label: t("Start") },
+  { id: "provider", label: t("Provider") },
+  { id: "company", label: t("Company") },
+  { id: "mode", label: t("Mode") },
+  { id: "mission", label: t("Goal") },
+  { id: "connectors", label: t("Connectors") },
 ];
 
 export function Onboarding({
@@ -133,9 +134,9 @@ export function Onboarding({
       <header className="onboarding-titlebar">
         {!isMac && (
           <span className="window-controls">
-            <IconButton icon="minus" label="Minimize" onClick={() => void window.agentCompany.windowMinimize()} />
-            <IconButton icon="grid" label="Maximize" onClick={() => void window.agentCompany.windowMaximize()} />
-            <IconButton icon="x" label="Close" onClick={() => void window.agentCompany.windowClose()} />
+            <IconButton icon="minus" label={t("Minimize")} onClick={() => void window.agentCompany.windowMinimize()} />
+            <IconButton icon="grid" label={t("Maximize")} onClick={() => void window.agentCompany.windowMaximize()} />
+            <IconButton icon="x" label={t("Close")} onClick={() => void window.agentCompany.windowClose()} />
           </span>
         )}
       </header>
@@ -147,13 +148,13 @@ export function Onboarding({
             <div style={{ fontWeight: 540 }}>AgentCompany</div>
             {onCancel && step !== "connectors" && (
               <button type="button" className="button ghost" style={{ marginLeft: "auto" }} onClick={onCancel}>
-                Cancel
+                {t("Cancel")}
               </button>
             )}
           </div>
-          <h1 className="page-h1" style={{ fontSize: 24, marginTop: 32, letterSpacing: "-0.02em" }}>Start your AI company.</h1>
+          <h1 className="page-h1" style={{ fontSize: 24, marginTop: 32, letterSpacing: "-0.02em" }}>{t("Start your AI company.")}</h1>
           <p className="page-sub" style={{ maxWidth: 460, fontSize: 14, lineHeight: 1.55 }}>
-            Stand up the workspace, bind the provider, and queue the first operating loop.
+            {t("Stand up the workspace, bind the provider, and queue the first operating loop.")}
           </p>
           <div className="onboarding-steps">
             {STEPS.map((entry) => (
@@ -162,14 +163,14 @@ export function Onboarding({
           </div>
         </div>
         <div className="card" style={{ maxWidth: 460 }}>
-          <div className="card-label" style={{ marginBottom: 10 }}>Runtime selected</div>
+          <div className="card-label" style={{ marginBottom: 10 }}>{t("Runtime selected")}</div>
           <div className="row" style={{ gap: 10 }}>
             <Icon name="bot" size={18} />
             <strong style={{ fontSize: 14 }}>{selectedProvider.label}</strong>
             {draft.providerModel && <Pill tone="violet">{draft.providerModel}</Pill>}
           </div>
           <div style={{ marginTop: 10, fontSize: 12, color: "var(--text-3)" }}>
-            We never embed the key in the build. Credentials encrypt locally via OS-protected storage.
+            {t("We never embed the key in the build. Credentials encrypt locally via OS-protected storage.")}
           </div>
         </div>
       </section>
@@ -233,19 +234,18 @@ interface StepProps {
 function WelcomeStep({ onNext }: { onNext: () => void }) {
   return (
     <div className="form-grid">
-      <h2 className="page-h1">Welcome</h2>
+      <h2 className="page-h1">{t("Welcome")}</h2>
       <p style={{ color: "var(--text-2)", fontSize: 14, lineHeight: 1.55 }}>
-        AgentCompany sets up your operating loop in six steps. Bring an API key, pick a runtime
-        for the founding CEO, and we'll wire up the first goal, project, and task.
+        {t("AgentCompany sets up your operating loop in six steps. Bring an API key, pick a runtime for the founding CEO, and we'll wire up the first goal, project, and task.")}
       </p>
       <ul style={{ paddingLeft: 20, color: "var(--text-2)", lineHeight: 1.8, margin: 0, fontSize: 14 }}>
-        <li>Connect one model provider (OpenAI, Anthropic, xAI, or Groq).</li>
-        <li>Name the company and the human board chair.</li>
-        <li>Pick execution mode and bind the workspace path.</li>
-        <li>State the first goal — we kick off the rest.</li>
+        <li>{t("Connect one model provider (OpenAI, Anthropic, xAI, or Groq).")}</li>
+        <li>{t("Name the company and the human board chair.")}</li>
+        <li>{t("Pick execution mode and bind the workspace path.")}</li>
+        <li>{t("State the first goal — we kick off the rest.")}</li>
       </ul>
       <div className="modal-actions" style={{ marginTop: 4 }}>
-        <Button tone="primary" onClick={onNext}>Get started</Button>
+        <Button tone="primary" onClick={onNext}>{t("Get started")}</Button>
       </div>
     </div>
   );
@@ -259,20 +259,20 @@ function CompanyStep({ draft, onChange, onBack, onNext }: StepProps) {
   };
   return (
     <div className="form-grid">
-      <h2 className="page-h1">Company</h2>
-      <Field label="Company name">
+      <h2 className="page-h1">{t("Company")}</h2>
+      <Field label={t("Company name")}>
         <input className="input" value={draft.companyName} onChange={(event) => onChange({ companyName: event.target.value })} autoFocus required />
       </Field>
-      <Field label="Your name">
+      <Field label={t("Your name")}>
         <input className="input" value={draft.employeeName} onChange={(event) => onChange({ employeeName: event.target.value })} required />
       </Field>
-      <Field label="Description">
+      <Field label={t("Description")}>
         <textarea className="input" value={draft.companyDescription} onChange={(event) => onChange({ companyDescription: event.target.value })} required />
       </Field>
-      <Field label="Workspace path (optional)">
+      <Field label={t("Workspace path (optional)")}>
         <div className="row" style={{ gap: 6 }}>
           <input className="input" value={draft.workspacePath} onChange={(event) => onChange({ workspacePath: event.target.value })} />
-          <Button tone="ghost" onClick={chooseWorkspace}><Icon name="folder" size={16} /> Choose</Button>
+          <Button tone="ghost" onClick={chooseWorkspace}><Icon name="folder" size={16} /> {t("Choose")}</Button>
         </div>
       </Field>
       <Actions onBack={onBack} onNext={onNext} />
@@ -283,17 +283,17 @@ function CompanyStep({ draft, onChange, onBack, onNext }: StepProps) {
 function ModeStep({ draft, onChange, onBack, onNext }: StepProps) {
   return (
     <div className="form-grid">
-      <h2 className="page-h1">Mode</h2>
-      <p style={{ color: "var(--text-3)", fontSize: 14 }}>How autonomous should the CEO be?</p>
+      <h2 className="page-h1">{t("Mode")}</h2>
+      <p style={{ color: "var(--text-3)", fontSize: 14 }}>{t("How autonomous should the CEO be?")}</p>
       <ModeCard
-        title="AI CEO"
-        description="Agents auto-approve hires up to the budget envelope and ship work that clears policy."
+        title={t("AI CEO")}
+        description={t("Agents auto-approve hires up to the budget envelope and ship work that clears policy.")}
         active={draft.executionMode === "ai_ceo"}
         onClick={() => onChange({ executionMode: "ai_ceo" })}
       />
       <ModeCard
-        title="AI Co-Founder"
-        description="Hires need your stamp; deliverables route through review before shipping."
+        title={t("AI Co-Founder")}
+        description={t("Hires need your stamp; deliverables route through review before shipping.")}
         active={draft.executionMode === "ai_cofounder"}
         onClick={() => onChange({ executionMode: "ai_cofounder" })}
       />
@@ -310,16 +310,16 @@ function MissionStep({
 }: Omit<StepProps, "onNext"> & { submitting: boolean }) {
   return (
     <div className="form-grid">
-      <h2 className="page-h1">Goal</h2>
-      <Field label="Goal">
+      <h2 className="page-h1">{t("Goal")}</h2>
+      <Field label={t("Goal")}>
         <input className="input" value={draft.goalTitle} onChange={(event) => onChange({ goalTitle: event.target.value })} required />
       </Field>
-      <Field label="Acceptance criteria">
+      <Field label={t("Acceptance criteria")}>
         <textarea className="input" value={draft.goalDescription} onChange={(event) => onChange({ goalDescription: event.target.value })} required />
       </Field>
       <div className="modal-actions" style={{ marginTop: 4 }}>
-        <Button onClick={onBack}>Back</Button>
-        <Button tone="primary" type="submit" disabled={submitting}>{submitting ? "Launching…" : "Launch"}</Button>
+        <Button onClick={onBack}>{t("Back")}</Button>
+        <Button tone="primary" type="submit" disabled={submitting}>{submitting ? t("Launching…") : t("Launch")}</Button>
       </div>
     </div>
   );
@@ -347,8 +347,8 @@ function ModeCard({
 function Actions({ onBack, onNext }: { onBack: () => void; onNext: () => void }) {
   return (
     <div className="modal-actions" style={{ marginTop: 4 }}>
-      <Button onClick={onBack}>Back</Button>
-      <Button tone="primary" onClick={onNext}>Continue</Button>
+      <Button onClick={onBack}>{t("Back")}</Button>
+      <Button tone="primary" onClick={onNext}>{t("Continue")}</Button>
     </div>
   );
 }
@@ -360,24 +360,24 @@ function requireProvider(providers: ProviderCatalogEntry[], key: string): Provid
 }
 
 function validateProvider(draft: Draft, providers: ProviderCatalogEntry[]): string | null {
-  if (!draft.providerKey) return "Pick a provider.";
+  if (!draft.providerKey) return t("Pick a provider.");
   const selected = providers.find((entry) => entry.key === draft.providerKey);
-  if (!selected) return "Provider is no longer available.";
-  if (selected.customEndpoint && !draft.providerBaseUrl.trim()) return "Base URL is required.";
+  if (!selected) return t("Provider is no longer available.");
+  if (selected.customEndpoint && !draft.providerBaseUrl.trim()) return t("Base URL is required.");
   if (!draft.providerSecret.trim()) {
-    return selected.authType === "api_key" || selected.customEndpoint ? "API key is required." : "Access token is required.";
+    return selected.authType === "api_key" || selected.customEndpoint ? t("API key is required.") : t("Access token is required.");
   }
-  if (!draft.providerModel.trim()) return "Model is required.";
+  if (!draft.providerModel.trim()) return t("Model is required.");
   return null;
 }
 
 function validateCompany(draft: Draft): string | null {
-  if (!draft.companyName.trim()) return "Company name is required.";
-  if (!draft.employeeName.trim()) return "Your name is required.";
-  if (!draft.companyDescription.trim()) return "Description is required.";
+  if (!draft.companyName.trim()) return t("Company name is required.");
+  if (!draft.employeeName.trim()) return t("Your name is required.");
+  if (!draft.companyDescription.trim()) return t("Description is required.");
   return null;
 }
 
 function validateAll(draft: Draft, providers: ProviderCatalogEntry[]): string | null {
-  return validateProvider(draft, providers) ?? validateCompany(draft) ?? (!draft.goalTitle.trim() ? "Goal is required." : null);
+  return validateProvider(draft, providers) ?? validateCompany(draft) ?? (!draft.goalTitle.trim() ? t("Goal is required.") : null);
 }

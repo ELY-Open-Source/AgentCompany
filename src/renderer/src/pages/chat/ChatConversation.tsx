@@ -12,6 +12,7 @@ import type {
 import { ChatComposer } from "./ChatComposer";
 import { ChatTimeline } from "./ChatTimeline";
 import type { MessageContext } from "./chat-helpers";
+import { t } from "../../i18n/i18n";
 
 export function ChatConversation({
   space,
@@ -142,7 +143,7 @@ function ConversationHeader({
           <input
             className="input"
             autoFocus
-            aria-label="Search messages"
+            aria-label={t("Search messages")}
             value={query}
             onChange={(event) => onQueryChange(event.target.value)}
             onKeyDown={(event) => { if (event.key === "Escape") toggleSearch(); }}
@@ -150,7 +151,7 @@ function ConversationHeader({
           />
         )}
         {!searchOpen && participants.length > 0 && <AvatarStack names={participants.slice(0, 5)} bot />}
-        <IconButton icon="search" label="Search" onClick={toggleSearch} />
+        <IconButton icon="search" label={t("Search")} onClick={toggleSearch} />
       </div>
     </header>
   );

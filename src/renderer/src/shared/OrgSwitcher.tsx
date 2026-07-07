@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { AppSnapshot, OrganizationRecord } from "../../../shared/domain";
 import { Icon } from "./Icon";
 import { CascadeMenu, CascadeRow } from "./CascadeMenu";
+import { t } from "../i18n/i18n";
 
 function orgInitial(name: string): string {
   return name.trim().charAt(0).toUpperCase();
@@ -54,7 +55,7 @@ export function OrgSwitcher({ snapshot, activeOrgId, onSelect, onNew, onDelete }
       <button
         type="button"
         className="sidebar-org"
-        aria-label={`${active.name} — switch organization`}
+        aria-label={t("{name} — switch organization", { name: active.name })}
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => setOpen((value) => !value)}
@@ -66,17 +67,17 @@ export function OrgSwitcher({ snapshot, activeOrgId, onSelect, onNew, onDelete }
       {open && (confirmingOrg ? (
         <div role="menu" className="org-menu">
           <div className="org-menu-confirm">
-            <div className="org-menu-confirm-title">Delete “{confirmingOrg.name}”?</div>
-            <div className="org-menu-confirm-hint">All agents, work, chats, and files are permanently removed.</div>
+            <div className="org-menu-confirm-title">{t("Delete “{name}”?", { name: confirmingOrg.name })}</div>
+            <div className="org-menu-confirm-hint">{t("All agents, work, chats, and files are permanently removed.")}</div>
             <div className="org-menu-confirm-actions">
-              <button type="button" className="org-menu-confirm-no" onClick={() => setConfirmingDelete(null)}>Cancel</button>
-              <button type="button" className="org-menu-confirm-yes" onClick={() => handleDelete(confirmingOrg.id)}>Delete</button>
+              <button type="button" className="org-menu-confirm-no" onClick={() => setConfirmingDelete(null)}>{t("Cancel")}</button>
+              <button type="button" className="org-menu-confirm-yes" onClick={() => handleDelete(confirmingOrg.id)}>{t("Delete")}</button>
             </div>
           </div>
         </div>
       ) : (
         <CascadeMenu className="org-menu">
-          <div className="org-menu-section-label">Organizations</div>
+          <div className="org-menu-section-label">{t("Organizations")}</div>
           {orgs.map((org) => (
             <CascadeRow
               key={org.id}
@@ -111,7 +112,7 @@ export function OrgSwitcher({ snapshot, activeOrgId, onSelect, onNew, onDelete }
             onClick={() => { setOpen(false); setConfirmingDelete(null); onNew(); }}
           >
             <span className="icon-box" style={{ width: 18, height: 18 }}><Icon name="plus" size={16} color="var(--text-2)" /></span>
-            <span>New organization</span>
+            <span>{t("New organization")}</span>
           </button>
         </CascadeMenu>
       ))}
@@ -136,12 +137,12 @@ function OrgActions({
       {!isActive && (
         <button type="button" role="menuitem" className="org-menu-action" onClick={onSwitch}>
           <span className="icon-box" style={{ width: 18, height: 18 }}><Icon name="arrowRight" size={16} color="var(--text-2)" /></span>
-          <span>Switch to this org</span>
+          <span>{t("Switch to this org")}</span>
         </button>
       )}
       <button type="button" role="menuitem" className="org-menu-action danger" onClick={onDelete}>
         <span className="icon-box" style={{ width: 18, height: 18 }}><Icon name="x" size={16} color="var(--red)" /></span>
-        <span>Delete organization</span>
+        <span>{t("Delete organization")}</span>
       </button>
     </>
   );

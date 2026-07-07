@@ -3,6 +3,7 @@ import { Button, Icon, IconButton } from "../../shared/ui";
 import type { AgentRecord, EmployeeRecord, FileObjectRecord } from "../../../../shared/domain";
 import { SLASH_COMMANDS } from "./chat-helpers";
 import { MentionTextarea } from "./MentionTextarea";
+import { t } from "../../i18n/i18n";
 
 export function ChatComposer({
   disabled,
@@ -50,22 +51,22 @@ export function ChatComposer({
           name="message"
           rows={2}
           disabled={disabled}
-          ariaLabel="Message"
+          ariaLabel={t("Message")}
           agents={agents}
           employees={employees}
           textareaRef={ref}
           style={{ minHeight: 38 }}
         />
         <div className="row" style={{ paddingTop: 6, borderTop: "1px solid var(--border-soft)", gap: 4 }}>
-          <IconButton icon="attach" label="Attach file" onClick={onAttach} disabled={disabled} />
-          <IconButton icon="sparkle" label="Commands" onClick={() => setSlashOpen((open) => !open)} />
+          <IconButton icon="attach" label={t("Attach file")} onClick={onAttach} disabled={disabled} />
+          <IconButton icon="sparkle" label={t("Commands")} onClick={() => setSlashOpen((open) => !open)} />
           {attachment && (
             <span className="pill" style={{ maxWidth: 220 }}>
               <Icon name="file" size={14} />
               <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{attachment.name}</span>
               <button
                 type="button"
-                aria-label="Remove attachment"
+                aria-label={t("Remove attachment")}
                 onClick={() => onAttachmentChange("")}
                 style={{ display: "inline-flex", border: 0, background: "transparent", padding: 0, color: "var(--text-3)", cursor: "pointer" }}
               >
@@ -75,7 +76,7 @@ export function ChatComposer({
           )}
           <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6 }}>
             <span className="mono" style={{ fontSize: 12, color: "var(--text-3)" }}>Ctrl+Enter</span>
-            <Button tone="primary" size="small" type="submit" disabled={disabled}><Icon name="send" size={12} /> Send</Button>
+            <Button tone="primary" size="small" type="submit" disabled={disabled}><Icon name="send" size={12} /> {t("Send")}</Button>
           </div>
         </div>
         {slashOpen && (

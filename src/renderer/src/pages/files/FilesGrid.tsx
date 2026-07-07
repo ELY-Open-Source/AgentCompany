@@ -8,6 +8,7 @@ import type {
 import { formatRelative } from "../types";
 import { FileIcon, ScanLabelStrip } from "./FileVisuals";
 import { fileGrantCount, isAgentOwner, resolveOwnerName, shortChecksum, shortObjectRef } from "./file-helpers";
+import { t } from "../../i18n/i18n";
 
 export function FilesGrid({
   files,
@@ -77,7 +78,7 @@ export function PinnedCard({
         <FileIcon kind={file.kind} big />
         <button
           type="button"
-          aria-label={file.pinned ? "Unpin" : "Pin"}
+          aria-label={file.pinned ? t("Unpin") : t("Pin")}
           onClick={(event) => { event.stopPropagation(); onUnpin(); }}
           style={{ marginLeft: "auto", padding: 4, border: 0, background: "transparent", color: file.pinned ? "var(--accent)" : "var(--text-4)", cursor: "pointer" }}
         >
@@ -91,7 +92,7 @@ export function PinnedCard({
         sha:{shortChecksum(file.sha256)} · obj:{shortObjectRef(file.storagePath)}
       </div>
       <div className="row" style={{ gap: 6 }}>
-        <Pill tone={file.scanState === "approved" ? "green" : "red"}>{file.scanState === "approved" ? "Clean" : "Blocked"}</Pill>
+        <Pill tone={file.scanState === "approved" ? "green" : "red"}>{file.scanState === "approved" ? t("Clean") : t("Blocked")}</Pill>
         <span className="mono" style={{ color: "var(--text-3)", fontSize: 12 }}>{grantCount}</span>
       </div>
       <ScanLabelStrip file={file} />

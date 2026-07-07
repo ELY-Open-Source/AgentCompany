@@ -5,6 +5,7 @@ import { NavIcon } from "./NavIcon";
 import { OrgSwitcher } from "./OrgSwitcher";
 import { SearchDialog } from "./SearchDialog";
 import { TopbarSlotContext } from "./topbar-context";
+import { t } from "../i18n/i18n";
 
 export type RouteId =
   | "home"
@@ -28,15 +29,15 @@ interface NavSpec {
 const FLUSH_ROUTES = new Set<RouteId>(["chat", "settings", "files", "runs", "office"]);
 
 const allNav: NavSpec[] = [
-  { id: "home", label: "Home" },
-  { id: "work", label: "Work" },
-  { id: "team", label: "Team" },
-  { id: "office", label: "Office" },
-  { id: "chat", label: "Messages" },
-  { id: "runs", label: "Runs" },
-  { id: "files", label: "Files" },
-  { id: "approvals", label: "Approvals" },
-  { id: "connectors", label: "Connectors" },
+  { id: "home", label: t("Home") },
+  { id: "work", label: t("Work") },
+  { id: "team", label: t("Team") },
+  { id: "office", label: t("Office") },
+  { id: "chat", label: t("Messages") },
+  { id: "runs", label: t("Runs") },
+  { id: "files", label: t("Files") },
+  { id: "approvals", label: t("Approvals") },
+  { id: "connectors", label: t("Connectors") },
 ];
 
 export function Shell({
@@ -88,9 +89,9 @@ export function Shell({
           onNew={onNewOrg}
           onDelete={onDeleteOrg}
         />
-        <button type="button" className="search-bar" aria-label="Search" onClick={() => setSearchOpen(true)}>
+        <button type="button" className="search-bar" aria-label={t("Search")} onClick={() => setSearchOpen(true)}>
           <Icon name="search" size={13} />
-          <span>Search</span>
+          <span>{t("Search")}</span>
           <span className="search-kbd">⌘K</span>
         </button>
         <nav className="nav">
@@ -102,13 +103,13 @@ export function Shell({
         <nav className="nav">
           <button
             type="button"
-            aria-label="Settings"
+            aria-label={t("Settings")}
             aria-current={route === "settings" ? "page" : undefined}
             className={`nav-item ${route === "settings" ? "active" : ""}`.trim()}
             onClick={() => setRoute("settings")}
           >
             <span className="icon-box"><NavIcon route="settings" /></span>
-            <span>Settings</span>
+            <span>{t("Settings")}</span>
           </button>
         </nav>
         <div className="sidebar-foot">
@@ -125,9 +126,9 @@ export function Shell({
             <span className="topbar-actions-slot" ref={setActionsSlot} />
             {!isMac && (
               <span className="window-controls">
-                <IconButton icon="minus" label="Minimize" onClick={() => void window.agentCompany.windowMinimize()} />
-                <IconButton icon="grid" label="Maximize" onClick={() => void window.agentCompany.windowMaximize()} />
-                <IconButton icon="x" label="Close" onClick={() => void window.agentCompany.windowClose()} />
+                <IconButton icon="minus" label={t("Minimize")} onClick={() => void window.agentCompany.windowMinimize()} />
+                <IconButton icon="grid" label={t("Maximize")} onClick={() => void window.agentCompany.windowMaximize()} />
+                <IconButton icon="x" label={t("Close")} onClick={() => void window.agentCompany.windowClose()} />
               </span>
             )}
           </div>
@@ -178,7 +179,7 @@ function NavButton({
 function labelFor(route: RouteId): string {
   const spec = allNav.find((item) => item.id === route);
   if (spec) return spec.label;
-  if (route === "settings") return "Settings";
+  if (route === "settings") return t("Settings");
   throw new Error(`Unknown route: ${route}`);
 }
 

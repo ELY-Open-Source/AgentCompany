@@ -1,12 +1,13 @@
 import { Avatar, Icon, IconButton, Pill } from "../../shared/ui";
 import { humanizeToken } from "../types";
+import { t } from "../../i18n/i18n";
 import type { AgentActivity, OfficeAgentInput } from "./office-types";
 
 const ACTIVITY_LABEL: Record<AgentActivity, string> = {
-  active: "Active",
-  thinking: "Thinking",
-  busy: "Busy",
-  idle: "Idle",
+  active: t("Active"),
+  thinking: t("Thinking"),
+  busy: t("Busy"),
+  idle: t("Idle"),
 };
 
 const ACTIVITY_TONE: Record<AgentActivity, "green" | "violet" | "amber" | undefined> = {
@@ -21,7 +22,7 @@ export function AgentDetailCard({ agent, onClose }: { agent: OfficeAgentInput; o
   return (
     <div
       role="dialog"
-      aria-label={`Agent ${agent.name}`}
+      aria-label={t("Agent {name}", { name: agent.name })}
       style={{
         position: "absolute",
         top: 16,
@@ -40,7 +41,7 @@ export function AgentDetailCard({ agent, onClose }: { agent: OfficeAgentInput; o
           <div style={{ fontSize: 14, fontWeight: 600, lineHeight: 1.3, wordBreak: "break-word" }}>{agent.name}</div>
           <div style={{ fontSize: 12, color: "var(--text-2)", marginTop: 1, wordBreak: "break-word" }}>{agent.title}</div>
         </div>
-        <IconButton icon="x" label="Close agent details" onClick={onClose} />
+        <IconButton icon="x" label={t("Close agent details")} onClick={onClose} />
       </div>
       <div className="row" style={{ gap: 6, marginTop: 10, flexWrap: "wrap" }}>
         <Pill>{agent.department}</Pill>

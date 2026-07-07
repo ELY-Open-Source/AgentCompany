@@ -3,14 +3,15 @@ import { Avatar, Pill, Segmented } from "../shared/ui";
 import type { AgentRecord, ProviderRecord, TaskRecord, TaskRunRecord } from "../../../shared/domain";
 import type { PageProps } from "./types";
 import { activeOrgId, formatRelative } from "./types";
+import { t } from "../i18n/i18n";
 
 type StatusFilter = "all" | "queued" | "running" | "completed" | "failed";
 const FILTERS: Array<{ id: StatusFilter; label: string }> = [
-  { id: "all", label: "All" },
-  { id: "queued", label: "Queued" },
-  { id: "running", label: "Running" },
-  { id: "completed", label: "Done" },
-  { id: "failed", label: "Failed" },
+  { id: "all", label: t("All") },
+  { id: "queued", label: t("Queued") },
+  { id: "running", label: t("Running") },
+  { id: "completed", label: t("Done") },
+  { id: "failed", label: t("Failed") },
 ];
 
 export function RunsPage({ snapshot }: PageProps) {
@@ -46,13 +47,13 @@ export function RunsPage({ snapshot }: PageProps) {
     <div className="split-main">
       <aside className="secondary-pane" style={{ width: 340 }}>
         <div style={{ padding: "12px 12px 8px" }}>
-          <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>Runs</div>
+          <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>{t("Runs")}</div>
           <div className="row" style={{ gap: 8, marginBottom: 8, fontSize: 12, color: "var(--text-3)" }}>
-            <span>{queued} queued</span><span>·</span><span>{running} running</span><span>·</span><span>{failed} failed</span>
+            <span>{t("{n} queued", { n: queued })}</span><span>·</span><span>{t("{n} running", { n: running })}</span><span>·</span><span>{t("{n} failed", { n: failed })}</span>
           </div>
           <input
             className="input"
-            aria-label="Search runs"
+            aria-label={t("Search runs")}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             style={{ marginBottom: 8 }}
@@ -76,14 +77,14 @@ export function RunsPage({ snapshot }: PageProps) {
                     {task?.title ?? run.taskId}
                   </div>
                   <div style={{ fontSize: 12, color: "var(--text-3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {agent?.name ?? "Agent"} · {run.trigger}
+                    {agent?.name ?? t("Agent")} · {run.trigger}
                   </div>
                 </div>
                 <Pill tone={runTone(run.state)}>{runLabel(run.state)}</Pill>
               </button>
             );
           })}
-          {filtered.length === 0 && <div style={{ padding: 16, fontSize: 14, color: "var(--text-3)" }}>No runs</div>}
+          {filtered.length === 0 && <div style={{ padding: 16, fontSize: 14, color: "var(--text-3)" }}>{t("No runs")}</div>}
         </div>
       </aside>
       <div style={{ flex: 1, minWidth: 0, overflow: "auto", padding: 24 }}>
@@ -91,7 +92,7 @@ export function RunsPage({ snapshot }: PageProps) {
           <RunDetail run={selected} tasks={tasks} agents={agents} providers={providers} providerRequests={providerRequests} />
         ) : (
           <div style={{ display: "grid", placeItems: "center", height: "100%", color: "var(--text-3)", fontSize: 14 }}>
-            Select a run
+            {t("Select a run")}
           </div>
         )}
       </div>
@@ -127,36 +128,36 @@ function RunDetail({ run, tasks, agents, providers, providerRequests }: {
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "120px 1fr", gap: "8px 16px", fontSize: 14, marginBottom: 20 }}>
-        <MetaLabel>Agent</MetaLabel><div>{agent?.name ?? "—"} ({agent?.role ?? "—"})</div>
-        <MetaLabel>Provider</MetaLabel><div>{provider?.label ?? "—"} · {provider?.model ?? "—"}</div>
-        <MetaLabel>Trigger</MetaLabel><div>{run.trigger}</div>
-        <MetaLabel>Created</MetaLabel><div>{formatRelative(run.createdAt)}</div>
-        {run.startedAt && (<><MetaLabel>Started</MetaLabel><div>{formatRelative(run.startedAt)}</div></>)}
-        {run.completedAt && (<><MetaLabel>Completed</MetaLabel><div>{formatRelative(run.completedAt)}</div></>)}
-        {durationMs !== null && (<><MetaLabel>Duration</MetaLabel><div>{formatDuration(durationMs)}</div></>)}
-        <MetaLabel>Context</MetaLabel><div className="mono" style={{ fontSize: 12, overflow: "hidden", textOverflow: "ellipsis" }}>{run.executionContextId}</div>
+        <MetaLabel>{t("Agent")}</MetaLabel><div>{agent?.name ?? "—"} ({agent?.role ?? "—"})</div>
+        <MetaLabel>{t("Provider")}</MetaLabel><div>{provider?.label ?? "—"} · {provider?.model ?? "—"}</div>
+        <MetaLabel>{t("Trigger")}</MetaLabel><div>{run.trigger}</div>
+        <MetaLabel>{t("Created")}</MetaLabel><div>{formatRelative(run.createdAt)}</div>
+        {run.startedAt && (<><MetaLabel>{t("Started")}</MetaLabel><div>{formatRelative(run.startedAt)}</div></>)}
+        {run.completedAt && (<><MetaLabel>{t("Completed")}</MetaLabel><div>{formatRelative(run.completedAt)}</div></>)}
+        {durationMs !== null && (<><MetaLabel>{t("Duration")}</MetaLabel><div>{formatDuration(durationMs)}</div></>)}
+        <MetaLabel>{t("Context")}</MetaLabel><div className="mono" style={{ fontSize: 12, overflow: "hidden", textOverflow: "ellipsis" }}>{run.executionContextId}</div>
       </div>
 
       {run.state === "failed" && run.errorMessage && (
         <div className="card" style={{ padding: 16, marginBottom: 16, borderColor: "var(--red)" }}>
-          <div className="section-label" style={{ color: "var(--red)", marginBottom: 8 }}>Error</div>
+          <div className="section-label" style={{ color: "var(--red)", marginBottom: 8 }}>{t("Error")}</div>
           <div style={{ fontSize: 14, color: "var(--text-1)", whiteSpace: "pre-wrap", lineHeight: 1.5 }}>{run.errorMessage}</div>
         </div>
       )}
 
       {request && (
         <div className="card" style={{ padding: 16, marginBottom: 16 }}>
-          <div className="section-label" style={{ marginBottom: 8 }}>Provider request</div>
+          <div className="section-label" style={{ marginBottom: 8 }}>{t("Provider request")}</div>
           <div style={{ display: "grid", gridTemplateColumns: "120px 1fr", gap: "8px 16px", fontSize: 14 }}>
-            <MetaLabel>Request ID</MetaLabel><div className="mono" style={{ fontSize: 12, overflow: "hidden", textOverflow: "ellipsis" }}>{request.id}</div>
-            <MetaLabel>Model</MetaLabel><div>{request.model}</div>
-            <MetaLabel>State</MetaLabel><div>{request.state}</div>
-            <MetaLabel>Input chars</MetaLabel><div className="num">{request.inputCharCount.toLocaleString()}</div>
-            <MetaLabel>Output chars</MetaLabel><div className="num">{request.outputCharCount.toLocaleString()}</div>
+            <MetaLabel>{t("Request ID")}</MetaLabel><div className="mono" style={{ fontSize: 12, overflow: "hidden", textOverflow: "ellipsis" }}>{request.id}</div>
+            <MetaLabel>{t("Model")}</MetaLabel><div>{request.model}</div>
+            <MetaLabel>{t("State")}</MetaLabel><div>{request.state}</div>
+            <MetaLabel>{t("Input chars")}</MetaLabel><div className="num">{request.inputCharCount.toLocaleString()}</div>
+            <MetaLabel>{t("Output chars")}</MetaLabel><div className="num">{request.outputCharCount.toLocaleString()}</div>
           </div>
           {request.responseText && (
             <div style={{ marginTop: 12 }}>
-              <div className="section-label" style={{ marginBottom: 6 }}>Response</div>
+              <div className="section-label" style={{ marginBottom: 6 }}>{t("Response")}</div>
               <div style={{
                 fontSize: 12,
                 color: "var(--text-2)",
@@ -192,10 +193,10 @@ function runTone(state: string): "red" | "amber" | "violet" | "green" | undefine
 }
 
 function runLabel(state: string): string {
-  if (state === "queued") return "Queued";
-  if (state === "running") return "Running";
-  if (state === "completed") return "Done";
-  if (state === "failed") return "Failed";
+  if (state === "queued") return t("Queued");
+  if (state === "running") return t("Running");
+  if (state === "completed") return t("Done");
+  if (state === "failed") return t("Failed");
   return state;
 }
 

@@ -1,4 +1,5 @@
 import type { AmenitySpot, DeskSlot, FloorPlan, LaneGraph, Rect, RoomSpec, Vec } from "./office-types";
+import { t } from "../../i18n/i18n";
 
 /**
  * Fixed-size world geometry (logical px). The office is a north band of rooms
@@ -45,10 +46,10 @@ const CORRIDOR_PLANTS: Rect[] = [
 ];
 
 const ROOMS: RoomSpec[] = [
-  { kind: "ceo", label: "CEO OFFICE", bounds: { x: 16, y: ROOM_TOP, w: 288, h: 256 }, doorCx: 160, interiorLaneY: INTERIOR_LANE_Y },
-  { kind: "meeting", label: "MEETING ROOM", bounds: { x: 320, y: ROOM_TOP, w: 304, h: 256 }, doorCx: 472, interiorLaneY: INTERIOR_LANE_Y },
-  { kind: "snack", label: "SNACK BAR", bounds: { x: 640, y: ROOM_TOP, w: 256, h: 256 }, doorCx: 768, interiorLaneY: INTERIOR_LANE_Y },
-  { kind: "restroom", label: "RESTROOM", bounds: { x: 912, y: ROOM_TOP, w: 288, h: 256 }, doorCx: 1056, interiorLaneY: INTERIOR_LANE_Y },
+  { kind: "ceo", label: t("CEO OFFICE"), bounds: { x: 16, y: ROOM_TOP, w: 288, h: 256 }, doorCx: 160, interiorLaneY: INTERIOR_LANE_Y },
+  { kind: "meeting", label: t("MEETING ROOM"), bounds: { x: 320, y: ROOM_TOP, w: 304, h: 256 }, doorCx: 472, interiorLaneY: INTERIOR_LANE_Y },
+  { kind: "snack", label: t("SNACK BAR"), bounds: { x: 640, y: ROOM_TOP, w: 256, h: 256 }, doorCx: 768, interiorLaneY: INTERIOR_LANE_Y },
+  { kind: "restroom", label: t("RESTROOM"), bounds: { x: 912, y: ROOM_TOP, w: 288, h: 256 }, doorCx: 1056, interiorLaneY: INTERIOR_LANE_Y },
 ];
 
 const AMENITIES: AmenitySpot[] = [

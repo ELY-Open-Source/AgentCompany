@@ -3,6 +3,7 @@ import type { ProviderCatalogEntry } from "../../../shared/domain";
 import { ProviderOAuthConnect } from "../shared/ProviderOAuthConnect";
 import { Button, Field, Pill } from "../shared/ui";
 import type { Draft } from "./Onboarding";
+import { t } from "../i18n/i18n";
 
 export function ProviderStep({
   providers,
@@ -22,9 +23,9 @@ export function ProviderStep({
 
   return (
     <div className="form-grid">
-      <h2 className="page-h1">Provider</h2>
+      <h2 className="page-h1">{t("Provider")}</h2>
       <p style={{ color: "var(--text-3)", fontSize: 14 }}>
-        Pick the runtime for the founding CEO. You can attach more providers in Settings later.
+        {t("Pick the runtime for the founding CEO. You can attach more providers in Settings later.")}
       </p>
       <div className="option-grid">
         {providers.map((provider) => (
@@ -123,14 +124,14 @@ function ProviderCredentialFields({
         />
       ) : isCustom ? (
         <>
-          <Field label="Base URL">
+          <Field label={t("Base URL")}>
             <input
               className="input"
               value={draft.providerBaseUrl}
               onChange={(event) => onChange({ providerBaseUrl: event.target.value })}
             />
           </Field>
-          <Field label="API key">
+          <Field label={t("API key")}>
             <input
               className="input"
               type="password"
@@ -141,7 +142,7 @@ function ProviderCredentialFields({
           </Field>
         </>
       ) : (
-        <Field label="API key">
+        <Field label={t("API key")}>
           <input
             className="input"
             type="password"
@@ -153,12 +154,12 @@ function ProviderCredentialFields({
       )}
       {!isOAuthLike && live && (
         <Button tone="ghost" onClick={loadTypedModels} disabled={!hasCredential || loading}>
-          {loading ? "Getting models..." : fetched ? "Reload models" : "Get models"}
+          {loading ? t("Getting models...") : fetched ? t("Reload models") : t("Get models")}
         </Button>
       )}
       {loadError && <div style={{ color: "var(--red)", fontSize: 12 }}>{loadError}</div>}
       {(hasCredential || isCustom) && (
-        <Field label="Model">
+        <Field label={t("Model")}>
           {fetched || showCuratedList ? (
             <select
               className="input"
@@ -185,16 +186,16 @@ function ProviderCredentialFields({
 function Actions({ onBack, onNext }: { onBack: () => void; onNext: () => void }) {
   return (
     <div className="modal-actions" style={{ marginTop: 4 }}>
-      <Button onClick={onBack}>Back</Button>
-      <Button tone="primary" onClick={onNext}>Continue</Button>
+      <Button onClick={onBack}>{t("Back")}</Button>
+      <Button tone="primary" onClick={onNext}>{t("Continue")}</Button>
     </div>
   );
 }
 
 function authBadge(authType: string): string {
-  if (authType === "api_key") return "API key";
-  if (authType === "oauth_pkce") return "OAuth";
-  if (authType === "account_subscription") return "Account";
-  if (authType === "cloud") return "Cloud";
+  if (authType === "api_key") return t("API key");
+  if (authType === "oauth_pkce") return t("OAuth");
+  if (authType === "account_subscription") return t("Account");
+  if (authType === "cloud") return t("Cloud");
   return authType;
 }
