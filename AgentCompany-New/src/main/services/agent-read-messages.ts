@@ -1,3 +1,4 @@
+import { optionalString } from "./agent-tool-args";
 import type { AgentToolContext, AgentToolDeps } from "./agent-tools";
 import type { JsonRecord } from "./provider-http";
 
@@ -70,8 +71,4 @@ function recentMessagesIn(
     limit ?
   `).all(spaceId, orgId, limit) as Array<{ body_md: string; sender_name: string; thread_id: string }>;
   return rows.reverse();
-}
-
-function optionalString(value: unknown): string | null {
-  return typeof value === "string" && value.trim() ? value.trim() : null;
 }

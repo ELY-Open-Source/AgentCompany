@@ -6,7 +6,6 @@ import type {
   ChatMessageRecord,
   ChatReadStateRecord,
   ChatSpaceRecord,
-  ChatThreadRecord,
   EmployeeRecord,
   FileObjectRecord,
 } from "../../../../shared/domain";
@@ -29,13 +28,6 @@ export function senderName(message: ChatMessageRecord, context: MessageContext):
   }
   if (message.senderType === "board") return "Board";
   return "System";
-}
-
-export function isRootMessage(message: ChatMessageRecord, threads: ChatThreadRecord[]): boolean {
-  if (!message.threadId) return true;
-  const thread = threads.find((item) => item.id === message.threadId);
-  if (!thread) return true;
-  return thread.rootMessageId === message.id;
 }
 
 export function messageAttachments(
@@ -183,10 +175,6 @@ function previewText(message: ChatMessageRecord): string {
   if (message.deletedAt) return "Message deleted";
   const firstLine = message.bodyMd.split("\n").find((line) => line.trim()) ?? "";
   return firstLine.trim();
-}
-
-export function countMessagesIn(spaceId: string, messages: ChatMessageRecord[]): number {
-  return messages.filter((message) => message.spaceId === spaceId).length;
 }
 
 export function formatDay(iso: string): string {

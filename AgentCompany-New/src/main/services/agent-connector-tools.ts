@@ -1,3 +1,4 @@
+import { requireString } from "./agent-tool-args";
 import type { AgentToolContext, AgentToolDeps } from "./agent-tools";
 import { ConnectorGrantsService } from "./composio/connector-grants";
 import type { JsonRecord } from "./provider-http";
@@ -50,9 +51,4 @@ export function grantConnectorTool(deps: AgentToolDeps, ctx: AgentToolContext, a
   }
   grantsService.revoke({ orgId: ctx.orgId, agentId: target.id, toolkitSlug: toolkit });
   return `${target.name} no longer has access to the ${toolkit.toLowerCase()} connector.`;
-}
-
-function requireString(value: unknown, field: string): string {
-  if (typeof value !== "string" || !value.trim()) throw new Error(`"${field}" is required.`);
-  return value.trim();
 }
