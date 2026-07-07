@@ -185,14 +185,14 @@ export function buildTaskPrompt(input: {
   if (input.isManager && !input.hasReports) {
     lines.push(
       "",
-      "Your team is currently empty. Hire 3-5 direct reports for the roles this goal needs (hire_agent), create and assign their first tasks (create_task), and write the initial operating plan into the workspace (write_deliverable). Then use send_message with /handoff @Name and attachment_file_ids to pass the operating plan to the relevant report. For EACH report, send_message to that report's department channel (engineering, product, or general) using an @mention and the work you assigned them — start a new thread per report and note the thread_id it returns. Post the company-wide kickoff to #general. Then summarize.",
+      "Your team is currently empty. Hire 3-5 direct reports for the roles this goal needs (hire_agent), create and assign their first tasks (create_task), and write the initial operating plan into the workspace (write_deliverable). Then use send_message with /handoff @Name and attachment_file_ids to pass the operating plan to the relevant report. Brief EACH report in a direct message (send_message with to=\"Their Name\") about the work you assigned them — note the thread_id each returns so you can follow up in the same conversation. Post one company-wide kickoff to the #general channel. Then summarize.",
     );
   } else {
     const manager = input.managerName ?? "your manager";
     const managerReference = input.managerName ? `${manager} (${agentMention(input.managerName)})` : manager;
     lines.push(
       "",
-      `First, read_messages to check if anyone has said something you should respond to — reply to them like a colleague, not a report. Then do the work: write real output with write_deliverable, discuss decisions and blockers with ${managerReference} and the team in the relevant channel, and when the work is genuinely done move the task to done. Hand files over with /handoff and attachment_file_ids. Keep conversation going — ask questions, share your thinking, push back if something seems wrong.`,
+      `First, read_messages to check if anyone has said something you should respond to — reply to them like a colleague, not a report. Then do the work: write real output with write_deliverable, raise decisions and blockers with ${managerReference} in a direct message (send_message with to=), keep team-wide topics in channels, and when the work is genuinely done move the task to done. Hand files over with /handoff and attachment_file_ids. Keep conversation going — ask questions, share your thinking, push back if something seems wrong.`,
     );
   }
   return lines.join("\n");

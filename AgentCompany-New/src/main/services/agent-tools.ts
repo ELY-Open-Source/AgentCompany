@@ -3,6 +3,7 @@ import { RISK_LEVEL, TASK_PRIORITY, TASK_STATUS, type RiskLevel } from "../../sh
 import { ORGANIZATION_DEPARTMENTS } from "./org-governance-service";
 import type { OrganizationService } from "./organization-service";
 import type { ChatService } from "./chat-service";
+import { ApprovalService } from "./approval-service";
 import { writeDeliverable } from "./deliverable-writer";
 import { DocumentService } from "./document-service";
 import { recordWorkspaceFile } from "./files/file-object-store";
@@ -281,7 +282,42 @@ function writeDeliverableTool(deps: AgentToolDeps, ctx: AgentToolContext, args: 
     workspaceRoot: ctx.workspace.localPath,
     relativePath: written,
   });
-  return `Wrote deliverable ${written} (file_id=${fileId}, chars=${content.length}).`;
+  const review = requestDeliverableReview(deps, ctx, {
+    title: `Review deliverable: ${written}`,
+    details: `Deliverable ${written} (${content.length} chars) produced by an agent run.`,
+    sourceEntityType: "file",
+    sourceEntityId: fileId,
+  });
+  return `Wrote deliverable ${written} (file_id=${fileId}, chars=${content.length}).${review ? " It is queued for board review in Approvals." : ""}`;
+}
+
+/**
+ * In AI Co-Founder mode the operator reviews what the company produces, so
+ * every deliverable and document lands in the Approvals queue. AI CEO mode
+ * ships without review — that autonomy is the mode's contract.
+ */
+function requestDeliverableReview(
+  deps: AgentToolDeps,
+  ctx: AgentToolContext,
+  input: { title: string; details: string; sourceEntityType: "file" | "document"; sourceEntityId: string },
+): boolean {
+  const org = deps.db.prepare("select review_deliverables from organizations where id = ?")
+    .get(ctx.orgId) as { review_deliverables: number } | undefined;
+  if (!org) throw new Error("Organization was not found.");
+  if (org.review_deliverables !== 1) return false;
+  new ApprovalService(deps.db).create(
+    {
+      orgId: ctx.orgId,
+      kind: "deliverable_review",
+      title: input.title,
+      details: input.details,
+      risk: RISK_LEVEL.LOW,
+      requestedByType: "agent",
+      requestedById: ctx.agent.id,
+    },
+    { sourceEntityType: input.sourceEntityType, sourceEntityId: input.sourceEntityId },
+  );
+  return true;
 }
 
 function sendMessageTool(deps: AgentToolDeps, ctx: AgentToolContext, args: JsonRecord): string {
@@ -384,7 +420,13 @@ function createDocumentTool(deps: AgentToolDeps, ctx: AgentToolContext, args: Js
     goalId: ctx.taskGoalId,
     taskId: null,
   });
-  return `Created document "${title}" (doc_id=${docId}, type=${docType}, chars=${content.length}).`;
+  const review = requestDeliverableReview(deps, ctx, {
+    title: `Review ${docType}: ${title}`,
+    details: `Document "${title}" (${docType}, ${content.length} chars) authored by an agent run.`,
+    sourceEntityType: "document",
+    sourceEntityId: docId,
+  });
+  return `Created document "${title}" (doc_id=${docId}, type=${docType}, chars=${content.length}).${review ? " It is queued for board review in Approvals." : ""}`;
 }
 
 interface RunnableAssignmentAgent {
