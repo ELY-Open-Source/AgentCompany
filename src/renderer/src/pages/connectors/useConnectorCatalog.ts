@@ -20,12 +20,14 @@ const CONNECT_POLL_ATTEMPTS = 15;
 export function useConnectorCatalog(orgId: string, actions: SnapshotActions): {
   catalog: CatalogState;
   busySlug: string | null;
+  busyAction: "connect" | "disconnect" | null;
   connectError: string | null;
-  connect: (entry: ConnectorCatalogEntry) => void;
+  connect: (toolkitSlug: string) => void;
+  disconnect: (toolkitSlug: string) => void;
   retry: () => void;
 } {
   const [catalogSlot, setCatalogSlot] = useState<CatalogSlot>(null);
-  const [busySlug, setBusySlug] = useState<string | null>(null);
+  const [busy, setBusy] = useState<{ slug: string; action: "connect" | "disconnect" } | null>(null);
   const [connectError, setConnectError] = useState<string | null>(null);
   const pollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const catalog: CatalogState = catalogSlot && catalogSlot.orgId === orgId ? catalogSlot.state : { phase: "loading" };
@@ -89,24 +91,40 @@ export function useConnectorCatalog(orgId: string, actions: SnapshotActions): {
     poll(0);
   }, [refreshAccounts, orgId]);
 
-  const connect = useCallback((entry: ConnectorCatalogEntry) => {
-    setBusySlug(entry.slug);
+  const connect = useCallback((toolkitSlug: string) => {
+    setBusy({ slug: toolkitSlug, action: "connect" });
     setConnectError(null);
     void window.agentCompany
-      .connectComposioToolkit({ orgId, toolkitSlug: entry.slug })
+      .connectComposioToolkit({ orgId, toolkitSlug })
       .then(async (result) => {
         if (!result.ok) {
           setConnectError(result.error.message);
           return;
         }
-        pollUntilActive(entry.slug);
+        pollUntilActive(toolkitSlug);
         if (result.data.redirectUrl) {
           const opened = await window.agentCompany.openExternalUrl(result.data.redirectUrl);
           if (!opened.ok) setConnectError(opened.error.message);
         }
       })
-      .finally(() => setBusySlug(null));
+      .finally(() => setBusy(null));
   }, [orgId, pollUntilActive]);
 
-  return { catalog, busySlug, connectError, connect, retry: load };
+  const disconnect = useCallback((toolkitSlug: string) => {
+    setBusy({ slug: toolkitSlug, action: "disconnect" });
+    setConnectError(null);
+    void actions.run(() => window.agentCompany.disconnectComposioToolkit({ orgId, toolkitSlug }))
+      .catch((error: unknown) => setConnectError(error instanceof Error ? error.message : String(error)))
+      .finally(() => setBusy(null));
+  }, [actions, orgId]);
+
+  return {
+    catalog,
+    busySlug: busy?.slug ?? null,
+    busyAction: busy?.action ?? null,
+    connectError,
+    connect,
+    disconnect,
+    retry: load,
+  };
 }

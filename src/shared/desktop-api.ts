@@ -66,6 +66,7 @@ import type {
   ConnectComposioToolkitInput,
   ConnectComposioToolkitResult,
   ConnectorCatalogEntry,
+  DisconnectComposioToolkitInput,
   RefreshComposioAccountsInput,
   SearchInput,
   SendMessageInput,
@@ -178,6 +179,7 @@ export interface DesktopApi {
   setRetentionFreezeState(input: SetRetentionFreezeStateInput): Promise<DesktopResult<AppSnapshot>>;
   listConnectorCatalog(): Promise<DesktopResult<ConnectorCatalogEntry[]>>;
   connectComposioToolkit(input: ConnectComposioToolkitInput): Promise<DesktopResult<ConnectComposioToolkitResult>>;
+  disconnectComposioToolkit(input: DisconnectComposioToolkitInput): Promise<DesktopResult<AppSnapshot>>;
   refreshComposioAccounts(input: RefreshComposioAccountsInput): Promise<DesktopResult<AppSnapshot>>;
   search(input: SearchInput): Promise<DesktopResult<SearchResultRecord[]>>;
   subscribe(callback: (event: RendererEvent) => void): () => void;

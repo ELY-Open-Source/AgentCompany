@@ -342,6 +342,15 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       return fail("composio_connect_failed", error instanceof Error ? error.message : String(error));
     }
   });
+  ipcMain.handle(IPC_CHANNELS.disconnectComposioToolkit, async (_event, input) => {
+    try {
+      await composioConnections.disconnectToolkit(input.orgId, input.toolkitSlug);
+      notifyDataChanged();
+      return ok(snapshot.load());
+    } catch (error) {
+      return fail("composio_disconnect_failed", error instanceof Error ? error.message : String(error));
+    }
+  });
   ipcMain.handle(IPC_CHANNELS.refreshComposioAccounts, async (_event, input) => {
     try {
       await composioConnections.refreshAccounts(input.orgId);

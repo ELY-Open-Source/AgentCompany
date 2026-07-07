@@ -16,6 +16,11 @@ export interface ConnectComposioToolkitResult {
   redirectUrl: string | null;
 }
 
+export interface DisconnectComposioToolkitInput {
+  orgId: string;
+  toolkitSlug: string;
+}
+
 export interface RefreshComposioAccountsInput {
   orgId: string;
 }

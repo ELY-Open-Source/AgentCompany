@@ -93,19 +93,34 @@ export class ComposioClient {
   }
 
   async listConnectedAccounts(userId: string): Promise<ComposioConnectedAccount[]> {
-    const params = new URLSearchParams({ user_ids: userId, limit: "50" });
-    const response = await this.request("GET", `${BASE_URL}/connected_accounts?${params.toString()}`);
-    if (!Array.isArray(response.items)) return [];
-    return (response.items as Array<Record<string, unknown>>).map((item) => {
-      const toolkit = (item.toolkit ?? {}) as Record<string, unknown>;
-      const authConfig = (item.auth_config ?? {}) as Record<string, unknown>;
-      return {
-        id: String(item.id ?? ""),
-        toolkitSlug: String(toolkit.slug ?? "").toLowerCase(),
-        status: String(item.status ?? ""),
-        authConfigId: String(authConfig.id ?? ""),
-        createdAt: String(item.created_at ?? ""),
-      };
+    const accounts: ComposioConnectedAccount[] = [];
+    let cursor: string | null = null;
+    do {
+      const params = new URLSearchParams({ user_ids: userId, limit: "100" });
+      if (cursor) params.set("cursor", cursor);
+      const response = await this.request("GET", `${BASE_URL}/connected_accounts?${params.toString()}`);
+      const items = Array.isArray(response.items) ? response.items as Array<Record<string, unknown>> : [];
+      for (const item of items) {
+        const toolkit = (item.toolkit ?? {}) as Record<string, unknown>;
+        const authConfig = (item.auth_config ?? {}) as Record<string, unknown>;
+        accounts.push({
+          id: String(item.id ?? ""),
+          toolkitSlug: String(toolkit.slug ?? "").toLowerCase(),
+          status: String(item.status ?? ""),
+          authConfigId: String(authConfig.id ?? ""),
+          createdAt: String(item.created_at ?? ""),
+        });
+      }
+      cursor = typeof response.next_cursor === "string" && response.next_cursor ? response.next_cursor : null;
+      if (items.length === 0) break;
+    } while (cursor);
+    return accounts;
+  }
+
+  /** Idempotent: an account already gone in Composio (404) counts as deleted. */
+  async deleteConnectedAccount(accountId: string): Promise<void> {
+    await this.request("DELETE", `${BASE_URL}/connected_accounts/${encodeURIComponent(accountId)}`, undefined, {
+      tolerateNotFound: true,
     });
   }
 
@@ -128,7 +143,12 @@ export class ComposioClient {
     };
   }
 
-  private async request(method: string, url: string, body?: Record<string, unknown>): Promise<Record<string, unknown>> {
+  private async request(
+    method: string,
+    url: string,
+    body?: Record<string, unknown>,
+    options?: { tolerateNotFound?: boolean },
+  ): Promise<Record<string, unknown>> {
     return new Promise((resolve, reject) => {
       const request = net.request({ method, url });
       request.setHeader("x-api-key", this.apiKey);
@@ -139,6 +159,10 @@ export class ComposioClient {
       request.on("response", (response) => {
         response.on("data", (chunk) => { responseData += chunk.toString(); });
         response.on("end", () => {
+          if (response.statusCode === 404 && options?.tolerateNotFound) {
+            resolve({});
+            return;
+          }
           if (response.statusCode && response.statusCode >= 400) {
             reject(new Error(`Composio API ${method} ${url} returned ${response.statusCode}: ${responseData.slice(0, 200)}`));
             return;

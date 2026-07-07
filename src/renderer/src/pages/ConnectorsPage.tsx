@@ -13,7 +13,7 @@ import { useConnectorCatalog } from "./connectors/useConnectorCatalog";
  */
 export function ConnectorsPage({ snapshot, actions }: PageProps) {
   const orgId = activeOrgId(snapshot);
-  const { catalog, busySlug, connectError, connect, retry } = useConnectorCatalog(orgId, actions);
+  const { catalog, busySlug, busyAction, connectError, connect, disconnect, retry } = useConnectorCatalog(orgId, actions);
 
   const accounts = useMemo(
     () => snapshot.connectorAccounts.filter((account) => account.orgId === orgId),
@@ -58,7 +58,16 @@ export function ConnectorsPage({ snapshot, actions }: PageProps) {
         </div>
       )}
 
-      <ConnectedList accounts={accounts} grants={grants} agents={agents} logoBySlug={logoBySlug} />
+      <ConnectedList
+        accounts={accounts}
+        grants={grants}
+        agents={agents}
+        logoBySlug={logoBySlug}
+        busySlug={busySlug}
+        busyAction={busyAction}
+        onReconnect={connect}
+        onDelete={disconnect}
+      />
 
       {catalog.phase === "error" && (
         <div className="row" style={{ gap: 10, padding: "24px 0" }}>

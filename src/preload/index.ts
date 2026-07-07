@@ -84,6 +84,7 @@ const api: DesktopApi = {
   setRetentionFreezeState: (input) => invoke(IPC_CHANNELS.setRetentionFreezeState, input),
   listConnectorCatalog: () => invoke(IPC_CHANNELS.listConnectorCatalog),
   connectComposioToolkit: (input) => invoke(IPC_CHANNELS.connectComposioToolkit, input),
+  disconnectComposioToolkit: (input) => invoke(IPC_CHANNELS.disconnectComposioToolkit, input),
   refreshComposioAccounts: (input) => invoke(IPC_CHANNELS.refreshComposioAccounts, input),
   search: (input) => invoke(IPC_CHANNELS.search, input),
   subscribe: (callback) => {

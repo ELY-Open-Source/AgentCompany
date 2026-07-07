@@ -53,7 +53,7 @@ export function ToolkitCatalog({
   entries: ConnectorCatalogEntry[];
   connectedSlugs: Set<string>;
   busySlug: string | null;
-  onConnect: (entry: ConnectorCatalogEntry) => void;
+  onConnect: (toolkitSlug: string) => void;
 }) {
   const [query, setQuery] = useState("");
   const filtered = useMemo(() => {
@@ -100,7 +100,7 @@ export function ToolkitCatalog({
               {connected ? (
                 <Pill tone="green" dot>Connected</Pill>
               ) : (
-                <Button size="small" disabled={busySlug !== null} onClick={() => onConnect(entry)}>
+                <Button size="small" disabled={busySlug !== null} onClick={() => onConnect(entry.slug)}>
                   {busySlug === entry.slug ? "Opening…" : "Connect"}
                 </Button>
               )}
