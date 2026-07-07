@@ -1,5 +1,6 @@
 import type { AgentActivity, Camera, FloorPlan, Rect } from "./office-types";
 import { deskScreenRect, drawWorld } from "./scene-renderer";
+import { drawPerson, type Carrying, type Facing, type SpriteAppearance } from "./sprites";
 
 export interface RenderPerson {
   id: string;
@@ -10,6 +11,10 @@ export interface RenderPerson {
   desk: Rect | null;
   isCeo: boolean;
   animSeed: number;
+  appearance: SpriteAppearance;
+  facing: Facing;
+  walkPhase: number;
+  carrying: Carrying;
 }
 
 const ACTIVITY_DOT: Partial<Record<AgentActivity, string>> = {
@@ -17,9 +22,6 @@ const ACTIVITY_DOT: Partial<Record<AgentActivity, string>> = {
   thinking: "#818cf8",
   busy: "#f59e0b",
 };
-
-const FACE_TONES = ["#f3c99f", "#e8b184", "#d29b6e", "#b57e4f", "#95603a", "#7c4d2f"];
-const SHIRT_COLORS = ["#5b8dd9", "#d95b7a", "#5bbf6f", "#d9a65b", "#9b6fd9", "#5bc4c4", "#d97b5b", "#7fd95b"];
 
 export function hashString(value: string): number {
   let hash = 0;
@@ -62,52 +64,27 @@ export function renderOffice(
   }
 
   const ordered = [...people].sort((a, b) => a.y - b.y);
-  for (const person of ordered) drawPerson(ctx, person, timeMs);
+  for (const person of ordered) {
+    const working = (person.activity === "active" || person.activity === "thinking") && person.walkPhase === 0;
+    drawPerson(ctx, person.x, person.y, person.appearance, {
+      facing: person.facing,
+      walkPhase: person.walkPhase,
+      working,
+      carrying: person.carrying,
+      timeMs,
+      animSeed: person.animSeed,
+    }, person.isCeo);
+    const dot = ACTIVITY_DOT[person.activity];
+    if (dot) {
+      ctx.fillStyle = dot;
+      ctx.beginPath();
+      ctx.arc(Math.round(person.x) + 10, Math.round(person.y) - 36, 3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
   for (const person of ordered) drawNameLabel(ctx, person);
 
   ctx.restore();
-}
-
-function drawPerson(ctx: CanvasRenderingContext2D, person: RenderPerson, timeMs: number): void {
-  const x = Math.round(person.x);
-  const working = person.activity === "active" || person.activity === "thinking";
-  const bob = working ? Math.sin(timeMs * 0.003 + person.animSeed) * 1.2 : 0;
-  const y = Math.round(person.y + bob);
-
-  const face = FACE_TONES[hashString(person.id) % FACE_TONES.length];
-  const shirt = person.isCeo ? "#37415c" : SHIRT_COLORS[hashString(person.id + person.name) % SHIRT_COLORS.length];
-
-  ctx.fillStyle = "rgba(20,16,12,0.25)";
-  ctx.fillRect(x - 8, y + 2, 16, 4);
-
-  ctx.fillStyle = "#3a3f47";
-  ctx.fillRect(x - 5, y - 7, 4, 8);
-  ctx.fillRect(x + 1, y - 7, 4, 8);
-
-  ctx.fillStyle = shirt;
-  ctx.fillRect(x - 8, y - 20, 16, 13);
-  ctx.fillStyle = face;
-  ctx.fillRect(x - 10, y - 18, 3, 7);
-  ctx.fillRect(x + 7, y - 18, 3, 7);
-
-  ctx.fillStyle = face;
-  ctx.fillRect(x - 7, y - 32, 14, 12);
-  ctx.fillStyle = "#2c2320";
-  ctx.fillRect(x - 8, y - 34, 16, 5);
-  ctx.fillRect(x - 8, y - 31, 3, 4);
-  ctx.fillRect(x + 5, y - 31, 3, 4);
-
-  ctx.fillStyle = "#1d1d22";
-  ctx.fillRect(x - 4, y - 27, 2, 2);
-  ctx.fillRect(x + 2, y - 27, 2, 2);
-
-  const dot = ACTIVITY_DOT[person.activity];
-  if (dot) {
-    ctx.fillStyle = dot;
-    ctx.beginPath();
-    ctx.arc(x + 10, y - 36, 3, 0, Math.PI * 2);
-    ctx.fill();
-  }
 }
 
 function drawNameLabel(ctx: CanvasRenderingContext2D, person: RenderPerson): void {

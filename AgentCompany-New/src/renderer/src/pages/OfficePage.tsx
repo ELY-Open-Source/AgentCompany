@@ -76,6 +76,10 @@ export function OfficePage({ snapshot }: PageProps) {
         desk: agent.isCeo ? sim.plan.ceoDesk : sim.plan.desks[agent.deskIndex!].bounds,
         isCeo: agent.isCeo,
         animSeed: hashString(agent.input.id) % 100,
+        appearance: agent.appearance,
+        facing: agent.facing,
+        walkPhase: agent.walkPhase,
+        carrying: agent.carrying,
       }));
       renderOffice(ctx, viewW, viewH, sim.plan, camera, people, now);
     };

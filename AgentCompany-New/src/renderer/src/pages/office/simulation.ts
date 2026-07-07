@@ -1,5 +1,6 @@
 import { buildFloorPlan } from "./floor-plan";
 import type { Camera, FloorPlan, OfficeAgentInput, Vec } from "./office-types";
+import { appearanceFor, type Carrying, type Facing, type SpriteAppearance } from "./sprites";
 
 export interface AgentSim {
   input: OfficeAgentInput;
@@ -8,6 +9,10 @@ export interface AgentSim {
   seat: Vec;
   deskIndex: number | null;
   isCeo: boolean;
+  appearance: SpriteAppearance;
+  facing: Facing;
+  walkPhase: number;
+  carrying: Carrying;
 }
 
 /**
@@ -51,6 +56,10 @@ export class OfficeSimulation {
         seat,
         deskIndex,
         isCeo,
+        appearance: prev?.appearance ?? appearanceFor(input.id, isCeo),
+        facing: prev?.facing ?? "south",
+        walkPhase: prev?.walkPhase ?? 0,
+        carrying: prev?.carrying ?? null,
       };
     });
   }
