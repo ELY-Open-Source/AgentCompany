@@ -8,7 +8,8 @@ import { DocumentService } from "./document-service";
 import { recordWorkspaceFile } from "./files/file-object-store";
 import { canonicalMentionHandle } from "../../shared/mention-handles";
 import { readMessagesTool } from "./agent-read-messages";
-import { ConnectorGrantsService } from "./composio/connector-grants";
+import { grantConnectorTool, listConnectorsTool } from "./agent-connector-tools";
+import { describeSend } from "./agent-message-presence";
 import type { JsonRecord } from "./provider-http";
 import type { ToolCall, ToolDefinition } from "./provider-tool-turn";
 
@@ -365,136 +366,6 @@ function resolveTeammateByName(
   ).get(orgId, trimmed) as { id: string; display_name: string } | undefined;
   if (employee) return { type: "employee", id: employee.id, name: employee.display_name };
   throw new Error(`No teammate named "${name}".`);
-}
-
-/**
- * What the sending agent hears back: who is in the channel and who they just
- * addressed — the presence of real colleagues, not a transaction id. Hearing
- * the room is what lets an agent hold a conversation instead of posting into a
- * void, while the thread_id keeps the next reply on the same thread.
- */
-function describeSend(db: DatabaseSync, selfAgentId: string, channel: string, spaceId: string, messageId: string, threadId: string): string {
-  const addressed = mentionedTeammates(db, selfAgentId, messageId);
-  const present = channelTeammates(db, selfAgentId, spaceId, addressed);
-  const lines = [`Your message is up in #${channel}.`];
-  const replyReady = addressed.filter((teammate) => teammate.canReply).map((teammate) => teammate.name);
-  const mentionedOnly = addressed.filter((teammate) => !teammate.canReply).map((teammate) => teammate.name);
-  if (replyReady.length > 0) lines.push(`${joinNames(replyReady)} can see it and reply here.`);
-  if (mentionedOnly.length > 0) lines.push(`${joinNames(mentionedOnly)} was mentioned in this thread.`);
-  if (present.length > 0) lines.push(`Also in the room: ${joinNames(present)}.`);
-  lines.push(`To stay in this conversation, reply with thread_id="${threadId}".`);
-  return lines.join(" ");
-}
-
-interface MentionedTeammate {
-  name: string;
-  canReply: boolean;
-}
-
-function mentionedTeammates(db: DatabaseSync, selfAgentId: string, messageId: string): MentionedTeammate[] {
-  const wakePattern = `%"sourceMessageId":"${messageId}"%`;
-  const rows = db.prepare(`
-    select coalesce(a.name, e.display_name) as name,
-           case
-             when m.target_type = 'employee' then 1
-             when exists (
-               select 1
-               from task_runs r
-               where r.agent_id = m.target_id
-                 and r.trigger = 'chat_mention'
-                 and r.secret_scope_json like ?
-             ) then 1
-             else 0
-           end as can_reply
-    from chat_mentions m
-    left join agents a on a.id = m.target_id and m.target_type = 'agent'
-    left join employees e on e.id = m.target_id and m.target_type = 'employee'
-    where m.message_id = ? and m.target_type in ('agent', 'employee') and m.target_id <> ?
-  `).all(wakePattern, messageId, selfAgentId) as Array<{ name: string | null; can_reply: number }>;
-  return dedupeTeammates(rows);
-}
-
-function channelTeammates(db: DatabaseSync, selfAgentId: string, spaceId: string, addressed: MentionedTeammate[]): string[] {
-  const alreadyNamed = new Set(addressed.map((teammate) => teammate.name));
-  const rows = db.prepare(`
-    select coalesce(a.name, e.display_name) as name
-    from chat_memberships cm
-    left join agents a on a.id = cm.principal_id and cm.principal_type = 'agent'
-    left join employees e on e.id = cm.principal_id and cm.principal_type = 'employee'
-    where cm.space_id = ? and cm.principal_id <> ?
-  `).all(spaceId, selfAgentId) as Array<{ name: string | null }>;
-  return dedupeNames(rows).filter((name) => !alreadyNamed.has(name)).slice(0, 6);
-}
-
-function dedupeNames(rows: Array<{ name: string | null }>): string[] {
-  const names = new Set<string>();
-  for (const row of rows) if (row.name) names.add(row.name);
-  return [...names];
-}
-
-function dedupeTeammates(rows: Array<{ name: string | null; can_reply: number }>): MentionedTeammate[] {
-  const teammates = new Map<string, MentionedTeammate>();
-  for (const row of rows) {
-    if (!row.name) continue;
-    const existing = teammates.get(row.name);
-    const canReply = row.can_reply === 1;
-    teammates.set(row.name, { name: row.name, canReply: canReply || existing?.canReply === true });
-  }
-  return [...teammates.values()];
-}
-
-function joinNames(names: string[]): string {
-  if (names.length === 1) return names[0];
-  if (names.length === 2) return `${names[0]} and ${names[1]}`;
-  return `${names.slice(0, -1).join(", ")}, and ${names[names.length - 1]}`;
-}
-
-function listConnectorsTool(deps: AgentToolDeps, ctx: AgentToolContext): string {
-  const grantsService = new ConnectorGrantsService(deps.db);
-  const accounts = grantsService.activeAccounts(ctx.orgId);
-  if (accounts.length === 0) {
-    return "The company has no connected external toolkits yet. The board connects them on the Connectors page.";
-  }
-  const grants = grantsService.grantsForOrg(ctx.orgId);
-  const agentNames = new Map(
-    (deps.db.prepare("select id, name from agents where org_id = ?").all(ctx.orgId) as Array<{ id: string; name: string }>)
-      .map((row) => [row.id, row.name]),
-  );
-  const lines = accounts.map((account) => {
-    const holders = grants
-      .filter((grant) => grant.toolkitSlug === account.toolkitSlug)
-      .map((grant) => agentNames.get(grant.agentId))
-      .filter(Boolean);
-    return `- ${account.toolkitName} (${account.toolkitSlug}): ${holders.length > 0 ? `granted to ${holders.join(", ")}` : "no grants yet"}`;
-  });
-  return ["Connected toolkits:", ...lines].join("\n");
-}
-
-function grantConnectorTool(deps: AgentToolDeps, ctx: AgentToolContext, args: JsonRecord, mode: "grant" | "revoke"): string {
-  const acting = deps.db.prepare("select role_level from agents where id = ? and org_id = ?")
-    .get(ctx.agent.id, ctx.orgId) as { role_level: string } | undefined;
-  if (acting?.role_level !== "c_suite") {
-    return "ERROR: Only the CEO can manage connector grants. Ask them to run this.";
-  }
-  const agentName = requireString(args.agent_name, "agent_name");
-  const toolkit = requireString(args.toolkit, "toolkit");
-  const target = deps.db.prepare(
-    "select id, name from agents where org_id = ? and lower(name) = lower(?) and lifecycle = 'active' limit 1",
-  ).get(ctx.orgId, agentName) as { id: string; name: string } | undefined;
-  if (!target) return `ERROR: No active agent named "${agentName}".`;
-  const grantsService = new ConnectorGrantsService(deps.db);
-  if (mode === "grant") {
-    grantsService.grant({
-      orgId: ctx.orgId,
-      agentId: target.id,
-      toolkitSlug: toolkit,
-      grantedByType: "agent",
-      grantedById: ctx.agent.id,
-    });
-    return `${target.name} now has access to the ${toolkit.toLowerCase()} connector; its tools join their next run.`;
-  }
-  grantsService.revoke({ orgId: ctx.orgId, agentId: target.id, toolkitSlug: toolkit });
-  return `${target.name} no longer has access to the ${toolkit.toLowerCase()} connector.`;
 }
 
 function createDocumentTool(deps: AgentToolDeps, ctx: AgentToolContext, args: JsonRecord): string {
