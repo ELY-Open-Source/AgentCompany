@@ -3,10 +3,10 @@ import { Field } from "../shared/ui";
 import { Dialog } from "../shared/Dialog";
 import { ChatSidebar } from "./chat/ChatSidebar";
 import { ChatConversation } from "./chat/ChatConversation";
+import { ChatThreadPanel } from "./chat/ChatThreadPanel";
 import {
   collectParticipants,
   filterApprovalsForSpace,
-  isRootMessage,
 } from "./chat/chat-helpers";
 import { ROLE_KEY } from "../../../shared/domain";
 import type { PageProps } from "./types";
@@ -60,8 +60,10 @@ export function ChatPage({ snapshot, actions }: PageProps) {
   );
 
   const [selectedSpaceId, setSelectedSpaceId] = useState<string | null>(null);
+  const [openThreadId, setOpenThreadId] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [attachmentFileId, setAttachmentFileId] = useState<string>("");
+  const [threadAttachmentFileId, setThreadAttachmentFileId] = useState<string>("");
   const composerRef = useRef<HTMLTextAreaElement | null>(null);
 
   const firstAvailableSpaceId = channels[0]?.id ?? directs[0]?.id ?? null;
@@ -93,12 +95,69 @@ export function ChatPage({ snapshot, actions }: PageProps) {
     () => (activeSpace ? threadsAll.filter((t) => t.spaceId === activeSpace.id) : []),
     [threadsAll, activeSpace],
   );
-  const rootMessages = messagesInSpace.filter((message) => isRootMessage(message, threadsInSpace));
+  const selectedThread = threadsInSpace.find((thread) => thread.id === openThreadId) ?? null;
+  const threadMessages = selectedThread
+    ? messagesInSpace.filter((m) => m.threadId === selectedThread.id && m.id !== selectedThread.rootMessageId)
+    : [];
+  const selectedBoardInterventions = useMemo(
+    () => (selectedThread ? boardInterventionsAll.filter((item) => item.threadId === selectedThread.id) : []),
+    [boardInterventionsAll, selectedThread],
+  );
   const participants = useMemo(
     () => collectParticipants(messagesInSpace, employees, agents),
     [messagesInSpace, employees, agents],
   );
   const pendingApprovalsInSpace = filterApprovalsForSpace(approvalsAll, activeSpace);
+
+  const openThread = (threadId: string) => {
+    setOpenThreadId(threadId);
+    setThreadAttachmentFileId("");
+  };
+
+  const closeThread = () => {
+    setOpenThreadId(null);
+    setThreadAttachmentFileId("");
+  };
+
+  const sendInThread = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!activeSpace || !selectedThread) return;
+    const form = new FormData(event.currentTarget);
+    const body = value(form, "message");
+    if (!body) return;
+    event.currentTarget.reset();
+    setThreadAttachmentFileId("");
+    void actions.run(() => window.agentCompany.sendMessage({
+      orgId,
+      spaceId: activeSpace.id,
+      threadId: selectedThread.id,
+      senderType: "employee",
+      senderId: employee.id,
+      bodyMd: body,
+      attachmentFileIds: threadAttachmentFileId ? [threadAttachmentFileId] : [],
+    }));
+  };
+
+  const sendBoardIntervention = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!activeSpace || !selectedThread) return;
+    const form = new FormData(event.currentTarget);
+    const action = value(form, "action");
+    const target = value(form, "target");
+    const details = value(form, "details");
+    if (!action || !details) return;
+    event.currentTarget.reset();
+    const targetMention = action === "takeover" && target && target !== "board" ? ` @${target}` : "";
+    void actions.run(() => window.agentCompany.sendMessage({
+      orgId,
+      spaceId: activeSpace.id,
+      threadId: selectedThread.id,
+      senderType: "board",
+      senderId: employee.id,
+      bodyMd: `/board ${action}${targetMention} ${details}`,
+      attachmentFileIds: [],
+    }));
+  };
 
   const sendInChannel = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -136,6 +195,7 @@ export function ChatPage({ snapshot, actions }: PageProps) {
       const created = result.chatSpaces.find((space) => space.orgId === orgId && !existingSpaceIds.has(space.id));
       if (!created) throw new Error("Created chat space is missing from snapshot.");
       setSelectedSpaceId(created.id);
+      closeThread();
       setCreateOpen(false);
     });
   };
@@ -193,6 +253,7 @@ export function ChatPage({ snapshot, actions }: PageProps) {
         activeSpaceId={activeSpaceId}
         onSelect={(spaceId) => {
           setSelectedSpaceId(spaceId);
+          closeThread();
         }}
         onCreateSpace={() => setCreateOpen(true)}
       />
@@ -200,7 +261,6 @@ export function ChatPage({ snapshot, actions }: PageProps) {
       <ChatConversation
         space={activeSpace}
         participants={participants}
-        rootMessages={rootMessages}
         messagesInSpace={messagesInSpace}
         threadsInSpace={threadsInSpace}
         pendingApprovals={pendingApprovalsInSpace}
@@ -213,7 +273,7 @@ export function ChatPage({ snapshot, actions }: PageProps) {
         currentEmployeeId={employee.id}
         onAttachmentChange={setAttachmentFileId}
         onAttach={attachFile}
-        onOpenThread={() => {}}
+        onOpenThread={openThread}
         onApprove={(approvalId) => decideApproval(approvalId, "approved")}
         onDecline={(approvalId) => decideApproval(approvalId, "declined")}
         onEditMessage={editChatMessage}
@@ -222,6 +282,28 @@ export function ChatPage({ snapshot, actions }: PageProps) {
         onSubmit={sendInChannel}
         composerRef={composerRef}
       />
+
+      {selectedThread && (
+        <ChatThreadPanel
+          thread={selectedThread}
+          rootMessage={messagesAll.find((m) => m.id === selectedThread.rootMessageId) ?? null}
+          messages={threadMessages}
+          attachments={snapshot.chatAttachments}
+          mentions={mentionsAll}
+          slashInvocations={slashInvocationsAll}
+          boardInterventions={selectedBoardInterventions}
+          files={files}
+          context={{ employees, agents }}
+          canIntervene={canBoardIntervene}
+          attachmentFileId={threadAttachmentFileId}
+          onClose={closeThread}
+          onAttachmentChange={setThreadAttachmentFileId}
+          onAttach={() => importAttachment(setThreadAttachmentFileId)}
+          onSubmit={sendInThread}
+          onBoardSubmit={sendBoardIntervention}
+          onOpenFile={openFile}
+        />
+      )}
 
       <Dialog
         title="New space"

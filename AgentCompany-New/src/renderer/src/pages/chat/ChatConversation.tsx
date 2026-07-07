@@ -17,7 +17,6 @@ import type { MessageContext } from "./chat-helpers";
 export function ChatConversation({
   space,
   participants,
-  rootMessages,
   messagesInSpace,
   threadsInSpace,
   pendingApprovals,
@@ -41,7 +40,6 @@ export function ChatConversation({
 }: {
   space: ChatSpaceRecord | null;
   participants: string[];
-  rootMessages: ChatMessageRecord[];
   messagesInSpace: ChatMessageRecord[];
   threadsInSpace: ChatThreadRecord[];
   pendingApprovals: ApprovalRecord[];
@@ -74,7 +72,6 @@ export function ChatConversation({
       <div style={{ flex: 1, overflow: "auto", padding: "20px 24px 8px" }}>
         {space && (
           <ChatTimeline
-            rootMessages={[]}
             messagesInSpace={filtered}
             threadsInSpace={threadsInSpace}
             pendingApprovals={pendingApprovals}

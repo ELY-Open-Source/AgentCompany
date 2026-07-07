@@ -219,7 +219,7 @@ export class ChatService {
         this.db.prepare(
           "update chat_mentions set wake_state = 'woken' where message_id = ? and target_type = 'agent' and target_id = ?",
         ).run(messageId, mention.target.id);
-      } catch (error) {
+      } catch {
         this.db.prepare(
           "update chat_mentions set wake_state = 'failed' where message_id = ? and target_type = 'agent' and target_id = ?",
         ).run(messageId, mention.target.id);

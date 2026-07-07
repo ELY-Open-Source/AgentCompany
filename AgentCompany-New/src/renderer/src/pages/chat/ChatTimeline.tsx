@@ -13,7 +13,6 @@ import { ChatMessageRow } from "./ChatMessageRow";
 import { formatDay, type MessageContext } from "./chat-helpers";
 
 export function ChatTimeline({
-  rootMessages,
   messagesInSpace,
   threadsInSpace,
   pendingApprovals,
@@ -30,7 +29,6 @@ export function ChatTimeline({
   onDeleteMessage,
   onOpenFile,
 }: {
-  rootMessages: ChatMessageRecord[];
   messagesInSpace: ChatMessageRecord[];
   threadsInSpace: ChatThreadRecord[];
   pendingApprovals: ApprovalRecord[];
@@ -55,6 +53,10 @@ export function ChatTimeline({
       lastDay = day;
       elements.push(<DayDivider key={`day-${day}`} label={day} />);
     }
+    const thread = threadsInSpace.find((item) => item.rootMessageId === message.id) ?? null;
+    const replyCount = thread
+      ? messagesInSpace.filter((m) => m.threadId === thread.id && m.id !== thread.rootMessageId).length
+      : 0;
     elements.push(
       <ChatMessageRow
         key={message.id}
@@ -63,8 +65,8 @@ export function ChatTimeline({
         mentions={mentions}
         slashInvocations={slashInvocations}
         files={files}
-        replyCount={0}
-        onOpenThread={null}
+        replyCount={replyCount}
+        onOpenThread={thread ? () => onOpenThread(thread.id) : null}
         context={context}
         canModify={message.senderType === "employee" && message.senderId === currentEmployeeId && !message.deletedAt}
         onEdit={(bodyMd) => onEditMessage(message.id, bodyMd)}
