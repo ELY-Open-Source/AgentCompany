@@ -89,6 +89,34 @@ export class ChatService {
     return id;
   }
 
+  /**
+   * Finds or creates the private direct conversation between two principals,
+   * so 1:1 traffic (task hand-offs, questions, reports) lives in its own
+   * WeChat-style conversation instead of piling into shared channels.
+   */
+  ensureDirectSpace(orgId: string, a: PrincipalRef, b: PrincipalRef): string {
+    if (a.type === b.type && a.id === b.id) throw new Error("A direct conversation needs two different principals.");
+    const existing = this.db.prepare(`
+      select cs.id
+      from chat_spaces cs
+      where cs.org_id = ? and cs.space_type = 'direct'
+        and exists (select 1 from chat_memberships m where m.space_id = cs.id and m.principal_type = ? and m.principal_id = ?)
+        and exists (select 1 from chat_memberships m where m.space_id = cs.id and m.principal_type = ? and m.principal_id = ?)
+        and (select count(*) from chat_memberships m where m.space_id = cs.id) = 2
+      limit 1
+    `).get(orgId, a.type, a.id, b.type, b.id) as { id: string } | undefined;
+    if (existing) return existing.id;
+    return this.createSpace({
+      orgId,
+      spaceType: "direct",
+      name: `${this.principalDisplayName(orgId, a)} · ${this.principalDisplayName(orgId, b)}`,
+      topic: "Direct conversation",
+      visibility: "restricted",
+      memberEmployeeIds: [a, b].filter((p) => p.type === "employee").map((p) => p.id),
+      memberAgentIds: [a, b].filter((p) => p.type === "agent").map((p) => p.id),
+    });
+  }
+
   sendMessage(input: SendMessageInput): string {
     const body = input.bodyMd.trim();
     if (!body) throw new Error("Message body is required.");
@@ -140,6 +168,7 @@ export class ChatService {
     if (slash) this.slashRouter.recordInvocation(id, slash, slashResultRef, now);
     if (!slash || slash.command !== "agent") {
       this.wakeAgentMentions(input, mentions, id, threadId, now);
+      if (space.space_type === "direct") this.wakeDirectCounterparts(input, mentions, id, threadId, now);
     }
     if (input.senderType === "employee" || input.senderType === "board") {
       this.wakeThreadParticipants(input, mentions, id, threadId, now);
@@ -248,6 +277,31 @@ export class ChatService {
   }
 
   /**
+   * In a direct conversation the counterpart is addressed by definition, so
+   * agent members wake on every message without needing an explicit @mention
+   * — the same social contract as any messenger. Mentioned agents were
+   * already woken; the autonomous turn budget still bounds agent↔agent runs.
+   */
+  private wakeDirectCounterparts(input: SendMessageInput, mentions: ResolvedMention[], messageId: string, threadId: string, now: string): void {
+    if (input.senderType === "agent" && this.autonomousThreadTurnsExhausted(input.orgId, threadId)) return;
+    const mentionedAgentIds = new Set(mentions.filter((m) => m.target.type === "agent").map((m) => m.target.id));
+    const members = this.db.prepare(`
+      select principal_id as agent_id
+      from chat_memberships
+      where space_id = ? and principal_type = 'agent'
+    `).all(input.spaceId) as Array<{ agent_id: string }>;
+    for (const member of members) {
+      if (mentionedAgentIds.has(member.agent_id)) continue;
+      if (input.senderType === "agent" && input.senderId === member.agent_id) continue;
+      try {
+        this.agentWake.wakeFromMention(input, member.agent_id, messageId, threadId, now);
+      } catch {
+        // Agent may not have an enabled provider.
+      }
+    }
+  }
+
+  /**
    * True once a thread holds MAX_AUTONOMOUS_THREAD_AGENT_TURNS agent messages
    * since the last human or board message — the point past which agent↔agent
    * wake-ups would loop without human involvement. Counting only the messages
@@ -264,6 +318,20 @@ export class ChatService {
         ), '')
     `).get(orgId, threadId, orgId, threadId) as { turns: number };
     return row.turns >= MAX_AUTONOMOUS_THREAD_AGENT_TURNS;
+  }
+
+  private principalDisplayName(orgId: string, principal: PrincipalRef): string {
+    if (principal.type === "agent") {
+      const row = this.db.prepare("select name from agents where id = ? and org_id = ?")
+        .get(principal.id, orgId) as { name: string } | undefined;
+      if (row) return row.name;
+    }
+    if (principal.type === "employee") {
+      const row = this.db.prepare("select display_name from employees where id = ? and org_id = ?")
+        .get(principal.id, orgId) as { display_name: string } | undefined;
+      if (row) return row.display_name;
+    }
+    throw new Error("Direct conversation principal was not found.");
   }
 
   private requireSpace(orgId: string, spaceId: string): SpaceRow {

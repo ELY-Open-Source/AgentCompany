@@ -186,12 +186,17 @@ describe("agent run loop (real tool dispatch)", () => {
 
     const alex = connection.db.prepare("select id from agents where org_id = ? and name = 'Alex Rivera'").get(orgId) as { id: string };
     const assignment = connection.db.prepare(`
-      select m.body_md, m.thread_id, s.name as space_name
+      select m.body_md, m.thread_id, s.id as space_id, s.space_type
       from chat_messages m
       join chat_spaces s on s.id = m.space_id
       where m.org_id = ?
-    `).get(orgId) as { body_md: string; thread_id: string; space_name: string } | undefined;
-    expect(assignment).toMatchObject({ space_name: "engineering" });
+    `).get(orgId) as { body_md: string; thread_id: string; space_id: string; space_type: string } | undefined;
+    // Assignments are 1:1 hand-offs, so they live in the manager's direct
+    // conversation with the assignee instead of a shared channel.
+    expect(assignment).toMatchObject({ space_type: "direct" });
+    const dmMembers = connection.db.prepare("select principal_id from chat_memberships where space_id = ?")
+      .all(assignment?.space_id ?? "") as Array<{ principal_id: string }>;
+    expect(dmMembers.map((m) => m.principal_id).sort()).toEqual([ceoId, alex.id].sort());
     expect(assignment?.body_md).toContain(`@${canonicalMentionHandle("Alex Rivera")}`);
     expect(assignment?.body_md).toContain("Build the booking API");
 

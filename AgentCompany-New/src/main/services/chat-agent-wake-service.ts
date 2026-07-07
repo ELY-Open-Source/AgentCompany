@@ -39,11 +39,12 @@ export class ChatAgentWakeService {
     const agent = this.requireRunnableAgent(input.orgId, agentId, "Agent mention");
     const workspace = this.workspaceForAgent(input.orgId, agent.workspace_id);
     const from = this.principalName(input.orgId, input.senderType, input.senderId);
-    const channel = this.channelName(input.orgId, input.spaceId);
+    const space = this.spaceRow(input.orgId, input.spaceId);
+    const direct = space.space_type === "direct";
     const taskId = this.organization.createTask({
       orgId: input.orgId,
-      title: `Reply to ${from} in #${channel}`,
-      description: this.mentionTaskDescription(input, from, channel),
+      title: direct ? `Reply to ${from}` : `Reply to ${from} in #${space.name}`,
+      description: this.mentionTaskDescription(input, from, space.name, direct),
       status: TASK_STATUS.BACKLOG,
       assigneeAgentId: agent.id,
       risk: RISK_LEVEL.LOW,
@@ -193,13 +194,17 @@ export class ChatAgentWakeService {
     return `Chat mention: ${title.length > 64 ? `${title.slice(0, 61)}...` : title}`;
   }
 
-  private mentionTaskDescription(input: SendMessageInput, from: string, channel: string): string {
+  private mentionTaskDescription(input: SendMessageInput, from: string, channel: string, direct: boolean): string {
     const said = input.bodyMd.trim();
+    const where = direct ? `${from} messaged you directly:` : `${from} addressed you in #${channel}:`;
+    const how = direct
+      ? `Reply to ${from} in your direct conversation: call send_message with to="${from}" and this thread_id.`
+      : `Reply to ${from} in this thread.`;
     return [
-      `${from} addressed you in #${channel}:`,
+      where,
       `"${said.length > 400 ? `${said.slice(0, 397)}...` : said}"`,
       "",
-      `Reply to ${from} in this thread. Answer what they asked, give your honest take, push back if you disagree, or hand work over — speak as yourself, the way a colleague would, not as a status report.`,
+      `${how} Answer what they asked, give your honest take, push back if you disagree, or hand work over — speak as yourself, the way a colleague would, not as a status report.`,
     ].join("\n");
   }
 
@@ -215,10 +220,11 @@ export class ChatAgentWakeService {
     return senderType === "board" ? "The board" : "A teammate";
   }
 
-  private channelName(orgId: string, spaceId: string): string {
-    const row = this.db.prepare("select name from chat_spaces where id = ? and org_id = ?").get(spaceId, orgId) as { name: string } | undefined;
+  private spaceRow(orgId: string, spaceId: string): { name: string; space_type: string } {
+    const row = this.db.prepare("select name, space_type from chat_spaces where id = ? and org_id = ?")
+      .get(spaceId, orgId) as { name: string; space_type: string } | undefined;
     if (!row) throw new Error("Chat space was not found.");
-    return row.name;
+    return row;
   }
 
   private taskDescription(input: SendMessageInput, slash: SlashInvocation, messageId: string, threadId: string): string {

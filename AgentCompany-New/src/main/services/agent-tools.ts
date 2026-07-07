@@ -94,12 +94,13 @@ export const AGENT_TOOLS: ToolDefinition[] = [
   },
   {
     name: "send_message",
-    description: "Talk to your teammates in a channel — ask, answer, decide together, or hand off work, the way colleagues do. @mention the people you are addressing, attach deliverable file ids with attachment_file_ids, and use /handoff @Name when passing a file. Use the channel that matches the work: 'engineering' for engineering, 'product' for product/design, otherwise 'general'. Reply inside a thread by passing its thread_id to keep one conversation together.",
+    description: "Talk to your teammates the way colleagues do. For anything meant for one person — task updates, questions, reports to your manager, hand-offs — send a direct message with `to` so each conversation stays separate. Use a `channel` only for genuinely team-wide topics: 'engineering' for engineering, 'product' for product/design, 'general' for company-wide. Pass exactly one of `to` or `channel`. @mention people you address in channels, attach deliverable file ids with attachment_file_ids, and use /handoff @Name when passing a file. Reply inside a thread by passing its thread_id to keep one conversation together.",
     parameters: {
       type: "object",
       additionalProperties: false,
       properties: {
-        channel: { type: "string", description: "Channel: 'engineering', 'product', or 'general'." },
+        to: { type: "string", description: "Teammate name for a direct 1:1 message, e.g. 'CEO' or 'Ava Patel'. Preferred for anything addressed to one person." },
+        channel: { type: "string", description: "Channel for team-wide topics: 'engineering', 'product', or 'general'." },
         body: { type: "string", description: "The message. Use @mentions for teammates and slash commands such as /handoff @Name when passing files." },
         thread_id: { type: "string", description: "Reply inside an existing thread — pass the thread_id a prior send_message returned. Omit to start a new thread." },
         attachment_file_ids: {
@@ -108,17 +109,18 @@ export const AGENT_TOOLS: ToolDefinition[] = [
           description: "Approved file object ids to attach to this chat message.",
         },
       },
-      required: ["channel", "body"],
+      required: ["body"],
     },
   },
   {
     name: "read_messages",
-    description: "Read recent messages from a channel or your direct mentions. Check what your teammates have been saying before you respond or start work.",
+    description: "Read recent messages from a channel, a direct conversation, or your direct mentions. Check what your teammates have been saying before you respond or start work.",
     parameters: {
       type: "object",
       additionalProperties: false,
       properties: {
-        channel: { type: "string", description: "Channel name: 'engineering', 'product', 'general'. Omit to read your recent @mentions across all channels." },
+        channel: { type: "string", description: "Channel name: 'engineering', 'product', 'general'." },
+        with: { type: "string", description: "Teammate name to read your direct conversation with, e.g. 'CEO'." },
         limit: { type: "number", description: "Number of recent messages (default 10, max 30)." },
       },
       required: [],
@@ -244,18 +246,21 @@ function writeDeliverableTool(deps: AgentToolDeps, ctx: AgentToolContext, args: 
 }
 
 function sendMessageTool(deps: AgentToolDeps, ctx: AgentToolContext, args: JsonRecord): string {
-  const channel = requireString(args.channel, "channel");
+  const channel = optionalString(args.channel);
+  const to = optionalString(args.to);
   const body = requireString(args.body, "body");
   const threadId = optionalString(args.thread_id);
   const attachmentFileIds = optionalStringArray(args.attachment_file_ids, "attachment_file_ids");
-  const space = deps.db.prepare(
-    "select id from chat_spaces where org_id = ? and lower(name) = lower(?) and space_type <> 'direct' limit 1",
-  ).get(ctx.orgId, channel) as { id: string } | undefined;
-  if (!space) throw new Error(`No channel named "${channel}".`);
+  if (Boolean(channel) === Boolean(to)) throw new Error('Pass exactly one of "to" (direct message) or "channel".');
+
+  const destination = to
+    ? directSpaceWith(deps, ctx, to)
+    : channelSpace(deps.db, ctx.orgId, channel!);
+
   const sent = withSavepoint(deps.db, "agent_send_message", () => {
     const messageId = deps.chat.sendMessage({
       orgId: ctx.orgId,
-      spaceId: space.id,
+      spaceId: destination.spaceId,
       threadId,
       senderType: "agent",
       senderId: ctx.agent.id,
@@ -265,7 +270,63 @@ function sendMessageTool(deps: AgentToolDeps, ctx: AgentToolContext, args: JsonR
     const row = deps.db.prepare("select thread_id from chat_messages where id = ?").get(messageId) as { thread_id: string };
     return { messageId, threadId: row.thread_id };
   });
-  return describeSend(deps.db, ctx.agent.id, channel, space.id, sent.messageId, sent.threadId);
+  if (destination.kind === "direct") {
+    return [
+      `Your direct message to ${destination.counterpartName} is delivered; they can see it and reply in your conversation.`,
+      `To stay in this conversation, reply with to="${destination.counterpartName}" and thread_id="${sent.threadId}".`,
+    ].join(" ");
+  }
+  return describeSend(deps.db, ctx.agent.id, destination.label, destination.spaceId, sent.messageId, sent.threadId);
+}
+
+interface ChannelDestination {
+  kind: "channel";
+  spaceId: string;
+  label: string;
+}
+
+interface DirectDestination {
+  kind: "direct";
+  spaceId: string;
+  counterpartName: string;
+}
+
+function channelSpace(db: DatabaseSync, orgId: string, channel: string): ChannelDestination {
+  const space = db.prepare(
+    "select id from chat_spaces where org_id = ? and lower(name) = lower(?) and space_type <> 'direct' limit 1",
+  ).get(orgId, channel) as { id: string } | undefined;
+  if (!space) throw new Error(`No channel named "${channel}".`);
+  return { kind: "channel", spaceId: space.id, label: channel };
+}
+
+function directSpaceWith(deps: AgentToolDeps, ctx: AgentToolContext, teammateName: string): DirectDestination {
+  const counterpart = resolveTeammateByName(deps.db, ctx.orgId, teammateName);
+  if (counterpart.type === "agent" && counterpart.id === ctx.agent.id) {
+    throw new Error("You cannot open a direct conversation with yourself.");
+  }
+  const spaceId = deps.chat.ensureDirectSpace(
+    ctx.orgId,
+    { type: "agent", id: ctx.agent.id },
+    { type: counterpart.type, id: counterpart.id },
+  );
+  return { kind: "direct", spaceId, counterpartName: counterpart.name };
+}
+
+function resolveTeammateByName(
+  db: DatabaseSync,
+  orgId: string,
+  name: string,
+): { type: "agent" | "employee"; id: string; name: string } {
+  const trimmed = name.trim();
+  const agent = db.prepare(
+    "select id, name from agents where org_id = ? and lower(name) = lower(?) and lifecycle = 'active' limit 1",
+  ).get(orgId, trimmed) as { id: string; name: string } | undefined;
+  if (agent) return { type: "agent", id: agent.id, name: agent.name };
+  const employee = db.prepare(
+    "select id, display_name from employees where org_id = ? and lower(display_name) = lower(?) limit 1",
+  ).get(orgId, trimmed) as { id: string; display_name: string } | undefined;
+  if (employee) return { type: "employee", id: employee.id, name: employee.display_name };
+  throw new Error(`No teammate named "${name}".`);
 }
 
 /**
@@ -396,18 +457,18 @@ function postAssignmentMessage(
   ctx: AgentToolContext,
   input: { taskId: string; title: string; description: string; assignee: RunnableAssignmentAgent },
 ): string {
-  const channel = assignmentChannel(input.assignee.department);
+  const spaceId = deps.chat.ensureDirectSpace(
+    ctx.orgId,
+    { type: "agent", id: ctx.agent.id },
+    { type: "agent", id: input.assignee.id },
+  );
   const body = [
     `@${canonicalMentionHandle(input.assignee.name)} take task_id=${input.taskId}: ${input.title}.`,
     input.description,
   ].join(" ");
-  const space = deps.db.prepare(
-    "select id from chat_spaces where org_id = ? and lower(name) = lower(?) and space_type <> 'direct' limit 1",
-  ).get(ctx.orgId, channel) as { id: string } | undefined;
-  if (!space) throw new Error(`No channel named "${channel}".`);
   const messageId = deps.chat.sendMessage({
     orgId: ctx.orgId,
-    spaceId: space.id,
+    spaceId,
     threadId: null,
     senderType: "agent",
     senderId: ctx.agent.id,
@@ -416,12 +477,6 @@ function postAssignmentMessage(
   });
   const row = deps.db.prepare("select thread_id from chat_messages where id = ?").get(messageId) as { thread_id: string };
   return row.thread_id;
-}
-
-function assignmentChannel(department: string): string {
-  const normalized = department.trim().toLowerCase();
-  if (normalized === "engineering" || normalized === "product") return normalized;
-  return "general";
 }
 
 function withSavepoint<T>(db: DatabaseSync, name: string, operation: () => T): T {
