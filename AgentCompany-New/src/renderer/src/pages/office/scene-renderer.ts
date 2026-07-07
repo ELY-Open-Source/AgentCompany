@@ -1,5 +1,6 @@
 import type { FloorPlan, Rect, RoomSpec } from "./office-types";
 import { WALL } from "./floor-plan";
+import { drawWindowSky, type SkyScene } from "./sky";
 
 /**
  * Draws the static office world in a 3/4 top-down pixel style: wood floor,
@@ -34,17 +35,15 @@ const PALETTE = {
   monitorShell: "#4b5058",
   chair: "#3d4148",
   chairDark: "#33373d",
-  glassSky: "#8fc3e8",
-  glassSkyLow: "#c3e0f2",
   frame: "#3f3831",
   signPlate: "#2f2a25",
   signText: "#d8cfc2",
 } as const;
 
-export function drawWorld(ctx: CanvasRenderingContext2D, plan: FloorPlan, view: Rect): void {
+export function drawWorld(ctx: CanvasRenderingContext2D, plan: FloorPlan, view: Rect, sky: SkyScene): void {
   drawFloor(ctx, plan, view);
   for (const room of plan.rooms) drawRoomFloor(ctx, room);
-  drawStructure(ctx, plan);
+  drawStructure(ctx, plan, sky);
   for (const room of plan.rooms) drawRoomFurniture(ctx, plan, room);
   drawCorridorPlants(ctx, plan);
   for (const desk of plan.desks) {
@@ -96,7 +95,7 @@ function drawRoomFloor(ctx: CanvasRenderingContext2D, room: RoomSpec): void {
   }
 }
 
-function drawStructure(ctx: CanvasRenderingContext2D, plan: FloorPlan): void {
+function drawStructure(ctx: CanvasRenderingContext2D, plan: FloorPlan, sky: SkyScene): void {
   const { w, h } = plan.world;
   ctx.fillStyle = PALETTE.wallFill;
   ctx.fillRect(0, 0, w, WALL);
@@ -113,7 +112,7 @@ function drawStructure(ctx: CanvasRenderingContext2D, plan: FloorPlan): void {
     ctx.fillRect(b.x, b.y + WALL_FACE_H - 6, b.w, 6);
     ctx.fillStyle = PALETTE.baseboard;
     ctx.fillRect(b.x, b.y + WALL_FACE_H, b.w, 2);
-    drawRoomWindows(ctx, room);
+    drawRoomWindows(ctx, room, sky);
   }
 
   ctx.fillStyle = PALETTE.wallFill;
@@ -141,8 +140,11 @@ function drawSouthWall(ctx: CanvasRenderingContext2D, room: RoomSpec): void {
   ctx.fillRect(gapR, y, 3, WALL);
 }
 
-function drawRoomWindows(ctx: CanvasRenderingContext2D, room: RoomSpec): void {
-  for (const rect of windowRects(room)) drawWindowFrame(ctx, rect);
+function drawRoomWindows(ctx: CanvasRenderingContext2D, room: RoomSpec, sky: SkyScene): void {
+  const rects = windowRects(room);
+  for (let i = 0; i < rects.length; i++) {
+    drawWindowFrame(ctx, rects[i], sky, Math.round(room.bounds.x) + i * 53);
+  }
 }
 
 /** Window glass rects on each room's north wall face (world coordinates). */
@@ -163,14 +165,10 @@ export function windowRects(room: RoomSpec): Rect[] {
   ];
 }
 
-function drawWindowFrame(ctx: CanvasRenderingContext2D, rect: Rect): void {
+function drawWindowFrame(ctx: CanvasRenderingContext2D, rect: Rect, sky: SkyScene, seed: number): void {
   ctx.fillStyle = PALETTE.frame;
   ctx.fillRect(rect.x - 3, rect.y - 3, rect.w + 6, rect.h + 6);
-  const grad = ctx.createLinearGradient(0, rect.y, 0, rect.y + rect.h);
-  grad.addColorStop(0, PALETTE.glassSky);
-  grad.addColorStop(1, PALETTE.glassSkyLow);
-  ctx.fillStyle = grad;
-  ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+  drawWindowSky(ctx, rect, sky, seed);
   ctx.fillStyle = PALETTE.frame;
   ctx.fillRect(rect.x + rect.w / 2 - 1, rect.y, 2, rect.h);
 }

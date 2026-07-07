@@ -1,5 +1,6 @@
 import type { AgentActivity, Camera, FloorPlan, Rect } from "./office-types";
 import { deskScreenRect, drawWorld } from "./scene-renderer";
+import { skyScene } from "./sky";
 import { drawPerson, type Carrying, type Facing, type SpriteAppearance } from "./sprites";
 
 export interface RenderPerson {
@@ -42,13 +43,14 @@ export function renderOffice(
   camera: Camera,
   people: RenderPerson[],
   timeMs: number,
+  clock: Date,
 ): void {
   ctx.fillStyle = "#14161c";
   ctx.fillRect(0, 0, viewW, viewH);
   ctx.save();
   ctx.translate(-camera.x, -camera.y);
 
-  drawWorld(ctx, plan, { x: camera.x, y: camera.y, w: viewW, h: viewH });
+  drawWorld(ctx, plan, { x: camera.x, y: camera.y, w: viewW, h: viewH }, skyScene(clock));
 
   for (const person of people) {
     if (!person.desk) continue;

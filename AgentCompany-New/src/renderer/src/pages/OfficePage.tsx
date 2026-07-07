@@ -144,7 +144,7 @@ export function OfficePage({ snapshot }: PageProps) {
           carrying: null,
         });
       }
-      renderOffice(ctx, viewW, viewH, sim.plan, camera, people, now);
+      renderOffice(ctx, viewW, viewH, sim.plan, camera, people, now, new Date());
     };
 
     raf = requestAnimationFrame(tick);
