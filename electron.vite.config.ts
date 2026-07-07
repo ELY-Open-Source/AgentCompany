@@ -8,9 +8,10 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 
 /**
  * The Composio integration key is compiled into the main-process bundle so
- * no credential file ever ships with the app. It lives in the gitignored
- * cred.txt at the repository root (first line "Composio apikey: ak_...");
- * a checkout without the file builds an app whose connector features report
+ * no credential file ever ships with the app. It lives in cred.txt at the
+ * repository root (first line "Composio apikey: ak_..."), committed on
+ * purpose — private repo, and every checkout must build a configured app.
+ * A checkout without the file builds an app whose connector features report
  * the integration as unconfigured. Rotation = update cred.txt, rebuild.
  */
 function composioApiKeyForBuild(): string {

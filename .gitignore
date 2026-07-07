@@ -6,4 +6,3 @@ playwright-report/
 coverage/
 *.tsbuildinfo
 design-source/
-cred.txt
