@@ -20,7 +20,9 @@ import { GoalDialog } from "./work/GoalDialog";
 import { ProjectDialog } from "./work/ProjectDialog";
 import { TaskDetailDialog } from "./work/TaskDetailDialog";
 import { ProjectOverview } from "./work/ProjectOverview";
-import { canRun, latestTaskRun, nextStatus, prettyRunState, prettyStatus, providerFor, runTone } from "./work/task-helpers";
+import { ListView } from "./work/ListView";
+import { TimelineView } from "./work/TimelineView";
+import { canRun, latestTaskRun, nextStatus, prettyRunState, providerFor, runTone } from "./work/task-helpers";
 import type { PageProps } from "./types";
 import { activeOrgId } from "./types";
 
@@ -264,119 +266,6 @@ function BoardView({
           </div>
         );
       })}
-    </div>
-  );
-}
-
-function ListView({
-  tasks,
-  agents,
-  projects,
-  providers,
-  onRun,
-  onOpen,
-}: {
-  tasks: TaskRecord[];
-  agents: AgentRecord[];
-  projects: ProjectRecord[];
-  providers: ProviderRecord[];
-  onRun: (task: TaskRecord) => void;
-  onOpen: (task: TaskRecord) => void;
-}) {
-  return (
-    <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-      <div
-        className="table-row head"
-        style={{ gridTemplateColumns: "minmax(0, 3fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.2fr) 88px" }}
-      >
-        <div>Title</div><div>Status</div><div>Priority</div><div>Assignee</div><div />
-      </div>
-      {tasks.map((task, index) => {
-        const assignee = agents.find((agent) => agent.id === task.assigneeAgentId) ?? null;
-        const provider = providerFor(assignee, providers);
-        const project = projects.find((p) => p.id === task.projectId) ?? null;
-        const last = index === tasks.length - 1;
-        return (
-          <div
-            key={task.id}
-            role="button"
-            tabIndex={0}
-            className="table-row clickable"
-            onClick={() => onOpen(task)}
-            onKeyDown={(event) => { if (event.key === "Enter") onOpen(task); }}
-            style={{ gridTemplateColumns: "minmax(0, 3fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.2fr) 88px", borderBottom: last ? "none" : "1px solid var(--border-soft)" }}
-          >
-            <div className="row" style={{ gap: 8, minWidth: 0 }}>
-              {task.risk === "high" && <span style={{ width: 3, height: 12, background: "var(--red)", borderRadius: 2, flexShrink: 0 }} />}
-              <span style={{ fontWeight: 480, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{task.title}</span>
-              {project && <Pill>{project.name}</Pill>}
-            </div>
-            <div><Pill>{prettyStatus(task.status)}</Pill></div>
-            <div><Pill tone={task.priority === "high" ? "amber" : undefined}>{task.priority}</Pill></div>
-            <div>
-              {assignee ? (
-                <div className="row" style={{ gap: 8 }}>
-                  <Avatar name={assignee.name} size="sm" bot />
-                  <span style={{ color: "var(--text-2)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{assignee.name}</span>
-                </div>
-              ) : (
-                <span style={{ color: "var(--text-4)" }}>—</span>
-              )}
-            </div>
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 4 }} onClick={(event) => event.stopPropagation()}>
-              {assignee && <IconButton icon="send" label={`Run ${task.title}`} onClick={() => onRun(task)} disabled={!canRun(provider)} />}
-              <IconButton icon="more" label={`Open ${task.title}`} onClick={() => onOpen(task)} />
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-function TimelineView({ tasks, goals, projects }: { tasks: TaskRecord[]; goals: GoalRecord[]; projects: ProjectRecord[] }) {
-  const unlinked = tasks.filter((t) => !t.goalId);
-  return (
-    <div className="card" style={{ padding: 18 }}>
-      <div className="section-label">By goal</div>
-      {goals.map((goal) => {
-        const linked = tasks.filter((task) => task.goalId === goal.id);
-        const done = linked.filter((task) => task.status === TASK_STATUS.DONE).length;
-        const pct = linked.length === 0 ? 0 : Math.round((done / linked.length) * 100);
-        const goalProjects = projects.filter((p) => p.goalId === goal.id);
-        return (
-          <div key={goal.id} style={{ padding: "12px 0", borderBottom: "1px solid var(--border-soft)" }}>
-            <div className="row">
-              <span style={{ fontWeight: 540 }}>{goal.title}</span>
-              <span className="num" style={{ marginLeft: "auto", color: "var(--text-3)" }}>{done} / {linked.length}</span>
-            </div>
-            <div style={{ marginTop: 8, height: 3, background: "var(--panel-3)", borderRadius: 2, overflow: "hidden" }}>
-              <div style={{ width: `${pct}%`, height: "100%", background: "var(--text-1)" }} />
-            </div>
-            {goalProjects.length > 0 && (
-              <div style={{ marginTop: 8, display: "flex", gap: 6, flexWrap: "wrap" }}>
-                {goalProjects.map((p) => {
-                  const projectTasks = linked.filter((t) => t.projectId === p.id);
-                  const projectDone = projectTasks.filter((t) => t.status === TASK_STATUS.DONE).length;
-                  return (
-                    <Pill key={p.id}>
-                      {truncate(p.name, 24)} {projectDone}/{projectTasks.length}
-                    </Pill>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        );
-      })}
-      {unlinked.length > 0 && (
-        <div style={{ padding: "12px 0" }}>
-          <div className="row">
-            <span style={{ fontWeight: 540, color: "var(--text-3)" }}>Unlinked tasks</span>
-            <span className="num" style={{ marginLeft: "auto", color: "var(--text-3)" }}>{unlinked.length}</span>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
