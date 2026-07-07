@@ -13,11 +13,7 @@ export type RouteId =
   | "chat"
   | "files"
   | "docs"
-  | "knowledge"
-  | "inbox"
   | "runs"
-  | "meetings"
-  | "sprints"
   | "approvals"
   | "social"
   | "office"
@@ -46,11 +42,7 @@ const primaryNav: NavSpec[] = [
 
 /** Less-frequent surfaces, demoted under a divider so the primary set leads. */
 const secondaryNav: NavSpec[] = [
-  { id: "inbox", label: "Inbox", icon: "inbox" },
   { id: "docs", label: "Documents", icon: "file" },
-  { id: "knowledge", label: "Knowledge", icon: "sparkle" },
-  { id: "meetings", label: "Meetings", icon: "calendar" },
-  { id: "sprints", label: "Sprints", icon: "target" },
   { id: "social", label: "Social", icon: "social" },
   { id: "office", label: "Office", icon: "team" },
 ];

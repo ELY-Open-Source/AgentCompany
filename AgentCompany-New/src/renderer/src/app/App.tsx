@@ -10,11 +10,7 @@ import { FilesPage } from "../pages/FilesPage";
 import { ApprovalsPage } from "../pages/ApprovalsPage";
 import { SocialPage } from "../pages/SocialPage";
 import { DocumentsPage } from "../pages/DocumentsPage";
-import { KnowledgePage } from "../pages/KnowledgePage";
-import { InboxPage } from "../pages/InboxPage";
 import { RunsPage } from "../pages/RunsPage";
-import { MeetingsPage } from "../pages/MeetingsPage";
-import { SprintsPage } from "../pages/SprintsPage";
 import { SettingsPage } from "../pages/SettingsPage";
 import { OfficePage } from "../pages/OfficePage";
 
@@ -45,11 +41,7 @@ export function App() {
     chat: <ChatPage {...pageProps} />,
     files: <FilesPage {...pageProps} />,
     docs: <DocumentsPage {...pageProps} />,
-    knowledge: <KnowledgePage {...pageProps} />,
-    inbox: <InboxPage {...pageProps} />,
     runs: <RunsPage {...pageProps} />,
-    meetings: <MeetingsPage {...pageProps} />,
-    sprints: <SprintsPage {...pageProps} />,
     approvals: <ApprovalsPage {...pageProps} />,
     social: <SocialPage {...pageProps} />,
     office: <OfficePage {...pageProps} />,
