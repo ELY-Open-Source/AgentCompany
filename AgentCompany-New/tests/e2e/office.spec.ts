@@ -1,4 +1,4 @@
-import { _electron as electron, expect, test } from "@playwright/test";
+import { _electron as electron, expect, test, type Page } from "@playwright/test";
 import { mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -31,7 +31,7 @@ test("the office floor opens agent details on click", async () => {
     await page.getByRole("button", { name: "Launch" }).click();
     await expect(page.getByRole("button", { name: /Pixel Works/ })).toBeVisible();
 
-    await page.getByRole("button", { name: "Office" }).click();
+    await page.getByRole("button", { name: "Office", exact: true }).click();
     const canvas = page.locator("canvas");
     await expect(canvas).toBeVisible();
     await page.waitForTimeout(300);
@@ -66,7 +66,41 @@ test("the office floor opens agent details on click", async () => {
       await page.keyboard.up(key);
     }
     await expect(canvas).toBeVisible();
+
+    // Hired agents take open-floor desks in hire order and are clickable too.
+    await hireAgent(page, "Ava Patel", "Designer", "Design");
+    await hireAgent(page, "Ken Ito", "Engineer", "Engineering");
+    await page.getByRole("button", { name: "Office", exact: true }).click();
+    await expect(canvas).toBeVisible();
+    await page.waitForTimeout(300);
+
+    const populated = buildFloorPlan(2);
+    const populatedBox = await canvas.boundingBox();
+    const populatedCamera = cameraFor(populated.world, populatedBox!.width, populatedBox!.height, populated.entrance);
+    const firstDesk = populated.desks[0].seat;
+    await page.mouse.click(
+      populatedBox!.x + firstDesk.x - populatedCamera.x,
+      populatedBox!.y + firstDesk.y - 20 - populatedCamera.y,
+    );
+    const avaCard = page.getByRole("dialog", { name: "Agent Ava Patel" });
+    await expect(avaCard).toBeVisible();
+    await expect(avaCard.getByText("Design", { exact: true })).toBeVisible();
+
+    const outDir = resolve("test-results/screenshots");
+    mkdirSync(outDir, { recursive: true });
+    await page.screenshot({ path: join(outDir, "19-office-populated.png"), fullPage: false });
   } finally {
     await app.close();
   }
 });
+
+async function hireAgent(page: Page, name: string, role: string, department: string): Promise<void> {
+  await page.getByRole("button", { name: "Team", exact: true }).click();
+  await page.getByRole("button", { name: "Hire", exact: true }).click();
+  await page.getByLabel("Name").fill(name);
+  await page.getByLabel("Role").fill(role);
+  await page.getByLabel("Department").fill(department);
+  await page.getByLabel("Monthly budget").fill("100");
+  await page.locator(".modal").getByRole("button", { name: "Hire" }).click();
+  await expect(page.getByText(name).first()).toBeVisible();
+}
