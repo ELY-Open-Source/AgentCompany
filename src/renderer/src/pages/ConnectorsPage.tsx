@@ -123,7 +123,19 @@ export function ConnectorsPage({ snapshot, actions }: PageProps) {
       )}
       {catalog.phase === "error" && (
         <div className="row" style={{ gap: 10, padding: "24px 0" }}>
-          <span style={{ color: "var(--text-2)", fontSize: 13 }}>{catalog.message}</span>
+          <span
+            style={{
+              color: "var(--text-2)",
+              fontSize: 13,
+              flex: 1,
+              minWidth: 0,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {catalog.message}
+          </span>
           <Button size="small" onClick={() => {
             setCatalogSlot(null);
             void window.agentCompany.listComposioToolkits({ orgId }).then((result) => {
