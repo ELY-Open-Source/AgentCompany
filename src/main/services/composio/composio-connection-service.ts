@@ -16,7 +16,7 @@ let catalogCache: { fetchedAt: number; toolkits: ComposioToolkitSummary[] } | nu
  * Connectors page read local state instead of calling out on every frame.
  */
 export class ComposioConnectionService {
-  constructor(private readonly db: DatabaseSync, private readonly credentialFileDir: string) {}
+  constructor(private readonly db: DatabaseSync) {}
 
   listToolkits(orgId: string): Promise<ComposioToolkitSummaryDto[]> {
     const client = this.requireClient(orgId);
@@ -81,7 +81,7 @@ export class ComposioConnectionService {
   }
 
   private requireClient(orgId: string): ComposioClient {
-    const apiKey = resolveComposioApiKey(this.db, orgId, this.credentialFileDir);
+    const apiKey = resolveComposioApiKey(this.db, orgId);
     if (!apiKey) throw new Error("Composio API key is not configured for this company.");
     return new ComposioClient(apiKey);
   }

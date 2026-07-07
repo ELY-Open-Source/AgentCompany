@@ -40,17 +40,26 @@ describe("composio credential resolution", () => {
   test("seeds the database from the credential file", () => {
     const h = harness();
     writeCred(h, "ak_first");
-    expect(resolveComposioApiKey(h.connection.db, h.orgId, h.credDir)).toBe("ak_first");
+    expect(resolveComposioApiKey(h.connection.db, h.orgId, [h.credDir])).toBe("ak_first");
     expect(storedKey(h)).toBe("ak_first");
   });
 
   test("a rotated credential file replaces the stale stored key", () => {
     const h = harness();
     writeCred(h, "ak_old");
-    resolveComposioApiKey(h.connection.db, h.orgId, h.credDir);
+    resolveComposioApiKey(h.connection.db, h.orgId, [h.credDir]);
     writeCred(h, "ak_rotated");
-    expect(resolveComposioApiKey(h.connection.db, h.orgId, h.credDir)).toBe("ak_rotated");
+    expect(resolveComposioApiKey(h.connection.db, h.orgId, [h.credDir])).toBe("ak_rotated");
     expect(storedKey(h)).toBe("ak_rotated");
+  });
+
+  test("finds the credential file in a later directory when the first has none", () => {
+    const h = harness();
+    writeCred(h, "ak_resources");
+    const emptyDir = join(tmpdir(), `ac-cred-empty-${randomUUID()}`);
+    mkdirSync(emptyDir, { recursive: true });
+    expect(resolveComposioApiKey(h.connection.db, h.orgId, [emptyDir, h.credDir])).toBe("ak_resources");
+    expect(storedKey(h)).toBe("ak_resources");
   });
 
   test("without a credential file the stored key stands", () => {
@@ -59,11 +68,11 @@ describe("composio credential resolution", () => {
     h.connection.db.prepare(
       "insert into composio_settings(org_id, key, value, updated_at) values (?, 'api_key', 'ak_settings', ?)",
     ).run(h.orgId, now);
-    expect(resolveComposioApiKey(h.connection.db, h.orgId, h.credDir)).toBe("ak_settings");
+    expect(resolveComposioApiKey(h.connection.db, h.orgId, [h.credDir])).toBe("ak_settings");
   });
 
   test("no file and no stored key yields null", () => {
     const h = harness();
-    expect(resolveComposioApiKey(h.connection.db, h.orgId, h.credDir)).toBeNull();
+    expect(resolveComposioApiKey(h.connection.db, h.orgId, [h.credDir])).toBeNull();
   });
 });

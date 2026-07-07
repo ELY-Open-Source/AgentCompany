@@ -49,7 +49,6 @@ export function HomePage({ snapshot, actions, navigate }: PageProps) {
   return (
     <div className="page-wide" style={{ maxWidth: 1240 }}>
       <TopbarActions>
-        <Button tone="ghost" onClick={() => void actions.reload()} title="Refresh"><Icon name="refresh" size={16} /></Button>
         <Button tone="primary" onClick={() => setNewTaskOpen(true)}><Icon name="plus" size={16} /> New task</Button>
       </TopbarActions>
       <h1 className="page-h1">{greeting}, {firstName}</h1>

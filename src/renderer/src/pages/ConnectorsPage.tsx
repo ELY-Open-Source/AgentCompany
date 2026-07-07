@@ -66,6 +66,12 @@ export function ConnectorsPage({ snapshot, actions }: PageProps) {
     if (pollTimer.current) clearTimeout(pollTimer.current);
   }, []);
 
+  // Account statuses sync from Composio when the page opens; a failure here
+  // is already expressed by the catalog error state.
+  useEffect(() => {
+    void window.agentCompany.refreshComposioAccounts({ orgId });
+  }, [orgId]);
+
   const refreshAccounts = () =>
     actions.run(() => window.agentCompany.refreshComposioAccounts({ orgId }));
 
@@ -104,17 +110,7 @@ export function ConnectorsPage({ snapshot, actions }: PageProps) {
 
   return (
     <div style={{ maxWidth: 1060 }}>
-      <div className="row" style={{ marginBottom: 18 }}>
-        <div>
-          <h2 style={{ margin: 0, fontSize: 16, fontWeight: 600 }}>Connectors</h2>
-          <div style={{ fontSize: 12.5, color: "var(--text-3)", marginTop: 2 }}>
-            Company connections your agents can be granted to use.
-          </div>
-        </div>
-        <div style={{ marginLeft: "auto" }}>
-          <Button size="small" onClick={() => void refreshAccounts()}>Refresh</Button>
-        </div>
-      </div>
+      <h2 style={{ margin: "0 0 18px", fontSize: 16, fontWeight: 600 }}>Connectors</h2>
 
       <ConnectedList accounts={accounts} grants={grants} agents={agents} onGrant={grant} onRevoke={revoke} />
 

@@ -3,18 +3,19 @@ import { join } from "node:path";
 import type { DatabaseSync } from "node:sqlite";
 
 /**
- * The org's Composio API key. A developer credential file next to the app
- * (cred.txt, first line "Composio apikey: ak_...", gitignored) is the source
- * of truth whenever it exists: rotating the key in the file takes effect on
- * the next resolution, replacing whatever the database held. Packaged
- * installs have no credential file and manage the key in Settings instead.
+ * The Composio integration key ships with the product: cred.txt (first line
+ * "Composio apikey: ak_...", gitignored) sits at the project root in
+ * development and inside the packaged app's resources directory in
+ * production. Wherever the file exists it is the source of truth — rotating
+ * the key in the file replaces whatever the database held on the next
+ * resolution. It is not user-configurable.
  */
-export function resolveComposioApiKey(db: DatabaseSync, orgId: string, credentialFileDir: string = process.cwd()): string | null {
+export function resolveComposioApiKey(db: DatabaseSync, orgId: string, credentialFileDirs: string[] = defaultCredentialDirs()): string | null {
   const stored = db.prepare(
     "select value from composio_settings where org_id = ? and key = 'api_key' limit 1",
   ).get(orgId) as { value: string } | undefined;
 
-  const fileKey = readCredentialFile(credentialFileDir);
+  const fileKey = readCredentialFile(credentialFileDirs);
   if (!fileKey) return stored?.value ?? null;
   if (stored?.value === fileKey) return fileKey;
 
@@ -28,10 +29,20 @@ export function resolveComposioApiKey(db: DatabaseSync, orgId: string, credentia
   return fileKey;
 }
 
-function readCredentialFile(dir: string): string | null {
-  const path = join(dir, "cred.txt");
-  if (!existsSync(path)) return null;
-  const firstLine = readFileSync(path, "utf8").split("\n")[0] ?? "";
-  const key = firstLine.split(":").slice(1).join(":").trim();
-  return key || null;
+/** Project root in dev; the app's resources directory when packaged. */
+export function defaultCredentialDirs(): string[] {
+  const dirs = [process.cwd()];
+  if (process.resourcesPath) dirs.push(process.resourcesPath);
+  return dirs;
+}
+
+function readCredentialFile(dirs: string[]): string | null {
+  for (const dir of dirs) {
+    const path = join(dir, "cred.txt");
+    if (!existsSync(path)) continue;
+    const firstLine = readFileSync(path, "utf8").split("\n")[0] ?? "";
+    const key = firstLine.split(":").slice(1).join(":").trim();
+    if (key) return key;
+  }
+  return null;
 }

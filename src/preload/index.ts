@@ -82,7 +82,6 @@ const api: DesktopApi = {
   setLegalHoldState: (input) => invoke(IPC_CHANNELS.setLegalHoldState, input),
   createRetentionFreeze: (input) => invoke(IPC_CHANNELS.createRetentionFreeze, input),
   setRetentionFreezeState: (input) => invoke(IPC_CHANNELS.setRetentionFreezeState, input),
-  saveComposioSettings: (input) => invoke(IPC_CHANNELS.saveComposioSettings, input),
   listComposioToolkits: (input) => invoke(IPC_CHANNELS.listComposioToolkits, input),
   connectComposioToolkit: (input) => invoke(IPC_CHANNELS.connectComposioToolkit, input),
   refreshComposioAccounts: (input) => invoke(IPC_CHANNELS.refreshComposioAccounts, input),

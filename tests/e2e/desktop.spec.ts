@@ -3,7 +3,6 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { randomUUID } from "node:crypto";
-import { DatabaseSync } from "node:sqlite";
 
 test("onboards, hires, and creates work in the Electron shell", async () => {
   const profileDir = join(tmpdir(), `agentcompany-new-e2e-${randomUUID()}`);
@@ -115,7 +114,7 @@ test("onboards, hires, and creates work in the Electron shell", async () => {
     // is reachable from the test machine.
     await page.getByRole("button", { name: "Connectors", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Connectors" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Refresh" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Refresh" })).toHaveCount(0);
 
     await page.getByRole("button", { name: "Settings" }).click();
     await expect(page.getByText("AI CEO", { exact: true })).toBeVisible();
@@ -130,7 +129,6 @@ test("onboards, hires, and creates work in the Electron shell", async () => {
     await expect(page.getByRole("button", { name: "Background" })).toBeVisible();
     await page.getByLabel("Request prompt").fill("Draft a provider control memo.");
     await page.getByLabel("Request instructions").fill("Use direct language.");
-    await expect(page.getByLabel("Composio API key")).toBeVisible();
 
     await page.getByRole("button", { name: "Providers" }).click();
     await page.getByLabel("OpenAI data policy").selectOption("zero_data_retention");
@@ -147,17 +145,6 @@ test("onboards, hires, and creates work in the Electron shell", async () => {
     await expect(page.getByText("Never run").first()).toBeVisible();
     await page.getByRole("button", { name: "Run tests" }).click();
     await expect(page.getByText("1/1 passed").first()).toBeVisible();
-    const legacyPath = createLegacyDatabase();
-    await page.getByRole("button", { name: "Advanced" }).click();
-    await page.getByRole("button", { name: "Report" }).click();
-    await page.getByLabel("Source database path").fill(legacyPath);
-    await page.locator(".modal").getByRole("button", { name: "Create" }).click();
-    await expect(page.getByText("organizations: 1").first()).toBeVisible();
-    await page.getByRole("button", { name: "Snapshot" }).click();
-    await expect(page.getByText("Rollback snapshots", { exact: true })).toBeVisible();
-    await expect(page.getByText(/\d+ workspaces/).first()).toBeVisible();
-    await page.getByRole("button", { name: "Set", exact: true }).click();
-    await expect(page.getByRole("button", { name: "active", exact: true })).toBeDisabled();
 
     // Virtual office page
     await page.getByRole("button", { name: "Office" }).click();
@@ -175,14 +162,6 @@ test("onboards, hires, and creates work in the Electron shell", async () => {
     await app.close();
   }
 });
-
-function createLegacyDatabase(): string {
-  const legacyPath = join(tmpdir(), `agentcompany-legacy-${randomUUID()}.db`);
-  const legacy = new DatabaseSync(legacyPath);
-  legacy.exec("create table organizations(id text primary key); insert into organizations(id) values ('legacy-org');");
-  legacy.close();
-  return legacyPath;
-}
 
 function createSkillDirectory(): string {
   const root = join(tmpdir(), `agentcompany-skill-${randomUUID()}`);

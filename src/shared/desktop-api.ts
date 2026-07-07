@@ -63,7 +63,6 @@ import type {
   RunTaskInput,
   RevokeProviderCredentialInput,
   SaveProviderCredentialInput,
-  SaveComposioSettingsInput,
   ComposioToolkitSummaryDto,
   ConnectComposioToolkitInput,
   ConnectComposioToolkitResult,
@@ -179,7 +178,6 @@ export interface DesktopApi {
   setLegalHoldState(input: SetLegalHoldStateInput): Promise<DesktopResult<AppSnapshot>>;
   createRetentionFreeze(input: CreateRetentionFreezeInput): Promise<DesktopResult<AppSnapshot>>;
   setRetentionFreezeState(input: SetRetentionFreezeStateInput): Promise<DesktopResult<AppSnapshot>>;
-  saveComposioSettings(input: SaveComposioSettingsInput): Promise<DesktopResult<AppSnapshot>>;
   listComposioToolkits(input: ListComposioToolkitsInput): Promise<DesktopResult<ComposioToolkitSummaryDto[]>>;
   connectComposioToolkit(input: ConnectComposioToolkitInput): Promise<DesktopResult<ConnectComposioToolkitResult>>;
   refreshComposioAccounts(input: RefreshComposioAccountsInput): Promise<DesktopResult<AppSnapshot>>;

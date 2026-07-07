@@ -43,8 +43,6 @@ export function SettingsPage({ snapshot, actions }: PageProps) {
   const workspaces = useMemo(() => snapshot.workspaces.filter((item) => item.orgId === orgId), [snapshot.workspaces, orgId]);
   const providerRequests = useMemo(() => snapshot.providerRequests.filter((item) => item.orgId === orgId), [snapshot.providerRequests, orgId]);
   const hiringPolicies = useMemo(() => snapshot.hiringPolicies.filter((item) => item.orgId === orgId), [snapshot.hiringPolicies, orgId]);
-  const migrationReports = useMemo(() => snapshot.migrationReports.filter((report) => report.orgId === orgId), [snapshot.migrationReports, orgId]);
-  const rollbackSnapshots = useMemo(() => snapshot.rollbackSnapshots.filter((item) => item.orgId === orgId), [snapshot.rollbackSnapshots, orgId]);
 
   return (
     <div className="split-main">
@@ -83,17 +81,12 @@ export function SettingsPage({ snapshot, actions }: PageProps) {
           {tab === "advanced" && (
             <AdvancedPanel
               orgId={orgId}
-              employeeId={employee.id}
               agents={agents}
               providers={providers}
               catalog={snapshot.providerCatalog}
               workspaces={workspaces}
               providerRequests={providerRequests}
               hiringPolicies={hiringPolicies}
-              composioSettings={snapshot.composioSettings}
-              migrationReports={migrationReports}
-              rollbackSnapshots={rollbackSnapshots}
-              reconciliationItems={snapshot.migrationReconciliationItems.filter((item) => item.orgId === orgId)}
               actions={actions}
             />
           )}
