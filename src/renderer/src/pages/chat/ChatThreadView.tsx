@@ -12,9 +12,14 @@ import type {
 import { formatTime } from "../types";
 import { ChatMessageRow } from "./ChatMessageRow";
 import { MentionTextarea } from "./MentionTextarea";
-import { senderName, type MessageContext } from "./chat-helpers";
+import type { MessageContext } from "./chat-helpers";
 
-export function ChatThreadPanel({
+/**
+ * Thread focus, in place: the center pane narrows to one thread — root,
+ * replies, board controls, and a reply composer — and the back control
+ * returns to the conversation. No side panel duplicating the timeline.
+ */
+export function ChatThreadView({
   thread,
   rootMessage,
   messages,
@@ -53,25 +58,13 @@ export function ChatThreadPanel({
 }) {
   const attachment = files.find((file) => file.id === attachmentFileId) ?? null;
   return (
-    <aside
-      style={{
-        width: 320,
-        flexShrink: 0,
-        borderLeft: "1px solid var(--border-soft)",
-        background: "var(--bg)",
-        display: "flex",
-        flexDirection: "column",
-        minHeight: 0,
-      }}
-    >
-      <div className="row" style={{ padding: "14px 16px", borderBottom: "1px solid var(--border-soft)", flexShrink: 0 }}>
-        <div style={{ fontSize: 12, fontWeight: 600 }}>Thread</div>
+    <section style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", background: "var(--panel)" }}>
+      <header className="row" style={{ height: 52, padding: "0 16px", borderBottom: "1px solid var(--border-soft)", flexShrink: 0, gap: 10 }}>
+        <IconButton icon="chevronLeft" label="Close thread" onClick={onClose} />
+        <span style={{ fontSize: 14, fontWeight: 600 }}>Thread</span>
         <Pill tone={boardStateTone(thread.boardState)}>{boardStateLabel(thread.boardState)}</Pill>
-        <div style={{ marginLeft: "auto" }}>
-          <IconButton icon="x" label="Close thread" onClick={onClose} />
-        </div>
-      </div>
-      <div style={{ padding: 16, overflow: "auto", flex: 1 }}>
+      </header>
+      <div style={{ flex: 1, overflow: "auto", padding: "20px 24px 8px" }}>
         <BoardControl
           thread={thread}
           interventions={boardInterventions}
@@ -80,25 +73,26 @@ export function ChatThreadPanel({
           onSubmit={onBoardSubmit}
         />
         {rootMessage && (
-          <>
-            <div style={{ fontSize: 12, color: "var(--text-3)", marginBottom: 10 }}>
-              {formatTime(rootMessage.createdAt)} · {senderName(rootMessage, context)}
+          <ChatMessageRow
+            message={rootMessage}
+            attachments={attachments}
+            mentions={mentions}
+            slashInvocations={slashInvocations}
+            files={files}
+            replyCount={0}
+            onOpenThread={null}
+            context={context}
+            onOpenFile={onOpenFile}
+          />
+        )}
+        {messages.length > 0 && (
+          <div className="row" style={{ gap: 12, margin: "4px 0 16px" }}>
+            <div style={{ flex: 1, height: 1, background: "var(--border-soft)" }} />
+            <div style={{ fontSize: 12, color: "var(--text-3)", fontWeight: 540 }}>
+              {messages.length} {messages.length === 1 ? "reply" : "replies"}
             </div>
-            <div style={{ border: "1px solid var(--border)", borderRadius: 10, padding: 12, background: "var(--panel)", marginBottom: 16 }}>
-              <ChatMessageRow
-                message={rootMessage}
-                attachments={attachments}
-                mentions={mentions}
-                slashInvocations={slashInvocations}
-                files={files}
-                replyCount={0}
-                onOpenThread={null}
-                context={context}
-                onOpenFile={onOpenFile}
-                compact
-              />
-            </div>
-          </>
+            <div style={{ flex: 1, height: 1, background: "var(--border-soft)" }} />
+          </div>
         )}
         {messages.map((message) => (
           <ChatMessageRow
@@ -112,11 +106,10 @@ export function ChatThreadPanel({
             onOpenThread={null}
             context={context}
             onOpenFile={onOpenFile}
-            compact
           />
         ))}
       </div>
-      <form onSubmit={onSubmit} style={{ padding: 12, flexShrink: 0 }}>
+      <form onSubmit={onSubmit} style={{ padding: "0 24px 16px", flexShrink: 0 }}>
         <div style={{ border: "1px solid var(--border-strong)", borderRadius: 10, background: "var(--panel)", padding: "8px 10px" }}>
           <MentionTextarea
             name="message"
@@ -148,7 +141,7 @@ export function ChatThreadPanel({
           </div>
         </div>
       </form>
-    </aside>
+    </section>
   );
 }
 
@@ -168,7 +161,7 @@ function BoardControl({
   const [action, setAction] = useState("decision");
   if (!canIntervene && interventions.length === 0) return null;
   return (
-    <section style={{ border: "1px solid var(--border)", borderRadius: 10, padding: 10, background: "var(--panel)", marginBottom: 16 }}>
+    <section style={{ border: "1px solid var(--border)", borderRadius: 10, padding: 10, background: "var(--panel)", marginBottom: 16, maxWidth: 480 }}>
       <div className="row" style={{ marginBottom: 8 }}>
         <div className="section-label">Board</div>
         <Pill tone={boardStateTone(thread.boardState)}>{boardStateLabel(thread.boardState)}</Pill>

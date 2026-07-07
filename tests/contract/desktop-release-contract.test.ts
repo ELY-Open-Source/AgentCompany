@@ -64,8 +64,12 @@ describe("desktop release contract", () => {
     expect(topLevelValue(config, "asar")).toBe("true");
     expect(directories).toContain("output: release");
     expect(directories).toContain("buildResources: resources");
-    expect(topLevelList(config, "files")).toEqual(["out/**/*", "package.json"]);
+    // resources/icon.png ships inside the package so windows can load it at
+    // runtime on Windows and Linux.
+    expect(topLevelList(config, "files")).toEqual(["out/**/*", "package.json", "resources/icon.png"]);
     expect(existsSync(join(projectRoot, "resources", "icon.png"))).toBe(true);
+    expect(existsSync(join(projectRoot, "resources", "icon.ico"))).toBe(true);
+    expect(existsSync(join(projectRoot, "resources", "icon-mac.png"))).toBe(true);
     expect(existsSync(join(projectRoot, "resources", "entitlements.mac.plist"))).toBe(true);
   });
 

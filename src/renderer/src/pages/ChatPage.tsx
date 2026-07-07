@@ -3,7 +3,7 @@ import { Field } from "../shared/ui";
 import { Dialog } from "../shared/Dialog";
 import { ChatSidebar } from "./chat/ChatSidebar";
 import { ChatConversation } from "./chat/ChatConversation";
-import { ChatThreadPanel } from "./chat/ChatThreadPanel";
+import { ChatThreadView } from "./chat/ChatThreadView";
 import {
   buildConversations,
   collectParticipants,
@@ -266,33 +266,8 @@ export function ChatPage({ snapshot, actions }: PageProps) {
         onCreateSpace={() => setCreateOpen(true)}
       />
 
-      <ChatConversation
-        space={activeSpace}
-        participants={participants}
-        messagesInSpace={messagesInSpace}
-        threadsInSpace={threadsInSpace}
-        pendingApprovals={pendingApprovalsInSpace}
-        attachments={snapshot.chatAttachments}
-        mentions={mentionsAll}
-        slashInvocations={slashInvocationsAll}
-        files={files}
-        context={{ employees, agents }}
-        attachmentFileId={attachmentFileId}
-        currentEmployeeId={employee.id}
-        onAttachmentChange={setAttachmentFileId}
-        onAttach={attachFile}
-        onOpenThread={openThread}
-        onApprove={(approvalId) => decideApproval(approvalId, "approved")}
-        onDecline={(approvalId) => decideApproval(approvalId, "declined")}
-        onEditMessage={editChatMessage}
-        onDeleteMessage={deleteChatMessage}
-        onOpenFile={openFile}
-        onSubmit={sendInChannel}
-        composerRef={composerRef}
-      />
-
-      {selectedThread && (
-        <ChatThreadPanel
+      {selectedThread ? (
+        <ChatThreadView
           thread={selectedThread}
           rootMessage={messagesAll.find((m) => m.id === selectedThread.rootMessageId) ?? null}
           messages={threadMessages}
@@ -310,6 +285,31 @@ export function ChatPage({ snapshot, actions }: PageProps) {
           onSubmit={sendInThread}
           onBoardSubmit={sendBoardIntervention}
           onOpenFile={openFile}
+        />
+      ) : (
+        <ChatConversation
+          space={activeSpace}
+          participants={participants}
+          messagesInSpace={messagesInSpace}
+          threadsInSpace={threadsInSpace}
+          pendingApprovals={pendingApprovalsInSpace}
+          attachments={snapshot.chatAttachments}
+          mentions={mentionsAll}
+          slashInvocations={slashInvocationsAll}
+          files={files}
+          context={{ employees, agents }}
+          attachmentFileId={attachmentFileId}
+          currentEmployeeId={employee.id}
+          onAttachmentChange={setAttachmentFileId}
+          onAttach={attachFile}
+          onOpenThread={openThread}
+          onApprove={(approvalId) => decideApproval(approvalId, "approved")}
+          onDecline={(approvalId) => decideApproval(approvalId, "declined")}
+          onEditMessage={editChatMessage}
+          onDeleteMessage={deleteChatMessage}
+          onOpenFile={openFile}
+          onSubmit={sendInChannel}
+          composerRef={composerRef}
         />
       )}
 
