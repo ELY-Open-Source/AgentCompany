@@ -69,7 +69,7 @@ export async function runAgentLoop(deps: AgentRunLoopDeps, input: AgentRunLoopIn
       toolCallCount += 1;
       let output: string;
       if (isComposioTool(call.name)) {
-        output = await executeComposioTool(deps.tools.db, input.orgId, call);
+        output = await executeComposioTool(deps.tools.db, input.orgId, input.toolContext.agent.id, call);
       } else {
         output = dispatchAgentTool(deps.tools, input.toolContext, call, {
           announceTaskAssignments: shouldAnnounceTaskAssignment(call, turn.toolCalls),

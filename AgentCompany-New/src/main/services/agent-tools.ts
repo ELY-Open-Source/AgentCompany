@@ -8,6 +8,7 @@ import { DocumentService } from "./document-service";
 import { recordWorkspaceFile } from "./files/file-object-store";
 import { canonicalMentionHandle } from "../../shared/mention-handles";
 import { readMessagesTool } from "./agent-read-messages";
+import { ConnectorGrantsService } from "./composio/connector-grants";
 import type { JsonRecord } from "./provider-http";
 import type { ToolCall, ToolDefinition } from "./provider-tool-turn";
 
@@ -140,6 +141,37 @@ export const AGENT_TOOLS: ToolDefinition[] = [
       required: ["title", "doc_type", "content"],
     },
   },
+  {
+    name: "list_connectors",
+    description: "See which external connectors (GitHub, Slack, Gmail, ...) the company has connected and who holds a grant for each. Check this before asking for access or planning work that needs an external service.",
+    parameters: { type: "object", additionalProperties: false, properties: {}, required: [] },
+  },
+  {
+    name: "grant_connector",
+    description: "CEO only: grant a teammate access to one of the company's connected external toolkits. Match the tool to the job — engineers get code tools, marketers get social tools.",
+    parameters: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        agent_name: { type: "string", description: "The teammate receiving access." },
+        toolkit: { type: "string", description: "Connected toolkit slug, e.g. 'github'." },
+      },
+      required: ["agent_name", "toolkit"],
+    },
+  },
+  {
+    name: "revoke_connector",
+    description: "CEO only: withdraw a teammate's access to a connected external toolkit.",
+    parameters: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        agent_name: { type: "string", description: "The teammate losing access." },
+        toolkit: { type: "string", description: "Connected toolkit slug, e.g. 'github'." },
+      },
+      required: ["agent_name", "toolkit"],
+    },
+  },
 ];
 
 export function dispatchAgentTool(
@@ -164,6 +196,12 @@ export function dispatchAgentTool(
         return readMessagesTool(deps, ctx, call.arguments);
       case "create_document":
         return createDocumentTool(deps, ctx, call.arguments);
+      case "list_connectors":
+        return listConnectorsTool(deps, ctx);
+      case "grant_connector":
+        return grantConnectorTool(deps, ctx, call.arguments, "grant");
+      case "revoke_connector":
+        return grantConnectorTool(deps, ctx, call.arguments, "revoke");
       default:
         return `ERROR: unknown tool "${call.name}".`;
     }
@@ -409,6 +447,54 @@ function joinNames(names: string[]): string {
   if (names.length === 1) return names[0];
   if (names.length === 2) return `${names[0]} and ${names[1]}`;
   return `${names.slice(0, -1).join(", ")}, and ${names[names.length - 1]}`;
+}
+
+function listConnectorsTool(deps: AgentToolDeps, ctx: AgentToolContext): string {
+  const grantsService = new ConnectorGrantsService(deps.db);
+  const accounts = grantsService.activeAccounts(ctx.orgId);
+  if (accounts.length === 0) {
+    return "The company has no connected external toolkits yet. The board connects them on the Connectors page.";
+  }
+  const grants = grantsService.grantsForOrg(ctx.orgId);
+  const agentNames = new Map(
+    (deps.db.prepare("select id, name from agents where org_id = ?").all(ctx.orgId) as Array<{ id: string; name: string }>)
+      .map((row) => [row.id, row.name]),
+  );
+  const lines = accounts.map((account) => {
+    const holders = grants
+      .filter((grant) => grant.toolkitSlug === account.toolkitSlug)
+      .map((grant) => agentNames.get(grant.agentId))
+      .filter(Boolean);
+    return `- ${account.toolkitName} (${account.toolkitSlug}): ${holders.length > 0 ? `granted to ${holders.join(", ")}` : "no grants yet"}`;
+  });
+  return ["Connected toolkits:", ...lines].join("\n");
+}
+
+function grantConnectorTool(deps: AgentToolDeps, ctx: AgentToolContext, args: JsonRecord, mode: "grant" | "revoke"): string {
+  const acting = deps.db.prepare("select role_level from agents where id = ? and org_id = ?")
+    .get(ctx.agent.id, ctx.orgId) as { role_level: string } | undefined;
+  if (acting?.role_level !== "c_suite") {
+    return "ERROR: Only the CEO can manage connector grants. Ask them to run this.";
+  }
+  const agentName = requireString(args.agent_name, "agent_name");
+  const toolkit = requireString(args.toolkit, "toolkit");
+  const target = deps.db.prepare(
+    "select id, name from agents where org_id = ? and lower(name) = lower(?) and lifecycle = 'active' limit 1",
+  ).get(ctx.orgId, agentName) as { id: string; name: string } | undefined;
+  if (!target) return `ERROR: No active agent named "${agentName}".`;
+  const grantsService = new ConnectorGrantsService(deps.db);
+  if (mode === "grant") {
+    grantsService.grant({
+      orgId: ctx.orgId,
+      agentId: target.id,
+      toolkitSlug: toolkit,
+      grantedByType: "agent",
+      grantedById: ctx.agent.id,
+    });
+    return `${target.name} now has access to the ${toolkit.toLowerCase()} connector; its tools join their next run.`;
+  }
+  grantsService.revoke({ orgId: ctx.orgId, agentId: target.id, toolkitSlug: toolkit });
+  return `${target.name} no longer has access to the ${toolkit.toLowerCase()} connector.`;
 }
 
 function createDocumentTool(deps: AgentToolDeps, ctx: AgentToolContext, args: JsonRecord): string {

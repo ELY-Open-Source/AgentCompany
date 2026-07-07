@@ -5,11 +5,31 @@ const BASE_URL = "https://backend.composio.dev/api/v3";
 export interface ComposioToolSchema {
   name: string;
   description: string;
+  toolkitSlug: string | null;
   parameters: {
     type: string;
     properties: Record<string, unknown>;
     required?: string[];
   };
+}
+
+export interface ComposioToolkitSummary {
+  slug: string;
+  name: string;
+  description: string;
+  logo: string | null;
+  categories: string[];
+  authSchemes: string[];
+  noAuth: boolean;
+  toolsCount: number;
+}
+
+export interface ComposioConnectedAccount {
+  id: string;
+  toolkitSlug: string;
+  status: string;
+  authConfigId: string;
+  createdAt: string;
 }
 
 export interface ComposioToolExecutionResult {
@@ -19,6 +39,36 @@ export interface ComposioToolExecutionResult {
 
 export class ComposioClient {
   constructor(private readonly apiKey: string) {}
+
+  /** The toolkit catalog, most popular first. */
+  async listToolkits(limit: number): Promise<ComposioToolkitSummary[]> {
+    const toolkits: ComposioToolkitSummary[] = [];
+    let cursor: string | null = null;
+    while (toolkits.length < limit) {
+      const params = new URLSearchParams({ limit: String(Math.min(100, limit - toolkits.length)) });
+      if (cursor) params.set("cursor", cursor);
+      const response = await this.request("GET", `${BASE_URL}/toolkits?${params.toString()}`);
+      const items = Array.isArray(response.items) ? response.items as Array<Record<string, unknown>> : [];
+      for (const item of items) {
+        const meta = (item.meta ?? {}) as Record<string, unknown>;
+        toolkits.push({
+          slug: String(item.slug ?? ""),
+          name: String(item.name ?? ""),
+          description: String(meta.description ?? "").slice(0, 200),
+          logo: typeof meta.logo === "string" ? meta.logo : null,
+          categories: Array.isArray(meta.categories)
+            ? (meta.categories as Array<Record<string, unknown>>).map((c) => String(c.name ?? c.id ?? "")).filter(Boolean)
+            : [],
+          authSchemes: Array.isArray(item.auth_schemes) ? (item.auth_schemes as unknown[]).map(String) : [],
+          noAuth: item.no_auth === true,
+          toolsCount: Number(meta.tools_count ?? 0),
+        });
+      }
+      cursor = typeof response.next_cursor === "string" && response.next_cursor ? response.next_cursor : null;
+      if (!cursor || items.length === 0) break;
+    }
+    return toolkits;
+  }
 
   async getTools(toolkits: string[]): Promise<ComposioToolSchema[]> {
     const all: ComposioToolSchema[] = [];
@@ -33,53 +83,67 @@ export class ComposioClient {
     return all;
   }
 
+  /** Creates a Composio-managed auth config for a toolkit. */
+  async createAuthConfig(toolkitSlug: string): Promise<string> {
+    const response = await this.request("POST", `${BASE_URL}/auth_configs`, {
+      toolkit: { slug: toolkitSlug },
+    });
+    const authConfig = (response.auth_config ?? {}) as Record<string, unknown>;
+    const id = String(authConfig.id ?? "");
+    if (!id) throw new Error("Composio auth config creation returned no id.");
+    return id;
+  }
+
+  /** Starts a connection for a user; the redirect URL completes it in the browser. */
+  async createConnectedAccount(input: { authConfigId: string; userId: string }): Promise<{
+    id: string;
+    status: string;
+    redirectUrl: string | null;
+  }> {
+    const response = await this.request("POST", `${BASE_URL}/connected_accounts`, {
+      auth_config: { id: input.authConfigId },
+      connection: { user_id: input.userId },
+    });
+    return {
+      id: String(response.id ?? ""),
+      status: String(response.status ?? ""),
+      redirectUrl: typeof response.redirect_url === "string" ? response.redirect_url : null,
+    };
+  }
+
+  async listConnectedAccounts(userId: string): Promise<ComposioConnectedAccount[]> {
+    const params = new URLSearchParams({ user_ids: userId, limit: "50" });
+    const response = await this.request("GET", `${BASE_URL}/connected_accounts?${params.toString()}`);
+    if (!Array.isArray(response.items)) return [];
+    return (response.items as Array<Record<string, unknown>>).map((item) => {
+      const toolkit = (item.toolkit ?? {}) as Record<string, unknown>;
+      const authConfig = (item.auth_config ?? {}) as Record<string, unknown>;
+      return {
+        id: String(item.id ?? ""),
+        toolkitSlug: String(toolkit.slug ?? "").toLowerCase(),
+        status: String(item.status ?? ""),
+        authConfigId: String(authConfig.id ?? ""),
+        createdAt: String(item.created_at ?? ""),
+      };
+    });
+  }
 
   async executeTool(input: {
     toolName: string;
     arguments: Record<string, unknown>;
-    entityId: string;
+    userId: string;
     connectedAccountId?: string;
   }): Promise<ComposioToolExecutionResult> {
     const url = `${BASE_URL}/tools/execute/${encodeURIComponent(input.toolName)}`;
     const body: Record<string, unknown> = {
-      entityId: input.entityId,
+      user_id: input.userId,
       arguments: input.arguments,
     };
-    if (input.connectedAccountId) body.connectedAccountId = input.connectedAccountId;
+    if (input.connectedAccountId) body.connected_account_id = input.connectedAccountId;
     const response = await this.request("POST", url, body);
     return {
       data: typeof response === "object" && response !== null ? response as Record<string, unknown> : {},
       error: null,
-    };
-  }
-
-  async getConnectedAccounts(entityId: string): Promise<Array<{ id: string; appName: string; status: string }>> {
-    const params = new URLSearchParams({ entity_id: entityId, showActiveOnly: "true" });
-    const url = `${BASE_URL}/connectedAccounts?${params.toString()}`;
-    const response = await this.request("GET", url);
-    if (!Array.isArray(response.items)) return [];
-    return (response.items as Array<Record<string, unknown>>).map((item) => ({
-      id: String(item.id ?? ""),
-      appName: String(item.appName ?? item.app_name ?? ""),
-      status: String(item.status ?? ""),
-    }));
-  }
-
-  async initiateConnection(input: {
-    entityId: string;
-    appName: string;
-    redirectUrl?: string;
-  }): Promise<{ redirectUrl: string; connectedAccountId: string }> {
-    const url = `${BASE_URL}/connectedAccounts`;
-    const body: Record<string, unknown> = {
-      entity_id: input.entityId,
-      integration_id: input.appName,
-    };
-    if (input.redirectUrl) body.redirect_url = input.redirectUrl;
-    const response = await this.request("POST", url, body);
-    return {
-      redirectUrl: String(response.redirectUrl ?? response.redirect_url ?? ""),
-      connectedAccountId: String(response.connectedAccountId ?? response.id ?? ""),
     };
   }
 
@@ -116,9 +180,11 @@ export class ComposioClient {
 function normalizeToolSchema(raw: Record<string, unknown>): ComposioToolSchema {
   const params = raw.input_parameters ?? raw.parameters ?? raw.inputSchema ?? {};
   const schema = typeof params === "object" && params !== null ? params as Record<string, unknown> : {};
+  const toolkit = (raw.toolkit ?? {}) as Record<string, unknown>;
   return {
     name: String(raw.slug ?? raw.name ?? ""),
     description: String(raw.description ?? "").slice(0, 300),
+    toolkitSlug: typeof toolkit.slug === "string" ? toolkit.slug : null,
     parameters: {
       type: "object",
       properties: (schema.properties ?? {}) as Record<string, unknown>,

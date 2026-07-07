@@ -124,7 +124,7 @@ export class TaskExecutionService {
       const inboxContext = chatContext ? null : this.loadInboxContext(orgId, agent.id);
       const isCeo = !agent.manager_agent_id;
       const hasReports = this.agentHasReports(orgId, agent.id);
-      const externalTools = await loadComposioTools(this.db, orgId);
+      const externalTools = await loadComposioTools(this.db, orgId, agent.id);
       const result = await runAgentLoop(
         {
           providers: this.providers,
