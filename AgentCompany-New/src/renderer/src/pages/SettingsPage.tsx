@@ -2,13 +2,11 @@ import { useMemo, useState } from "react";
 import { ProvidersPanel } from "./settings/ProvidersPanel";
 import { SkillsPanel } from "./settings/SkillsPanel";
 import { WorkspacePanel } from "./settings/WorkspacePanel";
-import { BillingPanel } from "./settings/BillingPanel";
-import { MigrationPanel } from "./settings/MigrationPanel";
-import { ComposioPanel } from "./settings/ComposioPanel";
+import { AdvancedPanel } from "./settings/AdvancedPanel";
 import type { PageProps } from "./types";
 import { activeOrgId, requireActiveEmployee, requireActiveOrganization } from "./types";
 
-type SettingsTab = "workspace" | "billing" | "providers" | "tools" | "skills" | "migration";
+type SettingsTab = "general" | "providers" | "skills" | "advanced";
 
 interface NavSpec {
   id: SettingsTab;
@@ -16,19 +14,17 @@ interface NavSpec {
 }
 
 const TABS: NavSpec[] = [
-  { id: "workspace", label: "Workspace" },
-  { id: "billing", label: "Billing" },
+  { id: "general", label: "General" },
   { id: "providers", label: "Providers" },
-  { id: "tools", label: "Tools" },
   { id: "skills", label: "Skills" },
-  { id: "migration", label: "Migration" },
+  { id: "advanced", label: "Advanced" },
 ];
 
 export function SettingsPage({ snapshot, actions }: PageProps) {
   const orgId = activeOrgId(snapshot);
   const organization = requireActiveOrganization(snapshot);
   const employee = requireActiveEmployee(snapshot);
-  const [tab, setTab] = useState<SettingsTab>("providers");
+  const [tab, setTab] = useState<SettingsTab>("general");
 
   const agents = useMemo(() => snapshot.agents.filter((item) => item.orgId === orgId), [snapshot.agents, orgId]);
   const providers = useMemo(() => snapshot.providers.filter((item) => item.orgId === orgId), [snapshot.providers, orgId]);
@@ -60,8 +56,7 @@ export function SettingsPage({ snapshot, actions }: PageProps) {
       </aside>
       <div className="main" style={{ flex: 1, minWidth: 0 }}>
         <div className="content">
-          {tab === "workspace" && <WorkspacePanel organization={organization} workspaces={workspaces} projects={snapshot.projects.filter((p) => p.orgId === orgId)} orgId={orgId} actions={actions} />}
-          {tab === "billing" && <BillingPanel agents={agents} providers={providers} providerRequests={providerRequests} hiringPolicies={hiringPolicies} />}
+          {tab === "general" && <WorkspacePanel organization={organization} workspaces={workspaces} projects={snapshot.projects.filter((p) => p.orgId === orgId)} orgId={orgId} actions={actions} />}
           {tab === "providers" && (
             <ProvidersPanel
               orgId={orgId}
@@ -70,13 +65,10 @@ export function SettingsPage({ snapshot, actions }: PageProps) {
               authProfiles={providerAuthProfiles}
               catalog={snapshot.providerCatalog}
               agents={agents}
-              workspaces={workspaces}
               providerRateLimits={providerRateLimits}
-              providerRequests={providerRequests}
               actions={actions}
             />
           )}
-          {tab === "tools" && <ComposioPanel orgId={orgId} settings={snapshot.composioSettings} actions={actions} />}
           {tab === "skills" && (
             <SkillsPanel
               orgId={orgId}
@@ -88,11 +80,18 @@ export function SettingsPage({ snapshot, actions }: PageProps) {
               actions={actions}
             />
           )}
-          {tab === "migration" && (
-            <MigrationPanel
+          {tab === "advanced" && (
+            <AdvancedPanel
               orgId={orgId}
               employeeId={employee.id}
-              reports={migrationReports}
+              agents={agents}
+              providers={providers}
+              catalog={snapshot.providerCatalog}
+              workspaces={workspaces}
+              providerRequests={providerRequests}
+              hiringPolicies={hiringPolicies}
+              composioSettings={snapshot.composioSettings}
+              migrationReports={migrationReports}
               rollbackSnapshots={rollbackSnapshots}
               reconciliationItems={snapshot.migrationReconciliationItems.filter((item) => item.orgId === orgId)}
               actions={actions}

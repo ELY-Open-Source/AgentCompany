@@ -22,9 +22,8 @@ export function BillingPanel({
   const agentSpend = buildAgentSpend(agents, providers, monthRequests);
 
   return (
-    <div className="page">
-      <h1 className="page-h1">Billing</h1>
-      <p className="page-sub">Allocations, spend, and cost breakdown.</p>
+    <div>
+      <div className="section-label" style={{ marginBottom: 10 }}>Billing</div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 12, marginBottom: 20 }}>
         <StatTile label="Monthly allocation" value={money(totalBudget)} />

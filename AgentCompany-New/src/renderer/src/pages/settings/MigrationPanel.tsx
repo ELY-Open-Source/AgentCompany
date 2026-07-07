@@ -40,13 +40,10 @@ export function MigrationPanel({
   };
 
   return (
-    <div className="page">
-      <div className="row" style={{ marginBottom: 24 }}>
-        <div>
-          <h1 className="page-h1">Migration</h1>
-          <p className="page-sub" style={{ marginBottom: 0 }}>{reports.length} migration {reports.length === 1 ? "report" : "reports"}.</p>
-        </div>
-        <div style={{ marginLeft: "auto" }}>
+    <div className="reveal-row">
+      <div className="row" style={{ marginBottom: 10 }}>
+        <div className="section-label">Migration</div>
+        <div className="reveal" style={{ marginLeft: "auto" }}>
           <Button tone="primary" onClick={() => setOpen(true)}><Icon name="plus" size={16} /> Report</Button>
         </div>
       </div>

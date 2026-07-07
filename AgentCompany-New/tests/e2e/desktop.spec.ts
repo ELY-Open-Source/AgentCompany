@@ -113,19 +113,27 @@ test("onboards, hires, and creates work in the Electron shell", async () => {
     await expect(page.getByRole("button", { name: "Refresh" })).toBeVisible();
 
     await page.getByRole("button", { name: "Settings" }).click();
+    await expect(page.getByText("AI CEO", { exact: true })).toBeVisible();
     await page.getByRole("button", { name: "Providers" }).click();
     await page.getByLabel("OpenAI background execution").check();
     await page.getByRole("button", { name: "Save OpenAI policy" }).click();
-    await expect(page.getByText("Requests", { exact: true })).toBeVisible();
+
+    // The operator request console lives under Advanced.
+    await page.getByRole("button", { name: "Advanced" }).click();
+    await expect(page.getByText("Requests", { exact: true }).first()).toBeVisible();
     await expect(page.getByLabel("Request provider")).toBeVisible();
     await expect(page.getByRole("button", { name: "Background" })).toBeVisible();
     await page.getByLabel("Request prompt").fill("Draft a provider control memo.");
     await page.getByLabel("Request instructions").fill("Use direct language.");
+    await expect(page.getByLabel("Composio API key")).toBeVisible();
+
+    await page.getByRole("button", { name: "Providers" }).click();
     await page.getByLabel("OpenAI data policy").selectOption("zero_data_retention");
     await expect(page.getByLabel("OpenAI background execution")).not.toBeChecked();
     await page.getByLabel("OpenAI monthly request limit").fill("25");
     await page.getByRole("button", { name: "Save OpenAI policy" }).click();
     await expect(page.getByText("0 / 25").first()).toBeVisible();
+
     await page.getByRole("button", { name: "Skills" }).click();
     await page.getByRole("button", { name: "Import" }).click();
     await page.getByLabel("Directory path").fill(createSkillDirectory());
@@ -135,7 +143,7 @@ test("onboards, hires, and creates work in the Electron shell", async () => {
     await page.getByRole("button", { name: "Run tests" }).click();
     await expect(page.getByText("1/1 passed").first()).toBeVisible();
     const legacyPath = createLegacyDatabase();
-    await page.getByRole("button", { name: "Migration" }).click();
+    await page.getByRole("button", { name: "Advanced" }).click();
     await page.getByRole("button", { name: "Report" }).click();
     await page.getByLabel("Source database path").fill(legacyPath);
     await page.locator(".modal").getByRole("button", { name: "Create" }).click();
@@ -149,12 +157,6 @@ test("onboards, hires, and creates work in the Electron shell", async () => {
     // Virtual office page
     await page.getByRole("button", { name: "Office" }).click();
     await expect(page.locator("canvas")).toBeVisible();
-
-    // Composio settings panel
-    await page.getByRole("button", { name: "Settings" }).click();
-    await page.getByRole("button", { name: "Tools", exact: true }).click();
-    await expect(page.getByText("External Tools")).toBeVisible();
-    await expect(page.getByText("GitHub")).toBeVisible();
 
     // @mention with canonical handle in chat
     await page.getByRole("button", { name: "Messages" }).click();
@@ -204,7 +206,7 @@ async function verifyPagesDoNotOverflow(page: Page): Promise<void> {
       await page.getByRole("button", { name: nav, exact: true }).click();
       await expectPageToFit(page);
     }
-    for (const tab of ["Workspace", "Billing", "Providers", "Tools", "Skills", "Migration"]) {
+    for (const tab of ["General", "Providers", "Skills", "Advanced"]) {
       await page.getByRole("button", { name: "Settings" }).click();
       await page.getByRole("button", { name: tab, exact: true }).click();
       await expectPageToFit(page);

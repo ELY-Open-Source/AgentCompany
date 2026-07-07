@@ -44,15 +44,10 @@ export function SkillsPanel({ orgId, skills, revisions, bindings, tests, agents,
   };
 
   return (
-    <div className="page">
+    <div className="page reveal-row">
       <div className="row" style={{ marginBottom: 24 }}>
-        <div>
-          <h1 className="page-h1">Skills</h1>
-          <p className="page-sub" style={{ marginBottom: 0 }}>
-            {skills.length} {skills.length === 1 ? "definition" : "definitions"} · {revisions.length} revisions · {bindings.filter((b) => b.enabled).length} bindings
-          </p>
-        </div>
-        <div style={{ marginLeft: "auto" }}>
+        <h1 className="page-h1" style={{ margin: 0 }}>Skills</h1>
+        <div className="reveal" style={{ marginLeft: "auto" }}>
           <Button tone="primary" onClick={() => setImportOpen(true)}><Icon name="plus" size={16} /> Import</Button>
         </div>
       </div>

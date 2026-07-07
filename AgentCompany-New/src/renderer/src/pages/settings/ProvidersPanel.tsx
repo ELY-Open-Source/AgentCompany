@@ -7,12 +7,9 @@ import type {
   ProviderAuthProfileRecord,
   ProviderRateLimitStateRecord,
   ProviderRecord,
-  ProviderRequestRecord,
-  WorkspaceRecord,
 } from "../../../../shared/domain";
 import { PROVIDER_DATA_POLICY } from "../../../../shared/domain";
 import { ProviderLogo } from "./ProviderLogo";
-import { ProviderRequestPanel } from "./ProviderRequestPanel";
 import { ProviderConnectFields, ProviderOAuthFields } from "./ProviderConnectionDialog";
 import { composeSecret } from "./provider-secret";
 import type { SnapshotActions } from "../../app/useSnapshot";
@@ -24,16 +21,14 @@ interface ProvidersPanelProps {
   authProfiles: ProviderAuthProfileRecord[];
   catalog: ProviderCatalogEntry[];
   agents: AgentRecord[];
-  workspaces: WorkspaceRecord[];
   providerRateLimits: ProviderRateLimitStateRecord[];
-  providerRequests: ProviderRequestRecord[];
   actions: SnapshotActions;
 }
 
 const POLICY_GRID = "minmax(150px, 1.2fr) minmax(118px, 0.8fr) minmax(140px, 1fr) 112px 124px 92px";
 type WorkspaceScope = "organization" | "workspace";
 
-export function ProvidersPanel({ orgId, employeeId, providers, authProfiles, catalog, agents, workspaces, providerRateLimits, providerRequests, actions }: ProvidersPanelProps) {
+export function ProvidersPanel({ orgId, employeeId, providers, authProfiles, catalog, agents, providerRateLimits, actions }: ProvidersPanelProps) {
   const [active, setActive] = useState<ProviderRecord | null>(null);
   const connected = providers.filter((provider) => provider.enabled);
   const available = providers.filter((provider) => !provider.enabled);
@@ -62,11 +57,10 @@ export function ProvidersPanel({ orgId, employeeId, providers, authProfiles, cat
   return (
     <div className="page">
       <h1 className="page-h1">Providers</h1>
-      <p className="page-sub">Connect model providers — keys, accounts, OAuth.</p>
 
       {connected.length > 0 && (
         <>
-          <div className="section-label" style={{ marginBottom: 10 }}>Connected</div>
+          <div className="section-label" style={{ margin: "16px 0 10px" }}>Connected</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 28 }}>
             {connected.map((provider) => (
               <ProviderRow
@@ -84,14 +78,6 @@ export function ProvidersPanel({ orgId, employeeId, providers, authProfiles, cat
             orgId={orgId}
             providers={connected}
             providerRateLimits={providerRateLimits}
-            actions={actions}
-          />
-          <ProviderRequestPanel
-            orgId={orgId}
-            providers={connected}
-            catalog={catalog}
-            workspaces={workspaces}
-            providerRequests={providerRequests}
             actions={actions}
           />
         </>
@@ -159,7 +145,7 @@ function ProviderPolicyTable({
           const rateLimit = requireProviderRateLimit(provider, providerRateLimits);
           return (
             <ProviderPolicyRow
-              key={`${provider.id}:${provider.dataPolicy}:${provider.backgroundEnabled}:${provider.monthlyRequestLimit}`}
+              key={provider.id}
               orgId={orgId}
               provider={provider}
               rateLimit={rateLimit}
@@ -283,6 +269,7 @@ function ProviderRow({
   const boundCount = agents.filter((agent) => agent.modelProviderId === provider.id).length;
   return (
     <div
+      className="reveal-row"
       style={{
         display: "flex",
         alignItems: "center",
@@ -301,13 +288,14 @@ function ProviderRow({
         </div>
       </div>
       <ProviderHealth provider={provider} />
-      <div style={{ textAlign: "right", minWidth: 120 }}>
-        <div className="num mono" style={{ fontSize: 14, fontWeight: 540 }}>{boundCount} {boundCount === 1 ? "agent" : "agents"}</div>
-        <div className="mono" style={{ fontSize: 12, color: "var(--text-3)" }}>bound</div>
+      <div className="num mono" style={{ fontSize: 13, minWidth: 72, textAlign: "right" }}>
+        {boundCount} {boundCount === 1 ? "agent" : "agents"}
       </div>
-      <Button onClick={onCheck}>Check</Button>
-      <Button onClick={onManage}>Manage</Button>
-      <Button tone="ghost" onClick={onRevoke}>Revoke</Button>
+      <span className="reveal row" style={{ gap: 6 }}>
+        <Button onClick={onCheck}>Check</Button>
+        <Button onClick={onManage}>Manage</Button>
+        <Button tone="ghost" onClick={onRevoke}>Revoke</Button>
+      </span>
     </div>
   );
 }

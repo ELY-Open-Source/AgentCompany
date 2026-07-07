@@ -226,6 +226,11 @@ a { color: inherit; }
 .convo-item:hover { background: var(--hover); color: var(--text-1); }
 .convo-item.active { background: var(--panel-3); color: var(--text-1); }
 
+/* Controls that appear on intent: hidden until the row is hovered or focused. */
+.reveal-row .reveal { opacity: 0; transition: opacity var(--motion-fast) var(--ease-out); }
+.reveal-row:hover .reveal,
+.reveal-row:focus-within .reveal { opacity: 1; }
+
 /* Selectable list row used by master-detail panes (Runs, etc.). width:100%
    + min-width:0 lets the inner flex child ellipsize instead of pushing the
    row past the pane and forcing a horizontal scrollbar. */
