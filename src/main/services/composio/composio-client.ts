@@ -94,19 +94,21 @@ export class ComposioClient {
     return id;
   }
 
-  /** Starts a connection for a user; the redirect URL completes it in the browser. */
+  /**
+   * Starts a connection for a user; the redirect URL completes it in the
+   * browser. Composio-managed auth configs only accept the link flow —
+   * POST /connected_accounts is rejected for them with a 400.
+   */
   async createConnectedAccount(input: { authConfigId: string; userId: string }): Promise<{
     id: string;
-    status: string;
     redirectUrl: string | null;
   }> {
-    const response = await this.request("POST", `${BASE_URL}/connected_accounts`, {
-      auth_config: { id: input.authConfigId },
-      connection: { user_id: input.userId },
+    const response = await this.request("POST", `${BASE_URL}/connected_accounts/link`, {
+      auth_config_id: input.authConfigId,
+      user_id: input.userId,
     });
     return {
-      id: String(response.id ?? ""),
-      status: String(response.status ?? ""),
+      id: String(response.connected_account_id ?? ""),
       redirectUrl: typeof response.redirect_url === "string" ? response.redirect_url : null,
     };
   }

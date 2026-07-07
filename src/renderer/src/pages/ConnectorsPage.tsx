@@ -26,6 +26,7 @@ export function ConnectorsPage({ snapshot, actions }: PageProps) {
   const employee = requireActiveEmployee(snapshot);
   const [catalogSlot, setCatalogSlot] = useState<CatalogSlot>(null);
   const [busySlug, setBusySlug] = useState<string | null>(null);
+  const [connectError, setConnectError] = useState<string | null>(null);
   const pollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const catalog: CatalogState = catalogSlot && catalogSlot.orgId === orgId ? catalogSlot.state : { phase: "loading" };
 
@@ -90,14 +91,19 @@ export function ConnectorsPage({ snapshot, actions }: PageProps) {
 
   const connect = (toolkit: ComposioToolkitSummaryDto) => {
     setBusySlug(toolkit.slug);
+    setConnectError(null);
     void window.agentCompany
       .connectComposioToolkit({ orgId, toolkitSlug: toolkit.slug, toolkitName: toolkit.name })
-      .then((result) => {
-        if (!result.ok) throw new Error(result.error.message);
-        if (result.data.redirectUrl) {
-          void window.agentCompany.openExternalUrl(result.data.redirectUrl);
+      .then(async (result) => {
+        if (!result.ok) {
+          setConnectError(result.error.message);
+          return;
         }
         pollUntilActive(toolkit.slug, 0);
+        if (result.data.redirectUrl) {
+          const opened = await window.agentCompany.openExternalUrl(result.data.redirectUrl);
+          if (!opened.ok) setConnectError(opened.error.message);
+        }
       })
       .finally(() => setBusySlug(null));
   };
@@ -111,6 +117,21 @@ export function ConnectorsPage({ snapshot, actions }: PageProps) {
   return (
     <div style={{ maxWidth: 1060 }}>
       <h2 style={{ margin: "0 0 18px", fontSize: 16, fontWeight: 600 }}>Connectors</h2>
+
+      {connectError && (
+        <div
+          style={{
+            color: "var(--text-2)",
+            fontSize: 13,
+            marginBottom: 14,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {connectError}
+        </div>
+      )}
 
       <ConnectedList accounts={accounts} grants={grants} agents={agents} onGrant={grant} onRevoke={revoke} />
 

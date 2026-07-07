@@ -21,7 +21,6 @@ export interface ConnectComposioToolkitInput {
 
 export interface ConnectComposioToolkitResult {
   accountId: string;
-  status: string;
   redirectUrl: string | null;
 }
 

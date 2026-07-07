@@ -26,8 +26,10 @@ export class ComposioConnectionService {
   /**
    * Starts (or restarts) the company's connection for a toolkit: creates a
    * Composio-managed auth config once per toolkit, initiates the connected
-   * account for the company user, and records the pending account locally.
-   * The returned redirect URL completes authorization in the browser.
+   * account for the company user via the link flow, and records the pending
+   * account locally as INITIALIZING — the poll that follows adopts Composio's
+   * real status. The returned redirect URL completes authorization in the
+   * browser.
    */
   async connectToolkit(orgId: string, toolkitSlug: string, toolkitName: string): Promise<ConnectComposioToolkitResult> {
     const slug = normalizeSlug(toolkitSlug);
@@ -48,8 +50,8 @@ export class ComposioConnectionService {
         auth_config_id = excluded.auth_config_id,
         status = excluded.status,
         updated_at = excluded.updated_at
-    `).run(account.id, orgId, slug, toolkitName.trim() || slug, authConfigId, account.status || "INITIATED", now, now);
-    return { accountId: account.id, status: account.status, redirectUrl: account.redirectUrl };
+    `).run(account.id, orgId, slug, toolkitName.trim() || slug, authConfigId, "INITIALIZING", now, now);
+    return { accountId: account.id, redirectUrl: account.redirectUrl };
   }
 
   /** Pulls account statuses from Composio and updates the local mirror. */
