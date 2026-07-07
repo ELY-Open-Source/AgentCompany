@@ -10,6 +10,7 @@ export interface RenderPerson {
   y: number;
   desk: Rect | null;
   isCeo: boolean;
+  isPlayer: boolean;
   animSeed: number;
   appearance: SpriteAppearance;
   facing: Facing;
@@ -92,7 +93,7 @@ function drawNameLabel(ctx: CanvasRenderingContext2D, person: RenderPerson): voi
   const width = Math.ceil(ctx.measureText(person.name).width) + 10;
   const x = Math.round(person.x - width / 2);
   const y = Math.round(person.y + 7);
-  ctx.fillStyle = "rgba(22,22,28,0.78)";
+  ctx.fillStyle = person.isPlayer ? "rgba(94,106,210,0.92)" : "rgba(22,22,28,0.78)";
   drawRoundedRect(ctx, x, y, width, 13, 4);
   ctx.fillStyle = "#f2f2f5";
   ctx.textAlign = "center";

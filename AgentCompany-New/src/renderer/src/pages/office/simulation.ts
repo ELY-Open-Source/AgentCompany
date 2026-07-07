@@ -1,5 +1,5 @@
 import { buildFloorPlan } from "./floor-plan";
-import type { Camera, FloorPlan, OfficeAgentInput, Vec } from "./office-types";
+import type { Camera, FloorPlan, OfficeAgentInput, Rect, Vec } from "./office-types";
 import { appearanceFor, type Carrying, type Facing, type SpriteAppearance } from "./sprites";
 
 export interface AgentSim {
@@ -15,6 +15,27 @@ export interface AgentSim {
   carrying: Carrying;
 }
 
+export interface PlayerSim {
+  employeeId: string;
+  name: string;
+  x: number;
+  y: number;
+  facing: Facing;
+  walkPhase: number;
+  appearance: SpriteAppearance;
+}
+
+export interface MoveInput {
+  up: boolean;
+  down: boolean;
+  left: boolean;
+  right: boolean;
+}
+
+const PLAYER_SPEED = 0.14;
+const MAX_STEP_MS = 100;
+const WALK_CYCLE = 0.02;
+
 /**
  * Holds the living state of the office: who sits where and where everyone
  * currently stands. Snapshot changes flow in through `sync`, which keeps
@@ -23,10 +44,67 @@ export interface AgentSim {
 export class OfficeSimulation {
   plan: FloorPlan;
   agents: AgentSim[] = [];
+  player: PlayerSim | null = null;
   private openDeskDemand = -1;
 
   constructor() {
     this.plan = buildFloorPlan(0);
+  }
+
+  /**
+   * Ensures the signed-in employee walks the floor as the board member. The
+   * avatar spawns at the entrance once and keeps its position across
+   * snapshot refreshes.
+   */
+  syncPlayer(employeeId: string, displayName: string): void {
+    if (this.player && this.player.employeeId === employeeId) {
+      this.player.name = displayName;
+      return;
+    }
+    const boardLook = appearanceFor(employeeId, false);
+    this.player = {
+      employeeId,
+      name: displayName,
+      x: this.plan.entrance.x,
+      y: this.plan.entrance.y,
+      facing: "east",
+      walkPhase: 0,
+      appearance: { ...boardLook, outfit: "blazer", accent: "#e5c65a", hairStyle: boardLook.hairStyle === "bald" ? "short" : boardLook.hairStyle },
+    };
+  }
+
+  /** Advances the world by one frame: board-member movement and collision. */
+  step(dtMs: number, input: MoveInput): void {
+    const dt = Math.min(dtMs, MAX_STEP_MS);
+    if (this.player) this.stepPlayer(this.player, dt, input);
+  }
+
+  private stepPlayer(player: PlayerSim, dt: number, input: MoveInput): void {
+    let dx = (input.right ? 1 : 0) - (input.left ? 1 : 0);
+    let dy = (input.down ? 1 : 0) - (input.up ? 1 : 0);
+    if (dx === 0 && dy === 0) {
+      player.walkPhase = 0;
+      return;
+    }
+    const norm = Math.hypot(dx, dy);
+    dx /= norm;
+    dy /= norm;
+    const distance = PLAYER_SPEED * dt;
+    player.x = this.slideAxis(player.x, player.y, dx * distance, 0).x;
+    player.y = this.slideAxis(player.x, player.y, 0, dy * distance).y;
+    player.x = clamp(player.x, 24, this.plan.world.w - 24);
+    player.y = clamp(player.y, 40, this.plan.world.h - 8);
+    player.facing = Math.abs(dx) >= Math.abs(dy) ? (dx < 0 ? "west" : "east") : (dy < 0 ? "north" : "south");
+    player.walkPhase += dt * WALK_CYCLE;
+  }
+
+  private slideAxis(x: number, y: number, dx: number, dy: number): Vec {
+    const next = { x: x + dx, y: y + dy };
+    const body = footBox(next);
+    for (const collider of this.plan.colliders) {
+      if (boxesOverlap(body, collider)) return { x, y };
+    }
+    return next;
   }
 
   /**
@@ -80,4 +158,16 @@ export function cameraFor(world: { w: number; h: number }, viewW: number, viewH:
 function axisCamera(worldSize: number, viewSize: number, focus: number): number {
   if (worldSize <= viewSize) return -(viewSize - worldSize) / 2;
   return Math.min(Math.max(focus - viewSize / 2, 0), worldSize - viewSize);
+}
+
+function footBox(position: Vec): Rect {
+  return { x: position.x - 6, y: position.y - 8, w: 12, h: 10 };
+}
+
+function boxesOverlap(a: Rect, b: Rect): boolean {
+  return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), max);
 }
