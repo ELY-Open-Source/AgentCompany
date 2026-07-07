@@ -12,7 +12,6 @@ export type RouteId =
   | "work"
   | "chat"
   | "files"
-  | "docs"
   | "runs"
   | "approvals"
   | "connectors"
@@ -41,7 +40,6 @@ const primaryNav: NavSpec[] = [
 
 /** Less-frequent surfaces, demoted under a divider so the primary set leads. */
 const secondaryNav: NavSpec[] = [
-  { id: "docs", label: "Documents" },
   { id: "connectors", label: "Connectors" },
   { id: "office", label: "Office" },
 ];
