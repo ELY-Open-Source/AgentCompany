@@ -24,6 +24,8 @@ import {
   type WorkspaceRow,
 } from "./task-prompts";
 import { loadComposioTools } from "./composio/composio-tool-bridge";
+import { connectorDisplayName } from "./composio/connector-brands";
+import { ConnectorGrantsService } from "./composio/connector-grants";
 
 const TASK_RUN_STATE = {
   QUEUED: "queued",
@@ -122,8 +124,13 @@ export class TaskExecutionService {
       };
       const chatContext = this.loadChatContext(orgId, isolation);
       const inboxContext = chatContext ? null : this.loadInboxContext(orgId, agent.id);
-      const isCeo = !agent.manager_agent_id;
+      // The CEO is the c_suite role — the same predicate the grant system
+      // enforces — not "has no manager", which any board hire can match.
+      const isCeo = agent.role_level === "c_suite";
       const hasReports = this.agentHasReports(orgId, agent.id);
+      const connectorNames = new ConnectorGrantsService(this.db)
+        .toolkitsForAgent(orgId, agent.id)
+        .map(connectorDisplayName);
       const externalTools = await loadComposioTools(this.db, orgId, agent.id);
       const result = await runAgentLoop(
         {
@@ -135,7 +142,7 @@ export class TaskExecutionService {
           orgId,
           providerId: provider.id,
           workspaceId: task.workspace_id,
-          instructions: buildAgentInstructions({ agent, companyName: this.orgName(orgId), isCeo, hasReports, externalToolCount: externalTools.length }),
+          instructions: buildAgentInstructions({ agent, companyName: this.orgName(orgId), isCeo, hasReports, connectorNames }),
           initialUserTurn: buildTaskPrompt({
             task,
             agent,
