@@ -131,6 +131,7 @@ export class TaskExecutionService {
       const connectorNames = new ConnectorGrantsService(this.db)
         .toolkitsForAgent(orgId, agent.id)
         .map(connectorDisplayName);
+      const language = this.appLanguage();
       const externalTools = await loadComposioTools(this.db, orgId, agent.id);
       const result = await runAgentLoop(
         {
@@ -142,7 +143,7 @@ export class TaskExecutionService {
           orgId,
           providerId: provider.id,
           workspaceId: task.workspace_id,
-          instructions: buildAgentInstructions({ agent, companyName: this.orgName(orgId), isCeo, hasReports, connectorNames }),
+          instructions: buildAgentInstructions({ agent, companyName: this.orgName(orgId), isCeo, hasReports, connectorNames, language }),
           initialUserTurn: buildTaskPrompt({
             task,
             agent,
@@ -416,6 +417,11 @@ export class TaskExecutionService {
     const row = this.db.prepare("select name from organizations where id = ?").get(orgId) as { name: string } | undefined;
     if (!row) throw new Error("Organization was not found.");
     return row.name;
+  }
+
+  private appLanguage(): "en" | "zh" {
+    const row = this.db.prepare("select language from app_state where id = 1").get() as { language: string } | undefined;
+    return row?.language === "zh" ? "zh" : "en";
   }
 
   private completeRun(orgId: string, runId: string, providerRequestId: string): void {

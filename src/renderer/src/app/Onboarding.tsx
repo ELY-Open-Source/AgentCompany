@@ -3,8 +3,9 @@ import {
   PROVIDER_AUTH_TYPE,
   type AppSnapshot,
   type ProviderCatalogEntry,
+  type UiLanguage,
 } from "../../../shared/domain";
-import { Button, Field, Icon, IconButton, Pill } from "../shared/ui";
+import { Button, Field, Icon, IconButton, Pill, Segmented } from "../shared/ui";
 import type { SnapshotActions } from "./useSnapshot";
 import { ProviderStep } from "./OnboardingProviderStep";
 import { ConnectorsStep } from "./OnboardingConnectorsStep";
@@ -178,7 +179,11 @@ export function Onboarding({
       <form className="onboarding-panel" onSubmit={submit} noValidate>
         <div key={step} className="step-view">
           {step === "welcome" && (
-            <WelcomeStep onNext={() => setStep("provider")} />
+            <WelcomeStep
+              language={snapshot.uiPreferences.language}
+              onLanguage={(language) => void actions.run(() => window.agentCompany.setUiPreferences({ language }))}
+              onNext={() => setStep("provider")}
+            />
           )}
           {step === "provider" && (
             <ProviderStep
@@ -231,10 +236,25 @@ interface StepProps {
   onNext: () => void;
 }
 
-function WelcomeStep({ onNext }: { onNext: () => void }) {
+function WelcomeStep({
+  language,
+  onLanguage,
+  onNext,
+}: {
+  language: UiLanguage;
+  onLanguage: (language: UiLanguage) => void;
+  onNext: () => void;
+}) {
   return (
     <div className="form-grid">
-      <h2 className="page-h1">{t("Welcome")}</h2>
+      <div className="row">
+        <h2 className="page-h1" style={{ margin: 0, flex: 1 }}>{t("Welcome")}</h2>
+        <Segmented
+          value={language}
+          onChange={(next) => { if (next !== language) onLanguage(next); }}
+          options={[{ id: "en", label: "English" }, { id: "zh", label: "中文" }]}
+        />
+      </div>
       <p style={{ color: "var(--text-2)", fontSize: 14, lineHeight: 1.55 }}>
         {t("AgentCompany sets up your operating loop in six steps. Bring an API key, pick a runtime for the founding CEO, and we'll wire up the first goal, project, and task.")}
       </p>

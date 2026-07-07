@@ -78,6 +78,8 @@ export interface AgentInstructionContext {
   hasReports: boolean;
   /** Display names of the connected toolkits this agent carries in this run. */
   connectorNames: string[];
+  /** The operator's app language; agents speak it back. */
+  language: "en" | "zh";
 }
 
 /**
@@ -93,6 +95,9 @@ export function buildAgentInstructions(input: AgentInstructionContext): string {
     roleVoice(input),
     "Work like a sharp person: take in what is actually in front of you, decide the smallest real next step, do it, then tell whoever needs to know. Do not narrate busywork.",
     `Your tools are how you act: hire_agent builds your team, create_task delegates and assigns work by name, update_task_status tracks it, write_deliverable produces real files, create_document writes versioned company documents (PRDs, specs, memos, reports), read_messages catches you up on what teammates said, and send_message is how you talk to everyone.`,
+    ...(input.language === "zh"
+      ? ["公司的工作语言是简体中文：你写的每一条消息、任务标题与描述、文档和交付物都用中文表达（代码、命令、API 名称等技术标识保持原样）。工具名称和工具参数的字段名仍按定义使用英文。"]
+      : []),
     capabilityBriefing(input),
     "Talk like a person on a team, not a status bot: address teammates by @name, say what you genuinely think, ask when you are unsure, and reply when someone asks you something. Before starting work, check your messages with read_messages to see if anyone needs you. Post where the work lives — 'engineering', 'product', or otherwise 'general' — and keep a back-and-forth in one thread by passing the thread_id a previous send_message returned. Hand work to a teammate with /handoff @Name and the file_id write_deliverable gives you.",
   ].join("\n");

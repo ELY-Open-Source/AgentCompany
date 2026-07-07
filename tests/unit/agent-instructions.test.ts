@@ -35,6 +35,7 @@ describe("agent instructions", () => {
       isCeo: true,
       hasReports: false,
       connectorNames: ["GitHub", "Slack"],
+      language: "en",
     });
     expect(text).toContain("every connected service and every company skill");
     expect(text).toContain("grant_connector");
@@ -51,6 +52,7 @@ describe("agent instructions", () => {
       isCeo: false,
       hasReports: false,
       connectorNames: ["Stripe"],
+      language: "en",
     });
     expect(text).toContain("Connected external services you carry in this run: Stripe");
     expect(text).toContain("composio_ prefix");
@@ -66,10 +68,32 @@ describe("agent instructions", () => {
       isCeo: false,
       hasReports: false,
       connectorNames: [],
+      language: "en",
     });
     expect(text).toContain("You currently hold no connector grants");
     expect(text).toContain("message the CEO");
     expect(text).not.toContain("grant before you assign");
+  });
+
+  test("Chinese app language directs agents to work in Chinese", () => {
+    const zh = buildAgentInstructions({
+      agent: agentRow({}),
+      companyName: "OrbitOps",
+      isCeo: false,
+      hasReports: false,
+      connectorNames: [],
+      language: "zh",
+    });
+    expect(zh).toContain("公司的工作语言是简体中文");
+    const en = buildAgentInstructions({
+      agent: agentRow({}),
+      companyName: "OrbitOps",
+      isCeo: false,
+      hasReports: false,
+      connectorNames: [],
+      language: "en",
+    });
+    expect(en).not.toContain("简体中文");
   });
 });
 
@@ -123,5 +147,11 @@ describe("agent instruction wiring", () => {
     expect(capturedInstructions).not.toContain("You run this company");
     expect(capturedInstructions).toContain("Connected external services you carry in this run: GitHub");
     expect(capturedInstructions).toContain("list_connectors");
+
+    // Switching the app language redirects the whole company to Chinese.
+    organization.updateUiPreferences({ language: "zh" });
+    connection.db.prepare("update task_runs set state = 'failed' where org_id = ?").run(orgId);
+    await execution.runTask({ orgId, taskId });
+    expect(capturedInstructions).toContain("公司的工作语言是简体中文");
   });
 });
