@@ -142,7 +142,7 @@ export class SnapshotService {
       employeeIdentities,
       serviceIdentities: list(this.db, "service_identities", "created_at desc"),
       roleGrants: list(this.db, "role_grants", "created_at desc"),
-      accessDecisions: list<AppSnapshot["accessDecisions"][number]>(this.db, "access_decisions", "created_at desc").slice(0, 200),
+      accessDecisions: recentList<AppSnapshot["accessDecisions"][number]>(this.db, "access_decisions", "created_at desc", 200),
       orgDepartments: list(this.db, "org_departments", "name asc"),
       hiringPolicies: list(this.db, "hiring_policies", "department_name asc"),
       approvalRoutingRules: list(this.db, "approval_routing_rules", "created_at asc"),
@@ -159,7 +159,7 @@ export class SnapshotService {
       evalRuns: list(this.db, "eval_runs", "created_at desc"),
       prBotGates,
       auditReplayRuns: list(this.db, "audit_replay_runs", "created_at desc"),
-      auditEvents: list<AppSnapshot["auditEvents"][number]>(this.db, "audit_events", "created_at desc").slice(0, 200),
+      auditEvents: recentList<AppSnapshot["auditEvents"][number]>(this.db, "audit_events", "created_at desc", 200),
       documents: list(this.db, "documents", "updated_at desc"),
       knowledgeEntries: list(this.db, "knowledge_entries", "updated_at desc"),
       automationRules: list<AppSnapshot["automationRules"][number]>(this.db, "automation_rules", "priority asc")

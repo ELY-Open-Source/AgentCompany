@@ -72,6 +72,7 @@ export function ChatConversation({
       <div style={{ flex: 1, overflow: "auto", padding: "20px 24px 8px" }}>
         {space && (
           <ChatTimeline
+            key={space.id}
             messagesInSpace={filtered}
             threadsInSpace={threadsInSpace}
             pendingApprovals={pendingApprovals}

@@ -27,6 +27,7 @@ import { KnowledgeService } from "../services/knowledge-service";
 import { AutomationService } from "../services/automation-service";
 import { MeetingService } from "../services/meeting-service";
 import { SprintService } from "../services/sprint-service";
+import { coalesce } from "./coalesce";
 import { normalizeExternalBrowserUrl } from "./external-url";
 
 export interface IpcDeps {
@@ -43,13 +44,13 @@ export function registerIpcHandlers(deps: IpcDeps): void {
   const providers = new ProviderService(deps.connection.db);
   const providerOAuth = new ProviderOAuthService();
   const skills = new SkillService(deps.connection.db, deps.artifactRoot);
-  const notifyDataChanged = () => {
+  const notifyDataChanged = coalesce(() => {
     try {
       if (!deps.mainWindow.isDestroyed() && !deps.mainWindow.webContents.isDestroyed()) {
         deps.mainWindow.webContents.send(IPC_CHANNELS.rendererEvent, { type: "snapshot-changed" });
       }
     } catch { /* renderer may have been disposed during agent run */ }
-  };
+  }, 200);
   const taskExecution = new TaskExecutionService(deps.connection.db, providers, skills, notifyDataChanged);
   const social = new SocialService(deps.connection.db);
   const files = new FileService(deps.connection.db, deps.artifactRoot);
@@ -74,7 +75,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
   const mutate = <T>(operation: () => T): DesktopResult<AppSnapshot> => {
     try {
       deps.connection.transaction(operation);
-      deps.mainWindow.webContents.send(IPC_CHANNELS.rendererEvent, { type: "snapshot-changed" });
+      notifyDataChanged();
       return ok(snapshot.load());
     } catch (error) {
       return fail("operation_failed", error instanceof Error ? error.message : String(error));
@@ -95,7 +96,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       deps.connection.transaction(() => {
         summary = onboarding.bootstrap(input);
       });
-      deps.mainWindow.webContents.send(IPC_CHANNELS.rendererEvent, { type: "snapshot-changed" });
+      notifyDataChanged();
       return ok(summary);
     } catch (error) {
       return fail("onboarding_failed", error instanceof Error ? error.message : String(error));
@@ -114,10 +115,10 @@ export function registerIpcHandlers(deps: IpcDeps): void {
   ipcMain.handle(IPC_CHANNELS.runTask, async (_event, input) => {
     try {
       await taskExecution.runTask(input);
-      deps.mainWindow.webContents.send(IPC_CHANNELS.rendererEvent, { type: "snapshot-changed" });
+      notifyDataChanged();
       return ok(snapshot.load());
     } catch (error) {
-      deps.mainWindow.webContents.send(IPC_CHANNELS.rendererEvent, { type: "snapshot-changed" });
+      notifyDataChanged();
       return fail("task_run_failed", error instanceof Error ? error.message : String(error));
     }
   });
@@ -151,7 +152,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
   ipcMain.handle(IPC_CHANNELS.checkProviderHealth, async (_event, input) => {
     try {
       await providers.checkHealth(input.orgId, input.providerId);
-      deps.mainWindow.webContents.send(IPC_CHANNELS.rendererEvent, { type: "snapshot-changed" });
+      notifyDataChanged();
       return ok(snapshot.load());
     } catch (error) {
       return fail("provider_health_failed", error instanceof Error ? error.message : String(error));
@@ -196,7 +197,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
           employeeId: input.employeeId,
         });
         emit({ phase: "active" });
-        deps.mainWindow.webContents.send(IPC_CHANNELS.rendererEvent, { type: "snapshot-changed" });
+        notifyDataChanged();
         return ok({ secret: null });
       }
       emit({ phase: "active" });
@@ -222,7 +223,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
   ipcMain.handle(IPC_CHANNELS.createProviderResponse, async (_event, input) => {
     try {
       await providers.createResponse(input);
-      deps.mainWindow.webContents.send(IPC_CHANNELS.rendererEvent, { type: "snapshot-changed" });
+      notifyDataChanged();
       return ok(snapshot.load());
     } catch (error) {
       return fail("provider_response_failed", error instanceof Error ? error.message : String(error));
@@ -233,7 +234,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       await providers.streamResponse(input, (streamEvent) => {
         deps.mainWindow.webContents.send(IPC_CHANNELS.rendererEvent, { type: "provider-response-stream", event: streamEvent });
       });
-      deps.mainWindow.webContents.send(IPC_CHANNELS.rendererEvent, { type: "snapshot-changed" });
+      notifyDataChanged();
       return ok(snapshot.load());
     } catch (error) {
       return fail("provider_stream_failed", error instanceof Error ? error.message : String(error));
@@ -242,7 +243,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
   ipcMain.handle(IPC_CHANNELS.cancelProviderResponse, async (_event, input) => {
     try {
       await providers.cancelResponse(input);
-      deps.mainWindow.webContents.send(IPC_CHANNELS.rendererEvent, { type: "snapshot-changed" });
+      notifyDataChanged();
       return ok(snapshot.load());
     } catch (error) {
       return fail("provider_cancel_failed", error instanceof Error ? error.message : String(error));
@@ -269,7 +270,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
   ipcMain.handle(IPC_CHANNELS.importFile, async (_event, input) => {
     try {
       const fileId = await files.importFile(input);
-      if (fileId) deps.mainWindow.webContents.send(IPC_CHANNELS.rendererEvent, { type: "snapshot-changed" });
+      if (fileId) notifyDataChanged();
       return ok(fileId);
     } catch (error) {
       return fail("file_import_failed", error instanceof Error ? error.message : String(error));
