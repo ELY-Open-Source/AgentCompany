@@ -187,12 +187,13 @@ function drawCeoFurniture(ctx: CanvasRenderingContext2D, plan: FloorPlan): void 
   drawDesk(ctx, desk, true);
   drawSofa(ctx, 32, 96);
   drawPlant(ctx, 280, 48);
+  // Wall screen centered in the gap between the two windows (116..204).
   ctx.fillStyle = PALETTE.frame;
-  ctx.fillRect(190, 24, 34, 22);
+  ctx.fillRect(143, 24, 34, 22);
   ctx.fillStyle = "#7f96b8";
-  ctx.fillRect(192, 26, 30, 18);
+  ctx.fillRect(145, 26, 30, 18);
   ctx.fillStyle = "#5c7a9c";
-  ctx.fillRect(192, 36, 30, 8);
+  ctx.fillRect(145, 36, 30, 8);
 }
 
 function drawMeetingFurniture(ctx: CanvasRenderingContext2D): void {
@@ -205,18 +206,19 @@ function drawMeetingFurniture(ctx: CanvasRenderingContext2D): void {
     drawChair(ctx, table.x + 22 + i * 52, table.y - 16);
     drawChair(ctx, table.x + 22 + i * 52, table.y + table.h + 4);
   }
+  // Whiteboard centered in the gap between the two windows (420..524).
   ctx.fillStyle = "#f2efe8";
-  ctx.fillRect(452, 22, 96, 30);
+  ctx.fillRect(424, 22, 96, 30);
   ctx.fillStyle = PALETTE.frame;
   ctx.strokeStyle = PALETTE.frame;
   ctx.lineWidth = 2;
-  ctx.strokeRect(452, 22, 96, 30);
+  ctx.strokeRect(424, 22, 96, 30);
   ctx.fillStyle = "#b3543f";
-  ctx.fillRect(460, 30, 26, 3);
+  ctx.fillRect(432, 30, 26, 3);
   ctx.fillStyle = "#4f7fae";
-  ctx.fillRect(460, 38, 40, 3);
+  ctx.fillRect(432, 38, 40, 3);
   ctx.fillStyle = "#6d9c6b";
-  ctx.fillRect(460, 44, 33, 3);
+  ctx.fillRect(432, 44, 33, 3);
 }
 
 function drawSnackFurniture(ctx: CanvasRenderingContext2D): void {
