@@ -94,6 +94,18 @@ describe("office simulation", () => {
     expect(diagonal).toBeGreaterThan(straight * 0.7);
   });
 
+  test("clicks hit the agent drawn at that spot, frontmost first", () => {
+    const sim = new OfficeSimulation();
+    sim.sync([agentInput("a"), agentInput("b")]);
+    const first = sim.agents[0];
+    expect(sim.hitTest({ x: first.x, y: first.y - 10 })!.input.id).toBe("a");
+    expect(sim.hitTest({ x: first.x - 60, y: first.y - 10 })).toBeNull();
+    const second = sim.agents[1];
+    second.x = first.x;
+    second.y = first.y + 6;
+    expect(sim.hitTest({ x: first.x, y: first.y })!.input.id).toBe("b");
+  });
+
   test("camera follows the player and clamps at world edges", () => {
     const sim = new OfficeSimulation();
     sim.sync(Array.from({ length: 30 }, (_, i) => agentInput(`a${i}`)));

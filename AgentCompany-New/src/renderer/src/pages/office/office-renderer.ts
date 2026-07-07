@@ -44,6 +44,7 @@ export function renderOffice(
   people: RenderPerson[],
   timeMs: number,
   clock: Date,
+  selectedId: string | null,
 ): void {
   ctx.fillStyle = "#14161c";
   ctx.fillRect(0, 0, viewW, viewH);
@@ -68,6 +69,13 @@ export function renderOffice(
 
   const ordered = [...people].sort((a, b) => a.y - b.y);
   for (const person of ordered) {
+    if (person.id === selectedId) {
+      ctx.strokeStyle = "rgba(94,106,210,0.9)";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.ellipse(Math.round(person.x), Math.round(person.y) + 2, 13, 6, 0, 0, Math.PI * 2);
+      ctx.stroke();
+    }
     const working = (person.activity === "active" || person.activity === "thinking") && person.walkPhase === 0;
     drawPerson(ctx, person.x, person.y, person.appearance, {
       facing: person.facing,

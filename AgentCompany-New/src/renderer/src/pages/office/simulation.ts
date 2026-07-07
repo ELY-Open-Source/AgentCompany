@@ -79,6 +79,22 @@ export class OfficeSimulation {
     if (this.player) this.stepPlayer(this.player, dt, input);
   }
 
+  /**
+   * Returns the agent whose drawn body contains the world point, preferring
+   * the visually frontmost (largest y). Tests against the same positions the
+   * renderer draws, so clicks always match what is on screen.
+   */
+  hitTest(point: Vec): AgentSim | null {
+    let hit: AgentSim | null = null;
+    for (const agent of this.agents) {
+      const inBody =
+        point.x >= agent.x - 10 && point.x <= agent.x + 10 &&
+        point.y >= agent.y - 36 && point.y <= agent.y + 4;
+      if (inBody && (hit === null || agent.y > hit.y)) hit = agent;
+    }
+    return hit;
+  }
+
   private stepPlayer(player: PlayerSim, dt: number, input: MoveInput): void {
     let dx = (input.right ? 1 : 0) - (input.left ? 1 : 0);
     let dy = (input.down ? 1 : 0) - (input.up ? 1 : 0);

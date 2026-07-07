@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import type { PageProps } from "./types";
 import { activeOrgId, requireActiveEmployee } from "./types";
 import { hashString, renderOffice, type RenderPerson } from "./office/office-renderer";
 import { OfficeSimulation, cameraFor, type MoveInput } from "./office/simulation";
-import type { AgentActivity, OfficeAgentInput } from "./office/office-types";
+import { AgentDetailCard } from "./office/AgentDetailCard";
+import type { AgentActivity, Camera, OfficeAgentInput, Vec } from "./office/office-types";
 
 const FPS_INTERVAL = 1000 / 24;
 
@@ -23,12 +24,15 @@ export function OfficePage({ snapshot }: PageProps) {
   const employee = requireActiveEmployee(snapshot);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const keysRef = useRef<MoveInput>({ up: false, down: false, left: false, right: false });
+  const cameraRef = useRef<Camera>({ x: 0, y: 0 });
+  const selectedIdRef = useRef<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const simRef = useRef<OfficeSimulation | null>(null);
   if (simRef.current === null) simRef.current = new OfficeSimulation();
 
   const inputs = useMemo<OfficeAgentInput[]>(() => {
     const orgAgents = snapshot.agents
-      .filter((agent) => agent.orgId === orgId)
+      .filter((agent) => agent.orgId === orgId && agent.lifecycle === "active")
       .sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id));
     const orgTasks = snapshot.tasks.filter((task) => task.orgId === orgId);
     return orgAgents.map((agent) => ({
@@ -46,6 +50,20 @@ export function OfficePage({ snapshot }: PageProps) {
   useEffect(() => {
     simRef.current!.sync(inputs);
   }, [inputs]);
+
+  const selectedAgent = selectedId ? inputs.find((input) => input.id === selectedId) ?? null : null;
+
+  useEffect(() => {
+    selectedIdRef.current = selectedId;
+  }, [selectedId]);
+
+  useEffect(() => {
+    const onEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && selectedIdRef.current) setSelectedId(null);
+    };
+    window.addEventListener("keydown", onEscape);
+    return () => window.removeEventListener("keydown", onEscape);
+  }, []);
 
   useEffect(() => {
     simRef.current!.syncPlayer(employee.id, employee.displayName);
@@ -112,6 +130,7 @@ export function OfficePage({ snapshot }: PageProps) {
       sim.step(elapsed, keysRef.current);
       const focus = sim.player ? { x: sim.player.x, y: sim.player.y } : { x: sim.plan.world.w / 2, y: viewH / 2 };
       const camera = cameraFor(sim.plan.world, viewW, viewH, focus);
+      cameraRef.current = camera;
       const people: RenderPerson[] = sim.agents.map((agent) => ({
         id: agent.input.id,
         name: agent.input.name,
@@ -144,7 +163,7 @@ export function OfficePage({ snapshot }: PageProps) {
           carrying: null,
         });
       }
-      renderOffice(ctx, viewW, viewH, sim.plan, camera, people, now, new Date());
+      renderOffice(ctx, viewW, viewH, sim.plan, camera, people, now, new Date(), selectedIdRef.current);
     };
 
     raf = requestAnimationFrame(tick);
@@ -154,9 +173,39 @@ export function OfficePage({ snapshot }: PageProps) {
     };
   }, []);
 
+  const worldPointFrom = (event: MouseEvent<HTMLCanvasElement>): Vec | null => {
+    const canvas = canvasRef.current;
+    if (!canvas) return null;
+    const bounds = canvas.getBoundingClientRect();
+    return {
+      x: event.clientX - bounds.left + cameraRef.current.x,
+      y: event.clientY - bounds.top + cameraRef.current.y,
+    };
+  };
+
+  const onCanvasClick = (event: MouseEvent<HTMLCanvasElement>) => {
+    const point = worldPointFrom(event);
+    if (!point) return;
+    const hit = simRef.current!.hitTest(point);
+    setSelectedId(hit ? hit.input.id : null);
+  };
+
+  const onCanvasMouseMove = (event: MouseEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current;
+    const point = worldPointFrom(event);
+    if (!canvas || !point) return;
+    canvas.style.cursor = simRef.current!.hitTest(point) ? "pointer" : "default";
+  };
+
   return (
-    <div style={{ flex: 1, overflow: "hidden" }}>
-      <canvas ref={canvasRef} style={{ width: "100%", height: "100%", display: "block" }} />
+    <div style={{ flex: 1, overflow: "hidden", position: "relative" }}>
+      <canvas
+        ref={canvasRef}
+        onClick={onCanvasClick}
+        onMouseMove={onCanvasMouseMove}
+        style={{ width: "100%", height: "100%", display: "block" }}
+      />
+      {selectedAgent && <AgentDetailCard agent={selectedAgent} onClose={() => setSelectedId(null)} />}
     </div>
   );
 }

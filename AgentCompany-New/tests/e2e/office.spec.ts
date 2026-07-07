@@ -1,0 +1,72 @@
+import { _electron as electron, expect, test } from "@playwright/test";
+import { mkdirSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
+import { randomUUID } from "node:crypto";
+import { buildFloorPlan } from "../../src/renderer/src/pages/office/floor-plan";
+import { cameraFor } from "../../src/renderer/src/pages/office/simulation";
+
+test("the office floor opens agent details on click", async () => {
+  const profileDir = join(tmpdir(), `agentcompany-new-office-${randomUUID()}`);
+  mkdirSync(profileDir, { recursive: true });
+  const app = await electron.launch({
+    args: [resolve("out/main/index.js")],
+    env: { ...process.env, AGENTCOMPANY_NEW_PROFILE_DIR: profileDir, AGENTCOMPANY_NEW_AUTORUN: "0" },
+  });
+
+  try {
+    const page = await app.firstWindow();
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.getByRole("button", { name: "Get started" }).click();
+    await page.getByLabel("API key").fill("office-e2e-key");
+    await page.getByLabel("Model").fill("gpt-5.4");
+    await page.getByRole("button", { name: "Continue" }).click();
+    await page.getByLabel("Company name").fill("Pixel Works");
+    await page.getByLabel("Your name").fill("Morgan Reyes");
+    await page.getByLabel("Description").fill("Office e2e coverage.");
+    await page.getByRole("button", { name: "Continue" }).click();
+    await page.getByRole("button", { name: "Continue" }).click();
+    await page.getByLabel("Goal").fill("Verify the office floor.");
+    await page.getByLabel("Acceptance criteria").fill("Clicking an agent opens their card.");
+    await page.getByRole("button", { name: "Launch" }).click();
+    await expect(page.getByRole("button", { name: /Pixel Works/ })).toBeVisible();
+
+    await page.getByRole("button", { name: "Office" }).click();
+    const canvas = page.locator("canvas");
+    await expect(canvas).toBeVisible();
+    await page.waitForTimeout(300);
+
+    // Onboarding seeds exactly one agent (the CEO), so the floor plan and
+    // camera are fully determined by the same pure modules the app uses.
+    const box = await canvas.boundingBox();
+    expect(box).not.toBeNull();
+    const plan = buildFloorPlan(0);
+    const camera = cameraFor(plan.world, box!.width, box!.height, plan.entrance);
+    const clickX = box!.x + plan.ceoSeat.x - camera.x;
+    const clickY = box!.y + plan.ceoSeat.y - 20 - camera.y;
+
+    await page.mouse.click(clickX, clickY);
+    const card = page.getByRole("dialog", { name: "Agent CEO" });
+    await expect(card).toBeVisible();
+    await expect(card.getByText("CEO", { exact: true })).toBeVisible();
+    await expect(card.getByText("Chief Executive Officer")).toBeVisible();
+    await expect(card.getByText("Executive", { exact: true })).toBeVisible();
+
+    await page.keyboard.press("Escape");
+    await expect(card).not.toBeVisible();
+
+    // Clicking empty corridor floor selects nothing.
+    await page.mouse.click(box!.x + 500 - camera.x, box!.y + 320 - camera.y);
+    await expect(page.getByRole("dialog", { name: /Agent / })).not.toBeVisible();
+
+    // WASD input is accepted without disturbing the page.
+    for (const key of ["KeyD", "KeyS", "KeyA", "KeyW"]) {
+      await page.keyboard.down(key);
+      await page.waitForTimeout(120);
+      await page.keyboard.up(key);
+    }
+    await expect(canvas).toBeVisible();
+  } finally {
+    await app.close();
+  }
+});
