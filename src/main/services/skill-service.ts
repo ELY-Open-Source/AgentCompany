@@ -25,13 +25,23 @@ export class SkillService {
 
   importDirectory(input: ImportSkillDirectoryInput): string {
     const manifest = loadSkillManifest(input.directoryPath, input.versionSemver);
+    return this.importManifest(input.orgId, input.directoryPath, manifest);
+  }
+
+  /** True when the org already carries a skill with this name. */
+  hasSkill(orgId: string, name: string): boolean {
+    const slug = slugify(name);
+    return Boolean(this.db.prepare("select id from skill_definitions where org_id = ? and slug = ?").get(orgId, slug));
+  }
+
+  importManifest(orgId: string, directoryPath: string, manifest: SkillManifest): string {
     const slug = slugify(manifest.name);
     if (!slug) throw new Error("Skill name could not be derived.");
     const now = new Date().toISOString();
     const skillId = createId("skl");
     const revisionId = createId("skr");
-    const checksum = recursiveSkillChecksum(input.directoryPath);
-    const copiedFiles = copySkillRevision(input.directoryPath, this.artifactRoot, revisionId);
+    const checksum = recursiveSkillChecksum(directoryPath);
+    const copiedFiles = copySkillRevision(directoryPath, this.artifactRoot, revisionId);
     const copiedEntrypoint = copiedFiles.find((file) => file.relativePath === manifest.entrypoint);
     if (!copiedEntrypoint) throw new Error("Skill manifest entrypoint was not found.");
 
@@ -39,10 +49,10 @@ export class SkillService {
       insert into skill_definitions(id, org_id, slug, name, owner_type, status, created_at)
       values (?, ?, ?, ?, ?, ?, ?)
       on conflict(org_id, slug) do update set name = excluded.name, status = 'active'
-    `).run(skillId, input.orgId, slug, manifest.name, "organization", "active", now);
+    `).run(skillId, orgId, slug, manifest.name, "organization", "active", now);
 
     const existing = this.db.prepare("select id from skill_definitions where org_id = ? and slug = ?")
-      .get(input.orgId, slug) as { id: string };
+      .get(orgId, slug) as { id: string };
 
     this.db.prepare(`
       insert into skill_revisions(
@@ -54,7 +64,7 @@ export class SkillService {
       manifest.version,
       JSON.stringify(manifest),
       "local_directory",
-      input.directoryPath,
+      directoryPath,
       now,
       checksum,
     );
@@ -72,7 +82,7 @@ export class SkillService {
     }
 
     this.audit.record({
-      orgId: input.orgId,
+      orgId,
       entityType: "skill_revision",
       entityId: revisionId,
       actorType: "system",

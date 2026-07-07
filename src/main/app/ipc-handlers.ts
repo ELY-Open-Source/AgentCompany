@@ -29,6 +29,7 @@ import { MeetingService } from "../services/meeting-service";
 import { SprintService } from "../services/sprint-service";
 import { ComposioConnectionService } from "../services/composio/composio-connection-service";
 import { ConnectorGrantsService } from "../services/composio/connector-grants";
+import { syncSkillsFromDisk } from "../services/skill-discovery";
 import { coalesce } from "./coalesce";
 import { normalizeExternalBrowserUrl } from "./external-url";
 
@@ -252,6 +253,10 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     }
   });
   ipcMain.handle(IPC_CHANNELS.importSkillDirectory, (_event, input) => mutate(() => skills.importDirectory(input)));
+  ipcMain.handle(IPC_CHANNELS.syncSkillsFromDisk, (_event, input) => mutate(() => {
+    syncSkillsFromDisk(deps.connection.db, skills, input.orgId);
+    return null;
+  }));
   ipcMain.handle(IPC_CHANNELS.bindSkill, (_event, input) => mutate(() => skills.bind(input)));
   ipcMain.handle(IPC_CHANNELS.resolveAgentSkills, (_event, input) => mutate(() => skills.resolveRuntimeSnapshot(input)));
   ipcMain.handle(IPC_CHANNELS.runSkillTests, (_event, input) => mutate(() => skills.runTests(input)));

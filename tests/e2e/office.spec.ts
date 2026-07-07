@@ -11,7 +11,12 @@ test("the office floor opens agent details on click", async () => {
   mkdirSync(profileDir, { recursive: true });
   const app = await electron.launch({
     args: [resolve("out/main/index.js")],
-    env: { ...process.env, AGENTCOMPANY_NEW_PROFILE_DIR: profileDir, AGENTCOMPANY_NEW_AUTORUN: "0" },
+    env: {
+      ...process.env,
+      AGENTCOMPANY_NEW_PROFILE_DIR: profileDir,
+      AGENTCOMPANY_NEW_AUTORUN: "0",
+      AGENTCOMPANY_NEW_SKILLS_ROOT: join(profileDir, "skills-root"),
+    },
   });
 
   try {

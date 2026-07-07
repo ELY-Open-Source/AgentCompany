@@ -61,6 +61,7 @@ import type {
   RunSdlcReviewInput,
   RunSkillTestsInput,
   RunTaskInput,
+  SyncSkillsFromDiskInput,
   RevokeProviderCredentialInput,
   SaveProviderCredentialInput,
   ComposioToolkitSummaryDto,
@@ -152,6 +153,7 @@ export interface DesktopApi {
   streamProviderResponse(input: StreamProviderResponseInput): Promise<DesktopResult<AppSnapshot>>;
   cancelProviderResponse(input: CancelProviderResponseInput): Promise<DesktopResult<AppSnapshot>>;
   importSkillDirectory(input: ImportSkillDirectoryInput): Promise<DesktopResult<AppSnapshot>>;
+  syncSkillsFromDisk(input: SyncSkillsFromDiskInput): Promise<DesktopResult<AppSnapshot>>;
   bindSkill(input: BindSkillInput): Promise<DesktopResult<AppSnapshot>>;
   resolveAgentSkills(input: ResolveAgentSkillsInput): Promise<DesktopResult<AppSnapshot>>;
   runSkillTests(input: RunSkillTestsInput): Promise<DesktopResult<AppSnapshot>>;

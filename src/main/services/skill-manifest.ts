@@ -16,12 +16,12 @@ export interface SkillManifest {
   outputs: unknown;
 }
 
-export function loadSkillManifest(directoryPath: string, requestedVersion: string): SkillManifest {
+export function loadSkillManifest(directoryPath: string, requestedVersion?: string): SkillManifest {
   const manifestPath = join(directoryPath, "skill.manifest.json");
   if (!existsSync(manifestPath)) throw new Error("skill.manifest.json is required.");
   const raw = JSON.parse(readFileSync(manifestPath, "utf8")) as Record<string, unknown>;
   const manifest = normalizeManifest(raw);
-  if (manifest.version !== requestedVersion) {
+  if (requestedVersion !== undefined && manifest.version !== requestedVersion) {
     throw new Error("Skill manifest version must match the requested version.");
   }
   verifyDeclaredFile(directoryPath, manifest.entrypoint);

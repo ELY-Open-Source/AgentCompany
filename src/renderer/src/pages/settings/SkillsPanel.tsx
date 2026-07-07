@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { Button, Field, Icon, Pill } from "../../shared/ui";
 import { Dialog } from "../../shared/Dialog";
 import type {
@@ -22,6 +22,12 @@ interface SkillsPanelProps {
 
 export function SkillsPanel({ orgId, skills, revisions, bindings, tests, agents, actions }: SkillsPanelProps) {
   const [importOpen, setImportOpen] = useState(false);
+
+  // The on-disk skill library (global ~/.agents/skills and each workspace's
+  // .agents/skills) syncs in when the panel opens.
+  useEffect(() => {
+    void actions.run(() => window.agentCompany.syncSkillsFromDisk({ orgId }));
+  }, [orgId, actions]);
 
   const importSkill = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();

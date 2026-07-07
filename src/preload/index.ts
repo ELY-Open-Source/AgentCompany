@@ -56,6 +56,7 @@ const api: DesktopApi = {
   streamProviderResponse: (input) => invoke(IPC_CHANNELS.streamProviderResponse, input),
   cancelProviderResponse: (input) => invoke(IPC_CHANNELS.cancelProviderResponse, input),
   importSkillDirectory: (input) => invoke(IPC_CHANNELS.importSkillDirectory, input),
+  syncSkillsFromDisk: (input) => invoke(IPC_CHANNELS.syncSkillsFromDisk, input),
   bindSkill: (input) => invoke(IPC_CHANNELS.bindSkill, input),
   resolveAgentSkills: (input) => invoke(IPC_CHANNELS.resolveAgentSkills, input),
   runSkillTests: (input) => invoke(IPC_CHANNELS.runSkillTests, input),

@@ -1,9 +1,12 @@
 import { app } from "electron";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import type { DatabaseSync } from "node:sqlite";
 import { DatabaseConnection } from "./database/connection";
 import { createMainWindow } from "./app/create-window";
 import { registerIpcHandlers } from "./app/ipc-handlers";
+import { syncSkillsFromDisk } from "./services/skill-discovery";
+import { SkillService } from "./services/skill-service";
 import { startProviderBackgroundWorker } from "./app/provider-background-worker";
 import { recoverInterruptedWork } from "./app/startup-recovery";
 import { startTaskQueueWorker } from "./app/task-queue-worker";
@@ -30,6 +33,7 @@ if (!app.requestSingleInstanceLock()) {
       mainWindow: win,
       artifactRoot: join(profileDir, "artifacts"),
     });
+    syncAllOrganizationSkills(connection.db, join(profileDir, "artifacts"));
     const stopProviderBackgroundWorker = startProviderBackgroundWorker({
       db: connection.db,
       mainWindow: win,
@@ -54,4 +58,22 @@ if (!app.requestSingleInstanceLock()) {
   app.on("window-all-closed", () => {
     if (process.platform !== "darwin") app.quit();
   });
+}
+
+/**
+ * Loads the on-disk skill library for every organization at startup. One
+ * organization's failure (a broken workspace path, say) must not block the
+ * rest — or the app.
+ */
+function syncAllOrganizationSkills(db: DatabaseSync, artifactRoot: string): void {
+  const skills = new SkillService(db, artifactRoot);
+  const orgs = db.prepare("select id from organizations").all() as Array<{ id: string }>;
+  for (const org of orgs) {
+    try {
+      syncSkillsFromDisk(db, skills, org.id);
+    } catch {
+      // Broken directories are reported per entry inside the sync; anything
+      // beyond that is a per-org environment fault that must not stop startup.
+    }
+  }
 }

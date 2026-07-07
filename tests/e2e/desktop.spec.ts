@@ -7,12 +7,18 @@ import { randomUUID } from "node:crypto";
 test("onboards, hires, and creates work in the Electron shell", async () => {
   const profileDir = join(tmpdir(), `agentcompany-new-e2e-${randomUUID()}`);
   mkdirSync(profileDir, { recursive: true });
+  // The app reads skills from the user's global library, so the test gets a
+  // library of its own — seeded with one on-disk skill the Skills page must
+  // surface without a manual import.
+  const skillsRoot = join(tmpdir(), `agentcompany-new-e2e-skills-${randomUUID()}`);
+  createGlobalDiskSkill(skillsRoot);
   const app = await electron.launch({
     args: [resolve("out/main/index.js")],
     env: {
       ...process.env,
       AGENTCOMPANY_NEW_PROFILE_DIR: profileDir,
       AGENTCOMPANY_NEW_AUTORUN: "0",
+      AGENTCOMPANY_NEW_SKILLS_ROOT: skillsRoot,
     },
   });
 
@@ -138,12 +144,14 @@ test("onboards, hires, and creates work in the Electron shell", async () => {
     await expect(page.getByText("0 / 25").first()).toBeVisible();
 
     await page.getByRole("button", { name: "Skills" }).click();
+    // The seeded home-directory skill syncs in on its own when the page opens.
+    await expect(page.getByText("Disk Runbook").first()).toBeVisible();
     await page.getByRole("button", { name: "Import" }).click();
     await page.getByLabel("Directory path").fill(createSkillDirectory());
     await page.locator(".modal").getByRole("button", { name: "Import" }).click();
     await expect(page.getByText("Release Gate").first()).toBeVisible();
     await expect(page.getByText("Never run").first()).toBeVisible();
-    await page.getByRole("button", { name: "Run tests" }).click();
+    await page.locator(".table-row").filter({ hasText: "Release Gate" }).getByRole("button", { name: "Run tests" }).click();
     await expect(page.getByText("1/1 passed").first()).toBeVisible();
 
     // Virtual office page
@@ -162,6 +170,16 @@ test("onboards, hires, and creates work in the Electron shell", async () => {
     await app.close();
   }
 });
+
+function createGlobalDiskSkill(skillsRoot: string): void {
+  const dir = join(skillsRoot, "disk-runbook");
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(
+    join(dir, "SKILL.md"),
+    "---\nname: Disk Runbook\ndescription: Recorded incident response steps.\n---\n\nFollow the recorded steps.\n",
+    "utf8",
+  );
+}
 
 function createSkillDirectory(): string {
   const root = join(tmpdir(), `agentcompany-skill-${randomUUID()}`);

@@ -4,6 +4,10 @@ export interface ImportSkillDirectoryInput {
   versionSemver: string;
 }
 
+export interface SyncSkillsFromDiskInput {
+  orgId: string;
+}
+
 export interface BindSkillInput {
   orgId: string;
   agentId: string;

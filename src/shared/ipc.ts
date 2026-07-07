@@ -33,6 +33,7 @@ export const IPC_CHANNELS = {
   streamProviderResponse: "agentcompany:stream-provider-response",
   cancelProviderResponse: "agentcompany:cancel-provider-response",
   importSkillDirectory: "agentcompany:import-skill-directory",
+  syncSkillsFromDisk: "agentcompany:sync-skills-from-disk",
   bindSkill: "agentcompany:bind-skill",
   resolveAgentSkills: "agentcompany:resolve-agent-skills",
   runSkillTests: "agentcompany:run-skill-tests",
