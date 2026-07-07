@@ -7,8 +7,9 @@ import {
 import { Button, Field, Icon, IconButton, Pill } from "../shared/ui";
 import type { SnapshotActions } from "./useSnapshot";
 import { ProviderStep } from "./OnboardingProviderStep";
+import { ConnectorsStep } from "./OnboardingConnectorsStep";
 
-type Step = "welcome" | "provider" | "company" | "mode" | "mission";
+type Step = "welcome" | "provider" | "company" | "mode" | "mission" | "connectors";
 
 export interface Draft {
   companyName: string;
@@ -30,17 +31,20 @@ const STEPS: Array<{ id: Step; label: string }> = [
   { id: "company", label: "Company" },
   { id: "mode", label: "Mode" },
   { id: "mission", label: "Goal" },
+  { id: "connectors", label: "Connectors" },
 ];
 
 export function Onboarding({
   snapshot,
   actions,
   onCancel,
+  onBootstrapped,
   onCompleted,
 }: {
   snapshot: AppSnapshot;
   actions: SnapshotActions;
   onCancel: (() => void) | null;
+  onBootstrapped: () => void;
   onCompleted: () => void;
 }) {
   const availableProviders = useMemo(
@@ -66,6 +70,7 @@ export function Onboarding({
   });
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [bootstrappedOrgId, setBootstrappedOrgId] = useState<string | null>(null);
 
   const selectedProvider = requireProvider(availableProviders, draft.providerKey);
   const isMac = window.agentCompany.platform === "darwin";
@@ -117,8 +122,10 @@ export function Onboarding({
       setError(result.error.message);
       return;
     }
+    onBootstrapped();
+    setBootstrappedOrgId(result.data.orgId);
     await actions.reload();
-    onCompleted();
+    setStep("connectors");
   };
 
   return (
@@ -138,7 +145,7 @@ export function Onboarding({
           <div className="row" style={{ gap: 8 }}>
             <div className="brand-mark">A</div>
             <div style={{ fontWeight: 540 }}>AgentCompany</div>
-            {onCancel && (
+            {onCancel && step !== "connectors" && (
               <button type="button" className="button ghost" style={{ marginLeft: "auto" }} onClick={onCancel}>
                 Cancel
               </button>
@@ -200,6 +207,14 @@ export function Onboarding({
               onBack={back("mode")}
             />
           )}
+          {step === "connectors" && bootstrappedOrgId && (
+            <ConnectorsStep
+              orgId={bootstrappedOrgId}
+              snapshot={snapshot}
+              actions={actions}
+              onFinish={onCompleted}
+            />
+          )}
         </div>
         {error && <div style={{ color: "var(--red)", marginTop: 16, fontSize: 14 }}>{error}</div>}
       </form>
@@ -220,7 +235,7 @@ function WelcomeStep({ onNext }: { onNext: () => void }) {
     <div className="form-grid">
       <h2 className="page-h1">Welcome</h2>
       <p style={{ color: "var(--text-2)", fontSize: 14, lineHeight: 1.55 }}>
-        AgentCompany sets up your operating loop in five steps. Bring an API key, pick a runtime
+        AgentCompany sets up your operating loop in six steps. Bring an API key, pick a runtime
         for the founding CEO, and we'll wire up the first goal, project, and task.
       </p>
       <ul style={{ paddingLeft: 20, color: "var(--text-2)", lineHeight: 1.8, margin: 0, fontSize: 14 }}>

@@ -38,6 +38,11 @@ test("onboards, hires, and creates work in the Electron shell", async () => {
     await page.getByLabel("Acceptance criteria").fill("The CEO creates the kickoff operating loop.");
     await page.getByRole("button", { name: "Launch" }).click();
 
+    // The company exists after Launch; the wizard closes with the optional
+    // connectors step.
+    await expect(page.getByRole("heading", { name: "Connectors" })).toBeVisible();
+    await page.getByRole("button", { name: "Finish" }).click();
+
     await expect(page.getByRole("button", { name: /Acme Operations/ })).toBeVisible();
     await page.getByRole("button", { name: "Work", exact: true }).click();
     await expect(page.getByText("Projects", { exact: true })).toBeVisible();

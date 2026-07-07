@@ -43,6 +43,10 @@ test("captures every page for visual review", async () => {
     await page.screenshot({ path: join(outDir, "04-onboarding-goal.png"), fullPage: false });
     await page.getByRole("button", { name: "Launch" }).click();
 
+    await expect(page.getByRole("heading", { name: "Connectors" })).toBeVisible();
+    await page.screenshot({ path: join(outDir, "05-onboarding-connectors.png"), fullPage: false });
+    await page.getByRole("button", { name: "Finish" }).click();
+
     await expect(page.getByRole("button", { name: /OrbitOps/ })).toBeVisible();
     await snap(page, outDir, "10-home");
 

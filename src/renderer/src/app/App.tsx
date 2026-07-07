@@ -17,17 +17,25 @@ export function App() {
   const { snapshot, actions } = useSnapshot();
   const [route, setRoute] = useState<RouteId>("home");
   const [creatingOrg, setCreatingOrg] = useState(false);
+  // Keeps the wizard mounted through its post-bootstrap connectors step: the
+  // organization exists from Launch onward, so the org-count check alone
+  // would flip to the shell mid-onboarding.
+  const [finishingSetup, setFinishingSetup] = useState(false);
 
   if (!snapshot) {
     return <div className="app-shell" style={{ display: "grid", placeItems: "center" }} />;
   }
-  if (snapshot.organizations.length === 0 || creatingOrg) {
+  if (snapshot.organizations.length === 0 || creatingOrg || finishingSetup) {
     return (
       <Onboarding
         snapshot={snapshot}
         actions={actions}
         onCancel={creatingOrg ? () => setCreatingOrg(false) : null}
-        onCompleted={() => setCreatingOrg(false)}
+        onBootstrapped={() => setFinishingSetup(true)}
+        onCompleted={() => {
+          setCreatingOrg(false);
+          setFinishingSetup(false);
+        }}
       />
     );
   }
