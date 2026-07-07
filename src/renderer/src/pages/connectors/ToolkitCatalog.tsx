@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Button, Icon, Pill } from "../../shared/ui";
-import type { ComposioToolkitSummaryDto } from "../../../../shared/commands";
+import type { ConnectorCatalogEntry } from "../../../../shared/commands";
 
 /** Deterministic tile color for a toolkit's letter glyph. */
 const TILE_COLORS = ["#5e6ad2", "#3b82a0", "#7c5cb0", "#3f8f5f", "#b0684f", "#a05c86", "#6f7d3d", "#4f6fb0"];
@@ -11,7 +11,18 @@ function tileColor(slug: string): string {
   return TILE_COLORS[Math.abs(hash) % TILE_COLORS.length];
 }
 
-export function ToolkitTile({ name, slug, size = 34 }: { name: string; slug: string; size?: number }) {
+export function ToolkitTile({ name, slug, logoUrl, size = 34 }: { name: string; slug: string; logoUrl: string | null; size?: number }) {
+  if (logoUrl) {
+    return (
+      <img
+        src={logoUrl}
+        alt=""
+        width={size}
+        height={size}
+        style={{ width: size, height: size, borderRadius: 9, objectFit: "cover", flexShrink: 0 }}
+      />
+    );
+  }
   return (
     <span
       style={{
@@ -34,26 +45,22 @@ export function ToolkitTile({ name, slug, size = 34 }: { name: string; slug: str
 }
 
 export function ToolkitCatalog({
-  toolkits,
+  entries,
   connectedSlugs,
   busySlug,
   onConnect,
 }: {
-  toolkits: ComposioToolkitSummaryDto[];
+  entries: ConnectorCatalogEntry[];
   connectedSlugs: Set<string>;
   busySlug: string | null;
-  onConnect: (toolkit: ComposioToolkitSummaryDto) => void;
+  onConnect: (entry: ConnectorCatalogEntry) => void;
 }) {
   const [query, setQuery] = useState("");
   const filtered = useMemo(() => {
     const trimmed = query.trim().toLowerCase();
-    if (!trimmed) return toolkits;
-    return toolkits.filter((toolkit) =>
-      toolkit.name.toLowerCase().includes(trimmed) ||
-      toolkit.slug.includes(trimmed) ||
-      toolkit.categories.some((category) => category.toLowerCase().includes(trimmed)),
-    );
-  }, [toolkits, query]);
+    if (!trimmed) return entries;
+    return entries.filter((entry) => entry.name.toLowerCase().includes(trimmed) || entry.slug.includes(trimmed));
+  }, [entries, query]);
 
   return (
     <section>
@@ -70,12 +77,12 @@ export function ToolkitCatalog({
           />
         </div>
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(250px, 1fr))", gap: 10 }}>
-        {filtered.map((toolkit) => {
-          const connected = connectedSlugs.has(toolkit.slug);
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 10 }}>
+        {filtered.map((entry) => {
+          const connected = connectedSlugs.has(entry.slug);
           return (
             <div
-              key={toolkit.slug}
+              key={entry.slug}
               style={{
                 border: "1px solid var(--border)",
                 borderRadius: 12,
@@ -83,46 +90,20 @@ export function ToolkitCatalog({
                 background: "var(--panel)",
                 display: "flex",
                 gap: 10,
-                alignItems: "flex-start",
+                alignItems: "center",
               }}
             >
-              <ToolkitTile name={toolkit.name} slug={toolkit.slug} />
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div className="row" style={{ gap: 6 }}>
-                  <span style={{ fontWeight: 600, fontSize: 13.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {toolkit.name}
-                  </span>
-                  {toolkit.categories[0] && <Pill>{toolkit.categories[0]}</Pill>}
-                </div>
-                <div
-                  style={{
-                    fontSize: 12,
-                    color: "var(--text-3)",
-                    lineHeight: 1.45,
-                    marginTop: 2,
-                    display: "-webkit-box",
-                    WebkitLineClamp: 2,
-                    WebkitBoxOrient: "vertical",
-                    overflow: "hidden",
-                    minHeight: 34,
-                  }}
-                >
-                  {toolkit.description}
-                </div>
-                <div className="row" style={{ marginTop: 8 }}>
-                  {connected ? (
-                    <Pill tone="green" dot>Connected</Pill>
-                  ) : (
-                    <Button
-                      size="small"
-                      disabled={busySlug !== null}
-                      onClick={() => onConnect(toolkit)}
-                    >
-                      {busySlug === toolkit.slug ? "Opening…" : "Connect"}
-                    </Button>
-                  )}
-                </div>
-              </div>
+              <ToolkitTile name={entry.name} slug={entry.slug} logoUrl={entry.logoUrl} />
+              <span style={{ fontWeight: 600, fontSize: 13.5, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {entry.name}
+              </span>
+              {connected ? (
+                <Pill tone="green" dot>Connected</Pill>
+              ) : (
+                <Button size="small" disabled={busySlug !== null} onClick={() => onConnect(entry)}>
+                  {busySlug === entry.slug ? "Opening…" : "Connect"}
+                </Button>
+              )}
             </div>
           );
         })}

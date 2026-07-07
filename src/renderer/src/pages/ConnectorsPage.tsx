@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "../shared/ui";
-import type { ComposioToolkitSummaryDto } from "../../../shared/commands";
+import type { ConnectorCatalogEntry } from "../../../shared/commands";
 import type { PageProps } from "./types";
 import { activeOrgId, requireActiveEmployee } from "./types";
 import { ConnectedList } from "./connectors/ConnectedList";
@@ -8,7 +8,7 @@ import { ToolkitCatalog } from "./connectors/ToolkitCatalog";
 
 type CatalogState =
   | { phase: "loading" }
-  | { phase: "ready"; toolkits: ComposioToolkitSummaryDto[] }
+  | { phase: "ready"; entries: ConnectorCatalogEntry[] }
   | { phase: "error"; message: string };
 
 type CatalogSlot = { orgId: string; state: CatalogState } | null;
@@ -47,14 +47,22 @@ export function ConnectorsPage({ snapshot, actions }: PageProps) {
     [accounts],
   );
 
+  const logoBySlug = useMemo(() => {
+    const map = new Map<string, string | null>();
+    if (catalog.phase === "ready") {
+      for (const entry of catalog.entries) map.set(entry.slug, entry.logoUrl);
+    }
+    return map;
+  }, [catalog]);
+
   useEffect(() => {
     let cancelled = false;
-    void window.agentCompany.listComposioToolkits({ orgId }).then((result) => {
+    void window.agentCompany.listConnectorCatalog().then((result) => {
       if (cancelled) return;
       setCatalogSlot({
         orgId,
         state: result.ok
-          ? { phase: "ready", toolkits: result.data }
+          ? { phase: "ready", entries: result.data }
           : { phase: "error", message: result.error.message },
       });
     });
@@ -89,17 +97,17 @@ export function ConnectorsPage({ snapshot, actions }: PageProps) {
     }, CONNECT_POLL_INTERVAL_MS);
   };
 
-  const connect = (toolkit: ComposioToolkitSummaryDto) => {
-    setBusySlug(toolkit.slug);
+  const connect = (entry: ConnectorCatalogEntry) => {
+    setBusySlug(entry.slug);
     setConnectError(null);
     void window.agentCompany
-      .connectComposioToolkit({ orgId, toolkitSlug: toolkit.slug, toolkitName: toolkit.name })
+      .connectComposioToolkit({ orgId, toolkitSlug: entry.slug })
       .then(async (result) => {
         if (!result.ok) {
           setConnectError(result.error.message);
           return;
         }
-        pollUntilActive(toolkit.slug, 0);
+        pollUntilActive(entry.slug, 0);
         if (result.data.redirectUrl) {
           const opened = await window.agentCompany.openExternalUrl(result.data.redirectUrl);
           if (!opened.ok) setConnectError(opened.error.message);
@@ -133,11 +141,15 @@ export function ConnectorsPage({ snapshot, actions }: PageProps) {
         </div>
       )}
 
-      <ConnectedList accounts={accounts} grants={grants} agents={agents} onGrant={grant} onRevoke={revoke} />
+      <ConnectedList
+        accounts={accounts}
+        grants={grants}
+        agents={agents}
+        logoBySlug={logoBySlug}
+        onGrant={grant}
+        onRevoke={revoke}
+      />
 
-      {catalog.phase === "loading" && (
-        <div style={{ color: "var(--text-3)", fontSize: 13, padding: "24px 0" }}>Loading catalog…</div>
-      )}
       {catalog.phase === "error" && (
         <div className="row" style={{ gap: 10, padding: "24px 0" }}>
           <span
@@ -155,11 +167,11 @@ export function ConnectorsPage({ snapshot, actions }: PageProps) {
           </span>
           <Button size="small" onClick={() => {
             setCatalogSlot(null);
-            void window.agentCompany.listComposioToolkits({ orgId }).then((result) => {
+            void window.agentCompany.listConnectorCatalog().then((result) => {
               setCatalogSlot({
                 orgId,
                 state: result.ok
-                  ? { phase: "ready", toolkits: result.data }
+                  ? { phase: "ready", entries: result.data }
                   : { phase: "error", message: result.error.message },
               });
             });
@@ -168,7 +180,7 @@ export function ConnectorsPage({ snapshot, actions }: PageProps) {
       )}
       {catalog.phase === "ready" && (
         <ToolkitCatalog
-          toolkits={catalog.toolkits}
+          entries={catalog.entries}
           connectedSlugs={connectedSlugs}
           busySlug={busySlug}
           onConnect={connect}

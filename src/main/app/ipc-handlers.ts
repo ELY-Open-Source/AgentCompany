@@ -329,16 +329,16 @@ export function registerIpcHandlers(deps: IpcDeps): void {
   const composioConnections = new ComposioConnectionService(deps.connection.db);
   const connectorGrants = new ConnectorGrantsService(deps.connection.db);
 
-  ipcMain.handle(IPC_CHANNELS.listComposioToolkits, async () => {
+  ipcMain.handle(IPC_CHANNELS.listConnectorCatalog, async () => {
     try {
-      return ok(await composioConnections.listToolkits());
+      return ok(await composioConnections.listCatalog());
     } catch (error) {
-      return fail("composio_toolkits_failed", error instanceof Error ? error.message : String(error));
+      return fail("composio_catalog_failed", error instanceof Error ? error.message : String(error));
     }
   });
   ipcMain.handle(IPC_CHANNELS.connectComposioToolkit, async (_event, input) => {
     try {
-      const result = await composioConnections.connectToolkit(input.orgId, input.toolkitSlug, input.toolkitName);
+      const result = await composioConnections.connectToolkit(input.orgId, input.toolkitSlug);
       notifyDataChanged();
       return ok(result);
     } catch (error) {

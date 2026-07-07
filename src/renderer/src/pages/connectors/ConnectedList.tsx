@@ -20,12 +20,14 @@ export function ConnectedList({
   accounts,
   grants,
   agents,
+  logoBySlug,
   onGrant,
   onRevoke,
 }: {
   accounts: ConnectorAccountRecord[];
   grants: ConnectorGrantRecord[];
   agents: AgentRecord[];
+  logoBySlug: Map<string, string | null>;
   onGrant: (agentId: string, toolkitSlug: string) => void;
   onRevoke: (agentId: string, toolkitSlug: string) => void;
 }) {
@@ -40,6 +42,7 @@ export function ConnectedList({
             account={account}
             grantedAgentIds={new Set(grants.filter((grant) => grant.toolkitSlug === account.toolkitSlug).map((grant) => grant.agentId))}
             agents={agents}
+            logoUrl={logoBySlug.get(account.toolkitSlug) ?? null}
             onGrant={onGrant}
             onRevoke={onRevoke}
           />
@@ -53,12 +56,14 @@ function ConnectedRow({
   account,
   grantedAgentIds,
   agents,
+  logoUrl,
   onGrant,
   onRevoke,
 }: {
   account: ConnectorAccountRecord;
   grantedAgentIds: Set<string>;
   agents: AgentRecord[];
+  logoUrl: string | null;
   onGrant: (agentId: string, toolkitSlug: string) => void;
   onRevoke: (agentId: string, toolkitSlug: string) => void;
 }) {
@@ -66,7 +71,7 @@ function ConnectedRow({
   return (
     <div style={{ border: "1px solid var(--border)", borderRadius: 12, padding: 14, background: "var(--panel)" }}>
       <div className="row" style={{ gap: 10 }}>
-        <ToolkitTile name={account.toolkitName} slug={account.toolkitSlug} size={30} />
+        <ToolkitTile name={account.toolkitName} slug={account.toolkitSlug} logoUrl={logoUrl} size={30} />
         <span style={{ fontWeight: 600, fontSize: 13.5 }}>{account.toolkitName}</span>
         <Pill tone={STATUS_TONE[account.status]} dot>{account.status.charAt(0) + account.status.slice(1).toLowerCase()}</Pill>
       </div>

@@ -64,11 +64,10 @@ import type {
   SyncSkillsFromDiskInput,
   RevokeProviderCredentialInput,
   SaveProviderCredentialInput,
-  ComposioToolkitSummaryDto,
   ConnectComposioToolkitInput,
   ConnectComposioToolkitResult,
+  ConnectorCatalogEntry,
   ConnectorGrantInput,
-  ListComposioToolkitsInput,
   RefreshComposioAccountsInput,
   SearchInput,
   SendMessageInput,
@@ -180,7 +179,7 @@ export interface DesktopApi {
   setLegalHoldState(input: SetLegalHoldStateInput): Promise<DesktopResult<AppSnapshot>>;
   createRetentionFreeze(input: CreateRetentionFreezeInput): Promise<DesktopResult<AppSnapshot>>;
   setRetentionFreezeState(input: SetRetentionFreezeStateInput): Promise<DesktopResult<AppSnapshot>>;
-  listComposioToolkits(input: ListComposioToolkitsInput): Promise<DesktopResult<ComposioToolkitSummaryDto[]>>;
+  listConnectorCatalog(): Promise<DesktopResult<ConnectorCatalogEntry[]>>;
   connectComposioToolkit(input: ConnectComposioToolkitInput): Promise<DesktopResult<ConnectComposioToolkitResult>>;
   refreshComposioAccounts(input: RefreshComposioAccountsInput): Promise<DesktopResult<AppSnapshot>>;
   grantConnector(input: ConnectorGrantInput): Promise<DesktopResult<AppSnapshot>>;

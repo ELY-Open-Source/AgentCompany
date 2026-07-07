@@ -13,15 +13,11 @@ export interface ComposioToolSchema {
   };
 }
 
-export interface ComposioToolkitSummary {
-  slug: string;
-  name: string;
-  description: string;
-  logo: string | null;
-  categories: string[];
-  authSchemes: string[];
-  noAuth: boolean;
-  toolsCount: number;
+export interface ComposioAuthConfigSummary {
+  id: string;
+  toolkitSlug: string;
+  authScheme: string;
+  status: string;
 }
 
 export interface ComposioConnectedAccount {
@@ -40,34 +36,28 @@ export interface ComposioToolExecutionResult {
 export class ComposioClient {
   constructor(private readonly apiKey: string) {}
 
-  /** The toolkit catalog, most popular first. */
-  async listToolkits(limit: number): Promise<ComposioToolkitSummary[]> {
-    const toolkits: ComposioToolkitSummary[] = [];
+  /** Every auth config in the Composio project — the connector catalog. */
+  async listAuthConfigs(): Promise<ComposioAuthConfigSummary[]> {
+    const configs: ComposioAuthConfigSummary[] = [];
     let cursor: string | null = null;
-    while (toolkits.length < limit) {
-      const params = new URLSearchParams({ limit: String(Math.min(100, limit - toolkits.length)) });
+    do {
+      const params = new URLSearchParams({ limit: "100" });
       if (cursor) params.set("cursor", cursor);
-      const response = await this.request("GET", `${BASE_URL}/toolkits?${params.toString()}`);
+      const response = await this.request("GET", `${BASE_URL}/auth_configs?${params.toString()}`);
       const items = Array.isArray(response.items) ? response.items as Array<Record<string, unknown>> : [];
       for (const item of items) {
-        const meta = (item.meta ?? {}) as Record<string, unknown>;
-        toolkits.push({
-          slug: String(item.slug ?? ""),
-          name: String(item.name ?? ""),
-          description: String(meta.description ?? "").slice(0, 200),
-          logo: typeof meta.logo === "string" ? meta.logo : null,
-          categories: Array.isArray(meta.categories)
-            ? (meta.categories as Array<Record<string, unknown>>).map((c) => String(c.name ?? c.id ?? "")).filter(Boolean)
-            : [],
-          authSchemes: Array.isArray(item.auth_schemes) ? (item.auth_schemes as unknown[]).map(String) : [],
-          noAuth: item.no_auth === true,
-          toolsCount: Number(meta.tools_count ?? 0),
+        const toolkit = (item.toolkit ?? {}) as Record<string, unknown>;
+        configs.push({
+          id: String(item.id ?? ""),
+          toolkitSlug: String(toolkit.slug ?? "").toLowerCase(),
+          authScheme: String(item.auth_scheme ?? ""),
+          status: String(item.status ?? ""),
         });
       }
       cursor = typeof response.next_cursor === "string" && response.next_cursor ? response.next_cursor : null;
-      if (!cursor || items.length === 0) break;
-    }
-    return toolkits;
+      if (items.length === 0) break;
+    } while (cursor);
+    return configs;
   }
 
   async getTools(toolkits: string[]): Promise<ComposioToolSchema[]> {
@@ -81,17 +71,6 @@ export class ComposioClient {
       }
     }
     return all;
-  }
-
-  /** Creates a Composio-managed auth config for a toolkit. */
-  async createAuthConfig(toolkitSlug: string): Promise<string> {
-    const response = await this.request("POST", `${BASE_URL}/auth_configs`, {
-      toolkit: { slug: toolkitSlug },
-    });
-    const authConfig = (response.auth_config ?? {}) as Record<string, unknown>;
-    const id = String(authConfig.id ?? "");
-    if (!id) throw new Error("Composio auth config creation returned no id.");
-    return id;
   }
 
   /**

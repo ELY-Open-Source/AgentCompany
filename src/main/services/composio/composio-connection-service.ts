@@ -1,42 +1,44 @@
 import type { DatabaseSync } from "node:sqlite";
-import type { ComposioToolkitSummaryDto, ConnectComposioToolkitResult } from "../../../shared/commands";
-import { ComposioClient, type ComposioToolkitSummary } from "./composio-client";
+import type { ConnectorCatalogEntry, ConnectComposioToolkitResult } from "../../../shared/commands";
+import { ComposioClient } from "./composio-client";
 import { composioApiKey } from "./composio-credentials";
 import { getComposioUserId } from "./composio-tool-bridge";
+import { connectorDisplayName, connectorLogoUrl } from "./connector-brands";
 import { normalizeSlug } from "./connector-grants";
 
-const TOOLKIT_CATALOG_LIMIT = 200;
 const CATALOG_TTL_MS = 10 * 60 * 1000;
 
-let catalogCache: { fetchedAt: number; toolkits: ComposioToolkitSummary[] } | null = null;
+let catalogCache: { fetchedAt: number; entries: ConnectorCatalogEntry[] } | null = null;
 
 /**
- * Company-level Composio connections. One connected account per toolkit per
- * organization, mirrored into connector_accounts so agent runs and the
- * Connectors page read local state instead of calling out on every frame.
+ * Company-level Composio connections. The catalog mirrors the auth configs
+ * of the Composio project — the dashboard is the source of truth for which
+ * connectors exist; the app never creates auth configs, it only connects
+ * accounts against them. One connected account per toolkit per organization,
+ * mirrored into connector_accounts so agent runs and the Connectors page
+ * read local state instead of calling out on every frame.
  */
 export class ComposioConnectionService {
   constructor(private readonly db: DatabaseSync) {}
 
-  listToolkits(): Promise<ComposioToolkitSummaryDto[]> {
-    const client = this.requireClient();
-    return this.catalog(client);
+  listCatalog(): Promise<ConnectorCatalogEntry[]> {
+    return this.catalog(this.requireClient());
   }
 
   /**
-   * Starts (or restarts) the company's connection for a toolkit: creates a
-   * Composio-managed auth config once per toolkit, initiates the connected
-   * account for the company user via the link flow, and records the pending
-   * account locally as INITIALIZING — the poll that follows adopts Composio's
-   * real status. The returned redirect URL completes authorization in the
-   * browser.
+   * Starts (or restarts) the company's connection for a toolkit: initiates a
+   * connected account against the toolkit's configured auth config via the
+   * link flow and records the pending account locally as INITIALIZING — the
+   * poll that follows adopts Composio's real status. The returned redirect
+   * URL completes authorization (or API-key entry) in the browser.
    */
-  async connectToolkit(orgId: string, toolkitSlug: string, toolkitName: string): Promise<ConnectComposioToolkitResult> {
+  async connectToolkit(orgId: string, toolkitSlug: string): Promise<ConnectComposioToolkitResult> {
     const slug = normalizeSlug(toolkitSlug);
     const client = this.requireClient();
-    const authConfigId = await this.ensureAuthConfig(client, orgId, slug);
+    const entry = (await this.catalog(client)).find((item) => item.slug === slug);
+    if (!entry) throw new Error(`No auth config for "${slug}" exists in the Composio project.`);
     const account = await client.createConnectedAccount({
-      authConfigId,
+      authConfigId: entry.authConfigId,
       userId: getComposioUserId(this.db, orgId),
     });
     if (!account.id) throw new Error("Composio did not return a connected account id.");
@@ -50,7 +52,7 @@ export class ComposioConnectionService {
         auth_config_id = excluded.auth_config_id,
         status = excluded.status,
         updated_at = excluded.updated_at
-    `).run(account.id, orgId, slug, toolkitName.trim() || slug, authConfigId, "INITIALIZING", now, now);
+    `).run(account.id, orgId, slug, entry.name, entry.authConfigId, "INITIALIZING", now, now);
     return { accountId: account.id, redirectUrl: account.redirectUrl };
   }
 
@@ -73,7 +75,7 @@ export class ComposioConnectionService {
         account.id,
         orgId,
         account.toolkitSlug,
-        account.toolkitSlug,
+        connectorDisplayName(account.toolkitSlug),
         account.authConfigId,
         account.status,
         account.createdAt || now,
@@ -88,27 +90,24 @@ export class ComposioConnectionService {
     return new ComposioClient(apiKey);
   }
 
-  private async ensureAuthConfig(client: ComposioClient, orgId: string, slug: string): Promise<string> {
-    const key = `auth_config:${slug}`;
-    const existing = this.db.prepare(
-      "select value from composio_settings where org_id = ? and key = ? limit 1",
-    ).get(orgId, key) as { value: string } | undefined;
-    if (existing?.value) return existing.value;
-    const authConfigId = await client.createAuthConfig(slug);
-    this.db.prepare(`
-      insert into composio_settings(org_id, key, value, updated_at) values (?, ?, ?, ?)
-      on conflict(org_id, key) do update set value = excluded.value, updated_at = excluded.updated_at
-    `).run(orgId, key, authConfigId, new Date().toISOString());
-    return authConfigId;
-  }
-
-  private async catalog(client: ComposioClient): Promise<ComposioToolkitSummaryDto[]> {
+  private async catalog(client: ComposioClient): Promise<ConnectorCatalogEntry[]> {
     if (catalogCache && Date.now() - catalogCache.fetchedAt < CATALOG_TTL_MS) {
-      return catalogCache.toolkits;
+      return catalogCache.entries;
     }
-    const toolkits = await client.listToolkits(TOOLKIT_CATALOG_LIMIT);
-    catalogCache = { fetchedAt: Date.now(), toolkits };
-    return toolkits;
+    const configs = await client.listAuthConfigs();
+    const bySlug = new Map<string, ConnectorCatalogEntry>();
+    for (const config of configs) {
+      if (config.status !== "ENABLED" || !config.toolkitSlug || bySlug.has(config.toolkitSlug)) continue;
+      bySlug.set(config.toolkitSlug, {
+        authConfigId: config.id,
+        slug: config.toolkitSlug,
+        name: connectorDisplayName(config.toolkitSlug),
+        authScheme: config.authScheme,
+        logoUrl: connectorLogoUrl(config.toolkitSlug),
+      });
+    }
+    const entries = [...bySlug.values()].sort((a, b) => a.name.localeCompare(b.name));
+    catalogCache = { fetchedAt: Date.now(), entries };
+    return entries;
   }
-
 }

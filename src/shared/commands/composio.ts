@@ -1,22 +1,14 @@
-export interface ComposioToolkitSummaryDto {
+export interface ConnectorCatalogEntry {
+  authConfigId: string;
   slug: string;
   name: string;
-  description: string;
-  logo: string | null;
-  categories: string[];
-  authSchemes: string[];
-  noAuth: boolean;
-  toolsCount: number;
-}
-
-export interface ListComposioToolkitsInput {
-  orgId: string;
+  authScheme: string;
+  logoUrl: string | null;
 }
 
 export interface ConnectComposioToolkitInput {
   orgId: string;
   toolkitSlug: string;
-  toolkitName: string;
 }
 
 export interface ConnectComposioToolkitResult {

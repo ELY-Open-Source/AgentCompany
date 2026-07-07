@@ -75,7 +75,7 @@ export const IPC_CHANNELS = {
   deleteMeeting: "agentcompany:delete-meeting",
   createSprint: "agentcompany:create-sprint",
   deleteSprint: "agentcompany:delete-sprint",
-  listComposioToolkits: "agentcompany:list-composio-toolkits",
+  listConnectorCatalog: "agentcompany:list-connector-catalog",
   connectComposioToolkit: "agentcompany:connect-composio-toolkit",
   refreshComposioAccounts: "agentcompany:refresh-composio-accounts",
   grantConnector: "agentcompany:grant-connector",
