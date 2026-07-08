@@ -1,0 +1,128 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-serif: "Space Grotesk", "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Space Mono", ui-monospace, SFMono-Regular, monospace;
+}
+
+/* ── Light Theme (Cohere) ── */
+:root {
+  --bg: #ffffff;
+  --bg-subtle: #fafafa;
+  --panel: #ffffff;
+  --panel-soft: #fafafa;
+  --text: #000000;
+  --text-secondary: #212121;
+  --muted: #93939f;
+  --muted-strong: #565650;
+  --accent: #1863dc;
+  --accent-hover: #1352b8;
+  --accent-soft: rgba(24, 99, 220, 0.06);
+  --text-on-accent: #ffffff;
+  --cta: #000000;
+  --cta-hover: #212121;
+  --cta-soft: rgba(0, 0, 0, 0.04);
+  --text-on-cta: #ffffff;
+  --text-on-cta-muted: rgba(255, 255, 255, 0.75);
+  --text-on-cta-faint: rgba(255, 255, 255, 0.60);
+  --border: rgba(0, 0, 0, 0.06);
+  --border-cool: #d9d9dd;
+  --glow-warm: rgba(24, 99, 220, 0.04);
+  --glow-accent: rgba(24, 99, 220, 0.03);
+  --section-alt: rgba(0, 0, 0, 0.015);
+}
+
+/* ── Dark Theme (Cohere) ── */
+.dark {
+  --bg: #17171c;
+  --bg-subtle: #1e1e24;
+  --panel: #212126;
+  --panel-soft: #2a2a30;
+  --text: #fafafa;
+  --text-secondary: #d9d9dd;
+  --muted: #93939f;
+  --muted-strong: #b8b8b2;
+  --accent: #1863dc;
+  --accent-hover: #2070e8;
+  --accent-soft: rgba(24, 99, 220, 0.12);
+  --text-on-accent: #ffffff;
+  --cta: #fafafa;
+  --cta-hover: #e5e5e5;
+  --cta-soft: rgba(250, 250, 250, 0.06);
+  --text-on-cta: #17171c;
+  --text-on-cta-muted: rgba(23, 23, 28, 0.75);
+  --text-on-cta-faint: rgba(23, 23, 28, 0.60);
+  --border: rgba(250, 250, 250, 0.08);
+  --border-cool: #333338;
+  --glow-warm: rgba(24, 99, 220, 0.06);
+  --glow-accent: rgba(24, 99, 220, 0.04);
+  --section-alt: rgba(24, 99, 220, 0.025);
+}
+
+/* ── Base ── */
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: var(--bg);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  line-height: 1.65;
+}
+
+::selection {
+  background-color: var(--accent);
+  color: var(--text-on-accent);
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--muted);
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+/* ── Reduced Motion ── */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

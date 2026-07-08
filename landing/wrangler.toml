@@ -1,0 +1,11 @@
+name = "agentcompany"
+compatibility_date = "2026-04-03"
+pages_build_output_dir = "out"
+
+[vars]
+DOWNLOAD_COUNTER_SALT = "agentcompany-download-counter-v1"
+
+[[d1_databases]]
+binding = "DOWNLOAD_COUNTER_DB"
+database_name = "agentcompany-landing-downloads"
+database_id = "dfa3f0f3-009b-4436-b519-5b50ae6b1cf9"
