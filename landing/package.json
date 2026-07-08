@@ -7,7 +7,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "preview": "wrangler pages dev out"
+    "preview": "wrangler pages dev out",
+    "test:e2e": "next build && playwright test"
   },
   "dependencies": {
     "next": "16.2.6",

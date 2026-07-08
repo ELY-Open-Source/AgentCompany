@@ -90,7 +90,9 @@ export function Navbar() {
         id="mobile-nav"
         className={[
           "overflow-hidden border-b transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] md:hidden",
-          mobileOpen ? "max-h-72 border-[var(--border)] bg-[var(--bg)]/95 backdrop-blur-xl" : "max-h-0 border-transparent",
+          mobileOpen
+            ? "visible max-h-72 border-[var(--border)] bg-[var(--bg)]/95 backdrop-blur-xl"
+            : "invisible max-h-0 border-transparent",
         ].join(" ")}
       >
         <Container className="flex flex-col gap-1 pb-4 pt-1">
