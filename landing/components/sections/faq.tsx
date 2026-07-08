@@ -44,7 +44,7 @@ const faqs = [
   {
     question: "How are updates delivered?",
     answer:
-      "Desktop updates are published to a Cloudflare-hosted release lane. macOS builds include the signed update metadata required for in-app update checks, while the Windows and Linux installers and packages are distributed from the same release host.",
+      "Desktop updates are published to a Cloudflare-hosted release lane. macOS builds include the signed update metadata required for in-app update checks, while the Windows installer is distributed from the same release host.",
   },
 ];
 

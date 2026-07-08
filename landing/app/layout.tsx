@@ -110,7 +110,7 @@ const softwareJsonLd = {
   "@type": "SoftwareApplication",
   name: "AgentCompany",
   applicationCategory: "BusinessApplication",
-  operatingSystem: "macOS, Windows, Linux",
+  operatingSystem: "macOS, Windows",
   url: "https://agent-company.dev",
   downloadUrl: "https://agent-company.dev/#download",
   screenshot: "https://agent-company.dev/images/dashboard.webp",
@@ -206,7 +206,7 @@ const faqJsonLd = {
       name: "How are updates delivered?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Desktop updates are published to a Cloudflare-hosted release lane. macOS builds include the signed update metadata required for in-app update checks, while Windows and Linux builds are delivered from the same release host for manual installation.",
+        text: "Desktop updates are published to a Cloudflare-hosted release lane. macOS builds include the signed update metadata required for in-app update checks, while the Windows build is delivered from the same release host for manual installation.",
       },
     },
   ],

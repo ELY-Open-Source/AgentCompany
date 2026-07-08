@@ -17,15 +17,14 @@ export const platformSupportSummary = buildPlatformSupportSummary(platformDownlo
 export function buildPlatformSupportSummary(downloads: PlatformDownload[]): PlatformSupportSummary {
   const macos = requirePlatform(downloads, "macos");
   const windows = requirePlatform(downloads, "windows");
-  const linux = requirePlatform(downloads, "linux");
 
   return {
     downloadAnswer:
       `Use the download section on this page to choose the build that matches your architecture and package format. ` +
-      `${formatDownloadSentence(macos)} ${formatDownloadSentence(windows)} ${formatDownloadSentence(linux)}`,
+      `${formatDownloadSentence(macos)} ${formatDownloadSentence(windows)}`,
     platformAnswer:
-      `AgentCompany is available on ${formatAvailability(macos)}, ${formatAvailability(windows)}, ` +
-      `and ${formatAvailability(linux)}. It is built with Electron and the desktop feature set stays aligned across all supported targets.`,
+      `AgentCompany is available on ${formatAvailability(macos)} and ${formatAvailability(windows)}. ` +
+      `It is built with Electron and the desktop feature set stays aligned across all supported targets.`,
   };
 }
 

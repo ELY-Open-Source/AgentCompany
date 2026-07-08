@@ -41,7 +41,7 @@ test("download links use the tracked endpoint and never expose R2 URLs", async (
   await scrollThrough(page);
 
   const tracked = page.locator('#download a[href^="/api/download?asset="]');
-  expect(await tracked.count()).toBeGreaterThanOrEqual(9);
+  expect(await tracked.count()).toBeGreaterThanOrEqual(3);
 
   // Real release URLs must stay behind the server-side redirect.
   expect(await page.locator('a[href*="r2.dev"]').count()).toBe(0);
