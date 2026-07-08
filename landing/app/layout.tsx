@@ -99,7 +99,7 @@ export const metadata: Metadata = {
 };
 
 const themeScript = `
-(function(){try{var t=localStorage.getItem("agentcompany-theme");if(t==="dark"||(!t&&window.matchMedia("(prefers-color-scheme:dark)").matches)){document.documentElement.classList.add("dark")}}catch(e){}})();
+(function(){document.documentElement.classList.add("js");try{var t=localStorage.getItem("agentcompany-theme");if(t==="dark"||(!t&&window.matchMedia("(prefers-color-scheme:dark)").matches)){document.documentElement.classList.add("dark")}}catch(e){}})();
 `;
 
 const softwareJsonLd = {

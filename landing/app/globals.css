@@ -179,17 +179,24 @@ body {
   animation: rise-enter 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
-/* Scroll-reveal primitive: hidden until IntersectionObserver marks it in view. */
+/*
+ * Scroll-reveal primitive. Progressive enhancement: content is visible by
+ * default and only starts hidden once the `js` class is present, so the page
+ * stays fully readable if scripts never run.
+ */
 .reveal {
-  opacity: 0;
-  transform: translateY(16px);
   transition:
     opacity 0.6s cubic-bezier(0.22, 1, 0.36, 1),
     transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
   transition-delay: var(--reveal-delay, 0ms);
 }
 
-.reveal[data-in-view="true"] {
+.js .reveal {
+  opacity: 0;
+  transform: translateY(16px);
+}
+
+.js .reveal[data-in-view="true"] {
   opacity: 1;
   transform: translateY(0);
 }
@@ -208,7 +215,7 @@ body {
     transition-duration: 0.01ms !important;
   }
 
-  .reveal {
+  .js .reveal {
     opacity: 1;
     transform: none;
   }
