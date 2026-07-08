@@ -1,11 +1,11 @@
 import { DownloadSection } from "../components/download-section";
-import { FAQ } from "../components/faq";
+import { FAQ } from "../components/sections/faq";
 import { Features } from "../components/sections/features";
 import { Footer } from "../components/footer";
 import { Hero } from "../components/sections/hero";
-import { HowItWorks } from "../components/how-it-works";
+import { HowItWorks } from "../components/sections/how-it-works";
 import { Navbar } from "../components/layout/navbar";
-import { RuntimesBar } from "../components/runtimes-bar";
+import { Runtimes } from "../components/sections/runtimes";
 
 export default function Page() {
   return (
@@ -21,7 +21,7 @@ export default function Page() {
 
       <main id="main">
         <Hero />
-        <RuntimesBar />
+        <Runtimes />
         <Features />
         <HowItWorks />
         <FAQ />

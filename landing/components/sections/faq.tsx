@@ -1,8 +1,11 @@
 "use client";
 
-import { motion } from "framer-motion";
 import { useState } from "react";
-import { platformSupportSummary } from "../lib/platform-support";
+import { Plus } from "reicon-react/icons/Plus";
+import { Container } from "../ui/container";
+import { Reveal } from "../ui/reveal";
+import { SectionHeading } from "../ui/section-heading";
+import { platformSupportSummary } from "../../lib/platform-support";
 
 const faqs = [
   {
@@ -45,65 +48,49 @@ const faqs = [
   },
 ];
 
-function FaqItem({ question, answer, index }: { question: string; answer: string; index: number }) {
+function FaqItem({ question, answer }: { question: string; answer: string }) {
   const [open, setOpen] = useState(false);
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, amount: 0.3 }}
-      transition={{ duration: 0.5, delay: 0.06 * index, ease: [0.16, 1, 0.3, 1] }}
-      className="border-b border-[var(--border)] last:border-b-0"
-    >
+    <div className="border-b border-[var(--border)]">
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
         aria-expanded={open}
-        className="flex w-full items-center justify-between gap-4 py-6 text-left transition-colors duration-200 hover:text-[var(--accent)]"
+        className="group flex w-full cursor-pointer items-center justify-between gap-4 py-5 text-left"
       >
-        <h3 className="text-base lg:text-lg font-semibold text-[var(--text)] pr-4">{question}</h3>
+        <span className="text-base font-medium tracking-tight text-[var(--text)] md:text-lg">{question}</span>
         <span
-          className={`shrink-0 text-[var(--muted)] transition-transform duration-300 ${open ? "rotate-45" : ""}`}
+          className={`shrink-0 text-[var(--muted)] transition-transform duration-300 group-hover:text-[var(--text)] ${open ? "rotate-45" : ""}`}
           aria-hidden="true"
         >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <line x1="12" y1="5" x2="12" y2="19" />
-            <line x1="5" y1="12" x2="19" y2="12" />
-          </svg>
+          <Plus size={20} />
         </span>
       </button>
-
-      <div className={`overflow-hidden transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${open ? "max-h-96 pb-6" : "max-h-0"}`}>
-        <p className="text-[var(--muted-strong)] leading-relaxed text-base pr-12">{answer}</p>
+      <div
+        className={`grid overflow-hidden transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${open ? "grid-rows-[1fr] pb-5" : "grid-rows-[0fr]"}`}
+      >
+        <div className="min-h-0">
+          <p className="max-w-[68ch] pr-8 leading-relaxed text-[var(--muted)]">{answer}</p>
+        </div>
       </div>
-    </motion.div>
+    </div>
   );
 }
 
 export function FAQ() {
   return (
-    <section id="faq" className="py-24 lg:py-40 px-4 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-3xl">
-        <motion.div
-          initial={{ opacity: 0, y: 30 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, amount: 0.3 }}
-          transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-          className="text-center mb-16 lg:mb-20"
-        >
-          <p className="font-mono text-xs font-medium uppercase tracking-[0.25em] text-[var(--accent)] mb-5">FAQ</p>
-          <h2 className="font-serif text-[clamp(2rem,1.5rem+2.5vw,3.25rem)] tracking-[-0.01em] text-[var(--text)]">
-            Frequently Asked Questions
-          </h2>
-        </motion.div>
-
-        <div className="border-t border-[var(--border)]">
-          {faqs.map((item, index) => (
-            <FaqItem key={item.question} question={item.question} answer={item.answer} index={index} />
+    <section id="faq" className="scroll-mt-20 py-20 md:py-28">
+      <Container>
+        <Reveal>
+          <SectionHeading eyebrow="FAQ" title="Frequently asked questions" align="center" className="mx-auto" />
+        </Reveal>
+        <Reveal delay={80} className="mx-auto mt-12 max-w-3xl border-t border-[var(--border)]">
+          {faqs.map((faq) => (
+            <FaqItem key={faq.question} question={faq.question} answer={faq.answer} />
           ))}
-        </div>
-      </div>
+        </Reveal>
+      </Container>
     </section>
   );
 }
