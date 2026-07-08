@@ -2,7 +2,7 @@
 export function IconMark({ size = 32 }: { size?: number }) {
   return (
     <img
-      src="/icon.png"
+      src="/icon.png?v=2"
       alt=""
       aria-hidden="true"
       width={size}
