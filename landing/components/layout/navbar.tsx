@@ -5,8 +5,8 @@ import { Menu } from "reicon-react/icons/Menu";
 import { Xmark } from "reicon-react/icons/Xmark";
 import { Container } from "../ui/container";
 import { Button } from "../ui/button";
-import { IconMark } from "../icon-mark";
-import { ThemeToggle } from "../theme-toggle";
+import { IconMark } from "../brand/icon-mark";
+import { ThemeToggle } from "../theme/theme-toggle";
 
 const navLinks = [
   { label: "Features", href: "#features" },

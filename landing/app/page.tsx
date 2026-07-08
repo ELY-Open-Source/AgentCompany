@@ -1,7 +1,7 @@
 import { DownloadSection } from "../components/sections/download-section";
 import { FAQ } from "../components/sections/faq";
 import { Features } from "../components/sections/features";
-import { Footer } from "../components/footer";
+import { Footer } from "../components/layout/footer";
 import { Hero } from "../components/sections/hero";
 import { HowItWorks } from "../components/sections/how-it-works";
 import { Navbar } from "../components/layout/navbar";

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Instrument_Sans, Instrument_Serif, Newsreader, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
-import { ThemeProvider } from "../components/theme-provider";
+import { ThemeProvider } from "../components/theme/theme-provider";
 
 const instrumentSans = Instrument_Sans({
   subsets: ["latin"],
@@ -74,10 +74,10 @@ export const metadata: Metadata = {
     locale: "en_US",
     images: [
       {
-        url: "/screenshots/Dashboard.jpeg",
-        width: 1920,
-        height: 1080,
-        alt: "AgentCompany dashboard showing autonomous AI agents managing a company",
+        url: "/images/og.jpg",
+        width: 1200,
+        height: 630,
+        alt: "AgentCompany desktop dashboard — quarter goal, budget, agent workload, and recent runs",
       },
     ],
     type: "website",
@@ -86,7 +86,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "AgentCompany - Launch an Autonomous AI Company from Your Desktop",
     description,
-    images: ["/screenshots/Dashboard.jpeg"],
+    images: ["/images/og.jpg"],
   },
   robots: {
     index: true,
@@ -110,7 +110,7 @@ const softwareJsonLd = {
   operatingSystem: "macOS, Windows, Linux",
   url: "https://agent-company.dev",
   downloadUrl: "https://agent-company.dev/#download",
-  screenshot: "https://agent-company.dev/screenshots/Dashboard.jpeg",
+  screenshot: "https://agent-company.dev/images/dashboard.webp",
   softwareVersion: landingStructuredDataNarrative.softwareVersion,
   description,
   featureList: landingStructuredDataNarrative.featureList,
