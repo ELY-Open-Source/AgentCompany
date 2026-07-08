@@ -16,6 +16,8 @@ mac:
   gatekeeperAssess: false
   entitlements: resources/entitlements.mac.plist
   entitlementsInherit: resources/entitlements.mac.plist
+  identity: "Yang Zhang (9PDD8M2SMS)"
+  notarize: true
   target:
     - target: dmg
       arch:
