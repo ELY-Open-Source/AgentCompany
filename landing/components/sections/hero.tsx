@@ -1,7 +1,7 @@
 import { Container } from "../ui/container";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
-import { MediaFrame } from "../ui/media-frame";
+import { ArtStage } from "../ui/art-stage";
 import { landingHeroNarrative } from "../../lib/product-narrative";
 
 export function Hero() {
@@ -52,25 +52,13 @@ export function Hero() {
           </p>
         </div>
 
-        <div className="enter-rise relative mt-14 md:mt-20" style={{ animationDelay: "0.3s" }}>
-          <div
-            aria-hidden="true"
-            className="pointer-events-none absolute -inset-x-8 -top-10 bottom-0"
-            style={{
-              filter: "blur(52px)",
-              background:
-                "radial-gradient(55% 45% at 50% 22%, var(--aurora-mint) 0%, transparent 70%)," +
-                "radial-gradient(45% 40% at 22% 65%, var(--aurora-teal) 0%, transparent 72%)," +
-                "radial-gradient(45% 42% at 80% 60%, var(--aurora-lime) 0%, transparent 72%)",
-            }}
+        <div className="enter-rise mt-14 md:mt-20" style={{ animationDelay: "0.3s" }}>
+          <ArtStage
+            src="/images/dashboard.webp"
+            alt="AgentCompany desktop dashboard showing the quarter goal, budget, agent workload, and recent runs"
+            priority
+            stageClassName="p-5 sm:p-8 md:p-12 lg:p-14"
           />
-          <div className="relative z-10">
-            <MediaFrame
-              src="/images/dashboard.webp"
-              alt="AgentCompany desktop dashboard showing the quarter goal, budget, agent workload, and recent runs"
-              priority
-            />
-          </div>
         </div>
       </Container>
     </section>

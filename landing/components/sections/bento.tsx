@@ -5,6 +5,7 @@ import { Container } from "../ui/container";
 import { Reveal } from "../ui/reveal";
 import { Eyebrow } from "../ui/eyebrow";
 import { SectionHeading } from "../ui/section-heading";
+import { ArtStage } from "../ui/art-stage";
 import { featureSections, type FeatureSection } from "../../lib/landing-content";
 
 // Explicit order + column spans so the cells pack into full 12-column rows.
@@ -39,17 +40,13 @@ function BentoCard({ feature, span }: { feature: FeatureSection; span: string })
         <h3 className="text-xl font-medium tracking-[-0.02em] text-[var(--text)]">{feature.title}</h3>
         <p className="max-w-[46ch] text-sm leading-relaxed text-[var(--muted)]">{feature.description}</p>
       </div>
-      <div className="relative mt-6 overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--panel-illustration)] shadow-[0_18px_50px_-24px_rgba(10,29,8,0.28)]">
-        <img
-          src={feature.image}
-          alt={feature.imageAlt}
-          width={2400}
-          height={1500}
-          loading="lazy"
-          decoding="async"
-          className="block aspect-[16/10] w-full object-cover object-top transition-transform duration-500 group-hover:scale-[1.02]"
-        />
-      </div>
+      <ArtStage
+        src={feature.image}
+        alt={feature.imageAlt}
+        className="mt-6"
+        stageClassName="flex aspect-[16/10] items-center justify-center p-4 sm:p-5"
+        contentClassName="max-h-full w-auto max-w-full object-contain transition-transform duration-500 group-hover:scale-[1.02]"
+      />
     </div>
   );
 }
