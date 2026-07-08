@@ -1,6 +1,7 @@
 import { Container } from "../ui/container";
 import { Reveal } from "../ui/reveal";
 import { Button } from "../ui/button";
+import { Aurora } from "../ui/aurora";
 import { IconMark } from "../brand/icon-mark";
 import { getTrackedDownloadHref } from "../../lib/downloads";
 import { CONTACT_EMAIL, WEBSITE_URL } from "../../lib/site-constants";
@@ -40,8 +41,9 @@ export function Footer() {
   const year = new Date().getFullYear();
 
   return (
-    <footer className="bg-[var(--footer-bg)] text-[var(--footer-text)]">
-      <Container>
+    <footer className="relative overflow-hidden bg-[var(--footer-bg)] text-[var(--footer-text)]">
+      <Aurora className="opacity-90" />
+      <Container className="relative">
         <div className="border-b border-white/10 py-24 text-center md:py-32">
           <Reveal>
             <h2 className="font-display text-[clamp(2.75rem,1.8rem+4vw,5.5rem)] leading-[1] tracking-[-0.02em]">

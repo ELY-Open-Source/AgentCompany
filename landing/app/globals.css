@@ -47,6 +47,9 @@
   --glow-warm: rgba(32, 59, 20, 0.05);
   --glow-accent: rgba(99, 143, 61, 0.06);
   --section-alt: rgba(32, 59, 20, 0.02);
+  --aurora-mint: rgba(94, 236, 151, 0.22);
+  --aurora-teal: rgba(45, 212, 191, 0.16);
+  --aurora-lime: rgba(137, 175, 84, 0.16);
 }
 
 /* ── Dark theme (Material-3 dark surfaces + mint primary) ── */
@@ -81,6 +84,9 @@
   --glow-warm: rgba(94, 236, 151, 0.05);
   --glow-accent: rgba(94, 236, 151, 0.04);
   --section-alt: rgba(94, 236, 151, 0.03);
+  --aurora-mint: rgba(94, 236, 151, 0.3);
+  --aurora-teal: rgba(45, 212, 191, 0.22);
+  --aurora-lime: rgba(137, 175, 84, 0.18);
 }
 
 /* ── Base ── */
@@ -199,6 +205,24 @@ body {
 .js .reveal[data-in-view="true"] {
   opacity: 1;
   transform: translateY(0);
+}
+
+/* ── Aurora: slow-drifting gradient light for dark showcase surfaces ── */
+@keyframes aurora-drift {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(-4%, 3%, 0) scale(1.12);
+  }
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+.aurora-layer {
+  animation: aurora-drift 20s ease-in-out infinite;
+  will-change: transform;
 }
 
 /* ── Reduced motion ── */

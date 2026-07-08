@@ -1,11 +1,12 @@
+import { Bento } from "../components/sections/bento";
 import { DownloadSection } from "../components/sections/download-section";
 import { FAQ } from "../components/sections/faq";
-import { Features } from "../components/sections/features";
 import { Footer } from "../components/layout/footer";
 import { Hero } from "../components/sections/hero";
 import { HowItWorks } from "../components/sections/how-it-works";
 import { Navbar } from "../components/layout/navbar";
 import { Runtimes } from "../components/sections/runtimes";
+import { Showcase } from "../components/sections/showcase";
 
 export default function Page() {
   return (
@@ -22,7 +23,8 @@ export default function Page() {
       <main id="main">
         <Hero />
         <Runtimes />
-        <Features />
+        <Bento />
+        <Showcase />
         <HowItWorks />
         <FAQ />
         <DownloadSection />
