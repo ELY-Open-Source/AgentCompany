@@ -5,7 +5,7 @@ import { Download } from "reicon-react/icons/Download";
 import { Container } from "../ui/container";
 import { Reveal } from "../ui/reveal";
 import { SectionHeading } from "../ui/section-heading";
-import { platformDownloads, releaseVersion } from "../release-links.generated";
+import { platformDownloads, releaseVersion } from "../../lib/release-links.generated";
 import { DOWNLOAD_COUNT_SEED, getTrackedDownloadHref } from "../../lib/downloads";
 
 export function DownloadSection() {

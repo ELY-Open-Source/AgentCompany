@@ -1,4 +1,4 @@
-import { releaseVersion } from "../components/release-links.generated";
+import { releaseVersion } from "./release-links.generated";
 
 export const landingHeroNarrative = {
   eyebrow: "AgentCompany Desktop",

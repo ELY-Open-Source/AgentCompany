@@ -3,7 +3,7 @@ import {
   type PlatformDownload,
   type PlatformDownloadAsset,
   type ReleaseArchitecture,
-} from "../components/release-links.generated";
+} from "./release-links.generated";
 
 const ARCHITECTURE_ORDER: ReleaseArchitecture[] = ["arm64", "x64", "x86"];
 

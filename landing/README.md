@@ -6,7 +6,7 @@ Next.js landing page for the AgentCompany desktop release lane.
 
 | Surface | Source |
 |---|---|
-| Download cards | `landing/components/release-links.generated.ts` |
+| Download cards | `landing/lib/release-links.generated.ts` |
 | Platform FAQ | `landing/lib/platform-support.ts` |
 | Hero, How It Works, software JSON-LD features | `landing/lib/product-narrative.ts` |
 | Runtime download URLs | generated from `scripts/generate-landing-release-links.mjs` |

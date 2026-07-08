@@ -1,11 +1,11 @@
-import { platformDownloads, type PlatformDownloadAsset } from "../components/release-links.generated";
+import { platformDownloads, type PlatformDownload, type PlatformDownloadAsset } from "./release-links.generated";
 
 export const DOWNLOAD_COUNT_SEED = 13674;
 export const DOWNLOAD_DEDUP_WINDOW_HOURS = 24;
 export const DOWNLOAD_DEDUP_WINDOW_MS = DOWNLOAD_DEDUP_WINDOW_HOURS * 60 * 60 * 1000;
 
 export type ReleaseDownloadAsset = PlatformDownloadAsset & {
-  platformId: "macos" | "windows" | "linux";
+  platformId: PlatformDownload["id"];
   platformTitle: string;
 };
 
