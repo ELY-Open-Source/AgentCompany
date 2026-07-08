@@ -1,4 +1,4 @@
-import { DownloadSection } from "../components/download-section";
+import { DownloadSection } from "../components/sections/download-section";
 import { FAQ } from "../components/sections/faq";
 import { Features } from "../components/sections/features";
 import { Footer } from "../components/footer";
