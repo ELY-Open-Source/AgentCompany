@@ -1,63 +1,86 @@
 @import "tailwindcss";
 
+/*
+ * AgentCompany landing — design system.
+ * Light theme is a faithful rendering of the adaline pebble/meadow palette
+ * (warm cream + dark green). Dark theme uses the matching Material-3 dark
+ * surfaces + mint primary. Components consume the CSS variables below, so the
+ * whole palette is defined once here.
+ */
+
 @theme {
-  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  --font-serif: "Space Grotesk", "Inter", ui-sans-serif, system-ui, sans-serif;
-  --font-mono: "Space Mono", ui-monospace, SFMono-Regular, monospace;
+  --font-sans: var(--font-instrument-sans), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  --font-serif: var(--font-newsreader), "Source Serif Pro", Georgia, "Times New Roman", serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+  --font-display: var(--font-instrument-serif), "Cormorant Garamond", Georgia, serif;
 }
 
-/* ── Light Theme (Cohere) ── */
+/* ── Light theme (pebble / meadow) ── */
 :root {
-  --bg: #ffffff;
-  --bg-subtle: #fafafa;
-  --panel: #ffffff;
-  --panel-soft: #fafafa;
-  --text: #000000;
-  --text-secondary: #212121;
-  --muted: #93939f;
-  --muted-strong: #565650;
-  --accent: #1863dc;
-  --accent-hover: #1352b8;
-  --accent-soft: rgba(24, 99, 220, 0.06);
-  --text-on-accent: #ffffff;
-  --cta: #000000;
-  --cta-hover: #212121;
-  --cta-soft: rgba(0, 0, 0, 0.04);
-  --text-on-cta: #ffffff;
-  --text-on-cta-muted: rgba(255, 255, 255, 0.75);
-  --text-on-cta-faint: rgba(255, 255, 255, 0.60);
-  --border: rgba(0, 0, 0, 0.06);
-  --border-cool: #d9d9dd;
-  --glow-warm: rgba(24, 99, 220, 0.04);
-  --glow-accent: rgba(24, 99, 220, 0.03);
-  --section-alt: rgba(0, 0, 0, 0.015);
+  --bg: #fbfdf6;
+  --bg-subtle: #f8f9f5;
+  --panel: #fdfefb;
+  --panel-soft: #f1f3ef;
+  --panel-illustration: #eff2e8;
+  --text: #0a1d08;
+  --text-secondary: #2e3b28;
+  --muted: #6b7860;
+  --muted-strong: #505c47;
+  --accent: #203b14;
+  --accent-hover: #13290e;
+  --accent-soft: #ecf2df;
+  --text-on-accent: #fbfdf6;
+  --cta: #203b14;
+  --cta-hover: #13290e;
+  --cta-soft: rgba(32, 59, 20, 0.06);
+  --text-on-cta: #fbfdf6;
+  --text-on-cta-muted: rgba(251, 253, 246, 0.75);
+  --text-on-cta-faint: rgba(251, 253, 246, 0.6);
+  --border: #e1e6df;
+  --border-strong: #c4cbc2;
+  --border-cool: #c4cbc2;
+  --band: #2a332a;
+  --band-text: #fbfdf6;
+  --band-border: rgba(253, 254, 251, 0.24);
+  --footer-bg: #050e11;
+  --footer-text: #fbfdf6;
+  --glow-warm: rgba(32, 59, 20, 0.05);
+  --glow-accent: rgba(99, 143, 61, 0.06);
+  --section-alt: rgba(32, 59, 20, 0.02);
 }
 
-/* ── Dark Theme (Cohere) ── */
+/* ── Dark theme (Material-3 dark surfaces + mint primary) ── */
 .dark {
-  --bg: #17171c;
-  --bg-subtle: #1e1e24;
-  --panel: #212126;
-  --panel-soft: #2a2a30;
-  --text: #fafafa;
-  --text-secondary: #d9d9dd;
-  --muted: #93939f;
-  --muted-strong: #b8b8b2;
-  --accent: #1863dc;
-  --accent-hover: #2070e8;
-  --accent-soft: rgba(24, 99, 220, 0.12);
-  --text-on-accent: #ffffff;
-  --cta: #fafafa;
-  --cta-hover: #e5e5e5;
-  --cta-soft: rgba(250, 250, 250, 0.06);
-  --text-on-cta: #17171c;
-  --text-on-cta-muted: rgba(23, 23, 28, 0.75);
-  --text-on-cta-faint: rgba(23, 23, 28, 0.60);
-  --border: rgba(250, 250, 250, 0.08);
-  --border-cool: #333338;
-  --glow-warm: rgba(24, 99, 220, 0.06);
-  --glow-accent: rgba(24, 99, 220, 0.04);
-  --section-alt: rgba(24, 99, 220, 0.025);
+  --bg: #131515;
+  --bg-subtle: #171b1c;
+  --panel: #1d2226;
+  --panel-soft: #20262a;
+  --panel-illustration: #1d2226;
+  --text: #d8e3dd;
+  --text-secondary: #b2c3bf;
+  --muted: #93a49e;
+  --muted-strong: #b2c3bf;
+  --accent: #5eec97;
+  --accent-hover: #4af58f;
+  --accent-soft: #1c4534;
+  --text-on-accent: #124627;
+  --cta: #5eec97;
+  --cta-hover: #4af58f;
+  --cta-soft: rgba(94, 236, 151, 0.1);
+  --text-on-cta: #124627;
+  --text-on-cta-muted: rgba(18, 70, 39, 0.75);
+  --text-on-cta-faint: rgba(18, 70, 39, 0.55);
+  --border: #2c343b;
+  --border-strong: #3b454f;
+  --border-cool: #3b454f;
+  --band: #0b1510;
+  --band-text: #d8e3dd;
+  --band-border: rgba(216, 227, 221, 0.2);
+  --footer-bg: #05090b;
+  --footer-text: #d8e3dd;
+  --glow-warm: rgba(94, 236, 151, 0.05);
+  --glow-accent: rgba(94, 236, 151, 0.04);
+  --section-alt: rgba(94, 236, 151, 0.03);
 }
 
 /* ── Base ── */
@@ -68,10 +91,16 @@ html {
 body {
   background-color: var(--bg);
   color: var(--text);
+  font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
-  line-height: 1.65;
+  line-height: 1.55;
+}
+
+.font-display {
+  font-family: var(--font-display);
+  font-variant-ligatures: common-ligatures discretionary-ligatures;
 }
 
 ::selection {
@@ -88,6 +117,13 @@ body {
   outline: none;
 }
 
+/* ── Eyebrow / small-caps mono label ── */
+.eyebrow {
+  font-family: var(--font-mono);
+  font-variant-caps: all-small-caps;
+  letter-spacing: 0.06em;
+}
+
 /* ── Scrollbar ── */
 ::-webkit-scrollbar {
   width: 6px;
@@ -99,7 +135,7 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--border);
+  background: var(--border-strong);
   border-radius: 3px;
 }
 
@@ -109,10 +145,56 @@ body {
 
 * {
   scrollbar-width: thin;
-  scrollbar-color: var(--border) transparent;
+  scrollbar-color: var(--border-strong) transparent;
 }
 
-/* ── Reduced Motion ── */
+/* ── Entrance + reveal motion (faithful to adaline: ease-out-quint) ── */
+@keyframes nav-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes rise-enter {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.enter-nav {
+  animation: nav-enter 0.52s cubic-bezier(0.22, 1, 0.36, 1) 0.1s both;
+}
+
+.enter-rise {
+  animation: rise-enter 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Scroll-reveal primitive: hidden until IntersectionObserver marks it in view. */
+.reveal {
+  opacity: 0;
+  transform: translateY(16px);
+  transition:
+    opacity 0.6s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+  transition-delay: var(--reveal-delay, 0ms);
+}
+
+.reveal[data-in-view="true"] {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* ── Reduced motion ── */
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;
@@ -124,5 +206,10 @@ body {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+  }
+
+  .reveal {
+    opacity: 1;
+    transform: none;
   }
 }
