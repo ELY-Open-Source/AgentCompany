@@ -127,12 +127,16 @@ export function buildConversations(input: {
   const items = input.spaces.map((space) => {
     const last = lastBySpace.get(space.id) ?? null;
     const isDirect = space.spaceType === "direct";
-    const counterpart = isDirect
-      ? resolveCounterpart(membersBySpace.get(space.id) ?? [], input)
-      : null;
+    const members = membersBySpace.get(space.id) ?? [];
+    const counterpart = isDirect ? resolveCounterpart(members, input) : null;
+    // Direct titles derive from the members' CURRENT names — the space name
+    // froze whatever they were called when the conversation was created, so
+    // renames would otherwise never reach the sidebar.
+    const liveNames = isDirect ? resolveMemberNames(members, input) : [];
+    const directTitle = counterpart?.name ?? (liveNames.length > 0 ? liveNames.join(" · ") : space.name);
     return {
       space,
-      title: isDirect && counterpart ? counterpart.name : space.name,
+      title: isDirect ? directTitle : space.name,
       isDirect,
       counterpart,
       preview: last ? `${senderName(last, context)}: ${previewText(last)}` : null,
@@ -141,6 +145,20 @@ export function buildConversations(input: {
     };
   });
   return items.sort((a, b) => b.lastActivityAt.localeCompare(a.lastActivityAt));
+}
+
+/** Current display names of a space's members, in membership order. */
+function resolveMemberNames(
+  members: ChatMembershipRecord[],
+  input: { employees: EmployeeRecord[]; agents: AgentRecord[] },
+): string[] {
+  return members
+    .map((member) => {
+      if (member.principalType === "agent") return input.agents.find((item) => item.id === member.principalId)?.name ?? null;
+      if (member.principalType === "employee") return input.employees.find((item) => item.id === member.principalId)?.displayName ?? null;
+      return null;
+    })
+    .filter((name): name is string => name !== null);
 }
 
 /**

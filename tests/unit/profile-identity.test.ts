@@ -62,6 +62,32 @@ describe("identity editing", () => {
     h.connection.close();
   });
 
+  test("rejects renaming or hiring into an existing active agent name", () => {
+    const h = harness();
+    h.connection.transaction(() => {
+      h.organization.createAgent({
+        orgId: h.orgId, name: "Dana Lee", role: "Engineer", department: "Engineering",
+        modelProviderId: null, modelId: null, budgetCents: 1000, managerAgentId: h.agentId,
+      });
+    });
+    // Hiring a second "Dana Lee" (any case) is ambiguous for mentions and DMs.
+    expect(() => h.organization.createAgent({
+      orgId: h.orgId, name: "dana lee", role: "Designer", department: "Design",
+      modelProviderId: null, modelId: null, budgetCents: 1000, managerAgentId: h.agentId,
+    })).toThrow("already exists");
+    // Renaming the CEO onto that name is equally ambiguous.
+    expect(() => h.organization.updateAgent({
+      orgId: h.orgId, agentId: h.agentId, name: "Dana Lee", role: "CEO", title: "CEO",
+      roleLevel: "c_suite", department: "Executive", budgetCents: 25000, modelProviderId: null, modelId: null,
+    })).toThrow("already exists");
+    // Saving without changing the name stays legal.
+    h.connection.transaction(() => h.organization.updateAgent({
+      orgId: h.orgId, agentId: h.agentId, name: "CEO", role: "CEO", title: "CEO",
+      roleLevel: "c_suite", department: "Executive", budgetCents: 25000, modelProviderId: null, modelId: null,
+    }));
+    h.connection.close();
+  });
+
   test("rejects blank names and malformed avatar colors", () => {
     const h = harness();
     const base = {

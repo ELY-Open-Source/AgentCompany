@@ -754,7 +754,13 @@ describe("chat governance", () => {
       });
       employeeId = (connection.db.prepare("select id from employees where org_id = ?").get(orgId) as { id: string }).id;
       organization.createAgent({ orgId, name: "Ada", role: "Reviewer", department: "Engineering", modelProviderId: null, modelId: null, budgetCents: 10000, managerAgentId: null });
-      organization.createAgent({ orgId, name: "Ada", role: "Release lead", department: "Engineering", modelProviderId: null, modelId: null, budgetCents: 10000, managerAgentId: null });
+      // The front door refuses duplicate names outright...
+      expect(() => organization.createAgent({ orgId, name: "ada", role: "Release lead", department: "Engineering", modelProviderId: null, modelId: null, budgetCents: 10000, managerAgentId: null }))
+        .toThrow("already exists");
+      // ...but a legacy database may already carry duplicates; mentions must
+      // still refuse to guess between them.
+      const secondId = organization.createAgent({ orgId, name: "Ada Backup", role: "Release lead", department: "Engineering", modelProviderId: null, modelId: null, budgetCents: 10000, managerAgentId: null });
+      connection.db.prepare("update agents set name = 'Ada' where id = ?").run(secondId);
       spaceId = chat.createSpace({ orgId, spaceType: "project", name: "release", topic: "Release coordination", visibility: "workspace" });
     });
 

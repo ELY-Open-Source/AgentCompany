@@ -86,12 +86,46 @@ describe("built-in skills", () => {
     expect(humanizer?.manifest.description).toContain("AI-generated writing");
 
     const first = h.connection.transaction(() => importStagedSkills(h.skills, h.orgId, staged));
-    expect(first).toMatchObject({ imported: 2, skipped: 0, failures: [] });
+    expect(first).toMatchObject({ imported: 2, skipped: 0, retired: 0, failures: [] });
     const second = h.connection.transaction(() => importStagedSkills(h.skills, h.orgId, staged));
-    expect(second).toMatchObject({ imported: 0, skipped: 2 });
+    expect(second).toMatchObject({ imported: 0, skipped: 2, retired: 0 });
     const slugs = (h.connection.db.prepare("select slug from skill_definitions where org_id = ? order by slug").all(h.orgId) as Array<{ slug: string }>)
       .map((row) => row.slug);
     expect(slugs).toEqual(["engineering-backend-architect", "humanizer"]);
+    h.connection.close();
+  });
+
+  test("legacy catalogue entries retire so every install mirrors the bundle, while their bindings keep working", () => {
+    const h = harness();
+    const staged = stageBuiltinSkillsLibrary(h.sourceRoot, h.libraryRoot);
+    h.connection.transaction(() => importStagedSkills(h.skills, h.orgId, staged));
+
+    // A relic of the old ~/.agents import: active, not in the bundle, bound.
+    let agentId = "";
+    h.connection.transaction(() => {
+      const now = new Date().toISOString();
+      h.connection.db.prepare(`
+        insert into skill_definitions(id, org_id, slug, name, owner_type, status, created_at)
+        values ('skl_legacy', ?, 'legacy-tool', 'Legacy Tool', 'organization', 'active', ?)
+      `).run(h.orgId, now);
+      h.connection.db.prepare(`
+        insert into skill_revisions(id, skill_id, version_semver, manifest_json, source_type, source_ref, published_at, immutable_checksum)
+        values ('skr_legacy', 'skl_legacy', '1.0.0', '{"name":"Legacy Tool","requiredTools":[]}', 'local_directory', '/old', ?, 'sum')
+      `).run(now);
+      agentId = h.organization.createAgent({
+        orgId: h.orgId, name: "Ada", role: "Engineer", department: "Engineering",
+        modelProviderId: null, modelId: null, budgetCents: 1000, managerAgentId: null,
+      });
+      h.skills.bind({ orgId: h.orgId, agentId, skillId: "skl_legacy", revisionId: "skr_legacy" });
+    });
+
+    const report = h.connection.transaction(() => importStagedSkills(h.skills, h.orgId, staged));
+    expect(report.retired).toBe(1);
+    const legacy = h.connection.db.prepare("select status from skill_definitions where id = 'skl_legacy'").get() as { status: string };
+    expect(legacy.status).toBe("retired");
+    const builtinStatuses = (h.connection.db.prepare("select status from skill_definitions where org_id = ? and id <> 'skl_legacy'").all(h.orgId) as Array<{ status: string }>)
+      .map((row) => row.status);
+    expect(new Set(builtinStatuses)).toEqual(new Set(["active"]));
     h.connection.close();
   });
 

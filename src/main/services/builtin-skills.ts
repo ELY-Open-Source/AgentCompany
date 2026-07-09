@@ -29,6 +29,8 @@ export interface StagedBuiltinSkill {
 export interface BuiltinSkillSyncReport {
   imported: number;
   skipped: number;
+  /** Active skills retired because the bundle no longer carries their slug. */
+  retired: number;
   failures: string[];
 }
 
@@ -57,12 +59,24 @@ export function stageBuiltinSkillsLibrary(sourceRoot: string, libraryRoot: strin
     }
     staged.push(...stageCategorySkills(sourceDir, libraryRoot, seen));
   }
+  // A bundle without the forced house-style skill is a broken install, not a
+  // small catalogue. Failing here keeps the import (and the mirror-retire
+  // pass) from wiping a healthy org catalogue against an empty directory.
+  if (!seen.has("humanizer")) {
+    throw new Error(`Built-in skills bundle at ${sourceRoot} is missing the humanizer skill - refusing to sync a broken bundle.`);
+  }
   return staged;
 }
 
-/** Publishes every staged skill the org does not already carry. */
+/**
+ * Makes the org catalogue mirror the bundle: publishes every staged skill
+ * the org does not carry yet, then retires active skills whose slug the
+ * bundle no longer ships (legacy ~/.agents imports, removed skills).
+ * Existing bindings pin revisions directly and keep working; retired skills
+ * simply leave list_skills and stop being grantable.
+ */
 export function importStagedSkills(skills: SkillService, orgId: string, staged: StagedBuiltinSkill[]): BuiltinSkillSyncReport {
-  const report: BuiltinSkillSyncReport = { imported: 0, skipped: 0, failures: [] };
+  const report: BuiltinSkillSyncReport = { imported: 0, skipped: 0, retired: 0, failures: [] };
   for (const unit of staged) {
     try {
       if (skills.hasSkill(orgId, unit.slug)) {
@@ -75,6 +89,7 @@ export function importStagedSkills(skills: SkillService, orgId: string, staged: 
       report.failures.push(`${unit.slug}: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
+  report.retired = skills.retireSkillsNotIn(orgId, staged.map((unit) => unit.slug)).length;
   return report;
 }
 

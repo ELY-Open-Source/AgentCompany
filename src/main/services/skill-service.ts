@@ -48,6 +48,34 @@ export class SkillService {
     return Boolean(this.db.prepare("select id from skill_definitions where org_id = ? and slug = ?").get(orgId, slug));
   }
 
+  /**
+   * Retires every active skill whose slug is not in `keepSlugs`, so the org
+   * catalogue mirrors the shipped bundle. Bindings pin revisions directly
+   * and keep resolving; retired skills leave list_skills and cannot be
+   * granted anew. Returns the retired slugs.
+   */
+  retireSkillsNotIn(orgId: string, keepSlugs: string[]): string[] {
+    const keep = new Set(keepSlugs);
+    const active = this.db.prepare("select id, slug from skill_definitions where org_id = ? and status = 'active'")
+      .all(orgId) as Array<{ id: string; slug: string }>;
+    const retired: string[] = [];
+    for (const skill of active) {
+      if (keep.has(skill.slug)) continue;
+      this.db.prepare("update skill_definitions set status = 'retired' where id = ?").run(skill.id);
+      this.audit.record({
+        orgId,
+        entityType: "skill_definition",
+        entityId: skill.id,
+        actorType: "system",
+        actorId: null,
+        action: "retired",
+        payload: { slug: skill.slug, reason: "not_in_builtin_bundle" },
+      });
+      retired.push(skill.slug);
+    }
+    return retired;
+  }
+
   importManifest(orgId: string, directoryPath: string, manifest: SkillManifest, explicitSlug?: string): string {
     const slug = explicitSlug ?? slugify(manifest.name);
     if (!slug) throw new Error("Skill name could not be derived.");

@@ -76,6 +76,7 @@ export class OrganizationService {
 
   createAgent(input: CreateAgentInput): string {
     assertUsableMentionName(input.name);
+    this.assertAgentNameAvailable(input.orgId, input.name, null);
     const hiringPolicy = this.governance.enforceHiringPolicy(input);
     const id = createId("agt");
     const now = new Date().toISOString();
@@ -154,7 +155,10 @@ export class OrganizationService {
     if (!role) throw new Error("Agent role is required.");
     const name = input.name === undefined ? agent.name : input.name.trim();
     if (!name) throw new Error("Agent name is required.");
-    if (name !== agent.name) assertUsableMentionName(name);
+    if (name !== agent.name) {
+      assertUsableMentionName(name);
+      this.assertAgentNameAvailable(input.orgId, name, input.agentId);
+    }
     if (input.modelProviderId) {
       const provider = this.db.prepare("select id from providers where id = ? and org_id = ?")
         .get(input.modelProviderId, input.orgId) as { id: string } | undefined;
@@ -328,6 +332,19 @@ export class OrganizationService {
       .get(projectId, orgId) as { goal_id: string | null } | undefined;
     if (!project) throw new Error("Project was not found.");
     if (goalId && project.goal_id !== goalId) throw new Error("Project is linked to a different goal.");
+  }
+
+  /**
+   * Agent names are identities: @mentions, DM routing, and task assignment
+   * all resolve by name, so two active agents must never share one.
+   */
+  private assertAgentNameAvailable(orgId: string, name: string, exceptAgentId: string | null): void {
+    const clash = this.db.prepare(`
+      select id from agents
+      where org_id = ? and lifecycle = 'active' and lower(name) = lower(?) and (? is null or id <> ?)
+      limit 1
+    `).get(orgId, name.trim(), exceptAgentId, exceptAgentId) as { id: string } | undefined;
+    if (clash) throw new Error(`An active agent named "${name.trim()}" already exists. Pick a different name.`);
   }
 
   private addAgentToWorkspaceSpaces(orgId: string, agentId: string): void {
