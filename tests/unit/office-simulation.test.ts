@@ -239,6 +239,30 @@ describe("office simulation", () => {
     expect(sim.whip("nobody")).toBe(false);
   });
 
+  test("every whip strike plays a crack and a flinch, wherever the target is", () => {
+    const sim = new OfficeSimulation(() => 0);
+    sim.sync([agentInput("a")]);
+    const agent = sim.agents[0];
+
+    // Struck at the desk: no discipline effect, but the animation still fires.
+    expect(sim.whip("a")).toBe(false);
+    expect(agent.behavior.kind).toBe("seated");
+    expect(agent.hitReactMs).toBeGreaterThan(0);
+    expect(sim.effects).toHaveLength(1);
+    expect(sim.effects[0]).toMatchObject({ x: agent.x, ageMs: 0 });
+
+    // A second strike stacks another crack; a missing target adds nothing.
+    sim.whip("a");
+    expect(sim.effects).toHaveLength(2);
+    sim.whip("nobody");
+    expect(sim.effects).toHaveLength(2);
+
+    // Both the crack flash and the flinch drain away with time.
+    for (let i = 0; i < 50; i++) sim.step(16, IDLE);
+    expect(sim.effects).toHaveLength(0);
+    expect(agent.hitReactMs).toBe(0);
+  });
+
   test("clicks hit the agent drawn at that spot, frontmost first", () => {
     const sim = new OfficeSimulation();
     sim.sync([agentInput("a"), agentInput("b")]);

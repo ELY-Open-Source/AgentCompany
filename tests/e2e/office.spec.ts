@@ -22,6 +22,10 @@ test("the office floor opens agent details on click", async () => {
 
   try {
     const page = await app.firstWindow();
+    // The office renders in a rAF loop; a throwing frame (e.g. a broken
+    // effect draw) surfaces only as a page error, so collect them.
+    const pageErrors: string[] = [];
+    page.on("pageerror", (error) => pageErrors.push(error.message));
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.getByRole("button", { name: "Get started" }).click();
     await page.getByLabel("API key").fill("office-e2e-key");
@@ -93,6 +97,9 @@ test("the office floor opens agent details on click", async () => {
     await expect(whip).toHaveAttribute("aria-pressed", "true");
     await page.mouse.click(clickX, clickY);
     await expect(page.getByRole("dialog", { name: /Agent / })).not.toBeVisible();
+    // Let the crack flash and flinch play out a few frames - a throwing
+    // effect draw would land in pageErrors and fail the final assertion.
+    await page.waitForTimeout(700);
     await page.keyboard.press("Escape");
     await expect(whip).toHaveAttribute("aria-pressed", "false");
 
@@ -118,6 +125,8 @@ test("the office floor opens agent details on click", async () => {
     const outDir = resolve("test-results/screenshots");
     mkdirSync(outDir, { recursive: true });
     await page.screenshot({ path: join(outDir, "19-office-populated.png"), fullPage: false });
+
+    expect(pageErrors).toEqual([]);
   } finally {
     await app.close();
   }

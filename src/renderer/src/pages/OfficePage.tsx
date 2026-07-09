@@ -156,6 +156,7 @@ export function OfficePage({ snapshot }: PageProps) {
         facing: agent.facing,
         walkPhase: agent.walkPhase,
         carrying: agent.carrying,
+        hitReactMs: agent.hitReactMs,
       }));
       if (sim.player) {
         people.push({
@@ -172,9 +173,10 @@ export function OfficePage({ snapshot }: PageProps) {
           facing: sim.player.facing,
           walkPhase: sim.player.walkPhase,
           carrying: null,
+          hitReactMs: 0,
         });
       }
-      renderOffice(ctx, viewW, viewH, sim.plan, camera, people, now, new Date(), selectedIdRef.current);
+      renderOffice(ctx, viewW, viewH, sim.plan, camera, people, now, new Date(), selectedIdRef.current, sim.effects);
 
       // The detail card rides beside its agent, even while they walk.
       const cardBox = cardBoxRef.current;

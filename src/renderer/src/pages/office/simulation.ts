@@ -1,5 +1,5 @@
 import { buildFloorPlan, findPath, rectContains } from "./floor-plan";
-import type { AmenitySpot, Camera, FloorPlan, OfficeAgentInput, Rect, RoomKind, Vec } from "./office-types";
+import { HIT_REACT_MS, WHIP_CRACK_MS, type AmenitySpot, type Camera, type FloorPlan, type OfficeAgentInput, type Rect, type RoomKind, type Vec, type WhipCrackEffect } from "./office-types";
 import { appearanceFor, type Carrying, type Facing, type SpriteAppearance } from "./sprites";
 
 export type AgentBehavior =
@@ -23,6 +23,8 @@ export interface AgentSim {
   settledMs: number;
   /** While positive, the agent hustles (a whip crack sent them home). */
   hustleMs: number;
+  /** While positive, the agent flinches from a whip strike. */
+  hitReactMs: number;
 }
 
 export interface PlayerSim {
@@ -72,6 +74,8 @@ export class OfficeSimulation {
   plan: FloorPlan;
   agents: AgentSim[] = [];
   player: PlayerSim | null = null;
+  /** Transient whip-crack flashes, aged by step() and dropped when spent. */
+  effects: WhipCrackEffect[] = [];
   private openDeskDemand = -1;
   private readonly random: () => number;
 
@@ -112,11 +116,16 @@ export class OfficeSimulation {
     const dt = Math.min(dtMs, MAX_STEP_MS);
     if (this.player) this.stepPlayer(this.player, dt, input);
     for (const agent of this.agents) this.stepAgent(agent, dt);
+    if (this.effects.length > 0) {
+      for (const effect of this.effects) effect.ageMs += dt;
+      this.effects = this.effects.filter((effect) => effect.ageMs < WHIP_CRACK_MS);
+    }
     if (this.random() < dt / MEAN_MEETING_INTERVAL_MS) this.conveneMeeting();
   }
 
   private stepAgent(agent: AgentSim, dt: number): void {
     if (agent.hustleMs > 0) agent.hustleMs = Math.max(0, agent.hustleMs - dt);
+    if (agent.hitReactMs > 0) agent.hitReactMs = Math.max(0, agent.hitReactMs - dt);
     if (agent.carryRemainingMs > 0) {
       agent.carryRemainingMs -= dt;
       if (agent.carryRemainingMs <= 0) {
@@ -260,14 +269,17 @@ export class OfficeSimulation {
   }
 
   /**
-   * Cracks the whip at an agent. Slacking in the snack bar or restroom sends
-   * them hustling back to their desk (snack abandoned); agents at their desk,
-   * in the CEO office, or in a meeting are working and stay untouched.
-   * Returns true when the whip connected.
+   * Cracks the whip at an agent. The crack flash and the target's flinch
+   * play wherever the strike lands — desk, corridor, anywhere. Only slackers
+   * in the snack bar or restroom are additionally sent hustling back to
+   * their desk (snack abandoned); agents at their desk, in the CEO office,
+   * or in a meeting keep working. Returns true when someone was sent home.
    */
   whip(agentId: string): boolean {
     const agent = this.agents.find((candidate) => candidate.input.id === agentId);
     if (!agent) return false;
+    this.effects.push({ x: agent.x, y: agent.y - 18, ageMs: 0 });
+    agent.hitReactMs = HIT_REACT_MS;
     const room = this.roomAt({ x: agent.x, y: agent.y });
     if (room !== "snack" && room !== "restroom") return false;
     agent.carrying = null;
@@ -364,6 +376,7 @@ export class OfficeSimulation {
         carryRemainingMs: prev?.carryRemainingMs ?? 0,
         settledMs: prev?.settledMs ?? 0,
         hustleMs: prev?.hustleMs ?? 0,
+        hitReactMs: prev?.hitReactMs ?? 0,
       };
       if (planRebuilt && prev && (agent.x !== seat.x || agent.y !== seat.y)) {
         this.sendHome(agent);
