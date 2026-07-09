@@ -16,7 +16,7 @@ export type PlatformDownload = {
   assets: PlatformDownloadAsset[];
 };
 
-export const releaseVersion = "1.0.0";
+export const releaseVersion = "1.1.0";
 
 export const platformDownloads: PlatformDownload[] = [
   {
@@ -30,14 +30,14 @@ export const platformDownloads: PlatformDownload[] = [
         id: "macos-arm64-dmg",
         label: "Apple Silicon DMG",
         href: "https://pub-a19a3a2c1d2e4fa3a9c120b184024448.r2.dev/AC/AgentCompany-1.0.0-arm64.dmg",
-        note: "arm64",
+        note: "arm64 · v1.0.0",
       },
       {
         architectures: ["x64"],
         id: "macos-x64-dmg",
         label: "Intel Mac DMG",
         href: "https://pub-a19a3a2c1d2e4fa3a9c120b184024448.r2.dev/AC/AgentCompany-1.0.0.dmg",
-        note: "x64",
+        note: "x64 · v1.0.0",
       },
     ],
   },
@@ -51,8 +51,8 @@ export const platformDownloads: PlatformDownload[] = [
         architectures: ["x64"],
         id: "windows-x64-installer",
         label: "Windows Installer (x64)",
-        href: "https://pub-a19a3a2c1d2e4fa3a9c120b184024448.r2.dev/AC/AgentCompany-1.0.0-x64.exe",
-        note: "x64",
+        href: "https://pub-a19a3a2c1d2e4fa3a9c120b184024448.r2.dev/AC/AgentCompany-1.1.0-x64.exe",
+        note: "x64 · v1.1.0",
       },
     ],
   },
