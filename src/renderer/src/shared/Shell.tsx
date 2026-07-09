@@ -137,7 +137,7 @@ export function Shell({
             <span className="topbar-actions-slot" ref={setActionsSlot} />
             <button
               type="button"
-              className={`autopause-toggle ${snapshot.autonomousPaused ? "paused" : ""}`.trim()}
+              className={`button ${snapshot.autonomousPaused ? "autopause-paused" : ""}`.trim()}
               aria-pressed={snapshot.autonomousPaused}
               title={snapshot.autonomousPaused
                 ? t("Agents are paused: no new runs start until you resume. Click to resume.")
