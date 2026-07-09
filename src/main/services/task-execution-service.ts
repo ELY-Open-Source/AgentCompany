@@ -67,6 +67,8 @@ export class TaskExecutionService {
   private quotaBlockedProviders = new Map<string, string>();
   /** Providers parked after a transient failure (usage/rate limit, overload): id -> park state. */
   private providerCooldowns = new Map<string, { until: number; label: string }>();
+  /** Tasks already logged as budget-spent, so the park is announced once, not every 5s tick. */
+  private spentTasksLogged = new Set<string>();
 
   constructor(
     private readonly db: DatabaseSync,
@@ -174,6 +176,7 @@ export class TaskExecutionService {
             managerName: this.agentName(orgId, agent.manager_agent_id),
             chatContext,
             inboxContext,
+            priorCompletedRuns: this.completedRunCount(task.id, runId),
           }),
           toolContext,
           externalTools,
@@ -309,10 +312,13 @@ export class TaskExecutionService {
   }
 
   /**
-   * Heartbeat: enqueues one run per actionable assigned task of a
-   * heartbeat-enabled agent with an enabled provider that has not run yet, so
-   * CEO-delegated work starts on its own. Each task is enqueued at most once
-   * (guarded by existing runs), preventing runaway re-execution.
+   * Heartbeat: keeps every open assigned task of a heartbeat-enabled agent
+   * moving. A task is enqueued whenever it has no run in flight and its
+   * status is still open — a completed run that left the task open gets a
+   * follow-up session (the prompt carries the prior-run count), because a
+   * task is finished when it reaches done, not when a run happens to end.
+   * The retry budget bounds this: at most TASK_RETRY_BUDGET non-transient
+   * runs per task, then it parks for a human or manager to intervene.
    *
    * Three rules keep the loop self-healing when a provider stops serving:
    * tasks on a provider over its monthly window are parked (not enqueued into
@@ -335,7 +341,7 @@ export class TaskExecutionService {
         and a.lifecycle = 'active'
         and p.enabled = 1
         and coalesce(u.request_count, 0) < p.monthly_request_limit
-        and not exists (select 1 from task_runs r where r.task_id = t.id and r.state in ('queued', 'running', 'completed'))
+        and not exists (select 1 from task_runs r where r.task_id = t.id and r.state in ('queued', 'running'))
     `).all(window.start) as Array<{ task_id: string; org_id: string; provider_id: string }>;
     this.observeQuotaBlocks(window.start);
     const cooling = new Set(this.cooledProviderIds());
@@ -345,7 +351,10 @@ export class TaskExecutionService {
       if (cooling.has(row.provider_id)) continue;
       const attempts = (attemptMessages.all(row.task_id) as Array<{ error_message: string | null }>)
         .filter((run) => !isTransientProviderFailure(run.error_message)).length;
-      if (attempts >= TASK_RETRY_BUDGET) continue;
+      if (attempts >= TASK_RETRY_BUDGET) {
+        this.observeSpentTask(row.task_id);
+        continue;
+      }
       try {
         created.push(this.enqueueRun(row.org_id, row.task_id));
       } catch {
@@ -353,6 +362,18 @@ export class TaskExecutionService {
       }
     }
     return created;
+  }
+
+  /**
+   * A task that spent its whole retry budget without reaching done parks
+   * silently otherwise — one log line makes the stall diagnosable from the
+   * main-process log instead of looking like an idle queue.
+   */
+  private observeSpentTask(taskId: string): void {
+    if (this.spentTasksLogged.has(taskId)) return;
+    this.spentTasksLogged.add(taskId);
+    const task = this.db.prepare("select title from tasks where id = ?").get(taskId) as { title: string } | undefined;
+    console.warn(`[task-queue] task "${task?.title ?? taskId}" spent its ${TASK_RETRY_BUDGET}-run budget without reaching done; it stays parked until someone closes or reassigns it.`);
   }
 
   /**
@@ -493,6 +514,12 @@ export class TaskExecutionService {
     return {
       transcript: messages.reverse().map((m) => `[${m.sender_name} in #${m.channel_name}]: ${m.body_md}`).join("\n"),
     };
+  }
+
+  private completedRunCount(taskId: string, excludingRunId: string): number {
+    const row = this.db.prepare("select count(*) as n from task_runs where task_id = ? and state = 'completed' and id <> ?")
+      .get(taskId, excludingRunId) as { n: number };
+    return row.n;
   }
 
   private agentHasReports(orgId: string, agentId: string): boolean {

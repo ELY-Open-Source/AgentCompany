@@ -22,7 +22,7 @@ function call(name: string, args: Record<string, unknown>): ToolCall {
   return { id: `call_${randomUUID()}`, name, arguments: args };
 }
 
-/** Scripts the CEO: staff two reports, delegate work, hand off the file in chat, then stop. */
+/** Scripts the CEO: staff two reports, delegate work, hand off the file in chat, close the kickoff, then stop. */
 function scriptedCeo(): (input: ProviderToolTurnInput) => Promise<AgentTurnResult> {
   const script: Array<{ text: string; toolCalls: ToolCall[] }> = [
     { text: "Staffing.", toolCalls: [
@@ -36,6 +36,7 @@ function scriptedCeo(): (input: ProviderToolTurnInput) => Promise<AgentTurnResul
       call("write_deliverable", { path: "plan/operating-plan.md", content: "# OrbitOps Operating Plan\n\n- Validate demand\n- Launch booking site\n" }),
     ] },
     { text: "Handing off the plan.", toolCalls: [] },
+    { text: "Closing the kickoff.", toolCalls: [] },
     { text: "Team staffed, work delegated, plan written.", toolCalls: [] },
   ];
   let index = 0;
@@ -52,6 +53,17 @@ function scriptedCeo(): (input: ProviderToolTurnInput) => Promise<AgentTurnResul
             attachment_file_ids: [fileId],
           }),
         ],
+        rawResponseJson: JSON.stringify({ id: `resp_${index}` }),
+      };
+    }
+    if (index === 4) {
+      // The prompt carries the task id so the agent can actually close its task.
+      const firstUser = input.messages.find((message) => message.role === "user");
+      const taskId = firstUser ? /Task id: (\S+)/.exec(firstUser.text)?.[1] : undefined;
+      index += 1;
+      return {
+        text: "Closing the kickoff.",
+        toolCalls: taskId ? [call("update_task_status", { task_id: taskId, status: "done" })] : [],
         rawResponseJson: JSON.stringify({ id: `resp_${index}` }),
       };
     }
@@ -150,6 +162,11 @@ describe("autonomous bootstrap run", () => {
     const run = state.taskRuns.find((r) => r.id === claimed!.id);
     expect(run?.state).toBe("completed");
 
+    // The CEO closed the kickoff task using the task id the prompt carries.
+    const kickoffTask = connection.db.prepare("select status from tasks where id = (select task_id from task_runs where id = ?)")
+      .get(claimed!.id) as { status: string };
+    expect(kickoffTask).toEqual({ status: "done" });
+
     // Stage 4 heartbeat: the CEO-delegated task (assigned to a hired, heartbeat-enabled
     // agent, with no run yet) is enqueued exactly once for autonomous execution.
     const enqueued = taskExecution.enqueueHeartbeatRuns();
@@ -166,11 +183,26 @@ describe("autonomous bootstrap run", () => {
 
   test("a goal created after onboarding reaches the CEO and runs autonomously", async () => {
     const connection = new DatabaseConnection(join(tmpdir(), `ac-goal-${randomUUID()}.db`));
-    const providers = new ProviderService(connection.db, providerAdapters, testVault, undefined, async () => ({
-      text: "Reviewed the goal and posted the operating plan.",
-      toolCalls: [],
-      rawResponseJson: JSON.stringify({ id: "resp_goal" }),
-    }));
+    // A minimal well-behaved agent: does its session, closes its task, then stops.
+    const providers = new ProviderService(connection.db, providerAdapters, testVault, undefined, async (input: ProviderToolTurnInput) => {
+      const firstUser = input.messages.find((message) => message.role === "user");
+      const taskId = firstUser && firstUser.role === "user" ? /Task id: (\S+)/.exec(firstUser.text)?.[1] : undefined;
+      const alreadyClosed = input.messages.some(
+        (message) => message.role === "tool" && message.results.some((result) => result.toolName === "update_task_status"),
+      );
+      if (taskId && !alreadyClosed) {
+        return {
+          text: "Reviewed the goal; closing the kickoff.",
+          toolCalls: [call("update_task_status", { task_id: taskId, status: "done" })],
+          rawResponseJson: JSON.stringify({ id: "resp_goal_close" }),
+        };
+      }
+      return {
+        text: "Reviewed the goal and posted the operating plan.",
+        toolCalls: [],
+        rawResponseJson: JSON.stringify({ id: "resp_goal" }),
+      };
+    });
     const onboarding = new OnboardingService({ db: connection.db, saveProviderCredential: (input) => providers.saveCredential(input) });
     const organization = new OrganizationService(connection.db);
     const taskExecution = new TaskExecutionService(connection.db, providers);

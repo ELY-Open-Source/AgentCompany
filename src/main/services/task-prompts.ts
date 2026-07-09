@@ -165,11 +165,14 @@ export function buildTaskPrompt(input: {
   managerName: string | null;
   chatContext: ChatContextBlock | null;
   inboxContext: InboxContextBlock | null;
+  /** Completed runs this task already spent without reaching done. */
+  priorCompletedRuns: number;
 }): string {
   const lines = [
     "Execute this AgentCompany task.",
     "",
     `Task: ${input.task.title}`,
+    `Task id: ${input.task.id}`,
     `Description: ${input.task.description}`,
     `Status: ${input.task.status}`,
     `Priority: ${input.task.priority}`,
@@ -223,17 +226,23 @@ export function buildTaskPrompt(input: {
       "Respond to anyone above who needs your input before starting the task.",
     );
   }
+  if (input.priorCompletedRuns > 0) {
+    lines.push(
+      "",
+      `This task already spent ${input.priorCompletedRuns} completed run(s) without being closed. Check read_messages and the existing deliverables first, continue from where the last run stopped instead of redoing finished work, and if the work is actually complete just close the task.`,
+    );
+  }
   if (input.isManager && !input.hasReports) {
     lines.push(
       "",
-      "Your team is currently empty. Hire 3-5 direct reports for the roles this goal needs (hire_agent), create and assign their first tasks (create_task), and write the initial operating plan into the workspace (write_deliverable). Then use send_message with /handoff @Name and attachment_file_ids to pass the operating plan to the relevant report. Brief EACH report in a direct message (send_message with to=\"Their Name\") about the work you assigned them — note the thread_id each returns so you can follow up in the same conversation. Post one company-wide kickoff to the #general channel. Then summarize.",
+      `Your team is currently empty. Hire 3-5 direct reports for the roles this goal needs (hire_agent), create and assign their first tasks (create_task), and write the initial operating plan into the workspace (write_deliverable). Then use send_message with /handoff @Name and attachment_file_ids to pass the operating plan to the relevant report. Brief EACH report in a direct message (send_message with to="Their Name") about the work you assigned them — note the thread_id each returns so you can follow up in the same conversation. Post one company-wide kickoff to the #general channel. Then close this kickoff with update_task_status(task_id="${input.task.id}", status="done") and summarize.`,
     );
   } else {
     const manager = input.managerName ?? "your manager";
     const managerReference = input.managerName ? `${manager} (${agentMention(input.managerName)})` : manager;
     lines.push(
       "",
-      `First, read_messages to check if anyone has said something you should respond to — reply to them like a colleague, not a report. Then do the work: write real output with write_deliverable, raise decisions and blockers with ${managerReference} in a direct message (send_message with to=), keep team-wide topics in channels, and when the work is genuinely done move the task to done. Hand files over with /handoff and attachment_file_ids. Keep conversation going — ask questions, share your thinking, push back if something seems wrong.`,
+      `First, read_messages to check if anyone has said something you should respond to — reply to them like a colleague, not a report. Then do the work: write real output with write_deliverable, raise decisions and blockers with ${managerReference} in a direct message (send_message with to=), and keep team-wide topics in channels. Hand files over with /handoff and attachment_file_ids. Keep conversation going — ask questions, share your thinking, push back if something seems wrong. Before you finish: if the work is genuinely done, call update_task_status(task_id="${input.task.id}", status="done"); if it needs another session, move it to "in_progress" and say in the thread what remains — an open task will be run again.`,
     );
   }
   return lines.join("\n");

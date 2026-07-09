@@ -128,6 +128,8 @@ describe("task execution service", () => {
     expect(skillRuntimeSnapshot?.compiled_prompt).toContain("Verify release readiness");
     expect(skillRuntimeSnapshot?.source_revision_ids).toContain(revisionId);
     expect(capturedPrompt).toContain("Task: Draft launch checklist");
+    expect(capturedPrompt).toContain(`Task id: ${taskId}`);
+    expect(capturedPrompt).toContain(`update_task_status(task_id="${taskId}", status="done")`);
     expect(capturedPrompt).toContain("Assignee: Ada (Execution lead)");
     expect(capturedPrompt).toContain("Workspace: Task Workspace");
     expect(capturedPrompt).toContain("Execution context:");
@@ -607,6 +609,69 @@ describe("task execution service", () => {
     expect(enqueued).toHaveLength(1);
     expect(connection.db.prepare("select task_id, state from task_runs where id = ?").get(enqueued[0]))
       .toMatchObject({ task_id: taskId, state: "queued" });
+    connection.close();
+  });
+
+  test("an open task with a completed run keeps getting sessions until done or the budget is spent", () => {
+    const connection = createConnection();
+    const organization = new OrganizationService(connection.db);
+    const providers = new ProviderService(connection.db, providerAdapters, testVault);
+    const execution = new TaskExecutionService(connection.db, providers);
+    let orgId = "";
+    let taskId = "";
+
+    connection.transaction(() => {
+      orgId = organization.createOrganization({
+        organizationName: "Acme Operations",
+        employeeName: "Dana Lee",
+        mission: "Coordinate agents with auditable approvals.",
+        goal: "Ship a verified control plane.",
+      });
+      const providerId = openAiProviderId(connection, orgId);
+      providers.saveCredential({ orgId, providerId, secret: "sk-live-provider", model: "gpt-5.4" });
+      const agentId = organization.createAgent({
+        orgId,
+        name: "Ada",
+        role: "Execution lead",
+        department: "Engineering",
+        modelProviderId: providerId,
+        modelId: "gpt-5.4",
+        budgetCents: 10000,
+        managerAgentId: null,
+        heartbeatEnabled: true,
+      });
+      taskId = organization.createTask({
+        orgId,
+        title: "Ship the tenant module",
+        description: "Multi-session engineering work.",
+        status: TASK_STATUS.BACKLOG,
+        assigneeAgentId: agentId,
+        risk: RISK_LEVEL.MEDIUM,
+        projectId: null,
+        goalId: null,
+        workspaceId: null,
+        priority: TASK_PRIORITY.HIGH,
+        requiresFilesystem: false,
+      });
+    });
+    const completeQueuedRuns = (): void => {
+      connection.db.prepare("update task_runs set state = 'completed', completed_at = datetime('now') where task_id = ? and state = 'queued'").run(taskId);
+    };
+
+    // Session 1, then 2, then 3: a run completing does not finish a task — done does.
+    expect(connection.transaction(() => execution.enqueueHeartbeatRuns())).toHaveLength(1);
+    completeQueuedRuns();
+    expect(connection.transaction(() => execution.enqueueHeartbeatRuns())).toHaveLength(1);
+    completeQueuedRuns();
+    expect(connection.transaction(() => execution.enqueueHeartbeatRuns())).toHaveLength(1);
+    completeQueuedRuns();
+
+    // Budget spent without done: the task parks instead of looping forever.
+    expect(connection.transaction(() => execution.enqueueHeartbeatRuns())).toEqual([]);
+
+    // A closed task never gets another session, budget or not.
+    connection.transaction(() => organization.updateTaskStatus(orgId, taskId, TASK_STATUS.DONE));
+    expect(connection.transaction(() => execution.enqueueHeartbeatRuns())).toEqual([]);
     connection.close();
   });
 
