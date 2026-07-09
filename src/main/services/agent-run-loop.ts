@@ -1,5 +1,6 @@
 import type { ProviderService } from "./provider-service";
 import { AGENT_TOOLS, dispatchAgentTool, type AgentToolContext, type AgentToolDeps } from "./agent-tools";
+import { executeWorkspaceTool, isWorkspaceTool, WORKSPACE_TOOLS } from "./agent-workspace-tools";
 import { canonicalMentionHandle } from "../../shared/mention-handles";
 import type { AgentTurnMessage, ToolDefinition } from "./provider-tool-turn";
 import { isComposioTool, executeComposioTool } from "./composio/composio-tool-bridge";
@@ -37,7 +38,7 @@ export interface AgentRunLoopDeps {
  * iteration cap is hit (which throws rather than silently truncating).
  */
 export async function runAgentLoop(deps: AgentRunLoopDeps, input: AgentRunLoopInput): Promise<AgentRunLoopResult> {
-  const allTools = input.externalTools ? [...AGENT_TOOLS, ...input.externalTools] : AGENT_TOOLS;
+  const allTools = [...AGENT_TOOLS, ...WORKSPACE_TOOLS, ...(input.externalTools ?? [])];
   const messages: AgentTurnMessage[] = [{ role: "user", text: input.initialUserTurn }];
   let toolCallCount = 0;
   let lastRequestId = "";
@@ -70,6 +71,8 @@ export async function runAgentLoop(deps: AgentRunLoopDeps, input: AgentRunLoopIn
       let output: string;
       if (isComposioTool(call.name)) {
         output = await executeComposioTool(deps.tools.db, input.orgId, input.toolContext.agent.id, call);
+      } else if (isWorkspaceTool(call.name)) {
+        output = await executeWorkspaceTool(input.toolContext, call);
       } else {
         output = dispatchAgentTool(deps.tools, input.toolContext, call, {
           announceTaskAssignments: shouldAnnounceTaskAssignment(call, turn.toolCalls),

@@ -94,7 +94,7 @@ export function buildAgentInstructions(input: AgentInstructionContext): string {
     `You are ${agent.name}, ${agent.title || agent.role} in ${agent.department} at ${input.companyName}. You are a real member of this company with your own judgment and voice — a colleague, not a generic assistant.`,
     roleVoice(input),
     "Work like a sharp person: take in what is actually in front of you, decide the smallest real next step, do it, then tell whoever needs to know. Do not narrate busywork.",
-    `Your tools are how you act: hire_agent builds your team, create_task delegates and assigns work by name, update_task_status tracks it, write_deliverable produces real files, create_document writes versioned company documents (PRDs, specs, memos, reports), read_messages catches you up on what teammates said, and send_message is how you talk to everyone.`,
+    `Your tools are how you act: hire_agent builds your team, create_task delegates and assigns work by name (set requires_filesystem for engineering work that must change code or run commands), update_task_status tracks it, list_files and read_file explore the company workspace, write_deliverable produces real files, run_command builds and tests for real on filesystem tasks, create_document writes versioned company documents (PRDs, specs, memos, reports), read_messages catches you up on what teammates said, and send_message is how you talk to everyone.`,
     ...(input.language === "zh"
       ? ["公司的工作语言是简体中文：你写的每一条消息、任务标题与描述、文档和交付物都用中文表达（代码、命令、API 名称等技术标识保持原样）。工具名称和工具参数的字段名仍按定义使用英文。"]
       : []),
@@ -224,6 +224,12 @@ export function buildTaskPrompt(input: {
       input.inboxContext.transcript,
       "",
       "Respond to anyone above who needs your input before starting the task.",
+    );
+  }
+  if (input.task.requires_filesystem === 1 && input.workspace) {
+    lines.push(
+      "",
+      "This task carries filesystem access: read the existing code with list_files and read_file before changing anything, write changes with write_deliverable, and prove they work with run_command (install, build, test). Real output is code that builds and tests that pass — a document describing the work does not close an engineering task.",
     );
   }
   if (input.priorCompletedRuns > 0) {

@@ -54,7 +54,7 @@ function harness(mode: "ai_ceo" | "ai_cofounder"): Harness {
       agent: { id: ceoId, modelProviderId: null, modelId: null },
       taskProjectId: null,
       taskGoalId: null,
-      workspace: { id: workspaceId, localPath: workspaceRoot },
+      workspace: { id: workspaceId, localPath: workspaceRoot, writeAccess: true },
     },
     deps: { db: connection.db, organization, chat: new ChatService(connection.db) },
   };

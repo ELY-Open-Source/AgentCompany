@@ -64,7 +64,7 @@ describe("agent run loop (real tool dispatch)", () => {
       agent: { id: ceoId, modelProviderId: providerId, modelId: "gpt-5.4" },
       taskProjectId: null,
       taskGoalId: null,
-      workspace: { id: workspaceId, localPath: workspaceRoot },
+      workspace: { id: workspaceId, localPath: workspaceRoot, writeAccess: true },
     };
 
     const script: ScriptedTurn[] = [
@@ -136,7 +136,7 @@ describe("agent run loop (real tool dispatch)", () => {
     });
     const ctx: AgentToolContext = {
       orgId, agent: { id: ceoId, modelProviderId: providerId, modelId: "gpt-5.4" },
-      taskProjectId: null, taskGoalId: null, workspace: { id: "wsp", localPath: workspaceRoot },
+      taskProjectId: null, taskGoalId: null, workspace: { id: "wsp", localPath: workspaceRoot, writeAccess: true },
     };
     const script: ScriptedTurn[] = [
       { text: "escape", toolCalls: [call("write_deliverable", { path: "../escape.txt", content: "x" })] },

@@ -138,7 +138,7 @@ export class TaskExecutionService {
         agent: { id: agent.id, modelProviderId: agent.model_provider_id, modelId: agent.model_id },
         taskProjectId: task.project_id,
         taskGoalId: task.goal_id,
-        workspace: workspace ? { id: workspace.id, localPath: workspace.local_path } : null,
+        workspace: workspace ? { id: workspace.id, localPath: workspace.local_path, writeAccess: task.requires_filesystem === 1 } : null,
       };
       const chatContext = this.loadChatContext(orgId, isolation);
       const inboxContext = chatContext ? null : this.loadInboxContext(orgId, agent.id);

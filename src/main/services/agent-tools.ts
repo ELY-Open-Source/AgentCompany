@@ -22,7 +22,8 @@ export interface AgentToolContext {
   agent: { id: string; modelProviderId: string | null; modelId: string | null };
   taskProjectId: string | null;
   taskGoalId: string | null;
-  workspace: { id: string; localPath: string } | null;
+  /** writeAccess mirrors the task's approved filesystem grant (read_write mount) and gates run_command. */
+  workspace: { id: string; localPath: string; writeAccess: boolean } | null;
 }
 
 export interface AgentToolDeps {
@@ -71,6 +72,10 @@ export const AGENT_TOOLS: ToolDefinition[] = [
         description: { type: "string" },
         assignee_agent_name: { type: "string", description: "Name of the agent to assign, if any." },
         risk: { type: "string", enum: ["low", "medium", "high"] },
+        requires_filesystem: {
+          type: "boolean",
+          description: "Set true for engineering work that must change code or run commands (build, test) in the workspace. The assignee then gets run_command; the operator approves such tasks before they execute.",
+        },
       },
       required: ["title", "description"],
     },
@@ -307,7 +312,7 @@ function createTask(deps: AgentToolDeps, ctx: AgentToolContext, args: JsonRecord
       goalId: ctx.taskGoalId,
       workspaceId: ctx.workspace?.id ?? null,
       priority: TASK_PRIORITY.NORMAL,
-      requiresFilesystem: false,
+      requiresFilesystem: args.requires_filesystem === true,
     });
     const assignmentThread = options.announceTaskAssignments !== false && assignee && assignee.id !== ctx.agent.id
       ? postAssignmentMessage(deps, ctx, { taskId, title, description, assignee })
