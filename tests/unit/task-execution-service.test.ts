@@ -130,7 +130,7 @@ describe("task execution service", () => {
     expect(capturedPrompt).toContain("Workspace: Task Workspace");
     expect(capturedPrompt).toContain("Execution context:");
     expect(capturedPrompt).toContain("Secret scope:");
-    expect(capturedPrompt).toContain("Skill runtime:");
+    expect(capturedPrompt).toContain("Skills you carry this run");
     expect(capturedPrompt).toContain("Tool allowlist:");
     expect(state.auditEvents.some((event) => event.entityType === "task_run" && event.action === "completed")).toBe(true);
     rmSync(skillDir, { recursive: true, force: true });

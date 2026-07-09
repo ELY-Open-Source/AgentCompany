@@ -8,6 +8,9 @@ files:
   - out/**/*
   - package.json
   - resources/icon.png
+extraResources:
+  - from: "built-in skills"
+    to: built-in-skills
 asar: true
 mac:
   category: public.app-category.business

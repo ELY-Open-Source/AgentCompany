@@ -1,24 +1,23 @@
 import { _electron as electron, expect, test, type Page } from "@playwright/test";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { randomUUID } from "node:crypto";
+import { seedBuiltinSkillsFixture } from "./builtin-skills-fixture";
 
 test("onboards, hires, and creates work in the Electron shell", async () => {
   const profileDir = join(tmpdir(), `agentcompany-new-e2e-${randomUUID()}`);
   mkdirSync(profileDir, { recursive: true });
-  // The app reads skills from the user's global library, so the test gets a
-  // library of its own — seeded with one on-disk skill the Skills page must
-  // surface without a manual import.
-  const skillsRoot = join(tmpdir(), `agentcompany-new-e2e-skills-${randomUUID()}`);
-  createGlobalDiskSkill(skillsRoot);
+  // Skills ship with the app; the test points the bundle seam at a miniature
+  // catalogue so onboarding imports it hermetically.
+  const builtinDir = seedBuiltinSkillsFixture(join(tmpdir(), `agentcompany-new-e2e-builtin-${randomUUID()}`));
   const app = await electron.launch({
     args: [resolve("out/main/index.js")],
     env: {
       ...process.env,
       AGENTCOMPANY_NEW_PROFILE_DIR: profileDir,
       AGENTCOMPANY_NEW_AUTORUN: "0",
-      AGENTCOMPANY_NEW_SKILLS_ROOT: skillsRoot,
+      AGENTCOMPANY_NEW_BUILTIN_SKILLS_DIR: builtinDir,
     },
   });
 
@@ -145,16 +144,15 @@ test("onboards, hires, and creates work in the Electron shell", async () => {
     await page.getByRole("button", { name: "Save OpenAI policy" }).click();
     await expect(page.getByText("0 / 25").first()).toBeVisible();
 
-    await page.getByRole("button", { name: "Skills" }).click();
-    // The seeded home-directory skill syncs in on its own when the page opens.
-    await expect(page.getByText("Disk Runbook").first()).toBeVisible();
-    await page.getByRole("button", { name: "Import" }).click();
-    await page.getByLabel("Directory path").fill(createSkillDirectory());
-    await page.locator(".modal").getByRole("button", { name: "Import" }).click();
-    await expect(page.getByText("Release Gate").first()).toBeVisible();
-    await expect(page.getByText("Never run").first()).toBeVisible();
-    await page.locator(".table-row").filter({ hasText: "Release Gate" }).getByRole("button", { name: "Run tests" }).click();
-    await expect(page.getByText("1/1 passed").first()).toBeVisible();
+    // Skills are built-in now: no Skills tab exists, yet the bundled
+    // catalogue imported itself during onboarding.
+    await expect(page.getByRole("button", { name: "Skills" })).toHaveCount(0);
+    const skillSlugs = await page.evaluate(async () => {
+      const api = (window as unknown as { agentCompany: { loadSnapshot: () => Promise<unknown> } }).agentCompany;
+      const result = await api.loadSnapshot() as { ok: true; data: { skillDefinitions: Array<{ slug: string }> } };
+      return result.data.skillDefinitions.map((skill) => skill.slug).sort();
+    });
+    expect(skillSlugs).toEqual(["engineering-backend-architect", "humanizer"]);
 
     // Virtual office page
     await page.getByRole("button", { name: "Office" }).click();
@@ -173,36 +171,6 @@ test("onboards, hires, and creates work in the Electron shell", async () => {
   }
 });
 
-function createGlobalDiskSkill(skillsRoot: string): void {
-  const dir = join(skillsRoot, "disk-runbook");
-  mkdirSync(dir, { recursive: true });
-  writeFileSync(
-    join(dir, "SKILL.md"),
-    "---\nname: Disk Runbook\ndescription: Recorded incident response steps.\n---\n\nFollow the recorded steps.\n",
-    "utf8",
-  );
-}
-
-function createSkillDirectory(): string {
-  const root = join(tmpdir(), `agentcompany-skill-${randomUUID()}`);
-  mkdirSync(join(root, "checks"), { recursive: true });
-  writeFileSync(join(root, "SKILL.md"), "Review release evidence and produce a concise gate decision.\n", "utf8");
-  writeFileSync(join(root, "checks", "acceptance.txt"), "release evidence accepted\n", "utf8");
-  writeFileSync(join(root, "skill.manifest.json"), JSON.stringify({
-    name: "Release Gate",
-    version: "1.0.0",
-    entrypoint: "SKILL.md",
-    capabilities: ["release-review"],
-    required_tools: ["git"],
-    compatible_models: ["gpt-5.4"],
-    risk_level: "low",
-    tests: ["checks/acceptance.txt"],
-    inputs: {},
-    outputs: {},
-  }, null, 2), "utf8");
-  return root;
-}
-
 async function verifyPagesDoNotOverflow(page: Page): Promise<void> {
   for (const size of [{ width: 1280, height: 860 }, { width: 980, height: 700 }]) {
     await page.setViewportSize(size);
@@ -210,7 +178,7 @@ async function verifyPagesDoNotOverflow(page: Page): Promise<void> {
       await page.getByRole("button", { name: nav, exact: true }).click();
       await expectPageToFit(page);
     }
-    for (const tab of ["General", "Providers", "Skills", "Advanced"]) {
+    for (const tab of ["General", "Providers", "Advanced"]) {
       await page.getByRole("button", { name: "Settings" }).click();
       await page.getByRole("button", { name: tab, exact: true }).click();
       await expectPageToFit(page);

@@ -49,18 +49,14 @@ import type {
   EditMessageInput,
   ImportFileInput,
   OpenFileInput,
-  ImportSkillDirectoryInput,
   GrantRoleInput,
   LaunchProviderSignInInput,
   LaunchSocialLoginInput,
-  ResolveAgentSkillsInput,
   ResolveMigrationReconciliationInput,
   RunChaosDrillInput,
   RunEvalSuiteInput,
   RunSdlcReviewInput,
-  RunSkillTestsInput,
   RunTaskInput,
-  SyncSkillsFromDiskInput,
   RevokeProviderCredentialInput,
   SaveProviderCredentialInput,
   ConnectComposioToolkitInput,
@@ -152,10 +148,6 @@ export interface DesktopApi {
   createProviderResponse(input: CreateProviderResponseInput): Promise<DesktopResult<AppSnapshot>>;
   streamProviderResponse(input: StreamProviderResponseInput): Promise<DesktopResult<AppSnapshot>>;
   cancelProviderResponse(input: CancelProviderResponseInput): Promise<DesktopResult<AppSnapshot>>;
-  importSkillDirectory(input: ImportSkillDirectoryInput): Promise<DesktopResult<AppSnapshot>>;
-  syncSkillsFromDisk(input: SyncSkillsFromDiskInput): Promise<DesktopResult<AppSnapshot>>;
-  resolveAgentSkills(input: ResolveAgentSkillsInput): Promise<DesktopResult<AppSnapshot>>;
-  runSkillTests(input: RunSkillTestsInput): Promise<DesktopResult<AppSnapshot>>;
   createSocialAccount(input: CreateSocialAccountInput): Promise<DesktopResult<AppSnapshot>>;
   launchSocialLogin(input: LaunchSocialLoginInput): Promise<DesktopResult<null>>;
   createScheduledPost(input: CreateScheduledPostInput): Promise<DesktopResult<AppSnapshot>>;

@@ -37,10 +37,12 @@ describe("agent instructions", () => {
       connectorNames: ["GitHub", "Slack"],
       language: "en",
     });
-    expect(text).toContain("every connected service and every company skill");
+    expect(text).toContain("every connected service");
     expect(text).toContain("grant_connector");
     expect(text).toContain("grant_skill");
     expect(text).toContain("grant before you assign");
+    expect(text).toContain("staff every hire with the skills their role needs");
+    expect(text).toContain("humanizer");
     expect(text).toContain("GitHub, Slack");
     expect(text).toContain("You run this company");
   });

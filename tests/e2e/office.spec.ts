@@ -5,6 +5,7 @@ import { join, resolve } from "node:path";
 import { randomUUID } from "node:crypto";
 import { buildFloorPlan } from "../../src/renderer/src/pages/office/floor-plan";
 import { cameraFor } from "../../src/renderer/src/pages/office/simulation";
+import { seedBuiltinSkillsFixture } from "./builtin-skills-fixture";
 
 test("the office floor opens agent details on click", async () => {
   const profileDir = join(tmpdir(), `agentcompany-new-office-${randomUUID()}`);
@@ -15,7 +16,7 @@ test("the office floor opens agent details on click", async () => {
       ...process.env,
       AGENTCOMPANY_NEW_PROFILE_DIR: profileDir,
       AGENTCOMPANY_NEW_AUTORUN: "0",
-      AGENTCOMPANY_NEW_SKILLS_ROOT: join(profileDir, "skills-root"),
+      AGENTCOMPANY_NEW_BUILTIN_SKILLS_DIR: seedBuiltinSkillsFixture(join(profileDir, "builtin-src")),
     },
   });
 

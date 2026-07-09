@@ -14,6 +14,8 @@ export interface SkillManifest {
   tests: string[];
   inputs: unknown;
   outputs: unknown;
+  /** One-line summary shown when agents browse the library. */
+  description?: string;
 }
 
 export function loadSkillManifest(directoryPath: string, requestedVersion?: string): SkillManifest {
@@ -42,6 +44,9 @@ function normalizeManifest(raw: Record<string, unknown>): SkillManifest {
     inputs: raw.inputs ?? {},
     outputs: raw.outputs ?? {},
   };
+  if (typeof raw.description === "string" && raw.description.trim()) {
+    manifest.description = raw.description.trim();
+  }
   return manifest;
 }
 

@@ -97,12 +97,23 @@ describe("skill grants", () => {
     expect(new SkillService(h.connection.db, "").hasRuntimeSkills(h.orgId, h.danaId)).toBe(false);
   });
 
-  test("the CEO carries every active skill by role, without bindings", () => {
+  test("the humanizer house-style skill reaches every agent without bindings and cannot be revoked", () => {
     const h = harness();
     const skills = new SkillService(h.connection.db, "");
-    expect(skills.hasRuntimeSkills(h.orgId, h.ceoId)).toBe(false);
+    // A non-forced skill grants nothing on its own - not even to the CEO.
     importSkill(h, "Release Gate", "release-gate");
-    expect(skills.hasRuntimeSkills(h.orgId, h.ceoId)).toBe(true);
+    expect(skills.hasRuntimeSkills(h.orgId, h.ceoId)).toBe(false);
     expect(skills.hasRuntimeSkills(h.orgId, h.danaId)).toBe(false);
+    // Once the forced skill exists in the catalogue, everyone carries it.
+    importSkill(h, "humanizer", "humanizer");
+    expect(skills.hasRuntimeSkills(h.orgId, h.ceoId)).toBe(true);
+    expect(skills.hasRuntimeSkills(h.orgId, h.danaId)).toBe(true);
+    // House style is not revocable, and granting it is a no-op with feedback.
+    const revoked = dispatchAgentTool(h.deps, h.ceoCtx, call("revoke_skill", { agent_name: "Dana", skill: "humanizer" }));
+    expect(revoked).toContain("ERROR");
+    expect(revoked).toContain("house style");
+    const granted = dispatchAgentTool(h.deps, h.ceoCtx, call("grant_skill", { agent_name: "Dana", skill: "humanizer" }));
+    expect(granted).toContain("automatically");
+    expect(skills.hasRuntimeSkills(h.orgId, h.danaId)).toBe(true);
   });
 });

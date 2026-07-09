@@ -28,7 +28,7 @@ import { AutomationService } from "../services/automation-service";
 import { MeetingService } from "../services/meeting-service";
 import { SprintService } from "../services/sprint-service";
 import { ComposioConnectionService } from "../services/composio/composio-connection-service";
-import { syncSkillsFromDisk } from "../services/skill-discovery";
+import { importStagedSkills, stageBuiltinSkillsLibrary } from "../services/builtin-skills";
 import { coalesce } from "./coalesce";
 import { normalizeExternalBrowserUrl } from "./external-url";
 
@@ -36,6 +36,10 @@ export interface IpcDeps {
   connection: DatabaseConnection;
   mainWindow: BrowserWindow;
   artifactRoot: string;
+  /** Bundled built-in skills source (repo folder in dev, resources when packaged). */
+  builtinSkillsSource: string;
+  /** Normalized on-disk skill library under the profile directory. */
+  builtinSkillsLibrary: string;
 }
 
 export function registerIpcHandlers(deps: IpcDeps): void {
@@ -94,9 +98,17 @@ export function registerIpcHandlers(deps: IpcDeps): void {
 
   ipcMain.handle(IPC_CHANNELS.bootstrapOnboarding, (_event, input) => {
     try {
-      let summary;
+      let summary: { orgId: string } | undefined;
+      // Staging happens before the transaction (file mirroring), the import
+      // inside it: the CEO's kickoff run can be claimed within seconds of
+      // commit and must already find the forced humanizer skill.
+      const staged = stageBuiltinSkillsLibrary(deps.builtinSkillsSource, deps.builtinSkillsLibrary);
       deps.connection.transaction(() => {
         summary = onboarding.bootstrap(input);
+        const report = importStagedSkills(skills, summary.orgId, staged);
+        if (report.failures.length > 0) {
+          console.warn(`[skills] onboarding import failures (${report.failures.length}): ${report.failures.slice(0, 3).join("; ")}`);
+        }
       });
       notifyDataChanged();
       return ok(summary);
@@ -264,13 +276,6 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       return fail("provider_cancel_failed", error instanceof Error ? error.message : String(error));
     }
   });
-  ipcMain.handle(IPC_CHANNELS.importSkillDirectory, (_event, input) => mutate(() => skills.importDirectory(input)));
-  ipcMain.handle(IPC_CHANNELS.syncSkillsFromDisk, (_event, input) => mutate(() => {
-    syncSkillsFromDisk(deps.connection.db, skills, input.orgId);
-    return null;
-  }));
-  ipcMain.handle(IPC_CHANNELS.resolveAgentSkills, (_event, input) => mutate(() => skills.resolveRuntimeSnapshot(input)));
-  ipcMain.handle(IPC_CHANNELS.runSkillTests, (_event, input) => mutate(() => skills.runTests(input)));
   ipcMain.handle(IPC_CHANNELS.createSocialAccount, (_event, input) => mutate(() => social.createAccount(input)));
   ipcMain.handle(IPC_CHANNELS.createScheduledPost, (_event, input) => mutate(() => social.createScheduledPost(input)));
   ipcMain.handle(IPC_CHANNELS.setScheduledPostState, (_event, input) => mutate(() => social.setScheduledPostState(input)));

@@ -14,6 +14,20 @@ function slugify(value: string): string {
   return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 }
 
+/**
+ * House-style skills every agent carries on every run, CEO included. They are
+ * a resolution rule, not a binding row, so no creation path — hire tool,
+ * onboarding, tests, raw SQL — can produce an agent without them.
+ */
+export const FORCED_SKILL_SLUGS = ["humanizer"] as const;
+
+/**
+ * Compiled skill prompts stop packing past this size so one over-granted
+ * agent cannot overflow the model's context window. Skills pack whole, forced
+ * skills first, and anything omitted is named in the prompt.
+ */
+export const MAX_COMPILED_PROMPT_CHARS = 200_000;
+
 export class SkillService {
   private readonly audit: AuditService;
   private readonly operations: OperationsService;
@@ -28,14 +42,14 @@ export class SkillService {
     return this.importManifest(input.orgId, input.directoryPath, manifest);
   }
 
-  /** True when the org already carries a skill with this name. */
-  hasSkill(orgId: string, name: string): boolean {
-    const slug = slugify(name);
+  /** True when the org already carries a skill under this slug (or name). */
+  hasSkill(orgId: string, slugOrName: string): boolean {
+    const slug = slugify(slugOrName);
     return Boolean(this.db.prepare("select id from skill_definitions where org_id = ? and slug = ?").get(orgId, slug));
   }
 
-  importManifest(orgId: string, directoryPath: string, manifest: SkillManifest): string {
-    const slug = slugify(manifest.name);
+  importManifest(orgId: string, directoryPath: string, manifest: SkillManifest, explicitSlug?: string): string {
+    const slug = explicitSlug ?? slugify(manifest.name);
     if (!slug) throw new Error("Skill name could not be derived.");
     const now = new Date().toISOString();
     const skillId = createId("skl");
@@ -139,77 +153,97 @@ export class SkillService {
   }
 
   /**
-   * True when a run for this agent would compile at least one skill: the CEO
-   * carries every active skill by role; other agents need enabled bindings.
+   * True when a run for this agent would compile at least one skill: every
+   * agent carries the forced house-style skills once the catalogue holds
+   * them, plus whatever bindings the CEO granted.
    */
   hasRuntimeSkills(orgId: string, agentId: string): boolean {
-    if (this.isCSuite(orgId, agentId)) {
-      return Boolean(this.db.prepare(`
-        select sd.id from skill_definitions sd
-        join skill_revisions sr on sr.skill_id = sd.id
-        where sd.org_id = ? and sd.status = 'active'
-        limit 1
-      `).get(orgId));
-    }
+    const forced = this.db.prepare(`
+      select sd.id from skill_definitions sd
+      join skill_revisions sr on sr.skill_id = sd.id
+      where sd.org_id = ? and sd.status = 'active' and sd.slug in (${forcedSlugPlaceholders()})
+      limit 1
+    `).get(orgId, ...FORCED_SKILL_SLUGS);
+    if (forced) return true;
     return Boolean(this.db.prepare(
       "select id from skill_bindings where org_id = ? and agent_id = ? and enabled = 1 limit 1",
     ).get(orgId, agentId));
   }
 
-  private isCSuite(orgId: string, agentId: string): boolean {
-    const agent = this.db.prepare("select role_level from agents where id = ? and org_id = ?")
-      .get(agentId, orgId) as { role_level: string } | undefined;
-    if (!agent) throw new Error("Agent was not found.");
-    return agent.role_level === "c_suite";
-  }
-
+  /**
+   * Freezes the exact skill set this run carries: forced house-style skills
+   * first (identical for everyone, CEO included), then the agent's enabled
+   * bindings in priority order, deduplicated per skill. Skills pack whole
+   * until MAX_COMPILED_PROMPT_CHARS; whatever does not fit is named in the
+   * compiled prompt instead of silently overflowing the model's context.
+   */
   resolveRuntimeSnapshot(input: ResolveAgentSkillsInput): string {
-    const cSuite = this.isCSuite(input.orgId, input.agentId);
     const existingSnapshot = this.db.prepare("select id from skill_runtime_snapshots where agent_id = ? and run_id = ?")
       .get(input.agentId, input.runId) as { id: string } | undefined;
     if (existingSnapshot) throw new Error("Skill runtime snapshot already exists for this run.");
-    const rows = (cSuite
-      ? this.db.prepare(`
-          select
-            sr.id as revision_id,
-            sr.version_semver,
-            sr.manifest_json,
-            sa.object_key
-          from skill_definitions sd
-          join skill_revisions sr on sr.id = (
-            select id from skill_revisions where skill_id = sd.id order by published_at desc, id desc limit 1
-          )
-          join skill_artifacts sa on sa.revision_id = sr.id and sa.artifact_type in ('entrypoint', 'markdown')
-          where sd.org_id = ? and sd.status = 'active'
-          order by sr.published_at asc
-        `).all(input.orgId)
-      : this.db.prepare(`
-          select
-            sr.id as revision_id,
-            sr.version_semver,
-            sr.manifest_json,
-            sa.object_key
-          from skill_bindings sb
-          join skill_revisions sr on sr.id = sb.pinned_revision_id
-          join skill_artifacts sa on sa.revision_id = sr.id and sa.artifact_type in ('entrypoint', 'markdown')
-          where sb.org_id = ? and sb.agent_id = ? and sb.enabled = 1
-          order by sb.priority asc, sr.published_at asc
-        `).all(input.orgId, input.agentId)) as unknown as RuntimeSkillRow[];
+    const forcedRows = this.db.prepare(`
+      select
+        sd.id as skill_id,
+        sr.id as revision_id,
+        sr.version_semver,
+        sr.manifest_json,
+        sa.object_key
+      from skill_definitions sd
+      join skill_revisions sr on sr.id = (
+        select id from skill_revisions where skill_id = sd.id order by published_at desc, id desc limit 1
+      )
+      join skill_artifacts sa on sa.revision_id = sr.id and sa.artifact_type in ('entrypoint', 'markdown')
+      where sd.org_id = ? and sd.status = 'active' and sd.slug in (${forcedSlugPlaceholders()})
+      order by sd.slug asc
+    `).all(input.orgId, ...FORCED_SKILL_SLUGS) as unknown as RuntimeSkillRow[];
+    const boundRows = this.db.prepare(`
+      select
+        sb.skill_id as skill_id,
+        sr.id as revision_id,
+        sr.version_semver,
+        sr.manifest_json,
+        sa.object_key
+      from skill_bindings sb
+      join skill_revisions sr on sr.id = sb.pinned_revision_id
+      join skill_artifacts sa on sa.revision_id = sr.id and sa.artifact_type in ('entrypoint', 'markdown')
+      where sb.org_id = ? and sb.agent_id = ? and sb.enabled = 1
+      order by sb.priority asc, sr.published_at asc
+    `).all(input.orgId, input.agentId) as unknown as RuntimeSkillRow[];
+    const rows: RuntimeSkillRow[] = [];
+    const seenSkillIds = new Set<string>();
+    for (const row of [...forcedRows, ...boundRows]) {
+      if (seenSkillIds.has(row.skill_id)) continue;
+      seenSkillIds.add(row.skill_id);
+      rows.push(row);
+    }
     if (rows.length === 0) throw new Error("Agent has no enabled skills.");
 
     const compiledParts: string[] = [];
     const tools = new Set<string>();
     const revisionIds: string[] = [];
+    const omitted: string[] = [];
+    let compiledLength = 0;
     for (const row of rows) {
       if (!existsSync(row.object_key)) throw new Error(`Skill artifact is missing: ${row.object_key}`);
       const manifest = JSON.parse(row.manifest_json) as SkillManifest;
-      for (const tool of manifest.requiredTools) tools.add(tool);
-      revisionIds.push(row.revision_id);
-      compiledParts.push([
+      const part = [
         `# Skill: ${manifest.name}`,
         `Version: ${row.version_semver}`,
         readFileSync(row.object_key, "utf8").trim(),
-      ].join("\n\n"));
+      ].join("\n\n");
+      if (compiledParts.length > 0 && compiledLength + part.length > MAX_COMPILED_PROMPT_CHARS) {
+        omitted.push(manifest.name);
+        continue;
+      }
+      for (const tool of manifest.requiredTools) tools.add(tool);
+      revisionIds.push(row.revision_id);
+      compiledParts.push(part);
+      compiledLength += part.length;
+    }
+    if (omitted.length > 0) {
+      compiledParts.push(
+        `# Skills omitted for size\n\nThese granted skills did not fit this run's prompt budget: ${omitted.join(", ")}. Ask the CEO to trim grants if they are essential.`,
+      );
     }
 
     const snapshotId = createId("srs");
@@ -307,6 +341,10 @@ export class SkillService {
   }
 }
 
+function forcedSlugPlaceholders(): string {
+  return FORCED_SKILL_SLUGS.map(() => "?").join(", ");
+}
+
 function artifactType(relativePath: string, manifest: SkillManifest): string {
   if (relativePath === "skill.manifest.json") return "manifest";
   if (relativePath === manifest.entrypoint) return "entrypoint";
@@ -315,6 +353,7 @@ function artifactType(relativePath: string, manifest: SkillManifest): string {
 }
 
 interface RuntimeSkillRow {
+  skill_id: string;
   revision_id: string;
   version_semver: string;
   manifest_json: string;

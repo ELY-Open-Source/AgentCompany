@@ -3,6 +3,7 @@ import { mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { randomUUID } from "node:crypto";
+import { seedBuiltinSkillsFixture } from "./builtin-skills-fixture";
 
 test("captures every page for visual review", async () => {
   const profileDir = join(tmpdir(), `agentcompany-new-shots-${randomUUID()}`);
@@ -13,7 +14,7 @@ test("captures every page for visual review", async () => {
       ...process.env,
       AGENTCOMPANY_NEW_PROFILE_DIR: profileDir,
       AGENTCOMPANY_NEW_AUTORUN: "0",
-      AGENTCOMPANY_NEW_SKILLS_ROOT: join(profileDir, "skills-root"),
+      AGENTCOMPANY_NEW_BUILTIN_SKILLS_DIR: seedBuiltinSkillsFixture(join(profileDir, "builtin-src")),
     },
   });
   const outDir = resolve("test-results/screenshots");
@@ -59,7 +60,7 @@ test("captures every page for visual review", async () => {
     await go(page, "Settings", outDir, "17-settings");
     await go(page, "Office", outDir, "18-office");
 
-    for (const tab of ["General", "Providers", "Skills", "Advanced"]) {
+    for (const tab of ["General", "Providers", "Advanced"]) {
       await page.getByRole("button", { name: "Settings" }).click();
       await page.getByRole("button", { name: tab }).first().click();
       await snap(page, outDir, `settings-${tab.toLowerCase()}`);

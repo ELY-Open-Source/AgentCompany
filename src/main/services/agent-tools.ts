@@ -6,7 +6,7 @@ import type { ChatService } from "./chat-service";
 import { canonicalMentionHandle } from "../../shared/mention-handles";
 import { readMessagesTool } from "./agent-read-messages";
 import { grantConnectorTool, listConnectorsTool } from "./agent-connector-tools";
-import { grantSkillTool, listSkillsTool } from "./agent-skill-tools";
+import { bindSkillSlugs, grantSkillTool, listSkillsTool } from "./agent-skill-tools";
 import { createDocumentTool, writeDeliverableTool } from "./agent-deliverable-tools";
 import { describeSend } from "./agent-message-presence";
 import { optionalString, optionalStringArray, requireString } from "./agent-tool-args";
@@ -40,7 +40,7 @@ export const AGENT_TOOLS: ToolDefinition[] = [
   {
     name: "hire_agent",
     description:
-      "Add one direct report to your team. During team building, call this 3-5 times to staff the roles you need before delegating work.",
+      "Add one direct report to your team. During team building, call this 3-5 times to staff the roles you need before delegating work. Staff every hire with the library skills their role needs (check list_skills; several are fine) — those skills become mandatory practice in the hire's runs.",
     parameters: {
       type: "object",
       additionalProperties: false,
@@ -49,6 +49,11 @@ export const AGENT_TOOLS: ToolDefinition[] = [
         role: { type: "string", description: "Their role/title, e.g. 'Growth Marketer'." },
         department: { type: "string", enum: [...ORGANIZATION_DEPARTMENTS], description: "The company department the hire belongs to." },
         model: { type: "string", description: "Optional model id; defaults to your own model." },
+        skills: {
+          type: "array",
+          items: { type: "string" },
+          description: "Skill slugs from list_skills this hire must work with, e.g. ['engineering-backend-architect']. Every agent also carries the humanizer house-style skill automatically.",
+        },
       },
       required: ["name", "role", "department"],
     },
@@ -254,6 +259,7 @@ function hireAgent(deps: AgentToolDeps, ctx: AgentToolContext, args: JsonRecord)
   const role = requireString(args.role, "role");
   const department = requireString(args.department, "department");
   const model = optionalString(args.model) ?? ctx.agent.modelId;
+  const requestedSkills = optionalStringArray(args.skills, "skills");
   const agentId = deps.organization.createAgent({
     orgId: ctx.orgId,
     name,
@@ -268,7 +274,10 @@ function hireAgent(deps: AgentToolDeps, ctx: AgentToolContext, args: JsonRecord)
     heartbeatEnabled: true,
     heartbeatIntervalSec: HEARTBEAT_INTERVAL_SEC,
   });
-  return `Hired ${name} as ${role} in ${department} (agent_id=${agentId}).`;
+  const { granted, unknown } = bindSkillSlugs(deps, ctx.orgId, agentId, requestedSkills);
+  const skillNote = granted.length > 0 ? ` They carry: ${granted.join(", ")} (plus the automatic humanizer house style).` : "";
+  const unknownNote = unknown.length > 0 ? ` Unknown skills skipped: ${unknown.join(", ")} — run list_skills and grant_skill to fix.` : "";
+  return `Hired ${name} as ${role} in ${department} (agent_id=${agentId}).${skillNote}${unknownNote}`;
 }
 
 function createTask(deps: AgentToolDeps, ctx: AgentToolContext, args: JsonRecord, options: AgentToolDispatchOptions): string {
