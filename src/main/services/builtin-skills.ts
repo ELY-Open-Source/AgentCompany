@@ -59,11 +59,14 @@ export function stageBuiltinSkillsLibrary(sourceRoot: string, libraryRoot: strin
     }
     staged.push(...stageCategorySkills(sourceDir, libraryRoot, seen));
   }
-  // A bundle without the forced house-style skill is a broken install, not a
-  // small catalogue. Failing here keeps the import (and the mirror-retire
-  // pass) from wiping a healthy org catalogue against an empty directory.
-  if (!seen.has("humanizer")) {
-    throw new Error(`Built-in skills bundle at ${sourceRoot} is missing the humanizer skill - refusing to sync a broken bundle.`);
+  // A bundle without the forced house-style skills (one per app language) is
+  // a broken install, not a small catalogue. Failing here keeps the import
+  // (and the mirror-retire pass) from wiping a healthy org catalogue against
+  // an empty directory.
+  for (const requiredSlug of ["humanizer", "humanizer-zh"]) {
+    if (!seen.has(requiredSlug)) {
+      throw new Error(`Built-in skills bundle at ${sourceRoot} is missing the ${requiredSlug} skill - refusing to sync a broken bundle.`);
+    }
   }
   return staged;
 }

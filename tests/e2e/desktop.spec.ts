@@ -182,7 +182,7 @@ test("onboards, hires, and creates work in the Electron shell", async () => {
       const result = await api.loadSnapshot() as { ok: true; data: { skillDefinitions: Array<{ slug: string }> } };
       return result.data.skillDefinitions.map((skill) => skill.slug).sort();
     });
-    expect(skillSlugs).toEqual(["engineering-backend-architect", "humanizer"]);
+    expect(skillSlugs).toEqual(["engineering-backend-architect", "humanizer", "humanizer-zh"]);
 
     // The global pause toggle lives in the topbar on every page.
     const pauseToggle = page.getByRole("button", { name: "Pause agents" });

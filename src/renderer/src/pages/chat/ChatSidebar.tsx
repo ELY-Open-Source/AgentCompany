@@ -1,8 +1,19 @@
+import { useRef, useState, type PointerEvent } from "react";
 import { Avatar, Icon, IconButton } from "../../shared/ui";
 import type { ChatPresenceRecord } from "../../../../shared/domain";
 import { formatRelative } from "../types";
 import type { ConversationItem } from "./chat-helpers";
 import { t } from "../../i18n/i18n";
+
+const PANE_WIDTH_KEY = "agentcompany:chat-pane-width";
+const PANE_MIN_W = 200;
+const PANE_MAX_W = 480;
+
+function storedPaneWidth(): number {
+  const raw = Number(window.localStorage.getItem(PANE_WIDTH_KEY));
+  if (!Number.isFinite(raw) || raw === 0) return 240;
+  return Math.min(PANE_MAX_W, Math.max(PANE_MIN_W, raw));
+}
 
 function presenceColor(status: string | undefined): string | null {
   switch (status) {
@@ -38,8 +49,29 @@ export function ChatSidebar({
   onCreateSpace: () => void;
 }) {
   const presenceByPrincipal = new Map(presence.map((entry) => [entry.principalId, entry.status]));
+
+  // The list/conversation split is adjustable: drag the right edge, width
+  // persists across sessions.
+  const [paneWidth, setPaneWidth] = useState(storedPaneWidth);
+  const dragStart = useRef<{ pointerX: number; width: number } | null>(null);
+  const onHandleDown = (event: PointerEvent<HTMLDivElement>) => {
+    dragStart.current = { pointerX: event.clientX, width: paneWidth };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+  const onHandleMove = (event: PointerEvent<HTMLDivElement>) => {
+    if (!dragStart.current) return;
+    const next = Math.min(PANE_MAX_W, Math.max(PANE_MIN_W, dragStart.current.width + event.clientX - dragStart.current.pointerX));
+    setPaneWidth(next);
+  };
+  const onHandleUp = (event: PointerEvent<HTMLDivElement>) => {
+    if (!dragStart.current) return;
+    dragStart.current = null;
+    event.currentTarget.releasePointerCapture(event.pointerId);
+    window.localStorage.setItem(PANE_WIDTH_KEY, String(paneWidth));
+  };
+
   return (
-    <aside className="secondary-pane">
+    <aside className="secondary-pane" style={{ width: paneWidth, position: "relative" }}>
       <div className="row" style={{ padding: "4px 8px 12px" }}>
         <div style={{ fontSize: 14, fontWeight: 600 }}>{t("Messages")}</div>
         <IconButton icon="plus" label={t("New space")} onClick={onCreateSpace} />
@@ -57,6 +89,15 @@ export function ChatSidebar({
           ))}
         </div>
       </div>
+      <div
+        className="pane-resize-handle"
+        role="separator"
+        aria-orientation="vertical"
+        aria-label={t("Resize conversation list")}
+        onPointerDown={onHandleDown}
+        onPointerMove={onHandleMove}
+        onPointerUp={onHandleUp}
+      />
     </aside>
   );
 }

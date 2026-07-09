@@ -126,6 +126,7 @@ export const zh: Record<string, string> = {
   "Edit profile": "编辑个人资料",
   "Former member": "已离职成员",
   "Jump to latest": "跳到最新消息",
+  "Resize conversation list": "调整会话列表宽度",
   "Upload photo": "上传照片",
   "Pause agents": "暂停智能体",
   "Agents paused": "已暂停 · 点击恢复",

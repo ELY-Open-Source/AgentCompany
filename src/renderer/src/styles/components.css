@@ -313,3 +313,15 @@ textarea.input { min-height: 84px; resize: vertical; line-height: 1.5; }
   color: #231600;
 }
 .button.autopause-paused:hover { background: var(--amber, #f59e0b); filter: brightness(1.06); }
+
+/* Drag handle on the chat conversation list's right edge */
+.pane-resize-handle {
+  position: absolute;
+  top: 0;
+  right: -3px;
+  width: 6px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 2;
+}
+.pane-resize-handle:hover { background: color-mix(in srgb, var(--accent) 35%, transparent); }

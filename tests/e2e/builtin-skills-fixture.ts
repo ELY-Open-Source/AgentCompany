@@ -14,6 +14,12 @@ export function seedBuiltinSkillsFixture(root: string): string {
     "---\nname: humanizer\nversion: 2.1.1\ndescription: |\n  Remove signs of AI-generated writing from text.\n---\n\nWrite like a person.\n",
     "utf8",
   );
+  mkdirSync(join(root, "Humanizer-zh"), { recursive: true });
+  writeFileSync(
+    join(root, "Humanizer-zh", "SKILL.md"),
+    "---\nname: humanizer-zh\nversion: 1.0.0\ndescription: |\n  去除文本中的 AI 生成痕迹。\n---\n\n像真人一样写作。\n",
+    "utf8",
+  );
   mkdirSync(join(root, "engineering"), { recursive: true });
   writeFileSync(
     join(root, "engineering", "engineering-backend-architect.md"),

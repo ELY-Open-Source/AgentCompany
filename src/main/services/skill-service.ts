@@ -15,11 +15,24 @@ function slugify(value: string): string {
 }
 
 /**
- * House-style skills every agent carries on every run, CEO included. They are
- * a resolution rule, not a binding row, so no creation path — hire tool,
- * onboarding, tests, raw SQL — can produce an agent without them.
+ * House-style humanizer skills, one per app language. Every agent carries
+ * the variant matching the current UI language on every run, CEO included.
+ * They are a resolution rule, not a binding row, so no creation path — hire
+ * tool, onboarding, tests, raw SQL — can produce an agent without one.
+ * Both variants are protected from grant/revoke.
  */
-export const FORCED_SKILL_SLUGS = ["humanizer"] as const;
+export const HUMANIZER_SLUG_EN = "humanizer";
+export const HUMANIZER_SLUG_ZH = "humanizer-zh";
+export const FORCED_SKILL_SLUGS = [HUMANIZER_SLUG_EN, HUMANIZER_SLUG_ZH] as const;
+
+/**
+ * Preference order for the forced skill: the language-matched variant first,
+ * the other variant as a fallback so a catalogue that predates the Chinese
+ * skill never silently loses house style.
+ */
+export function forcedSkillSlugCandidates(language: string): string[] {
+  return language === "zh" ? [HUMANIZER_SLUG_ZH, HUMANIZER_SLUG_EN] : [HUMANIZER_SLUG_EN, HUMANIZER_SLUG_ZH];
+}
 
 /**
  * Compiled skill prompts stop packing past this size so one over-granted
@@ -182,20 +195,48 @@ export class SkillService {
 
   /**
    * True when a run for this agent would compile at least one skill: every
-   * agent carries the forced house-style skills once the catalogue holds
-   * them, plus whatever bindings the CEO granted.
+   * agent carries the forced house-style skill once the catalogue holds a
+   * language variant, plus whatever bindings the CEO granted.
    */
   hasRuntimeSkills(orgId: string, agentId: string): boolean {
-    const forced = this.db.prepare(`
-      select sd.id from skill_definitions sd
-      join skill_revisions sr on sr.skill_id = sd.id
-      where sd.org_id = ? and sd.status = 'active' and sd.slug in (${forcedSlugPlaceholders()})
-      limit 1
-    `).get(orgId, ...FORCED_SKILL_SLUGS);
-    if (forced) return true;
+    if (this.forcedSkillRows(orgId).length > 0) return true;
     return Boolean(this.db.prepare(
       "select id from skill_bindings where org_id = ? and agent_id = ? and enabled = 1 limit 1",
     ).get(orgId, agentId));
+  }
+
+  /**
+   * The single forced house-style skill for the current app language:
+   * queries both humanizer variants and keeps the best match by preference
+   * order (language-matched first, other variant as fallback).
+   */
+  private forcedSkillRows(orgId: string): RuntimeSkillRow[] {
+    const candidates = forcedSkillSlugCandidates(this.appLanguage());
+    const rows = this.db.prepare(`
+      select
+        sd.id as skill_id,
+        sd.slug as slug,
+        sr.id as revision_id,
+        sr.version_semver,
+        sr.manifest_json,
+        sa.object_key
+      from skill_definitions sd
+      join skill_revisions sr on sr.id = (
+        select id from skill_revisions where skill_id = sd.id order by published_at desc, id desc limit 1
+      )
+      join skill_artifacts sa on sa.revision_id = sr.id and sa.artifact_type in ('entrypoint', 'markdown')
+      where sd.org_id = ? and sd.status = 'active' and sd.slug in (${candidates.map(() => "?").join(", ")})
+    `).all(orgId, ...candidates) as unknown as Array<RuntimeSkillRow & { slug: string }>;
+    for (const slug of candidates) {
+      const match = rows.find((row) => row.slug === slug);
+      if (match) return [match];
+    }
+    return [];
+  }
+
+  private appLanguage(): string {
+    const row = this.db.prepare("select language from app_state where id = 1").get() as { language: string } | undefined;
+    return row?.language === "zh" ? "zh" : "en";
   }
 
   /**
@@ -212,21 +253,7 @@ export class SkillService {
     const existingSnapshot = this.db.prepare("select id from skill_runtime_snapshots where agent_id = ? and run_id = ?")
       .get(input.agentId, input.runId) as { id: string } | undefined;
     if (existingSnapshot) return existingSnapshot.id;
-    const forcedRows = this.db.prepare(`
-      select
-        sd.id as skill_id,
-        sr.id as revision_id,
-        sr.version_semver,
-        sr.manifest_json,
-        sa.object_key
-      from skill_definitions sd
-      join skill_revisions sr on sr.id = (
-        select id from skill_revisions where skill_id = sd.id order by published_at desc, id desc limit 1
-      )
-      join skill_artifacts sa on sa.revision_id = sr.id and sa.artifact_type in ('entrypoint', 'markdown')
-      where sd.org_id = ? and sd.status = 'active' and sd.slug in (${forcedSlugPlaceholders()})
-      order by sd.slug asc
-    `).all(input.orgId, ...FORCED_SKILL_SLUGS) as unknown as RuntimeSkillRow[];
+    const forcedRows = this.forcedSkillRows(input.orgId);
     const boundRows = this.db.prepare(`
       select
         sb.skill_id as skill_id,
@@ -370,10 +397,6 @@ export class SkillService {
       .get(input.revisionId, input.skillId) as { id: string } | undefined;
     if (!revision) throw new Error("Skill revision was not found.");
   }
-}
-
-function forcedSlugPlaceholders(): string {
-  return FORCED_SKILL_SLUGS.map(() => "?").join(", ");
 }
 
 function artifactType(relativePath: string, manifest: SkillManifest): string {

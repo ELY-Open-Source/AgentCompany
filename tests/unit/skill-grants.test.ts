@@ -68,6 +68,10 @@ function importSkill(h: Harness, name: string, slug: string): void {
     insert into skill_revisions(id, skill_id, version_semver, manifest_json, source_type, source_ref, published_at, immutable_checksum)
     values (?, ?, '1.0.0', '{}', 'local_directory', '/tmp', ?, 'checksum')
   `).run(`skr_${slug}`, `skl_${slug}`, now);
+  h.connection.db.prepare(`
+    insert into skill_artifacts(id, revision_id, artifact_type, object_key, sha256, size_bytes)
+    values (?, ?, 'entrypoint', ?, 'sha', 1)
+  `).run(`ska_${slug}`, `skr_${slug}`, `/tmp/${slug}/SKILL.md`);
 }
 
 describe("skill grants", () => {

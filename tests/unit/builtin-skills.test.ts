@@ -55,6 +55,12 @@ function harness(): Harness {
   mkdirSync(join(sourceRoot, "humanizer"), { recursive: true });
   writeFileSync(join(sourceRoot, "humanizer", "SKILL.md"), HUMANIZER_MD, "utf8");
   writeFileSync(join(sourceRoot, "humanizer", "README.md"), "# About\n", "utf8");
+  mkdirSync(join(sourceRoot, "Humanizer-zh"), { recursive: true });
+  writeFileSync(
+    join(sourceRoot, "Humanizer-zh", "SKILL.md"),
+    "---\nname: humanizer-zh\ndescription: 去除文本中的 AI 生成痕迹。\n---\n\n像真人一样写作。\n",
+    "utf8",
+  );
   mkdirSync(join(sourceRoot, "engineering"), { recursive: true });
   writeFileSync(join(sourceRoot, "engineering", "engineering-backend-architect.md"), ARCHITECT_MD, "utf8");
   writeFileSync(join(sourceRoot, "engineering", "README.md"), "docs, not a skill\n", "utf8");
@@ -75,8 +81,9 @@ describe("built-in skills", () => {
   test("stages both bundle shapes into the library and imports them once per org", () => {
     const h = harness();
     const staged = stageBuiltinSkillsLibrary(h.sourceRoot, h.libraryRoot);
-    expect(staged.map((unit) => unit.slug).sort()).toEqual(["engineering-backend-architect", "humanizer"]);
+    expect(staged.map((unit) => unit.slug).sort()).toEqual(["engineering-backend-architect", "humanizer", "humanizer-zh"]);
     expect(existsSync(join(h.libraryRoot, "humanizer", "SKILL.md"))).toBe(true);
+    expect(existsSync(join(h.libraryRoot, "humanizer-zh", "SKILL.md"))).toBe(true);
     expect(existsSync(join(h.libraryRoot, "engineering-backend-architect", "SKILL.md"))).toBe(true);
     const architect = staged.find((unit) => unit.slug === "engineering-backend-architect");
     expect(architect?.manifest.name).toBe("Backend Architect");
@@ -86,12 +93,12 @@ describe("built-in skills", () => {
     expect(humanizer?.manifest.description).toContain("AI-generated writing");
 
     const first = h.connection.transaction(() => importStagedSkills(h.skills, h.orgId, staged));
-    expect(first).toMatchObject({ imported: 2, skipped: 0, retired: 0, failures: [] });
+    expect(first).toMatchObject({ imported: 3, skipped: 0, retired: 0, failures: [] });
     const second = h.connection.transaction(() => importStagedSkills(h.skills, h.orgId, staged));
-    expect(second).toMatchObject({ imported: 0, skipped: 2, retired: 0 });
+    expect(second).toMatchObject({ imported: 0, skipped: 3, retired: 0 });
     const slugs = (h.connection.db.prepare("select slug from skill_definitions where org_id = ? order by slug").all(h.orgId) as Array<{ slug: string }>)
       .map((row) => row.slug);
-    expect(slugs).toEqual(["engineering-backend-architect", "humanizer"]);
+    expect(slugs).toEqual(["engineering-backend-architect", "humanizer", "humanizer-zh"]);
     h.connection.close();
   });
 
@@ -188,6 +195,43 @@ describe("built-in skills", () => {
     expect(listing).toContain("humanizer (humanizer)");
     expect(listing).toContain("house style");
     expect(listing).toContain("Backend Architect (engineering-backend-architect) — Senior backend architect");
+    h.connection.close();
+  });
+
+  test("the forced humanizer follows the app language, with cross-language fallback", () => {
+    const h = harness();
+    const staged = stageBuiltinSkillsLibrary(h.sourceRoot, h.libraryRoot);
+    h.connection.transaction(() => importStagedSkills(h.skills, h.orgId, staged));
+    let agentId = "";
+    h.connection.transaction(() => {
+      agentId = h.organization.createAgent({
+        orgId: h.orgId, name: "Ada", role: "Engineer", department: "Engineering",
+        modelProviderId: null, modelId: null, budgetCents: 1000, managerAgentId: null,
+      });
+    });
+    const promptFor = (runId: string) => {
+      const snapshotId = h.connection.transaction(() => h.skills.resolveRuntimeSnapshot({ orgId: h.orgId, agentId, runId }));
+      return (h.connection.db.prepare("select compiled_prompt from skill_runtime_snapshots where id = ?").get(snapshotId) as { compiled_prompt: string }).compiled_prompt;
+    };
+
+    // English UI (default): the English humanizer, and only that one.
+    const englishPrompt = promptFor("run_lang_en");
+    expect(englishPrompt).toContain("# Skill: humanizer");
+    expect(englishPrompt).not.toContain("humanizer-zh");
+
+    // Chinese UI: the Chinese variant replaces it.
+    h.connection.transaction(() => h.organization.updateUiPreferences({ language: "zh" }));
+    const chinesePrompt = promptFor("run_lang_zh");
+    expect(chinesePrompt).toContain("# Skill: humanizer-zh");
+    expect(chinesePrompt).not.toContain("# Skill: humanizer\n");
+
+    // Chinese UI against a catalogue without the zh variant falls back to
+    // English house style instead of silently dropping it.
+    h.connection.transaction(() => {
+      h.connection.db.prepare("update skill_definitions set status = 'retired' where org_id = ? and slug = 'humanizer-zh'").run(h.orgId);
+    });
+    const fallbackPrompt = promptFor("run_lang_fallback");
+    expect(fallbackPrompt).toContain("# Skill: humanizer");
     h.connection.close();
   });
 

@@ -29,7 +29,8 @@ export function listSkillsTool(deps: AgentToolDeps, ctx: AgentToolContext): stri
   const lines = skills.map((skill) => {
     const summary = skillSummary(skill.manifest_json);
     if (forced.has(skill.slug)) {
-      return `- ${skill.name} (${skill.slug})${summary}: house style — every agent carries it automatically`;
+      const language = skill.slug === "humanizer-zh" ? "Chinese" : "English";
+      return `- ${skill.name} (${skill.slug})${summary}: house style — carried automatically by every agent when the app language is ${language}`;
     }
     const holders = bindings
       .filter((binding) => binding.skill_id === skill.id)

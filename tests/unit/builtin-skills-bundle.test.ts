@@ -17,6 +17,7 @@ describe("bundled skill catalogue", () => {
       const staged = stageBuiltinSkillsLibrary(resolve(process.cwd(), "built-in skills"), libraryRoot);
       expect(staged.length).toBeGreaterThan(200);
       expect(staged.some((unit) => unit.slug === "humanizer")).toBe(true);
+      expect(staged.some((unit) => unit.slug === "humanizer-zh")).toBe(true);
       const withDescription = staged.filter((unit) => unit.manifest.description).length;
       expect(withDescription / staged.length).toBeGreaterThan(0.9);
     } finally {

@@ -55,7 +55,7 @@ export function ChatComposer({
           agents={agents}
           employees={employees}
           textareaRef={ref}
-          style={{ minHeight: 38 }}
+          style={{ minHeight: 38, maxHeight: "40vh", resize: "vertical" }}
         />
         <div className="row" style={{ paddingTop: 6, borderTop: "1px solid var(--border-soft)", gap: 4 }}>
           <IconButton icon="attach" label={t("Attach file")} onClick={onAttach} disabled={disabled} />
