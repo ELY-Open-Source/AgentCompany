@@ -585,7 +585,7 @@ a { color: inherit; }
   font-variant-numeric: tabular-nums;
 }
 .org-zoom-label:hover { background: var(--hover); color: var(--text-1); }
-.org-scroll { overflow: auto; max-height: 62vh; }
+.org-scroll { overflow: auto; height: 56vh; min-height: 320px; }
 .org-sizer { position: relative; margin: 20px auto 4px; }
 .org-canvas { position: absolute; top: 0; left: 0; }
 .org-node-card {

@@ -40,14 +40,16 @@ export const AGENT_TOOLS: ToolDefinition[] = [
   {
     name: "hire_agent",
     description:
-      "Add one direct report to your team. During team building, call this 3-5 times to staff the roles you need before delegating work. Staff every hire with the library skills their role needs (check list_skills; several are fine) — those skills become mandatory practice in the hire's runs.",
+      "Add one direct report to your org. Hires report to YOU, so build a real company: the CEO hires chief officers (seniority \"director\", title like 'CTO' or 'CFO') and delegates department building to them; officers hire their own managers (seniority \"lead\") and staff. Staff every hire with the library skills their role needs (check list_skills; several are fine) — those skills become mandatory practice in the hire's runs.",
     parameters: {
       type: "object",
       additionalProperties: false,
       properties: {
         name: { type: "string", description: "Full name of the new agent." },
-        role: { type: "string", description: "Their role/title, e.g. 'Growth Marketer'." },
+        role: { type: "string", description: "Their role, e.g. 'Growth Marketer'." },
+        title: { type: "string", description: "Business-card title, e.g. 'CTO', 'Engineering Manager'. Defaults to the role." },
         department: { type: "string", enum: [...ORGANIZATION_DEPARTMENTS], description: "The company department the hire belongs to." },
+        seniority: { type: "string", enum: ["director", "lead", "staff"], description: "Rank in the org: director for chief officers/department heads, lead for managers, staff for individual contributors. Defaults to staff." },
         model: { type: "string", description: "Optional model id; defaults to your own model." },
         skills: {
           type: "array",
@@ -253,23 +255,31 @@ export function dispatchAgentTool(
   }
 }
 
+const HIRE_SENIORITIES = new Set(["director", "lead", "staff"]);
+
 function hireAgent(deps: AgentToolDeps, ctx: AgentToolContext, args: JsonRecord): string {
   if (!ctx.agent.modelProviderId) throw new Error("Acting agent has no model provider to assign hires.");
   const name = requireString(args.name, "name");
   const role = requireString(args.role, "role");
   const department = requireString(args.department, "department");
+  const title = optionalString(args.title) ?? role;
+  const seniority = (optionalString(args.seniority) ?? "staff").toLowerCase();
+  if (!HIRE_SENIORITIES.has(seniority)) {
+    throw new Error(`"seniority" must be one of director, lead, staff. (c_suite is reserved for the CEO.)`);
+  }
   const model = optionalString(args.model) ?? ctx.agent.modelId;
   const requestedSkills = optionalStringArray(args.skills, "skills");
   const agentId = deps.organization.createAgent({
     orgId: ctx.orgId,
     name,
     role,
+    title,
     department,
     modelProviderId: ctx.agent.modelProviderId,
     modelId: model,
     budgetCents: HIRE_BUDGET_CENTS,
     managerAgentId: ctx.agent.id,
-    roleLevel: "staff",
+    roleLevel: seniority,
     workspaceId: ctx.workspace?.id ?? null,
     heartbeatEnabled: true,
     heartbeatIntervalSec: HEARTBEAT_INTERVAL_SEC,
@@ -277,7 +287,7 @@ function hireAgent(deps: AgentToolDeps, ctx: AgentToolContext, args: JsonRecord)
   const { granted, unknown } = bindSkillSlugs(deps, ctx.orgId, agentId, requestedSkills);
   const skillNote = granted.length > 0 ? ` They carry: ${granted.join(", ")} (plus the automatic humanizer house style).` : "";
   const unknownNote = unknown.length > 0 ? ` Unknown skills skipped: ${unknown.join(", ")} — run list_skills and grant_skill to fix.` : "";
-  return `Hired ${name} as ${role} in ${department} (agent_id=${agentId}).${skillNote}${unknownNote}`;
+  return `Hired ${name} as ${title} (${seniority}) in ${department}, reporting to you (agent_id=${agentId}).${skillNote}${unknownNote}`;
 }
 
 function createTask(deps: AgentToolDeps, ctx: AgentToolContext, args: JsonRecord, options: AgentToolDispatchOptions): string {

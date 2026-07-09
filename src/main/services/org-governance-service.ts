@@ -5,7 +5,7 @@ import { createId } from "../../shared/ids";
 import { AuditService } from "./audit-service";
 import { OperationsService } from "./operations-service";
 
-export const ORGANIZATION_DEPARTMENTS = ["Executive", "Engineering", "Product", "Design", "Marketing", "Operations", "Support"] as const;
+export const ORGANIZATION_DEPARTMENTS = ["Executive", "Engineering", "Product", "Design", "Marketing", "Sales", "Finance", "Operations", "Support"] as const;
 const RISK_RANK: Record<RiskLevel, number> = { low: 0, medium: 1, high: 2 };
 
 export class OrgGovernanceService {

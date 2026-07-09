@@ -41,7 +41,7 @@ export function goalKickoffDescription(companyName: string, goalTitle: string, g
     `Company: ${companyName.trim()}`,
     `Goal: ${goalTitle.trim()}`,
     goalDescription.trim(),
-    "Read the bound workspace, create the first operating plan, delegate work, and route decisions through approvals and messages.",
+    "Treat this goal as the company objective and build the organization that can deliver it: hire chief officers (hire_agent, seniority \"director\", titles like CTO/CFO/CMO/COO) for the functions the goal needs, give each officer their department objective as a task, and let them build and run their own teams. Read the bound workspace, create the first operating plan, and route decisions through approvals and messages.",
   ].filter((line) => line.length > 0).join("\n\n");
 }
 
