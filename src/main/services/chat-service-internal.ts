@@ -30,6 +30,7 @@ export interface FileAttachmentRow {
 export interface SpaceRow {
   id: string;
   org_id: string;
+  name: string;
   visibility: string;
   space_type: string;
 }

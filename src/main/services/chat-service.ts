@@ -166,12 +166,19 @@ export class ChatService {
     recordChatMentions(this.db, id, mentions);
     const slashResultRef = slash ? this.slashRouter.execute(input, space, sender, mentions, attachments, slash, id, threadId, now) : null;
     if (slash) this.slashRouter.recordInvocation(id, slash, slashResultRef, now);
+    const woken = new Set<string>();
     if (!slash || slash.command !== "agent") {
-      this.wakeAgentMentions(input, mentions, id, threadId, now);
-      if (space.space_type === "direct") this.wakeDirectCounterparts(input, mentions, id, threadId, now);
+      this.wakeAgentMentions(input, mentions, id, threadId, now, woken);
+      if (space.space_type === "direct") this.wakeDirectCounterparts(input, id, threadId, now, woken);
     }
     if (input.senderType === "employee" || input.senderType === "board") {
-      this.wakeThreadParticipants(input, mentions, id, threadId, now);
+      this.wakeThreadParticipants(input, id, threadId, now, woken);
+      // A human speaking in a channel expects an answer. If neither mentions
+      // nor thread history summoned anyone, the channel's most senior agent
+      // member picks it up (and can @mention teammates to pull them in).
+      if (!slash && space.space_type !== "direct" && woken.size === 0) {
+        this.wakeChannelAnchor(input, space, id, threadId, now);
+      }
     }
     this.handoffs.record({
       orgId: input.orgId,
@@ -238,7 +245,7 @@ export class ChatService {
     this.messageMutations.deleteMessage(input);
   }
 
-  private wakeAgentMentions(input: SendMessageInput, mentions: ResolvedMention[], messageId: string, threadId: string, now: string): void {
+  private wakeAgentMentions(input: SendMessageInput, mentions: ResolvedMention[], messageId: string, threadId: string, now: string, woken: Set<string>): void {
     const agentMentions = mentions.filter(
       (m) => m.target.type === "agent" && !(input.senderType === "agent" && input.senderId === m.target.id),
     );
@@ -247,6 +254,7 @@ export class ChatService {
     for (const mention of agentMentions) {
       try {
         this.agentWake.wakeFromMention(input, mention.target.id, messageId, threadId, now);
+        woken.add(mention.target.id);
         this.db.prepare(
           "update chat_mentions set wake_state = 'woken' where message_id = ? and target_type = 'agent' and target_id = ?",
         ).run(messageId, mention.target.id);
@@ -258,20 +266,18 @@ export class ChatService {
     }
   }
 
-  private wakeThreadParticipants(input: SendMessageInput, alreadyMentioned: ResolvedMention[], messageId: string, threadId: string, now: string): void {
+  private wakeThreadParticipants(input: SendMessageInput, messageId: string, threadId: string, now: string, woken: Set<string>): void {
     if (!input.threadId) return;
-    const mentionedAgentIds = new Set(
-      alreadyMentioned.filter((m) => m.target.type === "agent").map((m) => m.target.id),
-    );
     const participants = this.db.prepare(`
       select distinct m.sender_id as agent_id
       from chat_messages m
       where m.thread_id = ? and m.org_id = ? and m.sender_type = 'agent' and m.deleted_at is null
     `).all(input.threadId, input.orgId) as Array<{ agent_id: string }>;
     for (const row of participants) {
-      if (mentionedAgentIds.has(row.agent_id)) continue;
+      if (woken.has(row.agent_id)) continue;
       try {
         this.agentWake.wakeFromMention(input, row.agent_id, messageId, threadId, now);
+        woken.add(row.agent_id);
       } catch {
         // Agent may not have an enabled provider.
       }
@@ -284,22 +290,51 @@ export class ChatService {
    * — the same social contract as any messenger. Mentioned agents were
    * already woken; the autonomous turn budget still bounds agent↔agent runs.
    */
-  private wakeDirectCounterparts(input: SendMessageInput, mentions: ResolvedMention[], messageId: string, threadId: string, now: string): void {
+  private wakeDirectCounterparts(input: SendMessageInput, messageId: string, threadId: string, now: string, woken: Set<string>): void {
     if (input.senderType === "agent" && this.autonomousThreadTurnsExhausted(input.orgId, threadId)) return;
-    const mentionedAgentIds = new Set(mentions.filter((m) => m.target.type === "agent").map((m) => m.target.id));
     const members = this.db.prepare(`
       select principal_id as agent_id
       from chat_memberships
       where space_id = ? and principal_type = 'agent'
     `).all(input.spaceId) as Array<{ agent_id: string }>;
     for (const member of members) {
-      if (mentionedAgentIds.has(member.agent_id)) continue;
+      if (woken.has(member.agent_id)) continue;
       if (input.senderType === "agent" && input.senderId === member.agent_id) continue;
       try {
         this.agentWake.wakeFromMention(input, member.agent_id, messageId, threadId, now);
+        woken.add(member.agent_id);
       } catch {
         // Agent may not have an enabled provider.
       }
+    }
+  }
+
+  /**
+   * Fallback responder for a human message in a channel that named no one:
+   * the most senior active agent member with an enabled provider answers,
+   * exactly like a room going quiet until the highest-ranking person speaks.
+   */
+  private wakeChannelAnchor(input: SendMessageInput, space: SpaceRow, messageId: string, threadId: string, now: string): void {
+    const anchor = this.db.prepare(`
+      select a.id as agent_id
+      from chat_memberships cm
+      join agents a on a.id = cm.principal_id and a.org_id = ?
+      join providers p on p.id = a.model_provider_id and p.org_id = a.org_id
+      where cm.space_id = ? and cm.principal_type = 'agent'
+        and a.lifecycle = 'active'
+        and p.enabled = 1
+      order by case a.role_level when 'c_suite' then 0 when 'director' then 1 when 'lead' then 2 else 3 end,
+               a.created_at asc
+      limit 1
+    `).get(input.orgId, input.spaceId) as { agent_id: string } | undefined;
+    if (!anchor) {
+      console.info(`[chat] no runnable agent member in #${space.name}; the message stays unanswered until one is hired or a provider is enabled.`);
+      return;
+    }
+    try {
+      this.agentWake.wakeFromMention(input, anchor.agent_id, messageId, threadId, now);
+    } catch (error) {
+      console.warn(`[chat] waking channel anchor for #${space.name} failed: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
@@ -337,7 +372,7 @@ export class ChatService {
   }
 
   private requireSpace(orgId: string, spaceId: string): SpaceRow {
-    const space = this.db.prepare("select id, org_id, visibility, space_type from chat_spaces where id = ? and org_id = ?")
+    const space = this.db.prepare("select id, org_id, name, visibility, space_type from chat_spaces where id = ? and org_id = ?")
       .get(spaceId, orgId) as SpaceRow | undefined;
     if (!space) throw new Error("Chat space was not found.");
     return space;
