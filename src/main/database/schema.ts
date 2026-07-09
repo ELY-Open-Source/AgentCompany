@@ -47,6 +47,7 @@ import { connectorGrantsSchema } from "./migrations/045-connector-grants";
 import { composioKeyPurgeSchema } from "./migrations/046-composio-key-purge";
 import { authConfigPurgeSchema } from "./migrations/047-auth-config-purge";
 import { uiPreferencesSchema } from "./migrations/048-ui-preferences";
+import { avatarsSchema } from "./migrations/049-avatars";
 
 interface Migration {
   version: number;
@@ -103,6 +104,7 @@ const MIGRATIONS: Migration[] = [
   { version: 46, name: "composio_key_purge", sql: composioKeyPurgeSchema },
   { version: 47, name: "auth_config_purge", sql: authConfigPurgeSchema },
   { version: 48, name: "ui_preferences", sql: uiPreferencesSchema },
+  { version: 49, name: "avatars", sql: avatarsSchema },
 ];
 
 const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;

@@ -15,6 +15,7 @@ const api: DesktopApi = {
   deleteOrganization: (input) => invoke(IPC_CHANNELS.deleteOrganization, input),
   createAgent: (input) => invoke(IPC_CHANNELS.createAgent, input),
   updateAgent: (input) => invoke(IPC_CHANNELS.updateAgent, input),
+  updateEmployeeProfile: (input) => invoke(IPC_CHANNELS.updateEmployeeProfile, input),
   createTask: (input) => invoke(IPC_CHANNELS.createTask, input),
   updateTask: (input) => invoke(IPC_CHANNELS.updateTask, input),
   deleteTask: (input) => invoke(IPC_CHANNELS.deleteTask, input),

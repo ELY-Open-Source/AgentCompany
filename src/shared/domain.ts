@@ -49,6 +49,8 @@ export interface EmployeeRecord {
   orgId: string;
   displayName: string;
   role: string;
+  avatarEmoji: string | null;
+  avatarColor: string | null;
   createdAt: string;
 }
 
@@ -69,6 +71,8 @@ export interface AgentRecord {
   heartbeatEnabled: boolean;
   heartbeatIntervalSec: number;
   lifecycle: string;
+  avatarEmoji: string | null;
+  avatarColor: string | null;
   createdAt: string;
 }
 

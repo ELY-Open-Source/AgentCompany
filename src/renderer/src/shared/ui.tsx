@@ -1,5 +1,18 @@
-import type { ReactNode } from "react";
+import { createContext, useContext, type ReactNode } from "react";
 import { Icon, type IconName } from "./Icon";
+
+export interface AvatarLook {
+  emoji: string | null;
+  color: string | null;
+}
+
+/**
+ * Custom avatar looks by display name, built once from the snapshot (agents
+ * and employees). Avatar consumes it directly so every existing call site —
+ * chat rows, org chart, office, sidebar — honors a customized avatar without
+ * threading props through each page.
+ */
+export const AvatarDirectoryContext = createContext<ReadonlyMap<string, AvatarLook>>(new Map());
 
 const palette: ReadonlyArray<readonly [string, string]> = [
   ["#5e6ad2", "#fff"],
@@ -11,6 +24,9 @@ const palette: ReadonlyArray<readonly [string, string]> = [
   ["#2a2a2e", "#fff"],
   ["#c2410c", "#fff"],
 ];
+
+/** Swatch choices for custom avatar backgrounds — the hash palette, curated. */
+export const AVATAR_COLORS: readonly string[] = palette.map(([bg]) => bg);
 
 function hashName(value: string): number {
   let hash = 0;
@@ -35,16 +51,24 @@ export function Avatar({
   name,
   size = "",
   bot = false,
+  look,
 }: {
   name: string;
   size?: AvatarSize;
   bot?: boolean;
+  /** Explicit look override; when omitted the directory context is consulted. */
+  look?: AvatarLook;
 }) {
-  const [bg, fg] = paletteFor(name);
+  const directory = useContext(AvatarDirectoryContext);
+  const custom = look ?? directory.get(name);
+  const [hashedBg, hashedFg] = paletteFor(name);
+  const bg = custom?.color || hashedBg;
+  const fg = custom?.color ? "#fff" : hashedFg;
   const dim = size === "sm" ? 14 : size === "lg" ? 18 : size === "xl" ? 24 : 14;
+  const emoji = custom?.emoji ?? null;
   return (
-    <div className={`avatar ${size}`.trim() + (bot ? " bot" : "")} style={{ background: bg, color: fg }}>
-      {bot ? <Icon name="bot" size={dim} /> : initials(name)}
+    <div className={`avatar ${size}`.trim() + (bot && !emoji ? " bot" : "")} style={{ background: bg, color: fg }}>
+      {emoji ? <span aria-hidden>{emoji}</span> : bot ? <Icon name="bot" size={dim} /> : initials(name)}
     </div>
   );
 }

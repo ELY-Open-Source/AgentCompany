@@ -27,6 +27,8 @@ export interface CreateOrganizationInput {
 export interface UpdateAgentInput {
   orgId: string;
   agentId: string;
+  /** New display name; omit to keep the current one. */
+  name?: string;
   role: string;
   title: string;
   roleLevel: string;
@@ -34,6 +36,18 @@ export interface UpdateAgentInput {
   budgetCents: number;
   modelProviderId: string | null;
   modelId: string | null;
+  /** Emoji shown on the avatar tile; empty string clears it. */
+  avatarEmoji?: string;
+  /** Background color for the avatar tile; empty string clears it. */
+  avatarColor?: string;
+}
+
+export interface UpdateEmployeeProfileInput {
+  orgId: string;
+  employeeId: string;
+  displayName: string;
+  avatarEmoji?: string;
+  avatarColor?: string;
 }
 
 export interface CreateAgentInput {

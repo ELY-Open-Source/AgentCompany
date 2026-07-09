@@ -1,7 +1,7 @@
 import type { DatabaseSync } from "node:sqlite";
 import { APPROVAL_STATE, RISK_LEVEL, TASK_STATUS, type ApprovalState } from "../../shared/domain";
 import { createId } from "../../shared/ids";
-import type { CreateAgentInput, CreateGoalInput, CreateOrganizationInput, CreateProjectInput, CreateTaskInput, CreateWorkspaceInput, DeleteTaskInput, UpdateAgentInput, UpdateTaskInput } from "../../shared/commands";
+import type { CreateAgentInput, CreateGoalInput, CreateOrganizationInput, CreateProjectInput, CreateTaskInput, CreateWorkspaceInput, DeleteTaskInput, UpdateAgentInput, UpdateEmployeeProfileInput, UpdateTaskInput } from "../../shared/commands";
 import { AuditService } from "./audit-service";
 import { ensureAgentHeartbeat, resolveGoalKickoff, type GoalKickoffPlan } from "./goal-kickoff";
 import { PolicyService } from "./policy-service";
@@ -147,11 +147,14 @@ export class OrganizationService {
   }
 
   updateAgent(input: UpdateAgentInput): void {
-    const agent = this.db.prepare("select id from agents where id = ? and org_id = ?")
-      .get(input.agentId, input.orgId) as { id: string } | undefined;
+    const agent = this.db.prepare("select id, name, avatar_emoji, avatar_color from agents where id = ? and org_id = ?")
+      .get(input.agentId, input.orgId) as { id: string; name: string; avatar_emoji: string | null; avatar_color: string | null } | undefined;
     if (!agent) throw new Error("Agent was not found.");
     const role = input.role.trim();
     if (!role) throw new Error("Agent role is required.");
+    const name = input.name === undefined ? agent.name : input.name.trim();
+    if (!name) throw new Error("Agent name is required.");
+    if (name !== agent.name) assertUsableMentionName(name);
     if (input.modelProviderId) {
       const provider = this.db.prepare("select id from providers where id = ? and org_id = ?")
         .get(input.modelProviderId, input.orgId) as { id: string } | undefined;
@@ -159,11 +162,14 @@ export class OrganizationService {
     }
     const department = this.governance.requireCanonicalDepartment(input.orgId, input.department);
     const budgetCents = Math.max(0, Math.round(input.budgetCents));
+    const avatarEmoji = input.avatarEmoji === undefined ? agent.avatar_emoji : (input.avatarEmoji.trim() || null);
+    const avatarColor = input.avatarColor === undefined ? agent.avatar_color : normalizeAvatarColor(input.avatarColor);
     const result = this.db.prepare(`
       update agents
-      set role = ?, title = ?, role_level = ?, department = ?, budget_cents = ?, model_provider_id = ?, model_id = ?
+      set name = ?, role = ?, title = ?, role_level = ?, department = ?, budget_cents = ?, model_provider_id = ?, model_id = ?,
+          avatar_emoji = ?, avatar_color = ?
       where id = ? and org_id = ?
-    `).run(role, input.title.trim() || role, input.roleLevel.trim() || "staff", department, budgetCents, input.modelProviderId, input.modelId, input.agentId, input.orgId);
+    `).run(name, role, input.title.trim() || role, input.roleLevel.trim() || "staff", department, budgetCents, input.modelProviderId, input.modelId, avatarEmoji, avatarColor, input.agentId, input.orgId);
     if (result.changes === 0) throw new Error("Agent update failed.");
     this.audit.record({
       orgId: input.orgId,
@@ -172,7 +178,28 @@ export class OrganizationService {
       actorType: "employee",
       actorId: null,
       action: "updated",
-      payload: { role, roleLevel: input.roleLevel.trim() || "staff" },
+      payload: { name, role, roleLevel: input.roleLevel.trim() || "staff" },
+    });
+  }
+
+  updateEmployeeProfile(input: UpdateEmployeeProfileInput): void {
+    const employee = this.db.prepare("select id, avatar_emoji, avatar_color from employees where id = ? and org_id = ?")
+      .get(input.employeeId, input.orgId) as { id: string; avatar_emoji: string | null; avatar_color: string | null } | undefined;
+    if (!employee) throw new Error("Employee was not found.");
+    const displayName = input.displayName.trim();
+    if (!displayName) throw new Error("Display name is required.");
+    const avatarEmoji = input.avatarEmoji === undefined ? employee.avatar_emoji : (input.avatarEmoji.trim() || null);
+    const avatarColor = input.avatarColor === undefined ? employee.avatar_color : normalizeAvatarColor(input.avatarColor);
+    this.db.prepare("update employees set display_name = ?, avatar_emoji = ?, avatar_color = ? where id = ? and org_id = ?")
+      .run(displayName, avatarEmoji, avatarColor, input.employeeId, input.orgId);
+    this.audit.record({
+      orgId: input.orgId,
+      entityType: "employee",
+      entityId: input.employeeId,
+      actorType: "employee",
+      actorId: input.employeeId,
+      action: "profile_updated",
+      payload: { displayName },
     });
   }
 
@@ -478,4 +505,12 @@ export class OrganizationService {
       payload: { status },
     });
   }
+}
+
+/** Avatar colors persist as #rrggbb; anything else is a caller bug. */
+function normalizeAvatarColor(value: string): string | null {
+  const color = value.trim();
+  if (!color) return null;
+  if (!/^#[0-9a-fA-F]{6}$/.test(color)) throw new Error("Avatar color must be a #rrggbb hex value.");
+  return color.toLowerCase();
 }

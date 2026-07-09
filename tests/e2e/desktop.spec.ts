@@ -85,6 +85,22 @@ test("onboards, hires, and creates work in the Electron shell", async () => {
     expect(hiredAgent.workspaceId).toBe(hiredAgent.primaryWorkspaceId);
     expect(hiredAgent.heartbeatEnabled).toBe(true);
     expect(hiredAgent.heartbeatIntervalSec).toBe(120);
+
+    // The operator can rename any agent and give it a custom avatar.
+    await page.getByRole("button", { name: "Edit Alex Chen" }).click();
+    await page.locator(".modal").getByLabel("Name", { exact: true }).fill("Alex Turing");
+    await page.getByLabel("Avatar emoji").fill("🚀");
+    await page.locator(".modal").getByRole("button", { name: "Save" }).click();
+    await expect(page.getByText("Alex Turing").first()).toBeVisible();
+    await expect(page.locator(".table-row", { hasText: "Alex Turing" }).locator(".avatar", { hasText: "🚀" })).toBeVisible();
+
+    // The operator edits their own name and avatar from the sidebar foot.
+    await page.getByRole("button", { name: "Edit profile" }).click();
+    await page.locator(".modal").getByLabel("Name", { exact: true }).fill("Dana Zhang");
+    await page.getByLabel("Avatar emoji").fill("🎯");
+    await page.locator(".modal").getByRole("button", { name: "Save" }).click();
+    await expect(page.getByRole("button", { name: "Edit profile" })).toContainText("Dana Zhang");
+    await expect(page.getByRole("button", { name: "Edit profile" }).locator(".avatar")).toContainText("🎯");
     await page.getByRole("button", { name: "Work", exact: true }).click();
     await page.getByRole("button", { name: "New task" }).click();
     await page.getByLabel("Title").fill("Production deploy");
@@ -158,12 +174,12 @@ test("onboards, hires, and creates work in the Electron shell", async () => {
     await page.getByRole("button", { name: "Office" }).click();
     await expect(page.locator("canvas")).toBeVisible();
 
-    // @mention with canonical handle in chat
+    // @mention with canonical handle in chat (the renamed agent resolves).
     await page.getByRole("button", { name: "Messages" }).click();
     await page.getByText("general").first().click();
-    await page.getByRole("textbox", { name: "Message" }).fill("@alexchen what is the status?");
+    await page.getByRole("textbox", { name: "Message" }).fill("@alexturing what is the status?");
     await page.getByRole("button", { name: "Send" }).click();
-    await expect(page.getByText("Alex Chen").first()).toBeVisible();
+    await expect(page.getByText("Alex Turing").first()).toBeVisible();
 
     await verifyPagesDoNotOverflow(page);
   } finally {

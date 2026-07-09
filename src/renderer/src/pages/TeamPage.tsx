@@ -1,5 +1,6 @@
 import { useMemo, useState, type FormEvent } from "react";
 import { Avatar, Button, Field, Icon, IconButton } from "../shared/ui";
+import { AvatarField } from "../shared/AvatarField";
 import { TopbarActions } from "../shared/TopbarActions";
 import { Dialog } from "../shared/Dialog";
 import { OrgChartTree } from "./team/OrgChartTree";
@@ -82,6 +83,7 @@ export function TeamPage({ snapshot, actions }: PageProps) {
     void actions.run(() => window.agentCompany.updateAgent({
       orgId,
       agentId: editingAgent.id,
+      name: text(form, "name"),
       role: text(form, "role"),
       title: text(form, "title") || text(form, "role"),
       roleLevel: text(form, "roleLevel") || "staff",
@@ -89,6 +91,8 @@ export function TeamPage({ snapshot, actions }: PageProps) {
       budgetCents: Math.max(0, Math.round(Number(text(form, "budget")) * 100)),
       modelProviderId: optional(form, "modelProviderId"),
       modelId: optional(form, "modelId"),
+      avatarEmoji: String(form.get("avatarEmoji") ?? ""),
+      avatarColor: String(form.get("avatarColor") ?? ""),
     })).then((result) => { if (result) setEditAgentId(null); });
   };
 
@@ -167,6 +171,8 @@ export function TeamPage({ snapshot, actions }: PageProps) {
 
       {editingAgent && (
         <Dialog key={editingAgent.id} title={t("Edit {name}", { name: editingAgent.name })} open submitLabel={t("Save")} onClose={() => setEditAgentId(null)} onSubmit={submitEdit}>
+          <Field label={t("Name")}><input className="input" name="name" defaultValue={editingAgent.name} required /></Field>
+          <AvatarField previewName={editingAgent.name} defaultEmoji={editingAgent.avatarEmoji} defaultColor={editingAgent.avatarColor} />
           <Field label={t("Role")}><input className="input" name="role" defaultValue={editingAgent.role} required /></Field>
           <Field label={t("Title")}><input className="input" name="title" defaultValue={editingAgent.title} /></Field>
           <Field label={t("Department")}><input className="input" name="department" defaultValue={editingAgent.department} required /></Field>

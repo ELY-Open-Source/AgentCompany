@@ -1,6 +1,8 @@
-import { useEffect, useState, type ReactNode } from "react";
-import type { AppSnapshot } from "../../../shared/domain";
-import { Avatar, Icon, IconButton } from "./ui";
+import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import type { AppSnapshot, EmployeeRecord } from "../../../shared/domain";
+import { Avatar, Field, Icon, IconButton } from "./ui";
+import { AvatarField } from "./AvatarField";
+import { Dialog } from "./Dialog";
 import { NavIcon } from "./NavIcon";
 import { OrgSwitcher } from "./OrgSwitcher";
 import { SearchDialog } from "./SearchDialog";
@@ -58,6 +60,7 @@ export function Shell({
   children: ReactNode;
 }) {
   const [searchOpen, setSearchOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
   const [actionsSlot, setActionsSlot] = useState<HTMLElement | null>(null);
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
@@ -113,10 +116,18 @@ export function Shell({
           </button>
         </nav>
         <div className="sidebar-foot">
-          <Avatar name={employee.displayName} size="sm" />
-          <span className="sidebar-foot-name">{employee.displayName}</span>
+          <button
+            type="button"
+            className="sidebar-foot-button"
+            aria-label={t("Edit profile")}
+            onClick={() => setProfileOpen(true)}
+          >
+            <Avatar name={employee.displayName} size="sm" />
+            <span className="sidebar-foot-name">{employee.displayName}</span>
+          </button>
         </div>
       </aside>
+      {profileOpen && <ProfileDialog employee={employee} onClose={() => setProfileOpen(false)} />}
       <main className="main">
         <header className="topbar">
           <span className="crumb-sub">{organization.name}</span>
@@ -214,4 +225,34 @@ function countUnreadMessages(snapshot: AppSnapshot, orgId: string, employeeId: s
     unread += 1;
   }
   return unread;
+}
+
+/**
+ * The operator's own identity: display name plus avatar. Saves through the
+ * standard mutate IPC, so the refreshed snapshot repaints every surface that
+ * shows the user (sidebar, chat, org chart) at once.
+ */
+function ProfileDialog({ employee, onClose }: { employee: EmployeeRecord; onClose: () => void }) {
+  const [error, setError] = useState<string | null>(null);
+  const submit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    void window.agentCompany.updateEmployeeProfile({
+      orgId: employee.orgId,
+      employeeId: employee.id,
+      displayName: String(form.get("displayName") ?? "").trim(),
+      avatarEmoji: String(form.get("avatarEmoji") ?? ""),
+      avatarColor: String(form.get("avatarColor") ?? ""),
+    }).then((result) => {
+      if (result.ok) onClose();
+      else setError(result.error.message);
+    });
+  };
+  return (
+    <Dialog title={t("Edit profile")} open submitLabel={t("Save")} onClose={onClose} onSubmit={submit}>
+      <Field label={t("Name")}><input className="input" name="displayName" defaultValue={employee.displayName} required /></Field>
+      <AvatarField previewName={employee.displayName} defaultEmoji={employee.avatarEmoji} defaultColor={employee.avatarColor} />
+      {error && <div className="form-error" role="alert">{error}</div>}
+    </Dialog>
+  );
 }

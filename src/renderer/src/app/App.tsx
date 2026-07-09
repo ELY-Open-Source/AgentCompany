@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Shell, type RouteId } from "../shared/Shell";
+import { AvatarDirectoryContext, type AvatarLook } from "../shared/ui";
 import { Onboarding } from "./Onboarding";
 import { useSnapshot } from "./useSnapshot";
 import { HomePage } from "../pages/HomePage";
@@ -16,6 +17,16 @@ import { OfficePage } from "../pages/OfficePage";
 export function App() {
   const { snapshot, actions } = useSnapshot();
   const [route, setRoute] = useState<RouteId>("home");
+  const avatarDirectory = useMemo(() => {
+    const directory = new Map<string, AvatarLook>();
+    for (const agent of snapshot?.agents ?? []) {
+      if (agent.avatarEmoji || agent.avatarColor) directory.set(agent.name, { emoji: agent.avatarEmoji, color: agent.avatarColor });
+    }
+    for (const employee of snapshot?.employees ?? []) {
+      if (employee.avatarEmoji || employee.avatarColor) directory.set(employee.displayName, { emoji: employee.avatarEmoji, color: employee.avatarColor });
+    }
+    return directory;
+  }, [snapshot?.agents, snapshot?.employees]);
   const [creatingOrg, setCreatingOrg] = useState(false);
   // Keeps the wizard mounted through its post-bootstrap connectors step: the
   // organization exists from Launch onward, so the org-count check alone
@@ -68,15 +79,17 @@ export function App() {
   }[route];
 
   return (
-    <Shell
-      snapshot={snapshot}
-      route={route}
-      setRoute={setRoute}
-      onSwitchOrg={(orgId) => void actions.run(() => window.agentCompany.setActiveOrganization({ orgId }))}
-      onDeleteOrg={(orgId) => void actions.run(() => window.agentCompany.deleteOrganization({ orgId }))}
-      onNewOrg={() => setCreatingOrg(true)}
-    >
-      {page}
-    </Shell>
+    <AvatarDirectoryContext.Provider value={avatarDirectory}>
+      <Shell
+        snapshot={snapshot}
+        route={route}
+        setRoute={setRoute}
+        onSwitchOrg={(orgId) => void actions.run(() => window.agentCompany.setActiveOrganization({ orgId }))}
+        onDeleteOrg={(orgId) => void actions.run(() => window.agentCompany.deleteOrganization({ orgId }))}
+        onNewOrg={() => setCreatingOrg(true)}
+      >
+        {page}
+      </Shell>
+    </AvatarDirectoryContext.Provider>
   );
 }

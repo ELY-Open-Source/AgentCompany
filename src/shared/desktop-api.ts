@@ -7,6 +7,7 @@ import type {
   CancelProviderResponseInput,
   CreateAgentInput,
   UpdateAgentInput,
+  UpdateEmployeeProfileInput,
   CreateApprovalInput,
   CreateAutomationRuleInput,
   CreateDocumentInput,
@@ -107,6 +108,7 @@ export interface DesktopApi {
   createOrganization(input: CreateOrganizationInput): Promise<DesktopResult<AppSnapshot>>;
   createAgent(input: CreateAgentInput): Promise<DesktopResult<AppSnapshot>>;
   updateAgent(input: UpdateAgentInput): Promise<DesktopResult<AppSnapshot>>;
+  updateEmployeeProfile(input: UpdateEmployeeProfileInput): Promise<DesktopResult<AppSnapshot>>;
   createTask(input: CreateTaskInput): Promise<DesktopResult<AppSnapshot>>;
   updateTask(input: UpdateTaskInput): Promise<DesktopResult<AppSnapshot>>;
   deleteTask(input: DeleteTaskInput): Promise<DesktopResult<AppSnapshot>>;
