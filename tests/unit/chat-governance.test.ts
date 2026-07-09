@@ -402,12 +402,22 @@ describe("chat governance", () => {
       "select count(*) as n from task_runs where org_id = ? and agent_id = ? and trigger = 'chat_mention'",
     ).get(orgId, targetId) as { n: number }).n;
 
-    // Alice (an agent) keeps @mentioning Bob in one thread. Each post is an
-    // autonomous turn; only the first batch wakes Bob, then the budget is spent.
+    // Simulates the worker finishing Bob's pending reply run, the state a real
+    // exchange is in when the next message lands (a still-queued run coalesces).
+    const finishPendingWakeRuns = (): void => {
+      connection.db.prepare(
+        "update task_runs set state = 'completed', completed_at = datetime('now') where org_id = ? and agent_id = ? and state = 'queued'",
+      ).run(orgId, targetId);
+    };
+
+    // Alice (an agent) keeps @mentioning Bob in one thread, and Bob's reply run
+    // completes before each next post. Only the first batch of turns wakes Bob,
+    // then the autonomous budget is spent.
     connection.transaction(() => {
       const first = chat.sendMessage({ orgId, spaceId, threadId: null, senderType: "agent", senderId: speakerId, bodyMd: "@Bob turn 1", attachmentFileIds: [] });
       threadId = (connection.db.prepare("select thread_id from chat_messages where id = ?").get(first) as { thread_id: string }).thread_id;
       for (let turn = 2; turn <= 40; turn += 1) {
+        finishPendingWakeRuns();
         chat.sendMessage({ orgId, spaceId, threadId, senderType: "agent", senderId: speakerId, bodyMd: `@Bob turn ${turn}`, attachmentFileIds: [] });
       }
     });
@@ -419,7 +429,9 @@ describe("chat governance", () => {
     // A human re-enters the thread: their message wakes Bob and grants the
     // agents a fresh budget, so the next agent turn wakes him again.
     connection.transaction(() => {
+      finishPendingWakeRuns();
       chat.sendMessage({ orgId, spaceId, threadId, senderType: "employee", senderId: employeeId, bodyMd: "Keep going @Bob", attachmentFileIds: [] });
+      finishPendingWakeRuns();
       chat.sendMessage({ orgId, spaceId, threadId, senderType: "agent", senderId: speakerId, bodyMd: "@Bob resuming", attachmentFileIds: [] });
     });
     expect(wakeRunCount()).toBeGreaterThan(capped);

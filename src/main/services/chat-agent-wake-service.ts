@@ -37,6 +37,11 @@ export class ChatAgentWakeService {
 
   wakeFromMention(input: SendMessageInput, agentId: string, messageId: string, threadId: string, now: string): AgentWakeResult {
     const agent = this.requireRunnableAgent(input.orgId, agentId, "Agent mention");
+    // One pending wake per (agent, thread): the queued run reads the thread's
+    // newest messages when it executes, so waking again before it starts would
+    // spend a whole run to answer the same conversation twice.
+    const pending = this.pendingWakeRun(input.orgId, agentId, threadId);
+    if (pending) return { targetId: agentId, taskId: pending.taskId, runId: pending.runId };
     const workspace = this.workspaceForAgent(input.orgId, agent.workspace_id);
     const from = this.principalName(input.orgId, input.senderType, input.senderId);
     const space = this.spaceRow(input.orgId, input.spaceId);
@@ -79,6 +84,16 @@ export class ChatAgentWakeService {
     const runId = this.createQueuedRun({ orgId: input.orgId, taskId, agent, workspace, messageId, threadId, now });
     this.recordPresence(agent.id, slash, now);
     return { targetId: agent.id, taskId, runId };
+  }
+
+  private pendingWakeRun(orgId: string, agentId: string, threadId: string): { taskId: string; runId: string } | null {
+    const row = this.db.prepare(`
+      select id, task_id from task_runs
+      where org_id = ? and agent_id = ? and state = 'queued' and trigger = 'chat_mention'
+        and json_extract(secret_scope_json, '$.sourceThreadId') = ?
+      limit 1
+    `).get(orgId, agentId, threadId) as { id: string; task_id: string } | undefined;
+    return row ? { taskId: row.task_id, runId: row.id } : null;
   }
 
   private requireAgentMention(mentions: ResolvedMention[]): string {

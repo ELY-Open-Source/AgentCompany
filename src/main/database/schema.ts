@@ -52,6 +52,7 @@ import { financeSalesDepartmentsSchema } from "./migrations/050-finance-sales-de
 import { purgeRuntimeSnapshotBloatSchema } from "./migrations/051-purge-runtime-snapshot-bloat";
 import { avatarImagesSchema } from "./migrations/052-avatar-images";
 import { autonomousPauseSchema } from "./migrations/053-autonomous-pause";
+import { closeStaleWakeTasksSchema } from "./migrations/054-close-stale-wake-tasks";
 
 interface Migration {
   version: number;
@@ -113,6 +114,7 @@ const MIGRATIONS: Migration[] = [
   { version: 51, name: "purge_runtime_snapshot_bloat", sql: purgeRuntimeSnapshotBloatSchema },
   { version: 52, name: "avatar_images", sql: avatarImagesSchema },
   { version: 53, name: "autonomous_pause", sql: autonomousPauseSchema },
+  { version: 54, name: "close_stale_wake_tasks", sql: closeStaleWakeTasksSchema },
 ];
 
 const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;

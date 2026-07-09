@@ -59,5 +59,26 @@ describe("thread participant wake", () => {
     const runsAfterReply = connection.db.prepare("select count(*) as c from task_runs where org_id = ? and trigger = 'chat_mention'")
       .get(orgId) as { c: number };
     expect(runsAfterReply.c).toBeGreaterThan(runsBeforeReply.c);
+
+    // A second human message in the same thread coalesces into the still-queued
+    // wake instead of spending another run on the same conversation.
+    connection.transaction(() => {
+      chat.sendMessage({
+        orgId,
+        spaceId: (connection.db.prepare("select id from chat_spaces where org_id = ? and name = 'general'").get(orgId) as { id: string }).id,
+        threadId: threadId!,
+        senderType: "employee",
+        senderId: employeeId,
+        bodyMd: "One more thing: schedule the rollout for Friday.",
+        attachmentFileIds: [],
+      });
+    });
+    const runsAfterSecondReply = connection.db.prepare("select count(*) as c from task_runs where org_id = ? and trigger = 'chat_mention'")
+      .get(orgId) as { c: number };
+    expect(runsAfterSecondReply.c).toBe(runsAfterReply.c);
+    const wakeTasks = connection.db.prepare(
+      "select count(distinct r.task_id) as c from task_runs r where r.org_id = ? and r.trigger = 'chat_mention'",
+    ).get(orgId) as { c: number };
+    expect(wakeTasks.c).toBe(1);
   });
 });

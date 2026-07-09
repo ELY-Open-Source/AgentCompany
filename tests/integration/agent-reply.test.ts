@@ -98,6 +98,12 @@ describe("inter-agent reply", () => {
     // Execute Dana's woken run: she replies in the CEO's thread.
     await taskExecution.executeRun(orgId, wake!.id);
 
+    // The reply was the wake task's whole deliverable, so completing the run closes it.
+    const wakeTask = connection.db.prepare(
+      "select t.status from tasks t join task_runs r on r.task_id = t.id where r.id = ?",
+    ).get(wake!.id) as { status: string };
+    expect(wakeTask).toEqual({ status: "done" });
+
     const engineering = connection.db.prepare("select id from chat_spaces where org_id = ? and name = 'engineering'").get(orgId) as { id: string };
     const messages = snapshot.load().chatMessages.filter((m) => m.orgId === orgId && m.spaceId === engineering.id);
     const senders = new Set(messages.map((m) => m.senderId));

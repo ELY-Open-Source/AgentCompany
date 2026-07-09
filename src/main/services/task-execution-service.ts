@@ -1,6 +1,6 @@
 import type { DatabaseSync } from "node:sqlite";
 import type { RunTaskInput } from "../../shared/commands";
-import { APPROVAL_STATE, RISK_LEVEL } from "../../shared/domain";
+import { APPROVAL_STATE, RISK_LEVEL, TASK_STATUS } from "../../shared/domain";
 import { currentProviderUsageWindow, isTransientProviderFailure } from "../../shared/provider-runtime-domain";
 import { createId } from "../../shared/ids";
 import { AuditService } from "./audit-service";
@@ -524,6 +524,23 @@ export class TaskExecutionService {
       set state = ?, provider_request_id = ?, completed_at = ?, error_message = null
       where id = ? and org_id = ?
     `).run(TASK_RUN_STATE.COMPLETED, providerRequestId, new Date().toISOString(), runId, orgId);
+    this.closeChatWakeTask(orgId, runId);
+  }
+
+  /**
+   * A chat-wake task exists only to carry its reply run — the reply is the
+   * whole deliverable. The run completing therefore closes the task; left
+   * open it would strand forever (a task with a completed run is never
+   * enqueued again) and pile zombie "Reply to ..." rows onto the board.
+   */
+  private closeChatWakeTask(orgId: string, runId: string): void {
+    const run = this.db.prepare("select task_id, trigger from task_runs where id = ? and org_id = ?")
+      .get(runId, orgId) as { task_id: string; trigger: string } | undefined;
+    if (!run || run.trigger !== "chat_mention") return;
+    const task = this.db.prepare("select status from tasks where id = ? and org_id = ?")
+      .get(run.task_id, orgId) as { status: string } | undefined;
+    if (!task || (task.status !== TASK_STATUS.BACKLOG && task.status !== TASK_STATUS.IN_PROGRESS)) return;
+    this.organization.updateTaskStatus(orgId, run.task_id, TASK_STATUS.DONE);
   }
 
   private failRun(orgId: string, runId: string, providerRequestId: string | null, errorMessage: string): void {
