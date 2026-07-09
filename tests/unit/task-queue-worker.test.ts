@@ -50,4 +50,29 @@ describe("task queue worker claim", () => {
     expect(states).toEqual(["running", "running"]);
     connection.close();
   });
+
+  test("leaves runs of a cooling-down provider queued instead of claiming them", () => {
+    const connection = new DatabaseConnection(join(tmpdir(), `ac-queue-${randomUUID()}.db`));
+    const organization = new OrganizationService(connection.db);
+    let orgId = "";
+    let agentId = "";
+    let providerId = "";
+    let taskId = "";
+    connection.transaction(() => {
+      orgId = organization.createOrganization({ organizationName: "Acme", employeeName: "Dana", mission: "m", goal: "g" });
+      providerId = (connection.db.prepare("select id from providers where org_id = ? and provider_key = 'openai'").get(orgId) as { id: string }).id;
+      agentId = organization.createAgent({ orgId, name: "CEO", role: "CEO", department: "Executive", modelProviderId: providerId, modelId: "gpt-5.4", budgetCents: 25000, managerAgentId: null });
+      taskId = organization.createTask({
+        orgId, title: "Kickoff", description: "Start.", status: TASK_STATUS.BACKLOG, assigneeAgentId: agentId,
+        risk: RISK_LEVEL.LOW, projectId: null, goalId: null, workspaceId: null, priority: TASK_PRIORITY.NORMAL, requiresFilesystem: false,
+      });
+    });
+    const runId = seedQueuedRun(connection, orgId, taskId, agentId, providerId);
+
+    expect(claimNextQueuedRun(connection, [providerId])).toBeNull();
+    expect(connection.db.prepare("select state from task_runs where id = ?").get(runId)).toEqual({ state: "queued" });
+
+    expect(claimNextQueuedRun(connection, [])?.id).toBe(runId);
+    connection.close();
+  });
 });

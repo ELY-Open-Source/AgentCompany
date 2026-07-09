@@ -542,4 +542,135 @@ describe("task execution service", () => {
     expect(connection.transaction(() => execution.enqueueHeartbeatRuns())).toEqual([]);
     connection.close();
   });
+
+  test("provider-side usage-limit failures never consume the retry budget", () => {
+    const connection = createConnection();
+    const organization = new OrganizationService(connection.db);
+    const providers = new ProviderService(connection.db, providerAdapters, testVault);
+    const execution = new TaskExecutionService(connection.db, providers);
+    let orgId = "";
+    let providerId = "";
+    let agentId = "";
+    let taskId = "";
+
+    connection.transaction(() => {
+      orgId = organization.createOrganization({
+        organizationName: "Acme Operations",
+        employeeName: "Dana Lee",
+        mission: "Coordinate agents with auditable approvals.",
+        goal: "Ship a verified control plane.",
+      });
+      providerId = openAiProviderId(connection, orgId);
+      providers.saveCredential({ orgId, providerId, secret: "sk-live-provider", model: "gpt-5.4" });
+      agentId = organization.createAgent({
+        orgId,
+        name: "Ada",
+        role: "Execution lead",
+        department: "Engineering",
+        modelProviderId: providerId,
+        modelId: "gpt-5.4",
+        budgetCents: 10000,
+        managerAgentId: null,
+        heartbeatEnabled: true,
+      });
+      taskId = organization.createTask({
+        orgId,
+        title: "Draft launch checklist",
+        description: "Prepare an auditable checklist for release readiness.",
+        status: TASK_STATUS.IN_PROGRESS,
+        assigneeAgentId: agentId,
+        risk: RISK_LEVEL.MEDIUM,
+        projectId: null,
+        goalId: null,
+        workspaceId: null,
+        priority: TASK_PRIORITY.HIGH,
+        requiresFilesystem: false,
+      });
+      // Historical damage from a provider-account limit: three failed runs, all
+      // recorded with the raw provider verdict rather than the internal quota message.
+      const serviceIdentityId = (connection.db.prepare("select id from service_identities where org_id = ? and agent_id = ?")
+        .get(orgId, agentId) as { id: string }).id;
+      const insertFailedRun = connection.db.prepare(`
+        insert into task_runs(
+          id, org_id, task_id, agent_id, provider_id, provider_request_id,
+          execution_context_id, service_identity_id, workspace_mount_json, secret_scope_json,
+          trigger, state, created_at, started_at, completed_at, error_message
+        ) values (?, ?, ?, ?, ?, null, ?, ?, '[]', '{}', 'heartbeat', 'failed', ?, ?, ?, ?)
+      `);
+      const now = new Date().toISOString();
+      for (const index of [1, 2, 3]) {
+        insertFailedRun.run(`run_usage_fail_${index}`, orgId, taskId, agentId, providerId, `ctx_usage_${index}`, serviceIdentityId, now, now, now, "The usage limit has been reached");
+      }
+    });
+
+    const enqueued = connection.transaction(() => execution.enqueueHeartbeatRuns());
+    expect(enqueued).toHaveLength(1);
+    expect(connection.db.prepare("select task_id, state from task_runs where id = ?").get(enqueued[0]))
+      .toMatchObject({ task_id: taskId, state: "queued" });
+    connection.close();
+  });
+
+  test("a transient provider failure parks the provider and the cooldown expiry resumes it", async () => {
+    const connection = createConnection();
+    const organization = new OrganizationService(connection.db);
+    const fakeToolTurn = async (): Promise<AgentTurnResult> => {
+      throw new Error("The usage limit has been reached");
+    };
+    const providers = new ProviderService(connection.db, providerAdapters, testVault, undefined, fakeToolTurn);
+    let nowMs = Date.now();
+    const execution = new TaskExecutionService(connection.db, providers, undefined, undefined, () => nowMs);
+    let orgId = "";
+    let providerId = "";
+    let taskId = "";
+
+    connection.transaction(() => {
+      orgId = organization.createOrganization({
+        organizationName: "Acme Operations",
+        employeeName: "Dana Lee",
+        mission: "Coordinate agents with auditable approvals.",
+        goal: "Ship a verified control plane.",
+      });
+      providerId = openAiProviderId(connection, orgId);
+      providers.saveCredential({ orgId, providerId, secret: "sk-live-provider", model: "gpt-5.4" });
+      const agentId = organization.createAgent({
+        orgId,
+        name: "Ada",
+        role: "Execution lead",
+        department: "Engineering",
+        modelProviderId: providerId,
+        modelId: "gpt-5.4",
+        budgetCents: 10000,
+        managerAgentId: null,
+        heartbeatEnabled: true,
+      });
+      taskId = organization.createTask({
+        orgId,
+        title: "Draft launch checklist",
+        description: "Prepare an auditable checklist for release readiness.",
+        status: TASK_STATUS.IN_PROGRESS,
+        assigneeAgentId: agentId,
+        risk: RISK_LEVEL.MEDIUM,
+        projectId: null,
+        goalId: null,
+        workspaceId: null,
+        priority: TASK_PRIORITY.HIGH,
+        requiresFilesystem: false,
+      });
+    });
+
+    await expect(execution.runTask({ orgId, taskId })).rejects.toThrow("The usage limit has been reached");
+
+    // Parked: the worker skips the provider's queued runs and the heartbeat enqueues nothing new.
+    expect(execution.cooledProviderIds()).toEqual([providerId]);
+    expect(connection.transaction(() => execution.enqueueHeartbeatRuns())).toEqual([]);
+
+    // Cooldown over: the provider resumes and the task re-enqueues — the failure spent no budget.
+    nowMs += 11 * 60_000;
+    expect(execution.cooledProviderIds()).toEqual([]);
+    const enqueued = connection.transaction(() => execution.enqueueHeartbeatRuns());
+    expect(enqueued).toHaveLength(1);
+    expect(connection.db.prepare("select task_id, state from task_runs where id = ?").get(enqueued[0]))
+      .toMatchObject({ task_id: taskId, state: "queued" });
+    connection.close();
+  });
 });

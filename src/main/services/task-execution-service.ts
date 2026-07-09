@@ -1,7 +1,7 @@
 import type { DatabaseSync } from "node:sqlite";
 import type { RunTaskInput } from "../../shared/commands";
 import { APPROVAL_STATE, RISK_LEVEL } from "../../shared/domain";
-import { currentProviderUsageWindow, PROVIDER_MONTHLY_LIMIT_MESSAGE } from "../../shared/provider-runtime-domain";
+import { currentProviderUsageWindow, isTransientProviderFailure } from "../../shared/provider-runtime-domain";
 import { createId } from "../../shared/ids";
 import { AuditService } from "./audit-service";
 import { ProviderService } from "./provider-service";
@@ -35,6 +35,15 @@ const TASK_RUN_STATE = {
   FAILED: "failed",
 } as const;
 
+const TASK_RETRY_BUDGET = 3;
+
+/**
+ * How long a provider's tasks stay parked after it reports a transient
+ * failure (usage limit, rate limit, overload). Long enough not to hammer a
+ * closed door every 5s tick, short enough to probe again the same hour.
+ */
+const PROVIDER_TRANSIENT_FAILURE_COOLDOWN_MS = 10 * 60_000;
+
 interface TaskApprovalRow {
   id: string;
   state: string;
@@ -56,6 +65,8 @@ export class TaskExecutionService {
   private readonly chat: ChatService;
   /** Providers currently parked on their monthly quota, for transition logging. */
   private quotaBlockedProviders = new Map<string, string>();
+  /** Providers parked after a transient failure (usage/rate limit, overload): id -> park state. */
+  private providerCooldowns = new Map<string, { until: number; label: string }>();
 
   constructor(
     private readonly db: DatabaseSync,
@@ -63,6 +74,8 @@ export class TaskExecutionService {
     private readonly skills: SkillService = new SkillService(db, ""),
     /** Invoked whenever a run writes data mid-flight, so the UI can refresh while agents work. */
     private readonly notifyDataChanged: () => void = () => undefined,
+    /** Injectable clock so tests can walk providers out of cooldown. */
+    private readonly now: () => number = () => Date.now(),
   ) {
     this.audit = new AuditService(db);
     this.organization = new OrganizationService(db);
@@ -191,6 +204,7 @@ export class TaskExecutionService {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       this.failRun(orgId, runId, providerRequestId, message);
+      if (isTransientProviderFailure(message)) this.parkProvider(provider, message);
       this.audit.record({
         orgId,
         entityType: "task_run",
@@ -300,16 +314,17 @@ export class TaskExecutionService {
    * CEO-delegated work starts on its own. Each task is enqueued at most once
    * (guarded by existing runs), preventing runaway re-execution.
    *
-   * Two quota rules keep the loop self-healing when a provider's monthly
-   * window fills up: tasks on an exhausted provider are parked (not enqueued
-   * into certain failure), and past quota-blocked failures never count toward
-   * the 3-attempt retry budget. Raising the limit therefore resumes work on
-   * the next tick — no restart or manual unpausing.
+   * Three rules keep the loop self-healing when a provider stops serving:
+   * tasks on a provider over its monthly window are parked (not enqueued into
+   * certain failure), tasks on a provider inside a transient-failure cooldown
+   * wait it out, and transient failures (usage/rate limits, overload) never
+   * count toward the retry budget. Raising a limit — or the provider's own
+   * window resetting — therefore resumes work without a restart.
    */
   enqueueHeartbeatRuns(): string[] {
     const window = currentProviderUsageWindow();
     const rows = this.db.prepare(`
-      select t.id as task_id, t.org_id as org_id
+      select t.id as task_id, t.org_id as org_id, p.id as provider_id
       from tasks t
       join agents a on a.id = t.assignee_agent_id and a.org_id = t.org_id
       join providers p on p.id = a.model_provider_id and p.org_id = t.org_id
@@ -321,11 +336,16 @@ export class TaskExecutionService {
         and p.enabled = 1
         and coalesce(u.request_count, 0) < p.monthly_request_limit
         and not exists (select 1 from task_runs r where r.task_id = t.id and r.state in ('queued', 'running', 'completed'))
-        and (select count(*) from task_runs r where r.task_id = t.id and coalesce(r.error_message, '') <> ?) < 3
-    `).all(window.start, PROVIDER_MONTHLY_LIMIT_MESSAGE) as Array<{ task_id: string; org_id: string }>;
+    `).all(window.start) as Array<{ task_id: string; org_id: string; provider_id: string }>;
     this.observeQuotaBlocks(window.start);
+    const cooling = new Set(this.cooledProviderIds());
+    const attemptMessages = this.db.prepare("select error_message from task_runs where task_id = ?");
     const created: string[] = [];
     for (const row of rows) {
+      if (cooling.has(row.provider_id)) continue;
+      const attempts = (attemptMessages.all(row.task_id) as Array<{ error_message: string | null }>)
+        .filter((run) => !isTransientProviderFailure(run.error_message)).length;
+      if (attempts >= TASK_RETRY_BUDGET) continue;
       try {
         created.push(this.enqueueRun(row.org_id, row.task_id));
       } catch {
@@ -333,6 +353,39 @@ export class TaskExecutionService {
       }
     }
     return created;
+  }
+
+  /**
+   * Parks a provider after it reported a transient failure (usage limit, rate
+   * limit, overload), so the queue stops feeding it doomed runs every tick.
+   * The park is in-memory by design: after a restart the first probe run
+   * either succeeds or re-arms the cooldown at the cost of one request.
+   */
+  private parkProvider(provider: TaskExecutionProviderRow, message: string): void {
+    const active = this.providerCooldowns.get(provider.id);
+    const wasParked = active !== undefined && active.until > this.now();
+    this.providerCooldowns.set(provider.id, { until: this.now() + PROVIDER_TRANSIENT_FAILURE_COOLDOWN_MS, label: provider.label });
+    if (!wasParked) {
+      const minutes = Math.round(PROVIDER_TRANSIENT_FAILURE_COOLDOWN_MS / 60_000);
+      console.warn(`[task-queue] provider "${provider.label}" reported a transient failure ("${message}"); its tasks are parked for ${minutes} minutes.`);
+    }
+  }
+
+  /**
+   * Providers currently inside a transient-failure cooldown. Expired parks are
+   * pruned (with a resume log line) so the next tick probes the provider again.
+   */
+  cooledProviderIds(): string[] {
+    const active: string[] = [];
+    for (const [id, park] of this.providerCooldowns) {
+      if (park.until > this.now()) {
+        active.push(id);
+      } else {
+        this.providerCooldowns.delete(id);
+        console.info(`[task-queue] provider "${park.label}" cooldown ended; its tasks resume.`);
+      }
+    }
+    return active;
   }
 
   /**

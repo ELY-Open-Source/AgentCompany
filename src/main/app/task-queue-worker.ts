@@ -26,12 +26,17 @@ export function isAutonomousPaused(connection: DatabaseConnection): boolean {
 /**
  * Atomically claims the oldest queued task_run by transitioning it
  * `queued` -> `running` in one transaction; returns the claimed run or null.
+ * Runs whose provider sits in a transient-failure cooldown are left queued —
+ * they would fail on arrival, and waiting costs nothing.
  */
-export function claimNextQueuedRun(connection: DatabaseConnection): QueuedRun | null {
+export function claimNextQueuedRun(connection: DatabaseConnection, excludedProviderIds: string[] = []): QueuedRun | null {
   return connection.transaction(() => {
+    const exclusion = excludedProviderIds.length > 0
+      ? `and provider_id not in (${excludedProviderIds.map(() => "?").join(", ")})`
+      : "";
     const row = connection.db
-      .prepare("select id, org_id from task_runs where state = 'queued' order by created_at asc limit 1")
-      .get() as QueuedRun | undefined;
+      .prepare(`select id, org_id from task_runs where state = 'queued' ${exclusion} order by created_at asc limit 1`)
+      .get(...excludedProviderIds) as QueuedRun | undefined;
     if (!row) return null;
     const result = connection.db
       .prepare("update task_runs set state = 'running', started_at = coalesce(started_at, ?) where id = ? and state = 'queued'")
@@ -70,7 +75,7 @@ export function startTaskQueueWorker(input: TaskQueueWorkerInput): () => void {
       }
       if (paused) return;
       const enqueued = input.connection.transaction(() => taskExecution.enqueueHeartbeatRuns());
-      const claimed = claimNextQueuedRun(input.connection);
+      const claimed = claimNextQueuedRun(input.connection, taskExecution.cooledProviderIds());
       if (!claimed) {
         if (enqueued.length > 0) notifyDataChanged();
         return;
