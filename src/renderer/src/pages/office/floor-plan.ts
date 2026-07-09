@@ -58,6 +58,12 @@ const AMENITIES: AmenitySpot[] = [
   { kind: "restroom", room: "restroom", stand: { x: 1084, y: 104 } },
   { kind: "restroom", room: "restroom", stand: { x: 1124, y: 104 } },
   { kind: "restroom", room: "restroom", stand: { x: 1164, y: 104 } },
+  // Standing spots along the south edge of the meeting table; meetings are
+  // group events the simulation convenes with at least two attendees.
+  { kind: "meeting", room: "meeting", stand: { x: 412, y: 198 } },
+  { kind: "meeting", room: "meeting", stand: { x: 452, y: 198 } },
+  { kind: "meeting", room: "meeting", stand: { x: 492, y: 198 } },
+  { kind: "meeting", room: "meeting", stand: { x: 532, y: 198 } },
 ];
 
 interface Segment {

@@ -17,16 +17,16 @@ const ACTIVITY_TONE: Record<AgentActivity, "green" | "violet" | "amber" | undefi
   idle: undefined,
 };
 
-/** Floating profile card for the agent selected on the office floor. */
+/**
+ * Floating profile card for the agent selected on the office floor. The page
+ * owns its placement (it follows the sprite); the card only sizes itself.
+ */
 export function AgentDetailCard({ agent, onClose }: { agent: OfficeAgentInput; onClose: () => void }) {
   return (
     <div
       role="dialog"
       aria-label={t("Agent {name}", { name: agent.name })}
       style={{
-        position: "absolute",
-        top: 16,
-        right: 16,
         width: 264,
         background: "var(--panel)",
         border: "1px solid var(--border-strong)",

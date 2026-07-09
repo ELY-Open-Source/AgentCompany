@@ -30,6 +30,8 @@ describe("office floor plan", () => {
     expect(plan.amenities.filter((a) => a.kind === "restroom").length).toBeGreaterThanOrEqual(2);
     expect(plan.amenities.some((a) => a.kind === "coffee")).toBe(true);
     expect(plan.amenities.some((a) => a.kind === "snack")).toBe(true);
+    // Meetings need at least two attendees, so the table has spots for them.
+    expect(plan.amenities.filter((a) => a.kind === "meeting").length).toBeGreaterThanOrEqual(2);
   });
 
   test("desk field grows by rows so no head-count is ever cut off", () => {

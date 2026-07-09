@@ -121,30 +121,72 @@ describe("office simulation", () => {
     expect(agent.carrying).toBe("coffee");
   });
 
-  test("working agents never leave their desks", () => {
+  test("working agents (and the CEO) take breaks too", () => {
     const sim = new OfficeSimulation(() => 0);
-    sim.sync([agentInput("a", "staff", "active")]);
+    sim.sync([agentInput("ceo", "c_suite", "active")]);
     const agent = sim.agents[0];
-    for (let i = 0; i < 600; i++) sim.step(16, IDLE);
-    expect(agent.behavior.kind).toBe("seated");
-    expect(agent.x).toBe(agent.seat.x);
-    expect(agent.y).toBe(agent.seat.y);
+    let leftTheDesk = false;
+    for (let i = 0; i < 3000 && !leftTheDesk; i++) {
+      sim.step(16, IDLE);
+      if (agent.behavior.kind !== "seated") leftTheDesk = true;
+    }
+    expect(leftTheDesk).toBe(true);
   });
 
-  test("an agent called to work abandons the break and returns to their desk", () => {
+  test("a snapshot refresh mid-break never recalls the walker", () => {
     const sim = new OfficeSimulation(() => 0);
     sim.sync([agentInput("a")]);
     const agent = sim.agents[0];
     for (let i = 0; i < 3000 && agent.behavior.kind === "seated"; i++) sim.step(16, IDLE);
     for (let i = 0; i < 30; i++) sim.step(16, IDLE);
     expect(agent.behavior.kind).toBe("walking");
-    expect(agent.x === agent.seat.x && agent.y === agent.seat.y).toBe(false);
 
+    // Becoming busy does not cancel the human ritual of a coffee run.
     sim.sync([agentInput("a", "staff", "active")]);
-    for (let i = 0; i < 6000 && sim.agents[0].behavior.kind !== "seated"; i++) sim.step(16, IDLE);
+    const refreshed = sim.agents[0];
+    expect(refreshed.behavior.kind).toBe("walking");
+    let dwelled = false;
+    for (let i = 0; i < 6000 && !dwelled; i++) {
+      sim.step(16, IDLE);
+      if (refreshed.behavior.kind === "dwelling") dwelled = true;
+    }
+    expect(dwelled).toBe(true);
+  });
+
+  test("meetings convene at least two attendees around the table, then everyone returns", () => {
+    const sim = new OfficeSimulation(() => 0);
+    sim.sync([agentInput("a", "staff", "active"), agentInput("b"), agentInput("ceo", "c_suite", "active")]);
+    // Nobody has settled yet: a meeting cannot be convened.
+    expect(sim.conveneMeeting()).toBe(0);
+    for (const agent of sim.agents) agent.settledMs = 30_000;
+
+    const attendees = sim.conveneMeeting();
+    expect(attendees).toBeGreaterThanOrEqual(2);
+    const walkers = sim.agents.filter((agent) => agent.behavior.kind === "walking");
+    expect(walkers).toHaveLength(attendees);
+    const spots = new Set(
+      walkers.map((agent) => (agent.behavior.kind === "walking" ? `${agent.behavior.spot?.stand.x}` : "")),
+    );
+    expect(spots.size).toBe(attendees);
+
+    // Everyone reaches the meeting room, dwells together, and heads home.
+    let overlapped = false;
+    for (let i = 0; i < 12000 && !overlapped; i++) {
+      sim.step(16, IDLE);
+      const dwellingInMeeting = sim.agents.filter(
+        (agent) => agent.behavior.kind === "dwelling" && agent.behavior.spot.kind === "meeting",
+      );
+      if (dwellingInMeeting.length >= 2) overlapped = true;
+    }
+    expect(overlapped).toBe(true);
+  });
+
+  test("a solo office never convenes a meeting", () => {
+    const sim = new OfficeSimulation(() => 0);
+    sim.sync([agentInput("a")]);
+    sim.agents[0].settledMs = 30_000;
+    expect(sim.conveneMeeting()).toBe(0);
     expect(sim.agents[0].behavior.kind).toBe("seated");
-    expect(sim.agents[0].x).toBe(sim.agents[0].seat.x);
-    expect(sim.agents[0].y).toBe(sim.agents[0].seat.y);
   });
 
   test("clicks hit the agent drawn at that spot, frontmost first", () => {

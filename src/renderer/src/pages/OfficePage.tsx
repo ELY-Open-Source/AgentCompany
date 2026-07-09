@@ -4,6 +4,7 @@ import { activeOrgId, requireActiveEmployee } from "./types";
 import { hashString, renderOffice, type RenderPerson } from "./office/office-renderer";
 import { OfficeSimulation, cameraFor, type MoveInput } from "./office/simulation";
 import { AgentDetailCard } from "./office/AgentDetailCard";
+import { cardPositionFor, CARD_FALLBACK_H } from "./office/agent-card-position";
 import type { AgentActivity, Camera, OfficeAgentInput, Vec } from "./office/office-types";
 
 const FPS_INTERVAL = 1000 / 24;
@@ -26,6 +27,7 @@ export function OfficePage({ snapshot }: PageProps) {
   const keysRef = useRef<MoveInput>({ up: false, down: false, left: false, right: false });
   const cameraRef = useRef<Camera>({ x: 0, y: 0 });
   const selectedIdRef = useRef<string | null>(null);
+  const cardBoxRef = useRef<HTMLDivElement>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const simRef = useRef<OfficeSimulation | null>(null);
   if (simRef.current === null) simRef.current = new OfficeSimulation();
@@ -164,6 +166,18 @@ export function OfficePage({ snapshot }: PageProps) {
         });
       }
       renderOffice(ctx, viewW, viewH, sim.plan, camera, people, now, new Date(), selectedIdRef.current);
+
+      // The detail card rides beside its agent, even while they walk.
+      const cardBox = cardBoxRef.current;
+      const selected = selectedIdRef.current
+        ? sim.agents.find((agent) => agent.input.id === selectedIdRef.current) ?? null
+        : null;
+      if (cardBox && selected) {
+        const cardH = cardBox.offsetHeight || CARD_FALLBACK_H;
+        const position = cardPositionFor({ x: selected.x, y: selected.y }, camera, viewW, viewH, cardH);
+        cardBox.style.transform = `translate(${position.left}px, ${position.top}px)`;
+        cardBox.style.visibility = "visible";
+      }
     };
 
     raf = requestAnimationFrame(tick);
@@ -205,7 +219,11 @@ export function OfficePage({ snapshot }: PageProps) {
         onMouseMove={onCanvasMouseMove}
         style={{ width: "100%", height: "100%", display: "block" }}
       />
-      {selectedAgent && <AgentDetailCard agent={selectedAgent} onClose={() => setSelectedId(null)} />}
+      {selectedAgent && (
+        <div ref={cardBoxRef} style={{ position: "absolute", left: 0, top: 0, willChange: "transform", visibility: "hidden" }}>
+          <AgentDetailCard agent={selectedAgent} onClose={() => setSelectedId(null)} />
+        </div>
+      )}
     </div>
   );
 }

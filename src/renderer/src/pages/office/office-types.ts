@@ -30,7 +30,7 @@ export interface DeskSlot {
   seat: Vec;
 }
 
-export type AmenityKind = "coffee" | "snack" | "restroom";
+export type AmenityKind = "coffee" | "snack" | "restroom" | "meeting";
 
 export interface AmenitySpot {
   kind: AmenityKind;

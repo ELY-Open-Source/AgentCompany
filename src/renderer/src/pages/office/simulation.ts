@@ -44,12 +44,17 @@ const PLAYER_SPEED = 0.14;
 const AGENT_SPEED = 0.085;
 const MAX_STEP_MS = 100;
 const WALK_CYCLE = 0.02;
-/** An idle agent wanders off roughly every minute and a half. */
+/** Everyone wanders off roughly every minute and a half, working or not. */
 const MEAN_TRIP_INTERVAL_MS = 90_000;
 /** Nobody leaves their desk in the first moments after settling in. */
 const SETTLE_MS = 20_000;
 const DWELL_MIN_MS = 6_000;
 const DWELL_SPREAD_MS = 8_000;
+/** Meetings run longer than a snack stop so attendees visibly overlap. */
+const MEETING_MIN_MS = 18_000;
+const MEETING_SPREAD_MS = 12_000;
+/** A meeting is convened somewhere in the office every few minutes. */
+const MEAN_MEETING_INTERVAL_MS = 180_000;
 const CARRY_MIN_MS = 20_000;
 const CARRY_SPREAD_MS = 20_000;
 
@@ -93,14 +98,16 @@ export class OfficeSimulation {
   }
 
   /**
-   * Advances the world by one frame: board-member movement plus agent life -
-   * idle agents wander to the restroom, snack bar, or coffee machine, dwell,
-   * and carry their coffee back; working agents head straight to their desk.
+   * Advances the world by one frame: board-member movement plus agent life.
+   * Everyone — the CEO and working agents included — periodically wanders to
+   * the restroom, snack bar, or coffee machine, and every few minutes the
+   * office convenes a meeting of at least two attendees around the table.
    */
   step(dtMs: number, input: MoveInput): void {
     const dt = Math.min(dtMs, MAX_STEP_MS);
     if (this.player) this.stepPlayer(this.player, dt, input);
     for (const agent of this.agents) this.stepAgent(agent, dt);
+    if (this.random() < dt / MEAN_MEETING_INTERVAL_MS) this.conveneMeeting();
   }
 
   private stepAgent(agent: AgentSim, dt: number): void {
@@ -111,13 +118,8 @@ export class OfficeSimulation {
         agent.carrying = null;
       }
     }
-    const idle = agent.input.activity === "idle";
     switch (agent.behavior.kind) {
       case "seated": {
-        if (!idle) {
-          agent.settledMs = 0;
-          return;
-        }
         agent.settledMs += dt;
         if (agent.settledMs >= SETTLE_MS && this.random() < dt / MEAN_TRIP_INTERVAL_MS) {
           agent.settledMs = 0;
@@ -126,18 +128,10 @@ export class OfficeSimulation {
         return;
       }
       case "walking": {
-        if (!idle && agent.behavior.destination === "amenity") {
-          this.sendHome(agent);
-          return;
-        }
         this.walkAlong(agent, dt);
         return;
       }
       case "dwelling": {
-        if (!idle) {
-          this.finishDwell(agent);
-          return;
-        }
         agent.behavior.remainingMs -= dt;
         if (agent.behavior.remainingMs <= 0) this.finishDwell(agent);
         return;
@@ -146,7 +140,10 @@ export class OfficeSimulation {
   }
 
   private startTrip(agent: AgentSim): void {
-    const spot = this.pickAmenity();
+    this.walkTo(agent, this.pickAmenity());
+  }
+
+  private walkTo(agent: AgentSim, spot: AmenitySpot): void {
     agent.behavior = {
       kind: "walking",
       path: findPath(this.plan, { x: agent.x, y: agent.y }, spot.stand),
@@ -156,11 +153,37 @@ export class OfficeSimulation {
     };
   }
 
+  /** Solo breaks pick a personal amenity; meetings are convened separately. */
   private pickAmenity(): AmenitySpot {
     const roll = this.random();
     const kind = roll < 0.4 ? "coffee" : roll < 0.65 ? "snack" : "restroom";
     const options = this.plan.amenities.filter((spot) => spot.kind === kind);
     return options[Math.floor(this.random() * options.length) % options.length];
+  }
+
+  /**
+   * Gathers a group around the meeting table. A meeting needs at least two
+   * settled attendees; with fewer, nobody goes to sit alone in the room.
+   * Returns the number of attendees who set off.
+   */
+  conveneMeeting(): number {
+    const spots = this.plan.amenities.filter((spot) => spot.kind === "meeting");
+    const candidates = this.agents.filter(
+      (agent) => agent.behavior.kind === "seated" && agent.settledMs >= SETTLE_MS,
+    );
+    if (candidates.length < 2 || spots.length < 2) return 0;
+    const size = Math.min(spots.length, candidates.length, 2 + Math.floor(this.random() * 3));
+    const pool = [...candidates];
+    const chosen: AgentSim[] = [];
+    while (chosen.length < size && pool.length > 0) {
+      const index = Math.floor(this.random() * pool.length) % pool.length;
+      chosen.push(pool.splice(index, 1)[0]);
+    }
+    chosen.forEach((agent, position) => {
+      agent.settledMs = 0;
+      this.walkTo(agent, spots[position]);
+    });
+    return chosen.length;
   }
 
   private finishDwell(agent: AgentSim): void {
@@ -215,11 +238,14 @@ export class OfficeSimulation {
     if (agent.behavior.kind !== "walking") return;
     agent.walkPhase = 0;
     if (agent.behavior.destination === "amenity" && agent.behavior.spot) {
+      const meeting = agent.behavior.spot.kind === "meeting";
       agent.facing = "north";
       agent.behavior = {
         kind: "dwelling",
         spot: agent.behavior.spot,
-        remainingMs: DWELL_MIN_MS + this.random() * DWELL_SPREAD_MS,
+        remainingMs: meeting
+          ? MEETING_MIN_MS + this.random() * MEETING_SPREAD_MS
+          : DWELL_MIN_MS + this.random() * DWELL_SPREAD_MS,
       };
       return;
     }

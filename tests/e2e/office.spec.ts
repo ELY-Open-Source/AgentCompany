@@ -60,6 +60,16 @@ test("the office floor opens agent details on click", async () => {
     await expect(card.getByText("Chief Executive Officer")).toBeVisible();
     await expect(card.getByText("Executive", { exact: true })).toBeVisible();
 
+    // The card sits beside the clicked agent, not pinned to a screen corner.
+    const cardBox = await card.boundingBox();
+    expect(cardBox).not.toBeNull();
+    const gapToSprite = Math.min(
+      Math.abs(cardBox!.x - clickX),
+      Math.abs(cardBox!.x + cardBox!.width - clickX),
+    );
+    expect(gapToSprite).toBeLessThan(80);
+    expect(Math.abs(cardBox!.y + cardBox!.height / 2 - clickY)).toBeLessThan(160);
+
     await page.keyboard.press("Escape");
     await expect(card).not.toBeVisible();
 
