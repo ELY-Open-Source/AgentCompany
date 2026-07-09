@@ -114,17 +114,19 @@ describe("task execution service", () => {
     const state = snapshot.load();
     const run = state.taskRuns.find((item) => item.id === runId);
     const request = state.providerRequests.find((item) => item.id === run?.providerRequestId);
-    const skillRuntimeSnapshot = state.skillRuntimeSnapshots.find((item) => item.runId === runId);
+    const skillRuntimeSnapshot = connection.db.prepare(
+      "select agent_id, run_id, compiled_prompt, source_revision_ids from skill_runtime_snapshots where run_id = ?",
+    ).get(runId) as { agent_id: string; run_id: string; compiled_prompt: string; source_revision_ids: string } | undefined;
 
     expect(run).toMatchObject({ taskId, agentId: expect.any(String), providerId, state: "completed", errorMessage: null });
     expect(request).toMatchObject({ providerId, workspaceId, state: "succeeded", responseText: "executed:gpt-5.4" });
-    expect(skillRuntimeSnapshot).toMatchObject({ agentId, runId });
+    expect(skillRuntimeSnapshot).toMatchObject({ agent_id: agentId, run_id: runId });
     expect(run?.executionContextId).toMatch(/^ctx_/);
     expect(run?.serviceIdentityId).toMatch(/^sid_/);
     expect(JSON.parse(run?.workspaceMountJson ?? "[]")).toEqual([expect.objectContaining({ workspaceId, mode: "read_only" })]);
     expect(JSON.parse(run?.secretScopeJson ?? "{}")).toMatchObject({ providerIds: [providerId], credentialAccess: "provider_runtime_only" });
-    expect(skillRuntimeSnapshot?.compiledPrompt).toContain("Verify release readiness");
-    expect(skillRuntimeSnapshot?.sourceRevisionIds).toContain(revisionId);
+    expect(skillRuntimeSnapshot?.compiled_prompt).toContain("Verify release readiness");
+    expect(skillRuntimeSnapshot?.source_revision_ids).toContain(revisionId);
     expect(capturedPrompt).toContain("Task: Draft launch checklist");
     expect(capturedPrompt).toContain("Assignee: Ada (Execution lead)");
     expect(capturedPrompt).toContain("Workspace: Task Workspace");

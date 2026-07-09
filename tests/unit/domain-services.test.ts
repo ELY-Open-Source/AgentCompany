@@ -24,7 +24,7 @@ describe("domain services", () => {
     const connection = createConnection();
 
     const rows = connection.db.prepare("select version from schema_migrations order by version asc").all() as Array<{ version: number }>;
-    expect(rows.map((row) => row.version)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50]);
+    expect(rows.map((row) => row.version)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51]);
     connection.close();
   });
 
@@ -189,15 +189,24 @@ describe("domain services", () => {
       skills.resolveRuntimeSnapshot({ orgId, agentId, runId: "run-review-1" });
     });
 
+    // Catalogue metadata ships in the snapshot; skill internals stay in the
+    // database (the snapshot rides IPC on every refresh).
     const state = snapshot.load();
     expect(state.skillDefinitions[0]?.slug).toBe("review-routes");
-    expect(state.skillRevisions[0]?.versionSemver).toBe("1.0.0");
-    expect(state.skillRevisions[0]?.immutableChecksum).toHaveLength(64);
-    expect(state.skillRevisions[0]?.manifestJson).toContain("architecture-review");
-    expect(state.skillTests[0]?.lastResult).toContain("\"status\":\"passed\"");
-    expect(state.skillTests[0]?.lastRunAt).toBeTruthy();
-    expect(state.skillRuntimeSnapshots[0]?.sourceRevisionIds).toContain(revisionId);
-    expect(state.skillRuntimeSnapshots[0]?.compiledPrompt).toContain("# Review Routes");
+    expect(state).not.toHaveProperty("skillRuntimeSnapshots");
+    const revision = connection.db.prepare("select version_semver, immutable_checksum, manifest_json from skill_revisions where id = ?")
+      .get(revisionId) as { version_semver: string; immutable_checksum: string; manifest_json: string };
+    expect(revision.version_semver).toBe("1.0.0");
+    expect(revision.immutable_checksum).toHaveLength(64);
+    expect(revision.manifest_json).toContain("architecture-review");
+    const skillTest = connection.db.prepare("select last_result, last_run_at from skill_tests where revision_id = ?")
+      .get(revisionId) as { last_result: string; last_run_at: string };
+    expect(skillTest.last_result).toContain("\"status\":\"passed\"");
+    expect(skillTest.last_run_at).toBeTruthy();
+    const runtime = connection.db.prepare("select source_revision_ids, compiled_prompt from skill_runtime_snapshots where run_id = 'run-review-1'")
+      .get() as { source_revision_ids: string; compiled_prompt: string };
+    expect(runtime.source_revision_ids).toContain(revisionId);
+    expect(runtime.compiled_prompt).toContain("# Review Routes");
     expect(state.auditEvents.some((event) => event.entityType === "skill_revision" && event.action === "tests_run")).toBe(true);
     connection.close();
   });
@@ -238,9 +247,12 @@ describe("domain services", () => {
         .get(orgA, "review-routes") as { id: string }).id;
       expect(() => skills.bind({ orgId: orgA, agentId: agentB, skillId, revisionId })).toThrow("Agent was not found.");
       skills.bind({ orgId: orgA, agentId: agentA, skillId, revisionId });
-      skills.resolveRuntimeSnapshot({ orgId: orgA, agentId: agentA, runId: "run-review-1" });
-      expect(() => skills.resolveRuntimeSnapshot({ orgId: orgA, agentId: agentA, runId: "run-review-1" }))
-        .toThrow("Skill runtime snapshot already exists for this run.");
+      const firstResolve = skills.resolveRuntimeSnapshot({ orgId: orgA, agentId: agentA, runId: "run-review-1" });
+      // Idempotent per run: a recovered run reuses its frozen snapshot
+      // instead of failing on the uniqueness guard.
+      expect(skills.resolveRuntimeSnapshot({ orgId: orgA, agentId: agentA, runId: "run-review-1" })).toBe(firstResolve);
+      expect(connection.db.prepare("select count(*) as n from skill_runtime_snapshots where run_id = 'run-review-1'").get())
+        .toEqual({ n: 1 });
     });
 
     expect(agentA).not.toBe(agentB);

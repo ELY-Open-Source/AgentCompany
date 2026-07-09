@@ -49,6 +49,7 @@ import { authConfigPurgeSchema } from "./migrations/047-auth-config-purge";
 import { uiPreferencesSchema } from "./migrations/048-ui-preferences";
 import { avatarsSchema } from "./migrations/049-avatars";
 import { financeSalesDepartmentsSchema } from "./migrations/050-finance-sales-departments";
+import { purgeRuntimeSnapshotBloatSchema } from "./migrations/051-purge-runtime-snapshot-bloat";
 
 interface Migration {
   version: number;
@@ -107,6 +108,7 @@ const MIGRATIONS: Migration[] = [
   { version: 48, name: "ui_preferences", sql: uiPreferencesSchema },
   { version: 49, name: "avatars", sql: avatarsSchema },
   { version: 50, name: "finance_sales_departments", sql: financeSalesDepartmentsSchema },
+  { version: 51, name: "purge_runtime_snapshot_bloat", sql: purgeRuntimeSnapshotBloatSchema },
 ];
 
 const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;

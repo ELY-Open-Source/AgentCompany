@@ -106,12 +106,15 @@ describe("collaboration integration flow", () => {
 
     const state = snapshot.load();
     const evalRun = state.evalRuns.find((run) => run.id === evalRunId);
-    const snapshotRecord = state.skillRuntimeSnapshots[0];
+    // Compiled runtime snapshots live in the database only - the renderer
+    // snapshot must not carry per-run compiled prompts.
+    const snapshotRecord = connection.db.prepare("select compiled_prompt from skill_runtime_snapshots limit 1")
+      .get() as { compiled_prompt: string } | undefined;
     if (!evalRun) throw new Error("Integration eval run was not created.");
     if (!snapshotRecord) throw new Error("Skill runtime snapshot was not created.");
     expect(state.approvals.find((approval) => approval.id === approvalId)?.state).toBe(APPROVAL_STATE.APPROVED);
     expect(state.approvalAssignments.some((assignment) => assignment.approvalId === approvalId)).toBe(true);
-    expect(snapshotRecord.compiledPrompt).toContain("Release Gate");
+    expect(snapshotRecord.compiled_prompt).toContain("Release Gate");
     expect(evalRun).toMatchObject({ state: SDLC_RUN_STATE.PASSED, failedCount: 0 });
     expect(state.operationalEvents.some((event) => event.signalKey === "skill_resolve_success")).toBe(true);
     connection.close();

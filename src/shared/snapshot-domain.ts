@@ -34,11 +34,7 @@ import type {
   ProviderCatalogEntry,
   ProviderRecord,
   ScheduledPostRecord,
-  SkillBindingRecord,
   SkillDefinitionRecord,
-  SkillRevisionRecord,
-  SkillRuntimeSnapshotRecord,
-  SkillTestRecord,
   SprintRecord,
   TaskRecord,
   TaskRunRecord,
@@ -103,11 +99,11 @@ export interface AppSnapshot {
   providerRequests: ProviderRequestRecord[];
   providerRateLimits: ProviderRateLimitStateRecord[];
   providerRateLimitObservations: ProviderRateLimitObservationRecord[];
+  // The snapshot is the renderer's working set and rides IPC on every
+  // refresh. Skill internals (revisions, bindings, per-run runtime
+  // snapshots with compiled prompts) are main-process concerns and stay out
+  // of it; only the lightweight catalogue listing ships.
   skillDefinitions: SkillDefinitionRecord[];
-  skillRevisions: SkillRevisionRecord[];
-  skillBindings: SkillBindingRecord[];
-  skillRuntimeSnapshots: SkillRuntimeSnapshotRecord[];
-  skillTests: SkillTestRecord[];
   socialAccounts: SocialAccountRecord[];
   socialAccountGrants: SocialAccountGrantRecord[];
   browserSessionContainers: BrowserSessionContainerRecord[];

@@ -178,9 +178,12 @@ export class SkillService {
    * compiled prompt instead of silently overflowing the model's context.
    */
   resolveRuntimeSnapshot(input: ResolveAgentSkillsInput): string {
+    // Idempotent per run: a run interrupted after resolving (crash, quit) is
+    // re-queued by startup recovery and must reuse its frozen skill set, not
+    // die on a uniqueness error that burns real retry budget.
     const existingSnapshot = this.db.prepare("select id from skill_runtime_snapshots where agent_id = ? and run_id = ?")
       .get(input.agentId, input.runId) as { id: string } | undefined;
-    if (existingSnapshot) throw new Error("Skill runtime snapshot already exists for this run.");
+    if (existingSnapshot) return existingSnapshot.id;
     const forcedRows = this.db.prepare(`
       select
         sd.id as skill_id,

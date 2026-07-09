@@ -62,8 +62,6 @@ export class SnapshotService {
     );
     const providerUsageWindows = list<ProviderUsageWindowRow>(this.db, "provider_usage_windows", "window_start desc");
     const providerRateLimits = buildProviderRateLimits(providers, providerUsageWindows);
-    const skillBindings = list<AppSnapshot["skillBindings"][number]>(this.db, "skill_bindings", "priority asc")
-      .map((binding) => ({ ...binding, enabled: toBool(binding.enabled) }));
     const files = list<AppSnapshot["files"][number]>(this.db, "file_objects", "created_at desc")
       .map((file) => ({ ...file, pinned: toBool(file.pinned) }));
     const legalHolds = list<AppSnapshot["legalHolds"][number]>(this.db, "legal_holds", "created_at desc")
@@ -115,14 +113,18 @@ export class SnapshotService {
       providerAuthProfiles,
       providerAuthSessions,
       providerCatalog: PROVIDER_CATALOG,
-      providerRequests: recentList(this.db, "provider_requests", "created_at desc", 100),
+      // Explicit projection: raw_response_json alone weighs megabytes across
+      // 100 rows and no renderer surface reads it.
+      providerRequests: all<Row>(this.db.prepare(`
+        select id, org_id, provider_id, provider_key, workspace_id, model, prompt_sha256,
+               response_text, state, error_message, input_char_count, output_char_count,
+               execution_mode, policy_decision, external_response_id, stream_event_count,
+               cancelled_at, created_at, completed_at
+        from provider_requests order by created_at desc limit 100
+      `)).map((row) => camel(row) as unknown as AppSnapshot["providerRequests"][number]),
       providerRateLimits,
       providerRateLimitObservations,
       skillDefinitions: list(this.db, "skill_definitions", "created_at asc"),
-      skillRevisions: list(this.db, "skill_revisions", "published_at desc"),
-      skillBindings,
-      skillRuntimeSnapshots: list(this.db, "skill_runtime_snapshots", "created_at desc"),
-      skillTests: list(this.db, "skill_tests", "last_run_at desc, id asc"),
       socialAccounts: list(this.db, "social_accounts", "created_at asc"),
       socialAccountGrants: list(this.db, "social_account_grants", "created_at asc"),
       browserSessionContainers: list<AppSnapshot["browserSessionContainers"][number]>(this.db, "browser_session_containers", "created_at asc")

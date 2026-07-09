@@ -10,6 +10,11 @@ export const PROVIDER_REQUEST_STATE = {
 
 export type ProviderRequestState = typeof PROVIDER_REQUEST_STATE[keyof typeof PROVIDER_REQUEST_STATE];
 
+/**
+ * Snapshot projection of a provider request. The raw provider response body
+ * stays in the database (task_runs diagnostics read it there) — shipping it
+ * to the renderer ballooned every snapshot by megabytes for nothing.
+ */
 export interface ProviderRequestRecord {
   id: string;
   orgId: string;
@@ -19,7 +24,6 @@ export interface ProviderRequestRecord {
   model: string;
   promptSha256: string;
   responseText: string | null;
-  rawResponseJson: string | null;
   state: ProviderRequestState;
   errorMessage: string | null;
   inputCharCount: number;
