@@ -6,6 +6,7 @@ import type {
   BootstrapOnboardingSummary,
   CancelProviderResponseInput,
   CreateAgentInput,
+  SetAutonomousPausedInput,
   UpdateAgentInput,
   UpdateEmployeeProfileInput,
   CreateApprovalInput,
@@ -109,6 +110,7 @@ export interface DesktopApi {
   createAgent(input: CreateAgentInput): Promise<DesktopResult<AppSnapshot>>;
   updateAgent(input: UpdateAgentInput): Promise<DesktopResult<AppSnapshot>>;
   updateEmployeeProfile(input: UpdateEmployeeProfileInput): Promise<DesktopResult<AppSnapshot>>;
+  setAutonomousPaused(input: SetAutonomousPausedInput): Promise<DesktopResult<AppSnapshot>>;
   createTask(input: CreateTaskInput): Promise<DesktopResult<AppSnapshot>>;
   updateTask(input: UpdateTaskInput): Promise<DesktopResult<AppSnapshot>>;
   deleteTask(input: DeleteTaskInput): Promise<DesktopResult<AppSnapshot>>;

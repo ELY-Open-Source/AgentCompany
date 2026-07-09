@@ -93,6 +93,7 @@ export function TeamPage({ snapshot, actions }: PageProps) {
       modelId: optional(form, "modelId"),
       avatarEmoji: String(form.get("avatarEmoji") ?? ""),
       avatarColor: String(form.get("avatarColor") ?? ""),
+      avatarImage: String(form.get("avatarImage") ?? ""),
     })).then((result) => { if (result) setEditAgentId(null); });
   };
 
@@ -172,7 +173,7 @@ export function TeamPage({ snapshot, actions }: PageProps) {
       {editingAgent && (
         <Dialog key={editingAgent.id} title={t("Edit {name}", { name: editingAgent.name })} open submitLabel={t("Save")} onClose={() => setEditAgentId(null)} onSubmit={submitEdit}>
           <Field label={t("Name")}><input className="input" name="name" defaultValue={editingAgent.name} required /></Field>
-          <AvatarField previewName={editingAgent.name} defaultEmoji={editingAgent.avatarEmoji} defaultColor={editingAgent.avatarColor} />
+          <AvatarField previewName={editingAgent.name} defaultEmoji={editingAgent.avatarEmoji} defaultColor={editingAgent.avatarColor} defaultImage={editingAgent.avatarImage} />
           <Field label={t("Role")}><input className="input" name="role" defaultValue={editingAgent.role} required /></Field>
           <Field label={t("Title")}><input className="input" name="title" defaultValue={editingAgent.title} /></Field>
           <Field label={t("Department")}><input className="input" name="department" defaultValue={editingAgent.department} required /></Field>

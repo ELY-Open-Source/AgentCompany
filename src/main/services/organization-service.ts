@@ -47,6 +47,20 @@ export class OrganizationService {
     });
   }
 
+  /**
+   * The global handbrake: while paused, the autonomous queue stops enqueuing
+   * and claiming runs (the run already in flight finishes). Survives
+   * restarts, so a runaway conversation stays stopped until the operator
+   * resumes it.
+   */
+  setAutonomousPaused(paused: boolean): void {
+    this.db.prepare(`
+      insert into app_state(id, active_org_id, autorun_paused, updated_at)
+      values (1, null, ?, ?)
+      on conflict(id) do update set autorun_paused = excluded.autorun_paused, updated_at = excluded.updated_at
+    `).run(paused ? 1 : 0, new Date().toISOString());
+  }
+
   updateUiPreferences(input: { theme?: "system" | "light" | "dark"; language?: "en" | "zh" }): void {
     const current = this.db.prepare("select theme, language from app_state where id = 1")
       .get() as { theme: string; language: string } | undefined;
@@ -148,8 +162,8 @@ export class OrganizationService {
   }
 
   updateAgent(input: UpdateAgentInput): void {
-    const agent = this.db.prepare("select id, name, avatar_emoji, avatar_color from agents where id = ? and org_id = ?")
-      .get(input.agentId, input.orgId) as { id: string; name: string; avatar_emoji: string | null; avatar_color: string | null } | undefined;
+    const agent = this.db.prepare("select id, name, avatar_emoji, avatar_color, avatar_image from agents where id = ? and org_id = ?")
+      .get(input.agentId, input.orgId) as { id: string; name: string; avatar_emoji: string | null; avatar_color: string | null; avatar_image: string | null } | undefined;
     if (!agent) throw new Error("Agent was not found.");
     const role = input.role.trim();
     if (!role) throw new Error("Agent role is required.");
@@ -168,12 +182,13 @@ export class OrganizationService {
     const budgetCents = Math.max(0, Math.round(input.budgetCents));
     const avatarEmoji = input.avatarEmoji === undefined ? agent.avatar_emoji : (input.avatarEmoji.trim() || null);
     const avatarColor = input.avatarColor === undefined ? agent.avatar_color : normalizeAvatarColor(input.avatarColor);
+    const avatarImage = input.avatarImage === undefined ? agent.avatar_image : normalizeAvatarImage(input.avatarImage);
     const result = this.db.prepare(`
       update agents
       set name = ?, role = ?, title = ?, role_level = ?, department = ?, budget_cents = ?, model_provider_id = ?, model_id = ?,
-          avatar_emoji = ?, avatar_color = ?
+          avatar_emoji = ?, avatar_color = ?, avatar_image = ?
       where id = ? and org_id = ?
-    `).run(name, role, input.title.trim() || role, input.roleLevel.trim() || "staff", department, budgetCents, input.modelProviderId, input.modelId, avatarEmoji, avatarColor, input.agentId, input.orgId);
+    `).run(name, role, input.title.trim() || role, input.roleLevel.trim() || "staff", department, budgetCents, input.modelProviderId, input.modelId, avatarEmoji, avatarColor, avatarImage, input.agentId, input.orgId);
     if (result.changes === 0) throw new Error("Agent update failed.");
     this.audit.record({
       orgId: input.orgId,
@@ -187,15 +202,16 @@ export class OrganizationService {
   }
 
   updateEmployeeProfile(input: UpdateEmployeeProfileInput): void {
-    const employee = this.db.prepare("select id, avatar_emoji, avatar_color from employees where id = ? and org_id = ?")
-      .get(input.employeeId, input.orgId) as { id: string; avatar_emoji: string | null; avatar_color: string | null } | undefined;
+    const employee = this.db.prepare("select id, avatar_emoji, avatar_color, avatar_image from employees where id = ? and org_id = ?")
+      .get(input.employeeId, input.orgId) as { id: string; avatar_emoji: string | null; avatar_color: string | null; avatar_image: string | null } | undefined;
     if (!employee) throw new Error("Employee was not found.");
     const displayName = input.displayName.trim();
     if (!displayName) throw new Error("Display name is required.");
     const avatarEmoji = input.avatarEmoji === undefined ? employee.avatar_emoji : (input.avatarEmoji.trim() || null);
     const avatarColor = input.avatarColor === undefined ? employee.avatar_color : normalizeAvatarColor(input.avatarColor);
-    this.db.prepare("update employees set display_name = ?, avatar_emoji = ?, avatar_color = ? where id = ? and org_id = ?")
-      .run(displayName, avatarEmoji, avatarColor, input.employeeId, input.orgId);
+    const avatarImage = input.avatarImage === undefined ? employee.avatar_image : normalizeAvatarImage(input.avatarImage);
+    this.db.prepare("update employees set display_name = ?, avatar_emoji = ?, avatar_color = ?, avatar_image = ? where id = ? and org_id = ?")
+      .run(displayName, avatarEmoji, avatarColor, avatarImage, input.employeeId, input.orgId);
     this.audit.record({
       orgId: input.orgId,
       entityType: "employee",
@@ -530,4 +546,23 @@ function normalizeAvatarColor(value: string): string | null {
   if (!color) return null;
   if (!/^#[0-9a-fA-F]{6}$/.test(color)) throw new Error("Avatar color must be a #rrggbb hex value.");
   return color.toLowerCase();
+}
+
+/**
+ * Avatar portraits persist as small base64 data URLs (the renderer downscales
+ * before submitting). The cap keeps a rogue caller from turning the snapshot
+ * back into a megabyte payload.
+ */
+const MAX_AVATAR_IMAGE_CHARS = 300_000;
+
+function normalizeAvatarImage(value: string): string | null {
+  const image = value.trim();
+  if (!image) return null;
+  if (!/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(image)) {
+    throw new Error("Avatar image must be a base64 data URL (png, jpeg, or webp).");
+  }
+  if (image.length > MAX_AVATAR_IMAGE_CHARS) {
+    throw new Error("Avatar image is too large - upload a smaller picture.");
+  }
+  return image;
 }

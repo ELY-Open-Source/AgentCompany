@@ -69,6 +69,8 @@ export interface UiPreferences {
 export interface AppSnapshot {
   activeOrgId: string | null;
   uiPreferences: UiPreferences;
+  /** True while the operator has paused the autonomous run engine. */
+  autonomousPaused: boolean;
   organizations: OrganizationRecord[];
   employees: EmployeeRecord[];
   agents: AgentRecord[];

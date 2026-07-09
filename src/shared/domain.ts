@@ -51,6 +51,8 @@ export interface EmployeeRecord {
   role: string;
   avatarEmoji: string | null;
   avatarColor: string | null;
+  /** Small data-URL portrait; wins over emoji/initials when set. */
+  avatarImage: string | null;
   createdAt: string;
 }
 
@@ -73,6 +75,8 @@ export interface AgentRecord {
   lifecycle: string;
   avatarEmoji: string | null;
   avatarColor: string | null;
+  /** Small data-URL portrait; wins over emoji/initials when set. */
+  avatarImage: string | null;
   createdAt: string;
 }
 

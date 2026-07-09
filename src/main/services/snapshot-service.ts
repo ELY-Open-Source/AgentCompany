@@ -86,6 +86,7 @@ export class SnapshotService {
     return {
       activeOrgId,
       uiPreferences: this.resolveUiPreferences(),
+      autonomousPaused: this.resolveAutonomousPaused(),
       organizations,
       employees: list(this.db, "employees", "created_at asc"),
       agents,
@@ -180,6 +181,12 @@ export class SnapshotService {
     const stored = row?.active_org_id ?? null;
     if (stored && known.includes(stored)) return stored;
     return known[0] ?? null;
+  }
+
+  private resolveAutonomousPaused(): boolean {
+    const row = this.db.prepare("select autorun_paused from app_state where id = 1")
+      .get() as { autorun_paused: number } | undefined;
+    return row?.autorun_paused === 1;
   }
 
   private resolveUiPreferences(): AppSnapshot["uiPreferences"] {

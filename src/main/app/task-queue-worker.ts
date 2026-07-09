@@ -16,6 +16,13 @@ export interface QueuedRun {
   org_id: string;
 }
 
+/** True while the operator has pulled the global autonomous handbrake. */
+export function isAutonomousPaused(connection: DatabaseConnection): boolean {
+  const row = connection.db.prepare("select autorun_paused from app_state where id = 1")
+    .get() as { autorun_paused: number } | undefined;
+  return row?.autorun_paused === 1;
+}
+
 /**
  * Atomically claims the oldest queued task_run by transitioning it
  * `queued` -> `running` in one transaction; returns the claimed run or null.
@@ -48,11 +55,20 @@ export function startTaskQueueWorker(input: TaskQueueWorkerInput): () => void {
   const taskExecution = new TaskExecutionService(input.connection.db, undefined, undefined, notifyDataChanged);
   const intervalMs = input.intervalMs ?? DEFAULT_INTERVAL_MS;
   let running = false;
+  let wasPaused = false;
 
   const tick = async (): Promise<void> => {
     if (running) return;
     running = true;
     try {
+      // The operator's global pause parks the whole engine: nothing new is
+      // enqueued or claimed until they resume. Queued work simply waits.
+      const paused = isAutonomousPaused(input.connection);
+      if (paused !== wasPaused) {
+        console.info(paused ? "[task-queue] paused by the operator; no new runs start." : "[task-queue] resumed by the operator.");
+        wasPaused = paused;
+      }
+      if (paused) return;
       const enqueued = input.connection.transaction(() => taskExecution.enqueueHeartbeatRuns());
       const claimed = claimNextQueuedRun(input.connection);
       if (!claimed) {

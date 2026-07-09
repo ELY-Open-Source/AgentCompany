@@ -101,6 +101,20 @@ test("onboards, hires, and creates work in the Electron shell", async () => {
     await page.locator(".modal").getByRole("button", { name: "Save" }).click();
     await expect(page.getByRole("button", { name: "Edit profile" })).toContainText("Dana Zhang");
     await expect(page.getByRole("button", { name: "Edit profile" }).locator(".avatar")).toContainText("🎯");
+
+    // Uploading a photo replaces the emoji tile with the portrait everywhere.
+    await page.getByRole("button", { name: "Edit profile" }).click();
+    await page.getByLabel("Avatar image file").setInputFiles({
+      name: "portrait.png",
+      mimeType: "image/png",
+      buffer: Buffer.from(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+        "base64",
+      ),
+    });
+    await expect(page.locator(".modal .avatar img")).toBeVisible();
+    await page.locator(".modal").getByRole("button", { name: "Save" }).click();
+    await expect(page.getByRole("button", { name: "Edit profile" }).locator(".avatar img")).toBeVisible();
     await page.getByRole("button", { name: "Work", exact: true }).click();
     await page.getByRole("button", { name: "New task" }).click();
     await page.getByLabel("Title").fill("Production deploy");
@@ -169,6 +183,16 @@ test("onboards, hires, and creates work in the Electron shell", async () => {
       return result.data.skillDefinitions.map((skill) => skill.slug).sort();
     });
     expect(skillSlugs).toEqual(["engineering-backend-architect", "humanizer"]);
+
+    // The global pause toggle lives in the topbar on every page.
+    const pauseToggle = page.getByRole("button", { name: "Pause agents" });
+    await expect(pauseToggle).toBeVisible();
+    await pauseToggle.click();
+    const pausedToggle = page.getByRole("button", { name: "Agents paused" });
+    await expect(pausedToggle).toBeVisible();
+    await expect(pausedToggle).toHaveAttribute("aria-pressed", "true");
+    await pausedToggle.click();
+    await expect(page.getByRole("button", { name: "Pause agents" })).toHaveAttribute("aria-pressed", "false");
 
     // Virtual office page
     await page.getByRole("button", { name: "Office" }).click();

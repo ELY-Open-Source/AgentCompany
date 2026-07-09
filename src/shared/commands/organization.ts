@@ -40,6 +40,12 @@ export interface UpdateAgentInput {
   avatarEmoji?: string;
   /** Background color for the avatar tile; empty string clears it. */
   avatarColor?: string;
+  /** data:image/... portrait (already downscaled); empty string clears it. */
+  avatarImage?: string;
+}
+
+export interface SetAutonomousPausedInput {
+  paused: boolean;
 }
 
 export interface UpdateEmployeeProfileInput {
@@ -48,6 +54,7 @@ export interface UpdateEmployeeProfileInput {
   displayName: string;
   avatarEmoji?: string;
   avatarColor?: string;
+  avatarImage?: string;
 }
 
 export interface CreateAgentInput {

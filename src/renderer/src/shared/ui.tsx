@@ -4,6 +4,8 @@ import { Icon, type IconName } from "./Icon";
 export interface AvatarLook {
   emoji: string | null;
   color: string | null;
+  /** data-URL portrait; wins over emoji and initials when set. */
+  image?: string | null;
 }
 
 /**
@@ -66,9 +68,18 @@ export function Avatar({
   const fg = custom?.color ? "#fff" : hashedFg;
   const dim = size === "sm" ? 14 : size === "lg" ? 18 : size === "xl" ? 24 : 14;
   const emoji = custom?.emoji ?? null;
+  const image = custom?.image ?? null;
   return (
-    <div className={`avatar ${size}`.trim() + (bot && !emoji ? " bot" : "")} style={{ background: bg, color: fg }}>
-      {emoji ? <span aria-hidden>{emoji}</span> : bot ? <Icon name="bot" size={dim} /> : initials(name)}
+    <div className={`avatar ${size}`.trim() + (bot && !emoji && !image ? " bot" : "")} style={{ background: bg, color: fg }}>
+      {image ? (
+        <img src={image} alt="" className="avatar-image" draggable={false} />
+      ) : emoji ? (
+        <span aria-hidden>{emoji}</span>
+      ) : bot ? (
+        <Icon name="bot" size={dim} />
+      ) : (
+        initials(name)
+      )}
     </div>
   );
 }

@@ -50,6 +50,8 @@ import { uiPreferencesSchema } from "./migrations/048-ui-preferences";
 import { avatarsSchema } from "./migrations/049-avatars";
 import { financeSalesDepartmentsSchema } from "./migrations/050-finance-sales-departments";
 import { purgeRuntimeSnapshotBloatSchema } from "./migrations/051-purge-runtime-snapshot-bloat";
+import { avatarImagesSchema } from "./migrations/052-avatar-images";
+import { autonomousPauseSchema } from "./migrations/053-autonomous-pause";
 
 interface Migration {
   version: number;
@@ -109,6 +111,8 @@ const MIGRATIONS: Migration[] = [
   { version: 49, name: "avatars", sql: avatarsSchema },
   { version: 50, name: "finance_sales_departments", sql: financeSalesDepartmentsSchema },
   { version: 51, name: "purge_runtime_snapshot_bloat", sql: purgeRuntimeSnapshotBloatSchema },
+  { version: 52, name: "avatar_images", sql: avatarImagesSchema },
+  { version: 53, name: "autonomous_pause", sql: autonomousPauseSchema },
 ];
 
 const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;

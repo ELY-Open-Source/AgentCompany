@@ -122,4 +122,35 @@ describe("identity editing", () => {
       .toThrow("Display name is required.");
     h.connection.close();
   });
+
+  test("stores uploaded avatar portraits and rejects anything but small data-URL images", () => {
+    const h = harness();
+    const portrait = `data:image/png;base64,${"A".repeat(120)}`;
+    h.connection.transaction(() => h.organization.updateEmployeeProfile({
+      orgId: h.orgId, employeeId: h.employeeId, displayName: "Yang", avatarImage: portrait,
+    }));
+    expect((h.connection.db.prepare("select avatar_image from employees where id = ?").get(h.employeeId) as { avatar_image: string }).avatar_image)
+      .toBe(portrait);
+    // Clearing falls back to emoji/initials.
+    h.connection.transaction(() => h.organization.updateEmployeeProfile({
+      orgId: h.orgId, employeeId: h.employeeId, displayName: "Yang", avatarImage: "",
+    }));
+    expect((h.connection.db.prepare("select avatar_image from employees where id = ?").get(h.employeeId) as { avatar_image: string | null }).avatar_image)
+      .toBeNull();
+    // Wrong scheme and oversized payloads are caller bugs, loudly rejected.
+    expect(() => h.organization.updateEmployeeProfile({
+      orgId: h.orgId, employeeId: h.employeeId, displayName: "Yang", avatarImage: "https://example.com/me.png",
+    })).toThrow("base64 data URL");
+    expect(() => h.organization.updateEmployeeProfile({
+      orgId: h.orgId, employeeId: h.employeeId, displayName: "Yang", avatarImage: `data:image/png;base64,${"A".repeat(300_001)}`,
+    })).toThrow("too large");
+    // Agents take portraits through the same rules.
+    h.connection.transaction(() => h.organization.updateAgent({
+      orgId: h.orgId, agentId: h.agentId, role: "CEO", title: "CEO", roleLevel: "c_suite",
+      department: "Executive", budgetCents: 25000, modelProviderId: null, modelId: null, avatarImage: portrait,
+    }));
+    expect((h.connection.db.prepare("select avatar_image from agents where id = ?").get(h.agentId) as { avatar_image: string }).avatar_image)
+      .toBe(portrait);
+    h.connection.close();
+  });
 });

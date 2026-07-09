@@ -135,6 +135,18 @@ export function Shell({
           <span className="crumb">{activeLabel}</span>
           <div className="topbar-actions">
             <span className="topbar-actions-slot" ref={setActionsSlot} />
+            <button
+              type="button"
+              className={`autopause-toggle ${snapshot.autonomousPaused ? "paused" : ""}`.trim()}
+              aria-pressed={snapshot.autonomousPaused}
+              title={snapshot.autonomousPaused
+                ? t("Agents are paused: no new runs start until you resume. Click to resume.")
+                : t("Pause all agents: the run already in flight finishes, nothing new starts.")}
+              onClick={() => void window.agentCompany.setAutonomousPaused({ paused: !snapshot.autonomousPaused })}
+            >
+              <span aria-hidden>{snapshot.autonomousPaused ? "▶" : "⏸"}</span>
+              {snapshot.autonomousPaused ? t("Agents paused") : t("Pause agents")}
+            </button>
             {!isMac && (
               <span className="window-controls">
                 <IconButton icon="minus" label={t("Minimize")} onClick={() => void window.agentCompany.windowMinimize()} />
@@ -243,6 +255,7 @@ function ProfileDialog({ employee, onClose }: { employee: EmployeeRecord; onClos
       displayName: String(form.get("displayName") ?? "").trim(),
       avatarEmoji: String(form.get("avatarEmoji") ?? ""),
       avatarColor: String(form.get("avatarColor") ?? ""),
+      avatarImage: String(form.get("avatarImage") ?? ""),
     }).then((result) => {
       if (result.ok) onClose();
       else setError(result.error.message);
@@ -251,7 +264,7 @@ function ProfileDialog({ employee, onClose }: { employee: EmployeeRecord; onClos
   return (
     <Dialog title={t("Edit profile")} open submitLabel={t("Save")} onClose={onClose} onSubmit={submit}>
       <Field label={t("Name")}><input className="input" name="displayName" defaultValue={employee.displayName} required /></Field>
-      <AvatarField previewName={employee.displayName} defaultEmoji={employee.avatarEmoji} defaultColor={employee.avatarColor} />
+      <AvatarField previewName={employee.displayName} defaultEmoji={employee.avatarEmoji} defaultColor={employee.avatarColor} defaultImage={employee.avatarImage} />
       {error && <div className="form-error" role="alert">{error}</div>}
     </Dialog>
   );

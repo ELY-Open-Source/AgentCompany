@@ -25,11 +25,15 @@ export function App() {
     const orgId = snapshot?.activeOrgId ?? null;
     for (const agent of snapshot?.agents ?? []) {
       if (agent.orgId !== orgId) continue;
-      if (agent.avatarEmoji || agent.avatarColor) directory.set(agent.name, { emoji: agent.avatarEmoji, color: agent.avatarColor });
+      if (agent.avatarEmoji || agent.avatarColor || agent.avatarImage) {
+        directory.set(agent.name, { emoji: agent.avatarEmoji, color: agent.avatarColor, image: agent.avatarImage });
+      }
     }
     for (const employee of snapshot?.employees ?? []) {
       if (employee.orgId !== orgId) continue;
-      if (employee.avatarEmoji || employee.avatarColor) directory.set(employee.displayName, { emoji: employee.avatarEmoji, color: employee.avatarColor });
+      if (employee.avatarEmoji || employee.avatarColor || employee.avatarImage) {
+        directory.set(employee.displayName, { emoji: employee.avatarEmoji, color: employee.avatarColor, image: employee.avatarImage });
+      }
     }
     return directory;
   }, [snapshot?.agents, snapshot?.employees, snapshot?.activeOrgId]);

@@ -8,7 +8,7 @@ function agent(id: string, department: string): AgentRecord {
     modelProviderId: null, modelId: null, budgetCents: 0, managerAgentId: null,
     title: id, roleLevel: "ic", modelStrategy: "single", workspaceId: null,
     heartbeatEnabled: false, heartbeatIntervalSec: 0, lifecycle: "active",
-    avatarEmoji: null, avatarColor: null, createdAt: "2026-01-01",
+    avatarEmoji: null, avatarColor: null, avatarImage: null, createdAt: "2026-01-01",
   };
 }
 
