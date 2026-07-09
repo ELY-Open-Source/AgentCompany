@@ -6,6 +6,7 @@ import { OfficeSimulation, cameraFor, type MoveInput } from "./office/simulation
 import { AgentDetailCard } from "./office/AgentDetailCard";
 import { cardPositionFor, CARD_FALLBACK_H } from "./office/agent-card-position";
 import type { AgentActivity, Camera, OfficeAgentInput, Vec } from "./office/office-types";
+import { t } from "../i18n/i18n";
 
 const FPS_INTERVAL = 1000 / 24;
 
@@ -29,6 +30,8 @@ export function OfficePage({ snapshot }: PageProps) {
   const selectedIdRef = useRef<string | null>(null);
   const cardBoxRef = useRef<HTMLDivElement>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [tool, setTool] = useState<"select" | "whip">("select");
+  const toolRef = useRef(tool);
   const simRef = useRef<OfficeSimulation | null>(null);
   if (simRef.current === null) simRef.current = new OfficeSimulation();
 
@@ -60,8 +63,14 @@ export function OfficePage({ snapshot }: PageProps) {
   }, [selectedId]);
 
   useEffect(() => {
+    toolRef.current = tool;
+  }, [tool]);
+
+  useEffect(() => {
     const onEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && selectedIdRef.current) setSelectedId(null);
+      if (event.key !== "Escape") return;
+      if (toolRef.current === "whip") setTool("select");
+      else if (selectedIdRef.current) setSelectedId(null);
     };
     window.addEventListener("keydown", onEscape);
     return () => window.removeEventListener("keydown", onEscape);
@@ -201,6 +210,10 @@ export function OfficePage({ snapshot }: PageProps) {
     const point = worldPointFrom(event);
     if (!point) return;
     const hit = simRef.current!.hitTest(point);
+    if (tool === "whip") {
+      if (hit) simRef.current!.whip(hit.input.id);
+      return;
+    }
     setSelectedId(hit ? hit.input.id : null);
   };
 
@@ -208,6 +221,10 @@ export function OfficePage({ snapshot }: PageProps) {
     const canvas = canvasRef.current;
     const point = worldPointFrom(event);
     if (!canvas || !point) return;
+    if (tool === "whip") {
+      canvas.style.cursor = "crosshair";
+      return;
+    }
     canvas.style.cursor = simRef.current!.hitTest(point) ? "pointer" : "default";
   };
 
@@ -224,6 +241,20 @@ export function OfficePage({ snapshot }: PageProps) {
           <AgentDetailCard agent={selectedAgent} onClose={() => setSelectedId(null)} />
         </div>
       )}
+      <div className="office-toolbar" role="toolbar" aria-label={t("Office tools")}>
+        <button
+          type="button"
+          className={`office-tool ${tool === "whip" ? "active" : ""}`.trim()}
+          aria-pressed={tool === "whip"}
+          title={t("Crack the whip: slackers in the snack bar or restroom hustle back to their desks. Working or meeting agents are unaffected.")}
+          onClick={() => {
+            setSelectedId(null);
+            setTool(tool === "whip" ? "select" : "whip");
+          }}
+        >
+          <span aria-hidden>⚡</span> {t("Whip")}
+        </button>
+      </div>
     </div>
   );
 }

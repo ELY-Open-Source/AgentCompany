@@ -85,6 +85,17 @@ test("the office floor opens agent details on click", async () => {
     }
     await expect(canvas).toBeVisible();
 
+    // The bottom toolbar carries the whip tool; in whip mode a click on an
+    // at-desk agent disciplines nobody and opens no card.
+    const whip = page.getByRole("button", { name: "Whip" });
+    await expect(whip).toBeVisible();
+    await whip.click();
+    await expect(whip).toHaveAttribute("aria-pressed", "true");
+    await page.mouse.click(clickX, clickY);
+    await expect(page.getByRole("dialog", { name: /Agent / })).not.toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(whip).toHaveAttribute("aria-pressed", "false");
+
     // Hired agents take open-floor desks in hire order and are clickable too.
     await hireAgent(page, "Ava Patel", "Designer", "Design");
     await hireAgent(page, "Ken Ito", "Engineer", "Engineering");

@@ -251,3 +251,33 @@ textarea.input { min-height: 84px; resize: vertical; line-height: 1.5; }
 .sidebar-foot-button { display: flex; align-items: center; gap: 8px; width: 100%; background: none; border: none; padding: 0; cursor: pointer; color: inherit; font: inherit; border-radius: var(--r-sm); }
 .sidebar-foot-button:hover .sidebar-foot-name { text-decoration: underline; }
 .form-error { color: var(--red); font-size: var(--fs-caption); margin-top: 4px; }
+
+/* Pixel-office bottom toolbar */
+.office-toolbar {
+  position: absolute;
+  bottom: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 6px;
+  padding: 6px;
+  background: var(--panel);
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(16, 16, 24, 0.18);
+}
+.office-tool {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: none;
+  background: none;
+  color: var(--text-2);
+  font: inherit;
+  font-size: 13px;
+  padding: 6px 10px;
+  border-radius: 7px;
+  cursor: pointer;
+}
+.office-tool:hover { background: var(--hover); color: var(--text-1); }
+.office-tool.active { background: var(--accent); color: #fff; }

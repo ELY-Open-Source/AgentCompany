@@ -1,5 +1,5 @@
-import { buildFloorPlan, findPath } from "./floor-plan";
-import type { AmenitySpot, Camera, FloorPlan, OfficeAgentInput, Rect, Vec } from "./office-types";
+import { buildFloorPlan, findPath, rectContains } from "./floor-plan";
+import type { AmenitySpot, Camera, FloorPlan, OfficeAgentInput, Rect, RoomKind, Vec } from "./office-types";
 import { appearanceFor, type Carrying, type Facing, type SpriteAppearance } from "./sprites";
 
 export type AgentBehavior =
@@ -21,6 +21,8 @@ export interface AgentSim {
   behavior: AgentBehavior;
   carryRemainingMs: number;
   settledMs: number;
+  /** While positive, the agent hustles (a whip crack sent them home). */
+  hustleMs: number;
 }
 
 export interface PlayerSim {
@@ -57,6 +59,9 @@ const MEETING_SPREAD_MS = 12_000;
 const MEAN_MEETING_INTERVAL_MS = 180_000;
 const CARRY_MIN_MS = 20_000;
 const CARRY_SPREAD_MS = 20_000;
+/** How long a whipped agent hustles, and how much faster they move. */
+const HUSTLE_MS = 6_000;
+const HUSTLE_MULTIPLIER = 1.8;
 
 /**
  * Holds the living state of the office: who sits where and where everyone
@@ -111,6 +116,7 @@ export class OfficeSimulation {
   }
 
   private stepAgent(agent: AgentSim, dt: number): void {
+    if (agent.hustleMs > 0) agent.hustleMs = Math.max(0, agent.hustleMs - dt);
     if (agent.carryRemainingMs > 0) {
       agent.carryRemainingMs -= dt;
       if (agent.carryRemainingMs <= 0) {
@@ -209,7 +215,7 @@ export class OfficeSimulation {
 
   private walkAlong(agent: AgentSim, dt: number): void {
     if (agent.behavior.kind !== "walking") return;
-    let budget = AGENT_SPEED * dt;
+    let budget = AGENT_SPEED * (agent.hustleMs > 0 ? HUSTLE_MULTIPLIER : 1) * dt;
     while (budget > 0) {
       const target = agent.behavior.path[agent.behavior.next];
       if (!target) {
@@ -251,6 +257,31 @@ export class OfficeSimulation {
     }
     agent.facing = "south";
     agent.behavior = { kind: "seated" };
+  }
+
+  /**
+   * Cracks the whip at an agent. Slacking in the snack bar or restroom sends
+   * them hustling back to their desk (snack abandoned); agents at their desk,
+   * in the CEO office, or in a meeting are working and stay untouched.
+   * Returns true when the whip connected.
+   */
+  whip(agentId: string): boolean {
+    const agent = this.agents.find((candidate) => candidate.input.id === agentId);
+    if (!agent) return false;
+    const room = this.roomAt({ x: agent.x, y: agent.y });
+    if (room !== "snack" && room !== "restroom") return false;
+    agent.carrying = null;
+    agent.carryRemainingMs = 0;
+    agent.hustleMs = HUSTLE_MS;
+    this.sendHome(agent);
+    return true;
+  }
+
+  private roomAt(point: Vec): RoomKind | null {
+    for (const room of this.plan.rooms) {
+      if (rectContains(room.bounds, point)) return room.kind;
+    }
+    return null;
   }
 
   /**
@@ -332,6 +363,7 @@ export class OfficeSimulation {
         behavior: prev?.behavior ?? { kind: "seated" },
         carryRemainingMs: prev?.carryRemainingMs ?? 0,
         settledMs: prev?.settledMs ?? 0,
+        hustleMs: prev?.hustleMs ?? 0,
       };
       if (planRebuilt && prev && (agent.x !== seat.x || agent.y !== seat.y)) {
         this.sendHome(agent);
