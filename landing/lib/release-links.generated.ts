@@ -16,7 +16,7 @@ export type PlatformDownload = {
   assets: PlatformDownloadAsset[];
 };
 
-export const releaseVersion = "1.1.0";
+export const releaseVersion = "1.2.0";
 
 // macOS is intentionally absent: its builds were never uploaded to R2, so
 // every DMG link 404'd. Re-add the entry (and the footer links) only after
@@ -32,8 +32,8 @@ export const platformDownloads: PlatformDownload[] = [
         architectures: ["x64"],
         id: "windows-x64-installer",
         label: "Windows Installer (x64)",
-        href: "https://pub-a19a3a2c1d2e4fa3a9c120b184024448.r2.dev/AC/AgentCompany-1.1.0-x64.exe",
-        note: "x64 · v1.1.0",
+        href: "https://pub-a19a3a2c1d2e4fa3a9c120b184024448.r2.dev/AC/AgentCompany-1.2.0-x64.exe",
+        note: "x64 · v1.2.0",
       },
     ],
   },
