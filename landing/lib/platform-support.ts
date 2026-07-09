@@ -14,26 +14,33 @@ export type PlatformSupportSummary = {
 
 export const platformSupportSummary = buildPlatformSupportSummary(platformDownloads);
 
+/**
+ * Copy derives from whatever platforms the release manifest actually ships,
+ * so the download matrix stays the single source of truth and the site can
+ * never advertise a platform without a real artifact behind it.
+ */
 export function buildPlatformSupportSummary(downloads: PlatformDownload[]): PlatformSupportSummary {
-  const macos = requirePlatform(downloads, "macos");
-  const windows = requirePlatform(downloads, "windows");
-
+  if (downloads.length === 0) {
+    throw new Error("Release download metadata must include at least one platform.");
+  }
   return {
     downloadAnswer:
       `Use the download section on this page to choose the build that matches your architecture and package format. ` +
-      `${formatDownloadSentence(macos)} ${formatDownloadSentence(windows)}`,
+      downloads.map(formatDownloadSentence).join(" "),
     platformAnswer:
-      `AgentCompany is available on ${formatAvailability(macos)} and ${formatAvailability(windows)}. ` +
+      `AgentCompany is available on ${joinWithAnd(downloads.map(formatAvailability))}. ` +
       `It is built with Electron and the desktop feature set stays aligned across all supported targets.`,
   };
 }
 
-function requirePlatform(downloads: PlatformDownload[], id: PlatformDownload["id"]): PlatformDownload {
-  const platform = downloads.find((download) => download.id === id);
-  if (!platform) {
-    throw new Error(`Missing ${id} release download metadata.`);
+function joinWithAnd(parts: string[]): string {
+  if (parts.length === 1) {
+    return parts[0];
   }
-  return platform;
+  if (parts.length === 2) {
+    return `${parts[0]} and ${parts[1]}`;
+  }
+  return `${parts.slice(0, -1).join(", ")}, and ${parts.at(-1)}`;
 }
 
 function formatDownloadSentence(download: PlatformDownload): string {

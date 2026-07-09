@@ -18,29 +18,10 @@ export type PlatformDownload = {
 
 export const releaseVersion = "1.1.0";
 
+// macOS is intentionally absent: its builds were never uploaded to R2, so
+// every DMG link 404'd. Re-add the entry (and the footer links) only after
+// the mac machine actually ships AC/AgentCompany-<version>-*.dmg.
 export const platformDownloads: PlatformDownload[] = [
-  {
-    id: "macos",
-    packageDescription: "signed and notarized DMG builds",
-    title: "macOS",
-    note: "Signed + notarized DMG builds",
-    assets: [
-      {
-        architectures: ["arm64"],
-        id: "macos-arm64-dmg",
-        label: "Apple Silicon DMG",
-        href: "https://pub-a19a3a2c1d2e4fa3a9c120b184024448.r2.dev/AC/AgentCompany-1.0.0-arm64.dmg",
-        note: "arm64 · v1.0.0",
-      },
-      {
-        architectures: ["x64"],
-        id: "macos-x64-dmg",
-        label: "Intel Mac DMG",
-        href: "https://pub-a19a3a2c1d2e4fa3a9c120b184024448.r2.dev/AC/AgentCompany-1.0.0.dmg",
-        note: "x64 · v1.0.0",
-      },
-    ],
-  },
   {
     id: "windows",
     packageDescription: "a signed NSIS installer build",

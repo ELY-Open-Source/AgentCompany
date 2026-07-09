@@ -40,8 +40,10 @@ test("download links use the tracked endpoint and never expose R2 URLs", async (
   await page.goto("/");
   await scrollThrough(page);
 
+  // Every advertised platform asset routes through the tracked endpoint
+  // (currently Windows only - macOS returns once its build ships to R2).
   const tracked = page.locator('#download a[href^="/api/download?asset="]');
-  expect(await tracked.count()).toBeGreaterThanOrEqual(3);
+  expect(await tracked.count()).toBeGreaterThanOrEqual(1);
 
   // Real release URLs must stay behind the server-side redirect.
   expect(await page.locator('a[href*="r2.dev"]').count()).toBe(0);

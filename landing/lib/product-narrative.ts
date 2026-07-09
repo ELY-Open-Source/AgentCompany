@@ -6,7 +6,7 @@ export const landingHeroNarrative = {
   titleLine2: "from Your Desktop",
   description:
     "Run AI CEO by default, switch to AI Co-Founder for human-reviewed decisions, and launch the first mission from a local desktop setup.",
-  availability: "Available on macOS and Windows",
+  availability: "Available on Windows · macOS build coming soon",
 } as const;
 
 export const onboardingFlowNarrative = {
@@ -75,6 +75,6 @@ export const landingStructuredDataNarrative = {
     "AI CEO autonomous operating mode",
     "AI Co-Founder human-reviewed operating mode",
     "Local-first SQLite storage",
-    "Desktop releases for macOS and Windows",
+    "Desktop releases for Windows (macOS build coming soon)",
   ],
 };
