@@ -1,6 +1,7 @@
 import type { DatabaseSync } from "node:sqlite";
 import type { RunTaskInput } from "../../shared/commands";
 import { APPROVAL_STATE, RISK_LEVEL } from "../../shared/domain";
+import { currentProviderUsageWindow, PROVIDER_MONTHLY_LIMIT_MESSAGE } from "../../shared/provider-runtime-domain";
 import { createId } from "../../shared/ids";
 import { AuditService } from "./audit-service";
 import { ProviderService } from "./provider-service";
@@ -53,6 +54,8 @@ export class TaskExecutionService {
   private readonly audit: AuditService;
   private readonly organization: OrganizationService;
   private readonly chat: ChatService;
+  /** Providers currently parked on their monthly quota, for transition logging. */
+  private quotaBlockedProviders = new Map<string, string>();
 
   constructor(
     private readonly db: DatabaseSync,
@@ -296,20 +299,31 @@ export class TaskExecutionService {
    * heartbeat-enabled agent with an enabled provider that has not run yet, so
    * CEO-delegated work starts on its own. Each task is enqueued at most once
    * (guarded by existing runs), preventing runaway re-execution.
+   *
+   * Two quota rules keep the loop self-healing when a provider's monthly
+   * window fills up: tasks on an exhausted provider are parked (not enqueued
+   * into certain failure), and past quota-blocked failures never count toward
+   * the 3-attempt retry budget. Raising the limit therefore resumes work on
+   * the next tick — no restart or manual unpausing.
    */
   enqueueHeartbeatRuns(): string[] {
+    const window = currentProviderUsageWindow();
     const rows = this.db.prepare(`
       select t.id as task_id, t.org_id as org_id
       from tasks t
       join agents a on a.id = t.assignee_agent_id and a.org_id = t.org_id
       join providers p on p.id = a.model_provider_id and p.org_id = t.org_id
+      left join provider_usage_windows u
+        on u.org_id = p.org_id and u.provider_id = p.id and u.window_start = ?
       where t.status in ('backlog', 'in_progress')
         and a.heartbeat_enabled = 1
         and a.lifecycle = 'active'
         and p.enabled = 1
+        and coalesce(u.request_count, 0) < p.monthly_request_limit
         and not exists (select 1 from task_runs r where r.task_id = t.id and r.state in ('queued', 'running', 'completed'))
-        and (select count(*) from task_runs r where r.task_id = t.id) < 3
-    `).all() as Array<{ task_id: string; org_id: string }>;
+        and (select count(*) from task_runs r where r.task_id = t.id and coalesce(r.error_message, '') <> ?) < 3
+    `).all(window.start, PROVIDER_MONTHLY_LIMIT_MESSAGE) as Array<{ task_id: string; org_id: string }>;
+    this.observeQuotaBlocks(window.start);
     const created: string[] = [];
     for (const row of rows) {
       try {
@@ -319,6 +333,33 @@ export class TaskExecutionService {
       }
     }
     return created;
+  }
+
+  /**
+   * Logs monthly-quota transitions (blocked <-> unblocked) exactly once per
+   * state change so a parked queue is diagnosable from the main-process log
+   * without spamming a line every 5s tick.
+   */
+  private observeQuotaBlocks(windowStart: string): void {
+    const rows = this.db.prepare(`
+      select p.id as id, p.label as label
+      from providers p
+      join provider_usage_windows u
+        on u.org_id = p.org_id and u.provider_id = p.id and u.window_start = ?
+      where p.enabled = 1 and u.request_count >= p.monthly_request_limit
+    `).all(windowStart) as Array<{ id: string; label: string }>;
+    const current = new Map(rows.map((row) => [row.id, row.label]));
+    for (const [id, label] of current) {
+      if (!this.quotaBlockedProviders.has(id)) {
+        console.warn(`[task-queue] provider "${label}" hit its monthly request limit; its tasks are parked until the limit is raised or the window resets.`);
+      }
+    }
+    for (const [id, label] of this.quotaBlockedProviders) {
+      if (!current.has(id)) {
+        console.info(`[task-queue] provider "${label}" is under its monthly request limit again; parked tasks resume.`);
+      }
+    }
+    this.quotaBlockedProviders = current;
   }
 
   private enqueueRun(orgId: string, taskId: string): string {

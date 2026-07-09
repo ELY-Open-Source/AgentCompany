@@ -5,7 +5,9 @@ import reactRefresh from "eslint-plugin-react-refresh";
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
-  { ignores: ["out", "release", "node_modules", "design-source"] },
+  // "landing" is a self-contained Next.js sub-project with its own tooling;
+  // "built-in skills" is bundled prompt content, not application code.
+  { ignores: ["out", "release", "node_modules", "design-source", "landing", "built-in skills"] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {

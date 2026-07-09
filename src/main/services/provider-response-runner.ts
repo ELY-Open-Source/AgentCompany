@@ -2,7 +2,7 @@ import type { DatabaseSync } from "node:sqlite";
 import type { CancelProviderResponseInput, CreateProviderResponseInput, StreamProviderResponseInput } from "../../shared/commands";
 import { FEATURE_FLAG_KEY, PROVIDER_AUTH_TYPE, PROVIDER_DATA_POLICY, PROVIDER_EXECUTION_MODE, PROVIDER_REQUEST_STATE, type ProviderExecutionMode } from "../../shared/domain";
 import type { ProviderStreamRendererEvent } from "../../shared/provider-request-domain";
-import { currentProviderUsageWindow } from "../../shared/provider-runtime-domain";
+import { currentProviderUsageWindow, PROVIDER_MONTHLY_LIMIT_MESSAGE } from "../../shared/provider-runtime-domain";
 import type { AuditService } from "./audit-service";
 import type { AuthBrokerService } from "./auth-broker-service";
 import type { OperationsService } from "./operations-service";
@@ -331,7 +331,7 @@ export class ProviderResponseRunner {
       where org_id = ? and provider_id = ? and window_start = ?
     `).get(orgId, provider.id, window.start) as { request_count: number } | undefined;
     const requestCount = usage?.request_count ?? 0;
-    if (requestCount >= provider.monthly_request_limit) throw new Error("Provider monthly request limit has been reached.");
+    if (requestCount >= provider.monthly_request_limit) throw new Error(PROVIDER_MONTHLY_LIMIT_MESSAGE);
   }
 
   private normalizeWorkspaceId(orgId: string, workspaceId: string | null): string | null {

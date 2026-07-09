@@ -9,7 +9,7 @@ import {
   type ProviderAuthType,
   type ProviderExecutionMode,
 } from "../../shared/domain";
-import { currentProviderUsageWindow, type ProviderObservedRateLimitState } from "../../shared/provider-runtime-domain";
+import { currentProviderUsageWindow, PROVIDER_MONTHLY_LIMIT_MESSAGE, type ProviderObservedRateLimitState } from "../../shared/provider-runtime-domain";
 import { AuditService } from "./audit-service";
 import { AuthBrokerService, type ProviderSecretVault } from "./auth-broker-service";
 import { OperationsService } from "./operations-service";
@@ -238,7 +238,7 @@ export class ProviderBackgroundService {
       where org_id = ? and provider_id = ? and window_start = ?
     `).get(orgId, provider.id, window.start) as { request_count: number } | undefined;
     const requestCount = usage?.request_count ?? 0;
-    if (requestCount >= provider.monthly_request_limit) throw new Error("Provider monthly request limit has been reached.");
+    if (requestCount >= provider.monthly_request_limit) throw new Error(PROVIDER_MONTHLY_LIMIT_MESSAGE);
   }
 
   private normalizeWorkspaceId(orgId: string, workspaceId: string | null): string | null {

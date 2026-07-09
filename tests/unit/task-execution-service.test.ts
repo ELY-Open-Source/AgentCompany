@@ -12,7 +12,8 @@ import type { AgentTurnResult, ProviderToolTurnInput } from "../../src/main/serv
 import { SkillService } from "../../src/main/services/skill-service";
 import { SnapshotService } from "../../src/main/services/snapshot-service";
 import { TaskExecutionService } from "../../src/main/services/task-execution-service";
-import { APPROVAL_STATE, RISK_LEVEL, TASK_PRIORITY, TASK_STATUS } from "../../src/shared/domain";
+import { APPROVAL_STATE, PROVIDER_DATA_POLICY, RISK_LEVEL, TASK_PRIORITY, TASK_STATUS } from "../../src/shared/domain";
+import { currentProviderUsageWindow, PROVIDER_MONTHLY_LIMIT_MESSAGE } from "../../src/shared/provider-runtime-domain";
 
 function createConnection(): DatabaseConnection {
   return new DatabaseConnection(join(tmpdir(), `agentcompany-new-task-execution-${randomUUID()}.db`));
@@ -376,6 +377,167 @@ describe("task execution service", () => {
 
     await expect(execution.runTask({ orgId, taskId })).rejects.toThrow("Task assignee requires a model provider.");
     expect(connection.db.prepare("select count(*) as count from task_runs").get()).toEqual({ count: 0 });
+    connection.close();
+  });
+
+  test("parks tasks while their provider is over its monthly quota and resumes once the limit is raised", () => {
+    const connection = createConnection();
+    const organization = new OrganizationService(connection.db);
+    const providers = new ProviderService(connection.db, providerAdapters, testVault);
+    const execution = new TaskExecutionService(connection.db, providers);
+    let orgId = "";
+    let providerId = "";
+    let taskId = "";
+
+    connection.transaction(() => {
+      orgId = organization.createOrganization({
+        organizationName: "Acme Operations",
+        employeeName: "Dana Lee",
+        mission: "Coordinate agents with auditable approvals.",
+        goal: "Ship a verified control plane.",
+      });
+      providerId = openAiProviderId(connection, orgId);
+      providers.saveCredential({ orgId, providerId, secret: "sk-live-provider", model: "gpt-5.4" });
+      providers.updatePolicy({
+        orgId,
+        providerId,
+        dataPolicy: PROVIDER_DATA_POLICY.STANDARD,
+        backgroundEnabled: false,
+        monthlyRequestLimit: 5,
+        workspaceScope: "organization",
+      });
+      const agentId = organization.createAgent({
+        orgId,
+        name: "Ada",
+        role: "Execution lead",
+        department: "Engineering",
+        modelProviderId: providerId,
+        modelId: "gpt-5.4",
+        budgetCents: 10000,
+        managerAgentId: null,
+        heartbeatEnabled: true,
+      });
+      taskId = organization.createTask({
+        orgId,
+        title: "Draft launch checklist",
+        description: "Prepare an auditable checklist for release readiness.",
+        status: TASK_STATUS.IN_PROGRESS,
+        assigneeAgentId: agentId,
+        risk: RISK_LEVEL.MEDIUM,
+        projectId: null,
+        goalId: null,
+        workspaceId: null,
+        priority: TASK_PRIORITY.HIGH,
+        requiresFilesystem: false,
+      });
+      const window = currentProviderUsageWindow();
+      connection.db.prepare(`
+        insert into provider_usage_windows(id, org_id, provider_id, window_start, window_end, request_count, input_char_count, output_char_count, created_at, updated_at)
+        values (?, ?, ?, ?, ?, 5, 0, 0, ?, ?)
+      `).run("puw_quota_test", orgId, providerId, window.start, window.end, window.start, window.start);
+    });
+
+    // At the limit: the task is parked, not enqueued into a doomed run.
+    expect(execution.enqueueHeartbeatRuns()).toEqual([]);
+    expect(connection.db.prepare("select count(*) as count from task_runs").get()).toEqual({ count: 0 });
+
+    // Raising the limit (what Settings saves) revives the queue on the next tick.
+    connection.transaction(() => providers.updatePolicy({
+      orgId,
+      providerId,
+      dataPolicy: PROVIDER_DATA_POLICY.STANDARD,
+      backgroundEnabled: false,
+      monthlyRequestLimit: 50,
+      workspaceScope: "organization",
+    }));
+    const enqueued = connection.transaction(() => execution.enqueueHeartbeatRuns());
+    expect(enqueued).toHaveLength(1);
+    expect(connection.db.prepare("select task_id, state from task_runs where id = ?").get(enqueued[0]))
+      .toMatchObject({ task_id: taskId, state: "queued" });
+    connection.close();
+  });
+
+  test("quota-blocked failures never consume the retry budget, while genuine failures still do", () => {
+    const connection = createConnection();
+    const organization = new OrganizationService(connection.db);
+    const providers = new ProviderService(connection.db, providerAdapters, testVault);
+    const execution = new TaskExecutionService(connection.db, providers);
+    let orgId = "";
+    let providerId = "";
+    let agentId = "";
+    let taskId = "";
+
+    connection.transaction(() => {
+      orgId = organization.createOrganization({
+        organizationName: "Acme Operations",
+        employeeName: "Dana Lee",
+        mission: "Coordinate agents with auditable approvals.",
+        goal: "Ship a verified control plane.",
+      });
+      providerId = openAiProviderId(connection, orgId);
+      providers.saveCredential({ orgId, providerId, secret: "sk-live-provider", model: "gpt-5.4" });
+      agentId = organization.createAgent({
+        orgId,
+        name: "Ada",
+        role: "Execution lead",
+        department: "Engineering",
+        modelProviderId: providerId,
+        modelId: "gpt-5.4",
+        budgetCents: 10000,
+        managerAgentId: null,
+        heartbeatEnabled: true,
+      });
+      taskId = organization.createTask({
+        orgId,
+        title: "Draft launch checklist",
+        description: "Prepare an auditable checklist for release readiness.",
+        status: TASK_STATUS.IN_PROGRESS,
+        assigneeAgentId: agentId,
+        risk: RISK_LEVEL.MEDIUM,
+        projectId: null,
+        goalId: null,
+        workspaceId: null,
+        priority: TASK_PRIORITY.HIGH,
+        requiresFilesystem: false,
+      });
+      // Historical damage from a filled quota window: three failed runs, all quota-blocked.
+      const serviceIdentityId = (connection.db.prepare("select id from service_identities where org_id = ? and agent_id = ?")
+        .get(orgId, agentId) as { id: string }).id;
+      const insertFailedRun = connection.db.prepare(`
+        insert into task_runs(
+          id, org_id, task_id, agent_id, provider_id, provider_request_id,
+          execution_context_id, service_identity_id, workspace_mount_json, secret_scope_json,
+          trigger, state, created_at, started_at, completed_at, error_message
+        ) values (?, ?, ?, ?, ?, null, ?, ?, '[]', '{}', 'heartbeat', 'failed', ?, ?, ?, ?)
+      `);
+      const now = new Date().toISOString();
+      for (const index of [1, 2, 3]) {
+        insertFailedRun.run(`run_quota_fail_${index}`, orgId, taskId, agentId, providerId, `ctx_quota_${index}`, serviceIdentityId, now, now, now, PROVIDER_MONTHLY_LIMIT_MESSAGE);
+      }
+    });
+
+    // Quota failures are excluded from the budget: the task revives without any data surgery.
+    const enqueued = connection.transaction(() => execution.enqueueHeartbeatRuns());
+    expect(enqueued).toHaveLength(1);
+
+    // Genuine failures still cap at three attempts.
+    connection.transaction(() => {
+      connection.db.prepare("delete from task_runs where state = 'queued'").run();
+      const serviceIdentityId = (connection.db.prepare("select id from service_identities where org_id = ? and agent_id = ?")
+        .get(orgId, agentId) as { id: string }).id;
+      const now = new Date().toISOString();
+      const insertFailedRun = connection.db.prepare(`
+        insert into task_runs(
+          id, org_id, task_id, agent_id, provider_id, provider_request_id,
+          execution_context_id, service_identity_id, workspace_mount_json, secret_scope_json,
+          trigger, state, created_at, started_at, completed_at, error_message
+        ) values (?, ?, ?, ?, ?, null, ?, ?, '[]', '{}', 'heartbeat', 'failed', ?, ?, ?, ?)
+      `);
+      for (const index of [1, 2, 3]) {
+        insertFailedRun.run(`run_real_fail_${index}`, orgId, taskId, agentId, providerId, `ctx_real_${index}`, serviceIdentityId, now, now, now, "provider rejected task");
+      }
+    });
+    expect(connection.transaction(() => execution.enqueueHeartbeatRuns())).toEqual([]);
     connection.close();
   });
 });
