@@ -125,6 +125,8 @@ export const zh: Record<string, string> = {
   "Edit {name}": "编辑 {name}",
   "Edit profile": "编辑个人资料",
   "Former member": "已离职成员",
+  "Jump to latest": "跳到最新消息",
+  "Conversation messages": "会话消息",
   "Whip": "鞭子",
   "Office tools": "办公室工具",
   "Crack the whip: slackers in the snack bar or restroom hustle back to their desks. Working or meeting agents are unaffected.": "挥动鞭子：在茶水间或洗手间摸鱼的成员会赶回工位；正在工作或开会的成员不受影响。",

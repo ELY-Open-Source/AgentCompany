@@ -1,4 +1,4 @@
-import { useState, type FormEvent, type MutableRefObject } from "react";
+import { useLayoutEffect, useRef, useState, type FormEvent, type MutableRefObject } from "react";
 import { AvatarStack, Icon, IconButton } from "../../shared/ui";
 import type {
   ApprovalRecord,
@@ -62,27 +62,75 @@ export function ChatConversation({
   const filtered = trimmed
     ? messagesInSpace.filter((m) => m.bodyMd.toLowerCase().includes(trimmed))
     : messagesInSpace;
+
+  // Messenger scroll contract: open at the latest message, stay pinned there
+  // while the reader is at the bottom, and offer a jump back the moment they
+  // scroll up into history.
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const atBottomRef = useRef(true);
+  const [atBottom, setAtBottom] = useState(true);
+  const lastMessageId = filtered.length > 0 ? filtered[filtered.length - 1].id : null;
+
+  const measureAtBottom = () => {
+    const el = scrollRef.current;
+    if (!el) return true;
+    return el.scrollHeight - el.scrollTop - el.clientHeight < 48;
+  };
+  const onScroll = () => {
+    const near = measureAtBottom();
+    atBottomRef.current = near;
+    setAtBottom(near);
+  };
+  const jumpToLatest = (behavior: ScrollBehavior) => {
+    const el = scrollRef.current;
+    if (el) el.scrollTo({ top: el.scrollHeight, behavior });
+  };
+
+  // The component is keyed by space, so mount = opening this conversation.
+  useLayoutEffect(() => {
+    jumpToLatest("auto");
+  }, []);
+  // New messages keep a bottom-pinned reader pinned; a reader up in history
+  // is left alone (the jump pill is their way back).
+  useLayoutEffect(() => {
+    if (atBottomRef.current) jumpToLatest("auto");
+  }, [lastMessageId]);
+
   return (
     <section style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", background: "var(--panel)" }}>
       {space && <ConversationHeader space={space} participants={participants} query={query} onQueryChange={setQuery} />}
-      <div style={{ flex: 1, overflow: "auto", padding: "20px 24px 8px" }}>
-        {space && (
-          <ChatTimeline
-            key={space.id}
-            messagesInSpace={filtered}
-            pendingApprovals={pendingApprovals}
-            attachments={attachments}
-            mentions={mentions}
-            slashInvocations={slashInvocations}
-            files={files}
-            context={context}
-            currentEmployeeId={currentEmployeeId}
-            onApprove={onApprove}
-            onDecline={onDecline}
-            onEditMessage={onEditMessage}
-            onDeleteMessage={onDeleteMessage}
-            onOpenFile={onOpenFile}
-          />
+      <div style={{ position: "relative", flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+        <div
+          ref={scrollRef}
+          onScroll={onScroll}
+          role="log"
+          aria-label={t("Conversation messages")}
+          style={{ flex: 1, overflow: "auto", padding: "20px 24px 8px" }}
+        >
+          {space && (
+            <ChatTimeline
+              key={space.id}
+              messagesInSpace={filtered}
+              pendingApprovals={pendingApprovals}
+              attachments={attachments}
+              mentions={mentions}
+              slashInvocations={slashInvocations}
+              files={files}
+              context={context}
+              currentEmployeeId={currentEmployeeId}
+              onApprove={onApprove}
+              onDecline={onDecline}
+              onEditMessage={onEditMessage}
+              onDeleteMessage={onDeleteMessage}
+              onOpenFile={onOpenFile}
+            />
+          )}
+        </div>
+        {!atBottom && (
+          <button type="button" className="jump-latest" onClick={() => jumpToLatest("smooth")}>
+            <span aria-hidden style={{ fontSize: 13, lineHeight: 1 }}>↓</span>
+            {t("Jump to latest")}
+          </button>
         )}
       </div>
       <ChatComposer

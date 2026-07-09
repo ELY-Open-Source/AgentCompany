@@ -181,6 +181,44 @@ test("onboards, hires, and creates work in the Electron shell", async () => {
     await page.getByRole("button", { name: "Send" }).click();
     await expect(page.getByText("Alex Turing").first()).toBeVisible();
 
+    // Scrolling up into history surfaces a jump-back pill above the composer.
+    await page.evaluate(async () => {
+      const api = (window as unknown as { agentCompany: {
+        loadSnapshot: () => Promise<{ ok: true; data: {
+          activeOrgId: string;
+          employees: Array<{ id: string; orgId: string }>;
+          chatSpaces: Array<{ id: string; orgId: string; name: string }>;
+        } }>;
+        sendMessage: (input: unknown) => Promise<unknown>;
+      } }).agentCompany;
+      const snapshot = await api.loadSnapshot();
+      const orgId = snapshot.data.activeOrgId;
+      const employee = snapshot.data.employees.find((item) => item.orgId === orgId)!;
+      const general = snapshot.data.chatSpaces.find((item) => item.orgId === orgId && item.name === "general")!;
+      for (let index = 0; index < 12; index++) {
+        await api.sendMessage({
+          orgId,
+          spaceId: general.id,
+          threadId: null,
+          senderType: "employee",
+          senderId: employee.id,
+          bodyMd: `Scroll filler ${index}\n\nline\n\nline\n\nline`,
+          attachmentFileIds: [],
+        });
+      }
+    });
+    const chatLog = page.getByRole("log", { name: "Conversation messages" });
+    await expect(page.getByText("Scroll filler 11").first()).toBeVisible();
+    // Pinned to the bottom: no pill.
+    await expect(page.getByRole("button", { name: "Jump to latest" })).toHaveCount(0);
+    await chatLog.evaluate((el) => { el.scrollTop = 0; });
+    const jumpButton = page.getByRole("button", { name: "Jump to latest" });
+    await expect(jumpButton).toBeVisible();
+    await jumpButton.click();
+    await expect(jumpButton).not.toBeVisible();
+    const nearBottom = await chatLog.evaluate((el) => el.scrollHeight - el.scrollTop - el.clientHeight < 60);
+    expect(nearBottom).toBe(true);
+
     await verifyPagesDoNotOverflow(page);
   } finally {
     await app.close();
