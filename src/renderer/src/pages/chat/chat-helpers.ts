@@ -17,15 +17,16 @@ export interface MessageContext {
 }
 
 export function senderName(message: ChatMessageRecord, context: MessageContext): string {
+  // A message whose principal no longer resolves must degrade to a visible
+  // placeholder, not throw: one orphaned row would otherwise blank the whole
+  // Messages page mid-render.
   if (message.senderType === "employee") {
     const employee = context.employees.find((item) => item.id === message.senderId);
-    if (!employee) throw new Error("Message employee sender is missing.");
-    return employee.displayName;
+    return employee ? employee.displayName : t("Former member");
   }
   if (message.senderType === "agent") {
     const agent = context.agents.find((item) => item.id === message.senderId);
-    if (!agent) throw new Error("Message agent sender is missing.");
-    return agent.name;
+    return agent ? agent.name : t("Former member");
   }
   if (message.senderType === "board") return t("Board");
   return t("System");

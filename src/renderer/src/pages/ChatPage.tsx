@@ -61,6 +61,11 @@ export function ChatPage({ snapshot, actions }: PageProps) {
   const activeSpaceId = selectedSpaceId && spaces.some((space) => space.id === selectedSpaceId)
     ? selectedSpaceId
     : firstAvailableSpaceId;
+  // Pin the implicit default as soon as one exists (render-time state
+  // adjustment): the conversation list re-sorts by recency on every
+  // snapshot, and an unpinned default would follow it - yanking the view to
+  // whichever space just got a message and marking it read unseen.
+  if (!selectedSpaceId && firstAvailableSpaceId) setSelectedSpaceId(firstAvailableSpaceId);
   const activeSpace = spaces.find((space) => space.id === activeSpaceId) ?? null;
   const latestActiveMessageId = useMemo(() => {
     if (!activeSpaceId) return null;
@@ -181,6 +186,7 @@ export function ChatPage({ snapshot, actions }: PageProps) {
       />
 
       <ChatConversation
+        key={activeSpace?.id ?? "none"}
         space={activeSpace}
         participants={participants}
         messagesInSpace={messagesInSpace}

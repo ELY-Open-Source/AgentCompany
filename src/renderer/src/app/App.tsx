@@ -18,15 +18,21 @@ export function App() {
   const { snapshot, actions } = useSnapshot();
   const [route, setRoute] = useState<RouteId>("home");
   const avatarDirectory = useMemo(() => {
+    // Scope the directory to the active organization: names are only unique
+    // within one org, and a same-named principal in another org must not
+    // hijack the avatar shown here.
     const directory = new Map<string, AvatarLook>();
+    const orgId = snapshot?.activeOrgId ?? null;
     for (const agent of snapshot?.agents ?? []) {
+      if (agent.orgId !== orgId) continue;
       if (agent.avatarEmoji || agent.avatarColor) directory.set(agent.name, { emoji: agent.avatarEmoji, color: agent.avatarColor });
     }
     for (const employee of snapshot?.employees ?? []) {
+      if (employee.orgId !== orgId) continue;
       if (employee.avatarEmoji || employee.avatarColor) directory.set(employee.displayName, { emoji: employee.avatarEmoji, color: employee.avatarColor });
     }
     return directory;
-  }, [snapshot?.agents, snapshot?.employees]);
+  }, [snapshot?.agents, snapshot?.employees, snapshot?.activeOrgId]);
   const [creatingOrg, setCreatingOrg] = useState(false);
   // Keeps the wizard mounted through its post-bootstrap connectors step: the
   // organization exists from Launch onward, so the org-count check alone

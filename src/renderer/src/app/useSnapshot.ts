@@ -31,7 +31,20 @@ export function useSnapshot(): {
   useEffect(() => {
     let disposed = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
     let lastLoadAt = 0;
+    // A failed load must not strand the app on a blank shell: log it loudly
+    // and retry until the main process answers (IPC hiccups are transient).
+    const guardedLoad = () => {
+      load().catch((error) => {
+        console.error(`[snapshot] load failed, retrying: ${error instanceof Error ? error.message : String(error)}`);
+        if (disposed || retryTimer) return;
+        retryTimer = setTimeout(() => {
+          retryTimer = null;
+          guardedLoad();
+        }, 1_500);
+      });
+    };
     // Change events arrive in bursts while agents run; reload at most every
     // 800ms with a trailing load so the UI converges without render storms.
     const scheduleReload = () => {
@@ -40,12 +53,12 @@ export function useSnapshot(): {
       timer = setTimeout(() => {
         timer = null;
         lastLoadAt = Date.now();
-        void load();
+        guardedLoad();
       }, wait);
     };
     void Promise.resolve().then(() => {
       lastLoadAt = Date.now();
-      return load();
+      guardedLoad();
     });
     const unsubscribe = window.agentCompany.subscribe((event) => {
       if (event.type === "snapshot-changed") scheduleReload();
@@ -53,6 +66,7 @@ export function useSnapshot(): {
     return () => {
       disposed = true;
       if (timer) clearTimeout(timer);
+      if (retryTimer) clearTimeout(retryTimer);
       unsubscribe();
     };
   }, [load]);

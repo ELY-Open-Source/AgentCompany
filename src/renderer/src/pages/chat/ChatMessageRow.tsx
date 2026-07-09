@@ -166,19 +166,19 @@ function formatInline(text: string, keyPrefix: string): ReactNode[] {
 }
 
 function mentionLabel(mention: ChatMentionRecord, context: MessageContext): string {
+  // Degrade unresolvable targets to a placeholder instead of throwing: one
+  // stale mention row must not blank the entire timeline.
   if (mention.targetType === "employee") {
     const employee = context.employees.find((item) => item.id === mention.targetId);
-    if (!employee) throw new Error("Message mention employee target is missing.");
-    return employee.displayName;
+    return employee ? employee.displayName : t("Former member");
   }
   if (mention.targetType === "agent") {
     const agent = context.agents.find((item) => item.id === mention.targetId);
-    if (!agent) throw new Error("Message mention agent target is missing.");
-    return agent.name;
+    return agent ? agent.name : t("Former member");
   }
   if (mention.targetType === "board") return t("Board");
   if (mention.targetType === "org_group" && mention.targetId.endsWith(":oncall")) return t("OnCall");
-  throw new Error("Message mention target type is unsupported.");
+  return t("Former member");
 }
 
 function AttachmentCard({ file, handoff = false, onOpen }: { file: FileObjectRecord; handoff?: boolean; onOpen: (() => void) | null }) {
