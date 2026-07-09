@@ -21,6 +21,8 @@ const footerGroups: { title: string; links: FooterLink[] }[] = [
   {
     title: "Downloads",
     links: [
+      { label: "Apple Silicon", href: getTrackedDownloadHref("macos-arm64-dmg"), external: true },
+      { label: "Intel Mac", href: getTrackedDownloadHref("macos-x64-dmg"), external: true },
       { label: "Windows Installer", href: getTrackedDownloadHref("windows-x64-installer"), external: true },
     ],
   },
