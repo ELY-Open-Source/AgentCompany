@@ -146,6 +146,16 @@ a { color: inherit; }
 }
 /* Clear the native macOS traffic lights that overlap the sidebar top. */
 .app-shell.is-mac .sidebar { padding-top: 36px; }
+/* The sidebar's top strip doubles as a window drag handle (the topbar only
+   spans the main pane). Interactive children opt back out of dragging, and
+   the org button shrinks to its content so the rest of the strip drags. */
+.sidebar-top {
+  position: relative;
+  -webkit-app-region: drag;
+  margin-bottom: var(--sp-4);
+}
+.sidebar-top button,
+.sidebar-top [role="menu"] { -webkit-app-region: no-drag; }
 .sidebar-org {
   display: flex;
   align-items: center;
@@ -156,7 +166,8 @@ a { color: inherit; }
   text-align: left;
   border-radius: var(--r-sm);
   cursor: pointer;
-  margin-bottom: var(--sp-4);
+  width: fit-content;
+  max-width: 100%;
   transition: background var(--motion-fast) var(--ease-out);
 }
 .sidebar-org:hover { background: var(--hover); }
@@ -509,6 +520,27 @@ a { color: inherit; }
 }
 .page { max-width: 1100px; }
 .page-wide { width: 100%; }
+/* The Work page is flush: its header (title + projects) stays put and only
+   the view below it scrolls — on the board, each column scrolls its own cards. */
+.work-page {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  padding: var(--sp-7) var(--sp-8) 0;
+}
+.work-page-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.work-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-bottom: var(--sp-8);
+}
 .page-h1 {
   margin: 0 0 var(--sp-1);
   font-family: var(--font-display);

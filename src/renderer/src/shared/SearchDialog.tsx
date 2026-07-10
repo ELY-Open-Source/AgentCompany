@@ -81,7 +81,13 @@ export function SearchDialog({
   };
 
   return (
-    <div role="dialog" aria-modal="true" aria-label={t("Search")} style={overlayStyle}>
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={t("Search")}
+      style={overlayStyle}
+      onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}
+    >
       <form onSubmit={submit} style={panelStyle}>
         <div className="row" style={{ padding: "10px 12px", borderBottom: "1px solid var(--border-soft)" }}>
           <Icon name="search" size={14} color="var(--text-3)" />

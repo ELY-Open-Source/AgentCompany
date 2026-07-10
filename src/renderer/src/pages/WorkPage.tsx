@@ -83,7 +83,7 @@ export function WorkPage({ snapshot, actions }: PageProps) {
   const detailTask = detailTaskId ? allTasks.find((task) => task.id === detailTaskId) ?? null : null;
 
   return (
-    <div className="page-wide">
+    <div className="page-wide work-page">
       <TopbarActions>
         <Segmented value={view} onChange={setView} options={VIEW_OPTIONS} />
         <WorkFilter
@@ -104,30 +104,38 @@ export function WorkPage({ snapshot, actions }: PageProps) {
 
       <ProjectOverview projects={projects} tasks={allTasks} agents={agents} workspaces={workspaces} chatSpaces={chatSpaces} />
 
-      {view === "board" && (
-        <BoardView
-          tasks={tasks}
-          agents={agents}
-          projects={projects}
-          providers={providers}
-          taskRuns={taskRuns}
-          onAdvance={advance}
-          onRun={runTask}
-          onCreate={() => setNewTaskOpen(true)}
-          onOpen={(task) => setDetailTaskId(task.id)}
-        />
-      )}
-      {view === "list" && (
-        <ListView
-          tasks={tasks}
-          agents={agents}
-          projects={projects}
-          providers={providers}
-          onRun={runTask}
-          onOpen={(task) => setDetailTaskId(task.id)}
-        />
-      )}
-      {view === "timeline" && <TimelineView tasks={tasks} goals={goals} projects={projects} />}
+      <div className="work-page-body">
+        {view === "board" && (
+          <BoardView
+            tasks={tasks}
+            agents={agents}
+            projects={projects}
+            providers={providers}
+            taskRuns={taskRuns}
+            onAdvance={advance}
+            onRun={runTask}
+            onCreate={() => setNewTaskOpen(true)}
+            onOpen={(task) => setDetailTaskId(task.id)}
+          />
+        )}
+        {view === "list" && (
+          <div className="work-scroll">
+            <ListView
+              tasks={tasks}
+              agents={agents}
+              projects={projects}
+              providers={providers}
+              onRun={runTask}
+              onOpen={(task) => setDetailTaskId(task.id)}
+            />
+          </div>
+        )}
+        {view === "timeline" && (
+          <div className="work-scroll">
+            <TimelineView tasks={tasks} goals={goals} projects={projects} />
+          </div>
+        )}
+      </div>
 
       <GoalDialog open={newGoalOpen} orgId={orgId} agents={agents} actions={actions} onClose={() => setNewGoalOpen(false)} />
       <ProjectDialog open={newProjectOpen} orgId={orgId} goals={goals} agents={agents} actions={actions} onClose={() => setNewProjectOpen(false)} />
@@ -230,30 +238,32 @@ function BoardView({
   onOpen: (task: TaskRecord) => void;
 }) {
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 12, minWidth: 0 }}>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 12, minWidth: 0, flex: 1, minHeight: 0 }}>
       {COLUMNS.map((column) => {
         const columnTasks = tasks.filter((task) => task.status === column.id);
         return (
-          <div key={column.id} style={{ display: "flex", flexDirection: "column", gap: 8, minWidth: 0 }}>
-            <div className="row" style={{ padding: "4px 6px 8px" }}>
+          <div key={column.id} style={{ display: "flex", flexDirection: "column", minWidth: 0, minHeight: 0 }}>
+            <div className="row" style={{ padding: "4px 6px 8px", flexShrink: 0 }}>
               <span style={{ width: 8, height: 8, borderRadius: 2, background: column.tone, flexShrink: 0 }} />
               <span style={{ fontSize: 12, fontWeight: 540 }}>{column.label}</span>
               <span className="num" style={{ fontSize: 12, color: "var(--text-3)" }}>{columnTasks.length}</span>
               <IconButton icon="plus" label={t("Add task")} onClick={onCreate} />
             </div>
-            {columnTasks.map((task) => (
-              <TaskCard
-                key={task.id}
-                task={task}
-                assignee={agents.find((agent) => agent.id === task.assigneeAgentId) ?? null}
-                project={projects.find((project) => project.id === task.projectId) ?? null}
-                provider={providerFor(agents.find((agent) => agent.id === task.assigneeAgentId) ?? null, providers)}
-                latestRun={latestTaskRun(task.id, taskRuns)}
-                onAdvance={() => onAdvance(task)}
-                onRun={() => onRun(task)}
-                onOpen={() => onOpen(task)}
-              />
-            ))}
+            <div style={{ flex: 1, minHeight: 0, overflowY: "auto", display: "flex", flexDirection: "column", gap: 8, paddingBottom: 24 }}>
+              {columnTasks.map((task) => (
+                <TaskCard
+                  key={task.id}
+                  task={task}
+                  assignee={agents.find((agent) => agent.id === task.assigneeAgentId) ?? null}
+                  project={projects.find((project) => project.id === task.projectId) ?? null}
+                  provider={providerFor(agents.find((agent) => agent.id === task.assigneeAgentId) ?? null, providers)}
+                  latestRun={latestTaskRun(task.id, taskRuns)}
+                  onAdvance={() => onAdvance(task)}
+                  onRun={() => onRun(task)}
+                  onOpen={() => onOpen(task)}
+                />
+              ))}
+            </div>
           </div>
         );
       })}

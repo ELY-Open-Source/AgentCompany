@@ -51,7 +51,7 @@ export function OrgSwitcher({ snapshot, activeOrgId, onSelect, onNew, onDelete }
   };
 
   return (
-    <div ref={containerRef} style={{ position: "relative" }}>
+    <div ref={containerRef} className="sidebar-top">
       <button
         type="button"
         className="sidebar-org"

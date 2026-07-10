@@ -179,7 +179,6 @@ export const zh: Record<string, string> = {
   "Hire agent": "招聘智能体",
   "Hires need your stamp; deliverables route through review before shipping.": "招聘需要你签字确认；交付物先经审核再发布。",
   "Hires require approval": "招聘需审批",
-  "Hiring pipeline": "招聘进展",
   "Home": "首页",
   "How autonomous should the CEO be?": "CEO 的自主程度？",
   "Humans only": "仅人类",

@@ -4,7 +4,6 @@ import { AvatarField } from "../shared/AvatarField";
 import { TopbarActions } from "../shared/TopbarActions";
 import { Dialog } from "../shared/Dialog";
 import { OrgChartTree } from "./team/OrgChartTree";
-import { HiringPipeline } from "./team/HiringPipeline";
 import type { AgentRecord, EmployeeRecord, ProviderRecord } from "../../../shared/domain";
 import type { PageProps } from "./types";
 import { activeOrgId, money } from "./types";
@@ -118,8 +117,6 @@ export function TeamPage({ snapshot, actions }: PageProps) {
         <div className="section-label">{t("Org")}</div>
         <OrgChartTree boardChair={employees[0] ?? null} agents={agents} onSelectAgent={setEditAgentId} />
       </section>
-
-      <HiringPipeline agents={agents} approvals={snapshot.approvals.filter((a) => a.orgId === orgId)} />
 
       <div className="section-label" style={{ marginBottom: 10 }}>{t("Roster")}</div>
       <div className="card" style={{ padding: 0, overflow: "hidden" }}>

@@ -251,7 +251,7 @@ textarea.input { min-height: 84px; resize: vertical; line-height: 1.5; }
 .avatar-swatch { width: 18px; height: 18px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; padding: 0; }
 .avatar-swatch.selected { border-color: var(--accent); }
 .avatar-swatch.auto { background: conic-gradient(#5e6ad2, #e8b339, #26b69a, #5e6ad2); }
-.sidebar-foot-button { display: flex; align-items: center; gap: 8px; width: 100%; background: none; border: none; padding: 0; cursor: pointer; color: inherit; font: inherit; border-radius: var(--r-sm); }
+.sidebar-foot-button { display: flex; align-items: center; gap: 8px; width: 100%; background: none; border: none; padding: 0; cursor: pointer; color: inherit; font: inherit; text-align: left; border-radius: var(--r-sm); }
 .sidebar-foot-button:hover .sidebar-foot-name { text-decoration: underline; }
 .form-error { color: var(--red); font-size: var(--fs-caption); margin-top: 4px; }
 
