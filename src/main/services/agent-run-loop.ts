@@ -1,5 +1,6 @@
 import type { ProviderService } from "./provider-service";
 import { AGENT_TOOLS, dispatchAgentTool, type AgentToolContext, type AgentToolDeps } from "./agent-tools";
+import { completeGoalTool } from "./agent-goal-tools";
 import { executeWebTool, isWebTool, WEB_TOOLS } from "./agent-web-tools";
 import { executeWorkspaceTool, isWorkspaceTool, WORKSPACE_TOOLS } from "./agent-workspace-tools";
 import { canonicalMentionHandle } from "../../shared/mention-handles";
@@ -76,6 +77,17 @@ export async function runAgentLoop(deps: AgentRunLoopDeps, input: AgentRunLoopIn
         output = await executeWorkspaceTool(input.toolContext, call);
       } else if (isWebTool(call.name)) {
         output = await executeWebTool(call);
+      } else if (call.name === "complete_goal") {
+        // Runs an independent audit turn against the provider, so it needs
+        // the loop's provider access rather than the sync dispatcher.
+        output = await completeGoalTool({
+          deps: deps.tools,
+          ctx: input.toolContext,
+          providers: deps.providers,
+          providerId: input.providerId,
+          workspaceId: input.workspaceId,
+          call,
+        });
       } else {
         output = dispatchAgentTool(deps.tools, input.toolContext, call, {
           announceTaskAssignments: shouldAnnounceTaskAssignment(call, turn.toolCalls),
