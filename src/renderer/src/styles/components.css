@@ -100,9 +100,12 @@
   font-size: var(--fs-caption);
   font-weight: 500;
   white-space: nowrap;
+  max-width: 100%;
+  min-width: 0;
   transition: background var(--motion-base) var(--ease-out), color var(--motion-base) var(--ease-out), border-color var(--motion-base) var(--ease-out);
 }
-.pill .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--text-3); transition: background var(--motion-base) var(--ease-out); }
+.pill .pill-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pill .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--text-3); flex-shrink: 0; transition: background var(--motion-base) var(--ease-out); }
 .pill.amber { background: var(--amber-soft); color: var(--amber); border-color: transparent; }
 .pill.amber .dot { background: var(--amber); }
 .pill.green { background: var(--green-soft); color: var(--green); border-color: transparent; }

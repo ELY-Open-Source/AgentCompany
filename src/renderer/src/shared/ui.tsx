@@ -108,7 +108,7 @@ export function Pill({
   return (
     <span className={`pill ${tone ?? ""}`.trim()}>
       {dot && <span className="dot" />}
-      {children}
+      <span className="pill-text">{children}</span>
     </span>
   );
 }

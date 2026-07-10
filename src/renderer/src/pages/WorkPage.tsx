@@ -6,14 +6,12 @@ import {
   TASK_PRIORITY,
   TASK_STATUS,
   type AgentRecord,
-  type GoalRecord,
   type ProviderRecord,
   type ProjectRecord,
   type TaskPriority,
   type TaskRecord,
   type TaskRunRecord,
   type TaskStatus,
-  type WorkspaceRecord,
 } from "../../../shared/domain";
 import { NewTaskDialog } from "./NewTaskDialog";
 import { GoalDialog } from "./work/GoalDialog";
@@ -111,8 +109,6 @@ export function WorkPage({ snapshot, actions }: PageProps) {
           tasks={tasks}
           agents={agents}
           projects={projects}
-          goals={goals}
-          workspaces={workspaces}
           providers={providers}
           taskRuns={taskRuns}
           onAdvance={advance}
@@ -216,8 +212,6 @@ function BoardView({
   tasks,
   agents,
   projects,
-  goals,
-  workspaces,
   providers,
   taskRuns,
   onAdvance,
@@ -228,8 +222,6 @@ function BoardView({
   tasks: TaskRecord[];
   agents: AgentRecord[];
   projects: ProjectRecord[];
-  goals: GoalRecord[];
-  workspaces: WorkspaceRecord[];
   providers: ProviderRecord[];
   taskRuns: TaskRunRecord[];
   onAdvance: (task: TaskRecord) => void;
@@ -255,8 +247,6 @@ function BoardView({
                 task={task}
                 assignee={agents.find((agent) => agent.id === task.assigneeAgentId) ?? null}
                 project={projects.find((project) => project.id === task.projectId) ?? null}
-                goal={goals.find((goal) => goal.id === task.goalId) ?? null}
-                workspace={workspaces.find((workspace) => workspace.id === task.workspaceId) ?? null}
                 provider={providerFor(agents.find((agent) => agent.id === task.assigneeAgentId) ?? null, providers)}
                 latestRun={latestTaskRun(task.id, taskRuns)}
                 onAdvance={() => onAdvance(task)}
@@ -275,8 +265,6 @@ function TaskCard({
   task,
   assignee,
   project,
-  goal,
-  workspace,
   provider,
   latestRun,
   onAdvance,
@@ -286,8 +274,6 @@ function TaskCard({
   task: TaskRecord;
   assignee: AgentRecord | null;
   project: ProjectRecord | null;
-  goal: GoalRecord | null;
-  workspace: WorkspaceRecord | null;
   provider: ProviderRecord | null;
   latestRun: TaskRunRecord | null;
   onAdvance: () => void;
@@ -317,23 +303,29 @@ function TaskCard({
         <div
           style={{
             flex: 1,
+            minWidth: 0,
             fontSize: 14,
             fontWeight: 480,
             lineHeight: 1.35,
             letterSpacing: "-0.005em",
-            textDecoration: task.status === "done" ? "line-through" : "none",
             color: task.status === "done" ? "var(--text-3)" : "var(--text-1)",
+            display: "-webkit-box",
+            WebkitLineClamp: 3,
+            WebkitBoxOrient: "vertical",
+            overflow: "hidden",
           }}
         >
           {task.title}
         </div>
       </div>
-      <div className="row" style={{ flexWrap: "wrap", gap: 6 }}>
-        {project ? <Pill>{truncate(project.name, 22)}</Pill> : <Pill>{capitalize(task.risk)}</Pill>}
-        {goal && <Pill tone="violet">{truncate(goal.title, 18)}</Pill>}
-        {workspace && <Pill>{truncate(workspace.name, 18)}</Pill>}
-        {latestRun && <Pill tone={runTone(latestRun.state)}>{prettyRunState(latestRun.state)}</Pill>}
-        <div style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center" }} onClick={(event) => event.stopPropagation()}>
+      <div className="row" style={{ flexWrap: "wrap", gap: 6, minWidth: 0 }}>
+        {project ? <Pill>{project.name}</Pill> : <Pill>{capitalize(task.risk)}</Pill>}
+        {task.status !== "done" && latestRun && (
+          <span style={{ flexShrink: 0, display: "inline-flex" }}>
+            <Pill tone={runTone(latestRun.state)}>{prettyRunState(latestRun.state)}</Pill>
+          </span>
+        )}
+        <div style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center", flexShrink: 0 }} onClick={(event) => event.stopPropagation()}>
           {assignee && <Avatar name={assignee.name} size="sm" bot />}
           {assignee && <IconButton icon="send" label={canRun(provider) ? t("Run {title}", { title: task.title }) : t("Connect a provider to run")} onClick={onRun} disabled={!canRun(provider)} />}
           {nextStatus(task.status) && <IconButton icon="check" label={t("Advance")} onClick={onAdvance} />}
@@ -345,9 +337,4 @@ function TaskCard({
 
 function capitalize(value: string): string {
   return value.charAt(0).toUpperCase() + value.slice(1);
-}
-
-function truncate(value: string, max: number): string {
-  if (value.length <= max) return value;
-  return `${value.slice(0, max - 1)}…`;
 }
