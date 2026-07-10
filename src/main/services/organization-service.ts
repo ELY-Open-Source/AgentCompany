@@ -234,9 +234,9 @@ export class OrganizationService {
     this.db.prepare(`
       insert into tasks(
         id, org_id, title, description, status, assignee_agent_id, risk,
-        project_id, goal_id, workspace_id, priority, requires_filesystem, created_at, updated_at
+        project_id, goal_id, workspace_id, priority, requires_filesystem, origin, created_at, updated_at
       )
-      values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       id,
       input.orgId,
@@ -250,6 +250,7 @@ export class OrganizationService {
       input.workspaceId,
       input.priority,
       input.requiresFilesystem ? 1 : 0,
+      input.origin ?? null,
       now,
       now,
     );

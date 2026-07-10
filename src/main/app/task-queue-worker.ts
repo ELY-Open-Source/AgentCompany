@@ -1,6 +1,8 @@
 import type { BrowserWindow } from "electron";
 import type { DatabaseConnection } from "../database/connection";
 import { IPC_CHANNELS } from "../../shared/ipc";
+import { OrganizationService } from "../services/organization-service";
+import { spawnGoalReviews } from "../services/goal-review-service";
 import { TaskExecutionService } from "../services/task-execution-service";
 
 const DEFAULT_INTERVAL_MS = 5_000;
@@ -58,6 +60,7 @@ export function startTaskQueueWorker(input: TaskQueueWorkerInput): () => void {
     }
   };
   const taskExecution = new TaskExecutionService(input.connection.db, undefined, undefined, notifyDataChanged);
+  const organization = new OrganizationService(input.connection.db);
   const intervalMs = input.intervalMs ?? DEFAULT_INTERVAL_MS;
   let running = false;
   let wasPaused = false;
@@ -74,6 +77,10 @@ export function startTaskQueueWorker(input: TaskQueueWorkerInput): () => void {
         wasPaused = paused;
       }
       if (paused) return;
+      // Goal checkpoints first, so a review task created this tick is
+      // eligible for the same tick's heartbeat enqueue below.
+      const reviews = input.connection.transaction(() => spawnGoalReviews(input.connection.db, organization));
+      if (reviews.length > 0) notifyDataChanged();
       const enqueued = input.connection.transaction(() => taskExecution.enqueueHeartbeatRuns());
       const claimed = claimNextQueuedRun(input.connection, taskExecution.cooledProviderIds());
       if (!claimed) {

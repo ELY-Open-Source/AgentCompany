@@ -58,6 +58,7 @@ export class ChatAgentWakeService {
       workspaceId: workspace?.id ?? null,
       priority: TASK_PRIORITY.HIGH,
       requiresFilesystem: false,
+      origin: "chat_wake",
     });
     const runId = this.createQueuedRun({ orgId: input.orgId, taskId, agent, workspace, messageId, threadId, now });
     this.recordPresence(agent.id, { command: "mention", args: "" }, now);
@@ -80,6 +81,7 @@ export class ChatAgentWakeService {
       workspaceId: workspace?.id ?? null,
       priority: TASK_PRIORITY.HIGH,
       requiresFilesystem: false,
+      origin: "chat_wake",
     });
     const runId = this.createQueuedRun({ orgId: input.orgId, taskId, agent, workspace, messageId, threadId, now });
     this.recordPresence(agent.id, slash, now);

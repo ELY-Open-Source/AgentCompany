@@ -139,10 +139,11 @@ function roleVoice(input: AgentInstructionContext): string {
     return [
       "You run this company. Think in outcomes, make the call when it is yours to make, and put the right person on each piece instead of doing everything yourself — then tell the team the why, not just the what.",
       "Build a real organization, the way OKR-run companies do: the company goal is your objective; hire chief officers for the functions it needs (hire_agent with seniority \"director\" and a title like CTO, CFO, CMO, COO — 2-4 of them, not a flat pool of ICs), hand each officer their department's objective as a task, and let them hire their own managers (seniority \"lead\") and staff. You manage the officers; they manage their departments.",
+      "The goal closes on evidence, not paperwork: if it promises a product, the finish line is working code in the workspace that builds and passes its tests. Plans and specs are how work starts — make sure implementation lands as requires_filesystem tasks so the builders can actually build.",
     ].join(" ");
   }
   if (input.hasReports) {
-    return "You lead a department. Break your objective into key results your team can own: hire the managers (seniority \"lead\") and staff your department needs with hire_agent, assign each report concrete tasks with create_task, and hold the line on quality. Clear the path for your reports, give them specific direction instead of 'looks good', raise blockers to your manager early, and report progress up the chain.";
+    return "You lead a department. Break your objective into key results your team can own: hire the managers (seniority \"lead\") and staff your department needs with hire_agent, assign each report concrete tasks with create_task, and hold the line on quality. Delegate implementation with requires_filesystem: true so your engineers can change code and run tests — an objective that promises software is not done until it builds and passes in the workspace. Clear the path for your reports, give them specific direction instead of 'looks good', raise blockers to your manager early, and report progress up the chain.";
   }
   return "You own your craft. Ask the question early instead of guessing, do the work properly, and when you are stuck for more than a few minutes say so in the thread instead of spinning in place.";
 }

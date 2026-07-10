@@ -86,6 +86,8 @@ export interface CreateTaskInput {
   workspaceId: string | null;
   priority: TaskPriority;
   requiresFilesystem: boolean;
+  /** Provenance: 'chat_wake' for mention-wake vehicles, 'goal_review' for CEO goal checkpoints, omitted for plain work. */
+  origin?: "chat_wake" | "goal_review";
 }
 
 export interface UpdateTaskStatusInput {

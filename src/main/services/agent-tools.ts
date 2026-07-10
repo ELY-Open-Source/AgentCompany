@@ -8,6 +8,7 @@ import { readMessagesTool } from "./agent-read-messages";
 import { grantConnectorTool, listConnectorsTool } from "./agent-connector-tools";
 import { bindSkillSlugs, grantSkillTool, listSkillsTool } from "./agent-skill-tools";
 import { createDocumentTool, writeDeliverableTool } from "./agent-deliverable-tools";
+import { completeGoalTool, GOAL_TOOLS } from "./agent-goal-tools";
 import { describeSend } from "./agent-message-presence";
 import { optionalString, optionalStringArray, requireString } from "./agent-tool-args";
 import type { JsonRecord } from "./provider-http";
@@ -216,6 +217,7 @@ export const AGENT_TOOLS: ToolDefinition[] = [
       required: ["agent_name", "skill"],
     },
   },
+  ...GOAL_TOOLS,
 ];
 
 export function dispatchAgentTool(
@@ -232,6 +234,8 @@ export function dispatchAgentTool(
         return createTask(deps, ctx, call.arguments, options);
       case "update_task_status":
         return updateTaskStatus(deps, ctx, call.arguments);
+      case "complete_goal":
+        return completeGoalTool(deps, ctx);
       case "write_deliverable":
         return writeDeliverableTool(deps, ctx, call.arguments);
       case "send_message":
