@@ -3,6 +3,14 @@ export interface ProviderModelEntry {
   name: string;
 }
 
+// Shared by the international (api.moonshot.ai) and CN (api.moonshot.cn)
+// platforms, which publish the same model line-up under different endpoints.
+const KIMI_MODELS: ProviderModelEntry[] = [
+  { id: "kimi-k2.7-code", name: "Kimi K2.7 Code" },
+  { id: "kimi-k2.7-code-highspeed", name: "Kimi K2.7 Code Highspeed" },
+  { id: "kimi-k2.6", name: "Kimi K2.6" },
+];
+
 const ANTHROPIC_MODELS: ProviderModelEntry[] = [
   { id: "claude-opus-4-7", name: "Claude Opus 4.7" },
   { id: "claude-opus-4-6", name: "Claude Opus 4.6" },
@@ -216,6 +224,8 @@ export const PROVIDER_MODELS: Record<string, ProviderModelEntry[]> = {
     { id: "zai-glm-4.7", name: "Z.AI GLM-4.7" },
     { id: "llama3.1-8b", name: "Llama 3.1 8B" },
   ],
+  kimi: KIMI_MODELS,
+  "kimi-cn": KIMI_MODELS,
   openrouter: [
     { id: "anthropic/claude-sonnet-4.5", name: "Anthropic: Claude Sonnet 4.5" },
     { id: "anthropic/claude-opus-4.5", name: "Anthropic: Claude Opus 4.5" },

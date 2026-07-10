@@ -23,6 +23,8 @@ const TURNS: Record<string, ToolTurnFn> = {
   mistral: makeChatCompletionsTurn("https://api.mistral.ai/v1/chat/completions", "Mistral"),
   cerebras: makeChatCompletionsTurn("https://api.cerebras.ai/v1/chat/completions", "Cerebras"),
   openrouter: makeChatCompletionsTurn("https://openrouter.ai/api/v1/chat/completions", "OpenRouter"),
+  kimi: makeChatCompletionsTurn("https://api.moonshot.ai/v1/chat/completions", "Kimi"),
+  "kimi-cn": makeChatCompletionsTurn("https://api.moonshot.cn/v1/chat/completions", "Kimi CN"),
   "gpt-account": runCodexTurn,
   "github-copilot": runCopilotTurn,
   "google-antigravity": runAntigravityTurn,

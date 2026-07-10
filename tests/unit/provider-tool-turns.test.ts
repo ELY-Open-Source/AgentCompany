@@ -186,7 +186,7 @@ describe("aws sigv4", () => {
 
 describe("tool-turn router", () => {
   test("supports every agent-capable provider (incl. cloud and custom) and rejects unknown ones", () => {
-    for (const key of ["openai", "anthropic", "xai", "groq", "mistral", "cerebras", "openrouter", "gpt-account", "github-copilot", "google-antigravity", "claude-pro", "custom-openai", "custom-anthropic", "azure-openai", "aws-bedrock", "vertex-ai"]) {
+    for (const key of ["openai", "anthropic", "xai", "groq", "mistral", "cerebras", "openrouter", "kimi", "kimi-cn", "gpt-account", "github-copilot", "google-antigravity", "claude-pro", "custom-openai", "custom-anthropic", "azure-openai", "aws-bedrock", "vertex-ai"]) {
       expect(supportsToolTurn(key)).toBe(true);
       expect(typeof selectToolTurn(key)).toBe("function");
     }

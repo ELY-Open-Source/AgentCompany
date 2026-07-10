@@ -18,6 +18,8 @@ const PROVIDER_SECRET_SAMPLES: Record<string, string> = {
   mistral: "sk-live-provider",
   cerebras: "csk-live-provider",
   openrouter: "sk-or-live-provider",
+  kimi: "sk-live-provider",
+  "kimi-cn": "sk-live-provider",
   "github-copilot": "ghu_live_provider",
   "google-antigravity": "antigravity-session",
   "gpt-account": "chatgpt-session",

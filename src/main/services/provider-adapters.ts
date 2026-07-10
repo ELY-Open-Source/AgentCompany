@@ -210,6 +210,18 @@ export const providerAdapters: ProviderAdapterRegistry = {
     endpoint: "https://openrouter.ai/api/v1/chat/completions",
     healthUrl: "https://openrouter.ai/api/v1/models",
   }),
+  kimi: openAiCompatibleAdapter({
+    providerKey: "kimi",
+    label: "Kimi",
+    endpoint: "https://api.moonshot.ai/v1/chat/completions",
+    healthUrl: "https://api.moonshot.ai/v1/models",
+  }),
+  "kimi-cn": openAiCompatibleAdapter({
+    providerKey: "kimi-cn",
+    label: "Kimi CN",
+    endpoint: "https://api.moonshot.cn/v1/chat/completions",
+    healthUrl: "https://api.moonshot.cn/v1/models",
+  }),
   "github-copilot": browserTokenAdapter("github-copilot", PROVIDER_AUTH_TYPE.OAUTH_PKCE),
   "google-antigravity": browserTokenAdapter("google-antigravity", PROVIDER_AUTH_TYPE.OAUTH_PKCE),
   "gpt-account": browserTokenAdapter("gpt-account", PROVIDER_AUTH_TYPE.ACCOUNT_SUBSCRIPTION),
