@@ -25,6 +25,14 @@ test("onboards, hires, and creates work in the Electron shell", async () => {
     const page = await app.firstWindow();
     await expect(page.getByRole("heading", { name: "Welcome" })).toBeVisible();
     await page.getByRole("button", { name: "Get started" }).click();
+    // The Kimi family ships in the provider catalog: two API-key platforms
+    // and the OAuth plan, whose device-flow sign-in renders before any model
+    // field (the model list arrives with the credential).
+    await expect(page.getByText("Kimi", { exact: true })).toBeVisible();
+    await expect(page.getByText("Kimi CN", { exact: true })).toBeVisible();
+    await page.getByText("Kimi Code", { exact: true }).click();
+    await expect(page.getByRole("button", { name: "Sign in with Kimi Code" })).toBeVisible();
+    await page.getByText("OpenAI", { exact: true }).click();
     await page.getByLabel("API key").fill("e2e-secret");
     await page.getByLabel("Model").fill("gpt-5.4");
     await page.getByRole("button", { name: "Continue" }).click();
@@ -156,6 +164,9 @@ test("onboards, hires, and creates work in the Electron shell", async () => {
     await page.getByRole("button", { name: "Settings" }).click();
     await expect(page.getByText("AI CEO", { exact: true })).toBeVisible();
     await page.getByRole("button", { name: "Providers" }).click();
+    for (const label of ["Kimi", "Kimi CN", "Kimi Code"]) {
+      await expect(page.getByText(label, { exact: true })).toBeVisible();
+    }
     await page.getByLabel("OpenAI background execution").check();
     await page.getByRole("button", { name: "Save OpenAI policy" }).click();
 
