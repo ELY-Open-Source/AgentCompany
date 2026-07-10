@@ -20,6 +20,7 @@ const PROVIDER_SECRET_SAMPLES: Record<string, string> = {
   openrouter: "sk-or-live-provider",
   kimi: "sk-live-provider",
   "kimi-cn": "sk-live-provider",
+  "kimi-code": "kimi-session-token",
   "github-copilot": "ghu_live_provider",
   "google-antigravity": "antigravity-session",
   "gpt-account": "chatgpt-session",

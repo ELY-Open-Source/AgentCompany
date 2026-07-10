@@ -120,6 +120,15 @@ const RAW_CATALOG: Omit<ProviderCatalogEntry, "models" | "supportsLiveModels">[]
     credentialHelp: "Sign in to ChatGPT Plus/Pro in the browser; AgentCompany finishes the handshake.",
   },
   {
+    key: "kimi-code",
+    label: "Kimi Code",
+    authType: PROVIDER_AUTH_TYPE.OAUTH_PKCE,
+    defaultModel: "kimi-for-coding",
+    capabilityTags: ["account", "coding"],
+    signInUrl: "https://www.kimi.com/code",
+    credentialHelp: "Sign in with your Kimi plan account in the browser; AgentCompany finishes the device-code handshake.",
+  },
+  {
     key: "azure-openai",
     label: "Azure OpenAI",
     authType: PROVIDER_AUTH_TYPE.CLOUD,

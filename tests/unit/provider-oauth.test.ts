@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { describe, expect, test } from "vitest";
 import { interpretPollResponse } from "../../src/main/services/oauth/github-copilot-flow";
+import { interpretKimiPollResponse } from "../../src/main/services/oauth/kimi-code-flow";
 import { extractAccountId } from "../../src/main/services/oauth/openai-codex-flow";
 import { readProjectId, resolveAntigravityClientSecret } from "../../src/main/services/oauth/google-antigravity-flow";
 import { generatePkce } from "../../src/main/services/oauth/pkce";
@@ -30,6 +31,40 @@ describe("github copilot device-code poll interpreter", () => {
     const decision = interpretPollResponse({ error: "access_denied", error_description: "user declined" });
     expect(decision.kind).toBe("error");
     if (decision.kind === "error") expect(decision.message).toContain("access_denied: user declined");
+  });
+});
+
+describe("kimi code device-code poll interpreter", () => {
+  test("returns credentials with an expiry margin when the token arrives", () => {
+    const before = Date.now();
+    const decision = interpretKimiPollResponse(200, { access_token: "kimi_access", refresh_token: "kimi_refresh", expires_in: 900 });
+    expect(decision.kind).toBe("token");
+    if (decision.kind === "token") {
+      expect(decision.credentials.access).toBe("kimi_access");
+      expect(decision.credentials.refresh).toBe("kimi_refresh");
+      expect(decision.credentials.expires).toBeGreaterThan(before);
+      expect(decision.credentials.expires).toBeLessThan(before + 900 * 1000);
+    }
+  });
+
+  test("rejects a token response missing required fields", () => {
+    expect(() => interpretKimiPollResponse(200, { access_token: "kimi_access" })).toThrow("missing required fields");
+  });
+
+  test("keeps polling while authorization is pending", () => {
+    expect(interpretKimiPollResponse(400, { error: "authorization_pending" })).toEqual({ kind: "pending" });
+    expect(interpretKimiPollResponse(400, { error: "slow_down" })).toEqual({ kind: "pending" });
+    expect(interpretKimiPollResponse(500, {})).toEqual({ kind: "pending" });
+  });
+
+  test("stops on an expired device code", () => {
+    expect(interpretKimiPollResponse(400, { error: "expired_token" })).toEqual({ kind: "expired" });
+  });
+
+  test("fails when the user denies the request", () => {
+    const decision = interpretKimiPollResponse(400, { error: "access_denied", error_description: "user declined" });
+    expect(decision.kind).toBe("error");
+    if (decision.kind === "error") expect(decision.message).toContain("user declined");
   });
 });
 

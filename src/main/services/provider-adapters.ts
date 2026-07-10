@@ -24,6 +24,7 @@ import { backgroundUnsupported, retrieveUnsupported } from "./provider-backgroun
 import { authorizeWithParser, refreshUnsupported, revokeLocalProfile } from "./provider-auth-lifecycle";
 import { getJson, postEventStream, postJson, type JsonRecord } from "./provider-http";
 import { fetchAnthropicModels, fetchOpenAiModels } from "./provider-models-fetch";
+import { KIMI_CODE_BASE_URL } from "./oauth/kimi-code-flow";
 
 const ANTHROPIC_VERSION = "2023-06-01";
 const CLAUDE_PRO_BETA = "claude-code-20250219,oauth-2025-04-20,fine-grained-tool-streaming-2025-05-14";
@@ -231,6 +232,12 @@ export const providerAdapters: ProviderAdapterRegistry = {
       authorization: `Bearer ${requireAccessTokenProfile(ctx.authProfile).accessToken}`,
       "anthropic-version": ANTHROPIC_VERSION,
       "anthropic-beta": CLAUDE_PRO_BETA,
+    }),
+  },
+  "kimi-code": {
+    ...browserTokenAdapter("kimi-code", PROVIDER_AUTH_TYPE.OAUTH_PKCE),
+    listModels: (ctx) => fetchOpenAiModels(`${KIMI_CODE_BASE_URL}/models`, {
+      authorization: `Bearer ${requireAccessTokenProfile(ctx.authProfile).accessToken}`,
     }),
   },
   "azure-openai": {

@@ -10,6 +10,7 @@ import {
   runCopilotTurn,
   runCustomAnthropicTurn,
   runCustomOpenAiTurn,
+  runKimiCodeTurn,
   runOpenAiResponsesTurn,
   runVertexTurn,
 } from "./turns";
@@ -29,6 +30,7 @@ const TURNS: Record<string, ToolTurnFn> = {
   "github-copilot": runCopilotTurn,
   "google-antigravity": runAntigravityTurn,
   "claude-pro": runClaudeProTurn,
+  "kimi-code": runKimiCodeTurn,
   "custom-openai": runCustomOpenAiTurn,
   "custom-anthropic": runCustomAnthropicTurn,
   "azure-openai": runAzureTurn,

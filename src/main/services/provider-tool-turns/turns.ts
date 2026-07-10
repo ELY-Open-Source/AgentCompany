@@ -14,6 +14,7 @@ import { bedrockToolConfig, parseBedrockOutput, toBedrockMessages } from "./bedr
 import { signAwsRequest } from "./aws-sigv4";
 import { getGcpAccessToken } from "./gcp-auth";
 import { COPILOT_HEADERS, copilotBaseUrl } from "../oauth/github-copilot-flow";
+import { KIMI_CODE_BASE_URL } from "../oauth/kimi-code-flow";
 
 const ANTIGRAVITY_VERSION = "1.21.9";
 const ANTIGRAVITY_ENDPOINT = "https://cloudcode-pa.googleapis.com";
@@ -105,6 +106,22 @@ export async function runClaudeProTurn(input: ProviderToolTurnInput): Promise<Ag
     "x-app": "cli",
   }, body);
   const parsed = parseAnthropicContent(response.data);
+  return { ...parsed, rawResponseJson: JSON.stringify(response.data) };
+}
+
+// ---- Kimi Code (OAuth plan, chat completions at the coding endpoint) ----
+
+export async function runKimiCodeTurn(input: ProviderToolTurnInput): Promise<AgentTurnResult> {
+  const access = requireAccessToken(input.credential, "Kimi Code");
+  const body: JsonRecord = {
+    model: input.model,
+    messages: toChatMessages(input.instructions, input.messages),
+    tools: chatToolDefs(input.tools),
+    tool_choice: "auto",
+    stream: false,
+  };
+  const response = await postJson(`${KIMI_CODE_BASE_URL}/chat/completions`, { authorization: `Bearer ${access}` }, body);
+  const parsed = parseChatChoice(response.data);
   return { ...parsed, rawResponseJson: JSON.stringify(response.data) };
 }
 

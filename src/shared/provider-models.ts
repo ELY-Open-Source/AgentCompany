@@ -226,6 +226,10 @@ export const PROVIDER_MODELS: Record<string, ProviderModelEntry[]> = {
   ],
   kimi: KIMI_MODELS,
   "kimi-cn": KIMI_MODELS,
+  "kimi-code": [
+    { id: "kimi-for-coding", name: "Kimi for Coding" },
+    { id: "kimi-for-coding-highspeed", name: "Kimi for Coding Highspeed" },
+  ],
   openrouter: [
     { id: "anthropic/claude-sonnet-4.5", name: "Anthropic: Claude Sonnet 4.5" },
     { id: "anthropic/claude-opus-4.5", name: "Anthropic: Claude Opus 4.5" },

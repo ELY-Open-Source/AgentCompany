@@ -28,6 +28,7 @@ import { refreshCodex } from "../oauth/openai-codex-flow";
 import { refreshClaudePro } from "../oauth/anthropic-claude-flow";
 import { refreshAntigravity } from "../oauth/google-antigravity-flow";
 import { refreshGitHubCopilotToken } from "../oauth/github-copilot-flow";
+import { refreshKimiCode } from "../oauth/kimi-code-flow";
 
 interface StoredOAuth {
   access: string;
@@ -63,6 +64,8 @@ function refreshOAuth(providerKey: string, creds: StoredOAuth): Promise<OAuthCre
       return refreshAntigravity(creds.refresh, creds.projectId);
     case "github-copilot":
       return refreshGitHubCopilotToken(creds.refresh, creds.enterpriseUrl ?? undefined);
+    case "kimi-code":
+      return refreshKimiCode(creds.refresh);
     default:
       throw new Error(`${providerKey} cannot refresh its credential.`);
   }
