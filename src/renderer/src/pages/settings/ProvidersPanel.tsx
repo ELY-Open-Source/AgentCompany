@@ -10,7 +10,7 @@ import type {
   ProviderRecord,
 } from "../../../../shared/domain";
 import { PROVIDER_DATA_POLICY } from "../../../../shared/domain";
-import { ProviderLogo } from "./ProviderLogo";
+import { ProviderLogo } from "../../shared/ProviderLogo";
 import { ProviderConnectFields, ProviderOAuthFields } from "./ProviderConnectionDialog";
 import { composeSecret } from "./provider-secret";
 import type { SnapshotActions } from "../../app/useSnapshot";
@@ -281,7 +281,7 @@ function ProviderRow({
         borderRadius: 10,
       }}
     >
-      <ProviderLogo label={provider.label} />
+      <ProviderLogo providerKey={provider.providerKey} label={provider.label} />
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 13.5, fontWeight: 540, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{provider.label}</div>
         <div style={{ fontSize: 12, color: "var(--text-3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
@@ -321,7 +321,7 @@ function ProviderCard({ provider, onConnect }: { provider: ProviderRecord; onCon
         minWidth: 0,
       }}
     >
-      <ProviderLogo label={provider.label} />
+      <ProviderLogo providerKey={provider.providerKey} label={provider.label} />
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 13.5, fontWeight: 540, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{provider.label}</div>
         <div style={{ fontSize: 12, color: "var(--text-3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>

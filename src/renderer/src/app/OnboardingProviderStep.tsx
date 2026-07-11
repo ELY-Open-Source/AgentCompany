@@ -1,5 +1,6 @@
 import { Fragment, useEffect, useState } from "react";
 import type { ProviderCatalogEntry } from "../../../shared/domain";
+import { ProviderLogo } from "../shared/ProviderLogo";
 import { ProviderOAuthConnect } from "../shared/ProviderOAuthConnect";
 import { Button, Field, Pill } from "../shared/ui";
 import type { Draft } from "./Onboarding";
@@ -40,7 +41,8 @@ export function ProviderStep({
                 providerBaseUrl: "",
               })}
             >
-              <div className="row">
+              <div className="row" style={{ gap: 8 }}>
+                <ProviderLogo providerKey={provider.key} label={provider.label} size={22} />
                 <div className="opt-title" style={{ flex: 1 }}>{provider.label}</div>
                 <Pill tone="violet">{authBadge(provider.authType)}</Pill>
               </div>
