@@ -16,7 +16,7 @@ export type PlatformDownload = {
   assets: PlatformDownloadAsset[];
 };
 
-export const releaseVersion = "1.3.0";
+export const releaseVersion = "1.4.0";
 
 export const platformDownloads: PlatformDownload[] = [
   {
@@ -51,8 +51,8 @@ export const platformDownloads: PlatformDownload[] = [
         architectures: ["x64"],
         id: "windows-x64-installer",
         label: "Windows Installer (x64)",
-        href: "https://pub-a19a3a2c1d2e4fa3a9c120b184024448.r2.dev/AC/AgentCompany-1.3.0-x64.exe",
-        note: "x64 · v1.3.0",
+        href: "https://pub-a19a3a2c1d2e4fa3a9c120b184024448.r2.dev/AC/AgentCompany-1.4.0-x64.exe",
+        note: "x64 · v1.4.0",
       },
     ],
   },
