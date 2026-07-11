@@ -5,7 +5,7 @@ import { describe, expect, test } from "vitest";
 import type { JsonRecord, ProviderEventStreamMessage } from "../../src/main/services/provider-http";
 import type { AgentTurnMessage } from "../../src/main/services/provider-tool-turn";
 import { accumulateResponsesStream, parseResponsesOutput, responsesToolDefs, toResponsesInput } from "../../src/main/services/provider-tool-turns/responses-format";
-import { parseChatChoice, toChatMessages } from "../../src/main/services/provider-tool-turns/chat-format";
+import { accumulateChatStream, parseChatChoice, toChatMessages } from "../../src/main/services/provider-tool-turns/chat-format";
 import { parseAnthropicContent, toAnthropicMessages } from "../../src/main/services/provider-tool-turns/anthropic-format";
 import { accumulateGeminiStream, antigravityRequestBody } from "../../src/main/services/provider-tool-turns/gemini-format";
 import { bedrockToolConfig, parseBedrockOutput, toBedrockMessages } from "../../src/main/services/provider-tool-turns/bedrock-format";
@@ -89,6 +89,33 @@ describe("openai chat completions encoding", () => {
   test("parses a tool call choice", () => {
     const data = { choices: [{ message: { content: "hi", tool_calls: [{ id: "c9", function: { name: "f", arguments: '{"a":1}' } }] } }] };
     expect(parseChatChoice(data)).toEqual({ text: "hi", toolCalls: [{ id: "c9", name: "f", arguments: { a: 1 } }] });
+  });
+
+  test("accumulates streamed content deltas and indexed tool-call fragments", async () => {
+    // The Kimi coding endpoint streams reasoning_content first (which must be
+    // ignored), then content deltas, then tool calls split across chunks: the
+    // opening fragment carries index/id/name, later fragments append arguments.
+    const result = await accumulateChatStream(stream([
+      { id: "cmpl-1", choices: [{ delta: { role: "assistant", reasoning_content: "thinking..." } }] },
+      { choices: [{ delta: { content: "Staffing " } }] },
+      { choices: [{ delta: { content: "the team." } }] },
+      { choices: [{ delta: { tool_calls: [{ index: 0, id: "c1", type: "function", function: { name: "hire_agent", arguments: "" } }] } }] },
+      { choices: [{ delta: { tool_calls: [{ index: 0, function: { arguments: '{"name":' } }, { index: 1, id: "c2", type: "function", function: { name: "create_task", arguments: '{"title":"x"}' } }] } }] },
+      { choices: [{ delta: { tool_calls: [{ index: 0, function: { arguments: '"Sam"}' } }] }, finish_reason: "tool_calls" }] },
+      { choices: [], usage: { prompt_tokens: 10, completion_tokens: 5 } },
+    ]));
+    expect(result.text).toBe("Staffing the team.");
+    expect(result.toolCalls).toEqual([
+      { id: "c1", name: "hire_agent", arguments: { name: "Sam" } },
+      { id: "c2", name: "create_task", arguments: { title: "x" } },
+    ]);
+  });
+
+  test("fails the turn on a streamed error event and on an empty stream", async () => {
+    await expect(accumulateChatStream(stream([
+      { error: { message: "The usage limit has been reached" } },
+    ]))).rejects.toThrow("The usage limit has been reached");
+    await expect(accumulateChatStream(stream([]))).rejects.toThrow("Chat completions stream ended without any events.");
   });
 });
 

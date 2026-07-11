@@ -8,7 +8,7 @@ import { postEventStream, postJson, type JsonRecord } from "../provider-http";
 import type { AgentTurnMessage, AgentTurnResult, ProviderToolTurnInput, TurnCredential } from "../provider-tool-turn";
 import { accumulateResponsesStream, parseResponsesOutput, responsesToolDefs, toResponsesInput } from "./responses-format";
 import { anthropicToolDefs, parseAnthropicContent, toAnthropicMessages } from "./anthropic-format";
-import { chatToolDefs, parseChatChoice, toChatMessages } from "./chat-format";
+import { accumulateChatStream, chatToolDefs, parseChatChoice, toChatMessages } from "./chat-format";
 import { accumulateGeminiStream, antigravityRequestBody, parseGeminiResponse, vertexRequestBody } from "./gemini-format";
 import { bedrockToolConfig, parseBedrockOutput, toBedrockMessages } from "./bedrock-format";
 import { signAwsRequest } from "./aws-sigv4";
@@ -51,21 +51,29 @@ export async function runOpenAiResponsesTurn(input: ProviderToolTurnInput): Prom
   return { ...parsed, rawResponseJson: JSON.stringify(response.data) };
 }
 
-// ---- OpenAI Chat Completions (xAI, Groq, Mistral, Cerebras, OpenRouter) ----
+// ---- OpenAI Chat Completions, streamed (xAI, Groq, Mistral, Cerebras, OpenRouter, Kimi, Kimi CN) ----
+
+/**
+ * Streaming is required, not an optimization: a non-streaming completion
+ * sends its response headers only after the WHOLE generation finishes, so a
+ * reasoning model that thinks past the 60s header deadline gets aborted with
+ * "Provider request timed out." even though it is working. Streamed turns
+ * emit chunks continuously and only a truly dead connection times out.
+ */
+async function runChatCompletionsStream(endpoint: string, headers: Record<string, string>, input: ProviderToolTurnInput): Promise<AgentTurnResult> {
+  const body: JsonRecord = {
+    model: input.model,
+    messages: toChatMessages(input.instructions, input.messages),
+    tools: chatToolDefs(input.tools),
+    tool_choice: "auto",
+    stream: true,
+  };
+  const response = await postEventStream(endpoint, headers, body);
+  return accumulateChatStream(response.messages);
+}
 
 export function makeChatCompletionsTurn(endpoint: string, label: string): (input: ProviderToolTurnInput) => Promise<AgentTurnResult> {
-  return async (input) => {
-    const body: JsonRecord = {
-      model: input.model,
-      messages: toChatMessages(input.instructions, input.messages),
-      tools: chatToolDefs(input.tools),
-      tool_choice: "auto",
-      stream: false,
-    };
-    const response = await postJson(endpoint, { authorization: `Bearer ${requireApiKey(input.credential, label)}` }, body);
-    const parsed = parseChatChoice(response.data);
-    return { ...parsed, rawResponseJson: JSON.stringify(response.data) };
-  };
+  return async (input) => runChatCompletionsStream(endpoint, { authorization: `Bearer ${requireApiKey(input.credential, label)}` }, input);
 }
 
 // ---- Anthropic Messages (api key) ----
@@ -109,20 +117,11 @@ export async function runClaudeProTurn(input: ProviderToolTurnInput): Promise<Ag
   return { ...parsed, rawResponseJson: JSON.stringify(response.data) };
 }
 
-// ---- Kimi Code (OAuth plan, chat completions at the coding endpoint) ----
+// ---- Kimi Code (OAuth plan, streamed chat completions at the coding endpoint) ----
 
 export async function runKimiCodeTurn(input: ProviderToolTurnInput): Promise<AgentTurnResult> {
   const access = requireAccessToken(input.credential, "Kimi Code");
-  const body: JsonRecord = {
-    model: input.model,
-    messages: toChatMessages(input.instructions, input.messages),
-    tools: chatToolDefs(input.tools),
-    tool_choice: "auto",
-    stream: false,
-  };
-  const response = await postJson(`${KIMI_CODE_BASE_URL}/chat/completions`, { authorization: `Bearer ${access}` }, body);
-  const parsed = parseChatChoice(response.data);
-  return { ...parsed, rawResponseJson: JSON.stringify(response.data) };
+  return runChatCompletionsStream(`${KIMI_CODE_BASE_URL}/chat/completions`, { authorization: `Bearer ${access}` }, input);
 }
 
 // ---- GPT account / OpenAI Codex (OAuth, SSE) ----
