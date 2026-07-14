@@ -85,6 +85,8 @@ export interface ConversationItem {
   isDirect: boolean;
   /** The other party of a direct conversation, when there is exactly one. */
   counterpart: ConversationCounterpart | null;
+  /** The viewer's own conversation with the CEO — pinned above everything. */
+  isCeo: boolean;
   preview: string | null;
   lastActivityAt: string;
   unread: number;
@@ -93,7 +95,9 @@ export interface ConversationItem {
 /**
  * Folds spaces, messages, memberships, and per-employee read state into the
  * conversation list: every channel and direct conversation as its own row,
- * newest activity first, with a preview line and an unread count.
+ * newest activity first, with a preview line and an unread count. The
+ * viewer's direct conversation with the CEO outranks recency — it is the
+ * company's front door and stays pinned at the top.
  */
 export function buildConversations(input: {
   spaces: ChatSpaceRecord[];
@@ -103,6 +107,7 @@ export function buildConversations(input: {
   employees: EmployeeRecord[];
   agents: AgentRecord[];
   currentEmployeeId: string;
+  ceoAgentId: string | null;
 }): ConversationItem[] {
   const lastBySpace = new Map<string, ChatMessageRecord>();
   const countsSince = new Map<string, number>();
@@ -140,12 +145,15 @@ export function buildConversations(input: {
       title: isDirect ? directTitle : space.name,
       isDirect,
       counterpart,
+      // The counterpart resolves only from the viewer's own seat, so agent⇄agent
+      // conversations that happen to involve the CEO never match here.
+      isCeo: counterpart !== null && counterpart.type === "agent" && counterpart.id === input.ceoAgentId,
       preview: last ? `${senderName(last, context)}: ${previewText(last)}` : null,
       lastActivityAt: last?.createdAt ?? space.createdAt,
       unread: countsSince.get(space.id) ?? 0,
     };
   });
-  return items.sort((a, b) => b.lastActivityAt.localeCompare(a.lastActivityAt));
+  return items.sort((a, b) => Number(b.isCeo) - Number(a.isCeo) || b.lastActivityAt.localeCompare(a.lastActivityAt));
 }
 
 /** Current display names of a space's members, in membership order. */

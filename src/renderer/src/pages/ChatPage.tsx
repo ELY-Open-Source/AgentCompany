@@ -40,6 +40,12 @@ export function ChatPage({ snapshot, actions }: PageProps) {
     () => snapshot.approvals.filter((a) => a.orgId === orgId && a.state === "pending"),
     [snapshot.approvals, orgId],
   );
+  // The CEO is the c_suite agent — the same predicate the runtime enforces.
+  // Snapshot agents arrive oldest-first, so .find is the founding CEO.
+  const ceoAgentId = useMemo(
+    () => agents.find((agent) => agent.roleLevel === "c_suite" && agent.lifecycle === "active")?.id ?? null,
+    [agents],
+  );
   const conversations = useMemo(
     () => buildConversations({
       spaces,
@@ -49,8 +55,9 @@ export function ChatPage({ snapshot, actions }: PageProps) {
       employees,
       agents,
       currentEmployeeId: employee.id,
+      ceoAgentId,
     }),
-    [spaces, snapshot.chatMemberships, messagesAll, snapshot.chatReadStates, employees, agents, employee.id],
+    [spaces, snapshot.chatMemberships, messagesAll, snapshot.chatReadStates, employees, agents, employee.id, ceoAgentId],
   );
   const [selectedSpaceId, setSelectedSpaceId] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);

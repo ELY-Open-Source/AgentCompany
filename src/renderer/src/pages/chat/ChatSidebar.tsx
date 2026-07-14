@@ -156,6 +156,7 @@ function ConversationRow({
           >
             {conversation.title}
           </span>
+          {conversation.isCeo && <span className="convo-ceo-badge">{t("CEO")}</span>}
           <span style={{ fontSize: 11, color: "var(--text-3)", flexShrink: 0 }}>
             {conversation.preview ? formatRelative(conversation.lastActivityAt) : ""}
           </span>
@@ -172,7 +173,7 @@ function ConversationRow({
               minWidth: 0,
             }}
           >
-            {conversation.preview ?? conversation.space.topic}
+            {conversation.preview ?? (conversation.isCeo ? t("Ask about progress, goals, or direction") : conversation.space.topic)}
           </span>
           {conversation.unread > 0 && (
             <span className="nav-badge" style={{ flexShrink: 0 }}>{conversation.unread > 99 ? "99+" : conversation.unread}</span>

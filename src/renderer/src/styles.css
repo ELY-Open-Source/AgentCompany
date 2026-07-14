@@ -273,6 +273,15 @@ a { color: inherit; }
 }
 .convo-item:hover { background: var(--hover); color: var(--text-1); }
 .convo-item.active { background: var(--panel-3); color: var(--text-1); }
+.convo-ceo-badge {
+  font-size: var(--fs-caption);
+  font-weight: 560;
+  color: var(--accent);
+  background: var(--accent-soft);
+  padding: 1px 6px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
 
 /* Controls that appear on intent: hidden until the row is hovered or focused. */
 .reveal-row .reveal { opacity: 0; transition: opacity var(--motion-fast) var(--ease-out); }
