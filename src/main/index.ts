@@ -6,6 +6,7 @@ import { DatabaseConnection } from "./database/connection";
 import { createMainWindow } from "./app/create-window";
 import { registerIpcHandlers } from "./app/ipc-handlers";
 import { builtinSkillsSourceOverride, importStagedSkills, stageBuiltinSkillsLibrary } from "./services/builtin-skills";
+import { ensureCeoDirectSpace } from "./services/ceo-direct-space";
 import { SkillService } from "./services/skill-service";
 import { startProviderBackgroundWorker } from "./app/provider-background-worker";
 import { recoverInterruptedWork } from "./app/startup-recovery";
@@ -45,6 +46,7 @@ if (!app.requestSingleInstanceLock()) {
       builtinSkillsLibrary,
     });
     syncAllOrganizationSkills(connection, join(profileDir, "artifacts"), builtinSkillsSource, builtinSkillsLibrary);
+    ensureAllCeoConversations(connection);
     const stopProviderBackgroundWorker = startProviderBackgroundWorker({
       db: connection.db,
       mainWindow: win,
@@ -107,5 +109,21 @@ function syncAllOrganizationSkills(connection: DatabaseConnection, artifactRoot:
     }
   } catch (error) {
     console.error(`[skills] built-in skill sync failed: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
+/**
+ * Repairs the founder⇄CEO conversation invariant for every organization at
+ * startup — orgs created before the pinned CEO chat existed get theirs here.
+ * A broken org is loud in the log but must not stop the app.
+ */
+function ensureAllCeoConversations(connection: DatabaseConnection): void {
+  const orgs = connection.db.prepare("select id from organizations").all() as Array<{ id: string }>;
+  for (const org of orgs) {
+    try {
+      connection.transaction(() => ensureCeoDirectSpace(connection.db, org.id));
+    } catch (error) {
+      console.error(`[chat] ensuring the CEO conversation for org ${org.id} failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
   }
 }

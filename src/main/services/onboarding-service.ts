@@ -8,6 +8,7 @@ import { PROVIDER_AUTH_TYPE, RISK_LEVEL, TASK_STATUS } from "../../shared/domain
 import { PROVIDER_CATALOG } from "../../shared/provider-catalog";
 import { createId } from "../../shared/ids";
 import { AuditService } from "./audit-service";
+import { ensureCeoDirectSpace } from "./ceo-direct-space";
 import { goalKickoffDescription, goalKickoffTitle } from "./goal-kickoff";
 import { OrganizationService } from "./organization-service";
 import { ChatService } from "./chat-service";
@@ -70,6 +71,11 @@ export class OnboardingService {
     const goalId = this.createGoal(orgId, ceoAgentId, input, now);
     const projectId = this.createProject(orgId, goalId, ceoAgentId, input, now);
     this.createProjectChatSpace(orgId, projectName(input));
+    // The founder⇄CEO conversation is a bootstrap deliverable, not an option:
+    // the Messages page pins it, so its absence here is a hard failure.
+    if (!ensureCeoDirectSpace(this.deps.db, orgId)) {
+      throw new Error("The founder⇄CEO conversation was not created during bootstrap.");
+    }
     if (workspaceId) this.bindWorkspaceToProject(workspaceId, projectId, now);
     const taskId = this.organization.createTask({
       orgId,
