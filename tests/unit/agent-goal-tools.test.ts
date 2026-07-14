@@ -7,7 +7,7 @@ import { DatabaseConnection } from "../../src/main/database/connection";
 import { OrganizationService } from "../../src/main/services/organization-service";
 import { ChatService } from "../../src/main/services/chat-service";
 import { completeGoalTool, type GoalCompletionArgs } from "../../src/main/services/agent-goal-tools";
-import type { AgentToolContext, AgentToolDeps } from "../../src/main/services/agent-tools";
+import { dispatchAgentTool, type AgentToolContext, type AgentToolDeps } from "../../src/main/services/agent-tools";
 import type { ProviderService } from "../../src/main/services/provider-service";
 import type { ToolCall } from "../../src/main/services/provider-tool-turn";
 
@@ -149,6 +149,120 @@ describe("complete_goal with independent audit", () => {
     expect(goalStatus(h)).toBe("achieved");
     expect(await completeGoalTool(argsFor(h, h.ceoId, auditor, call({ evidence: "again" })))).toContain("already achieved");
     expect(auditorCalls).toBe(1);
+    h.connection.close();
+  });
+});
+
+function toolCtx(h: Harness, agentId: string): AgentToolContext {
+  return {
+    orgId: h.orgId,
+    agent: { id: agentId, modelProviderId: h.providerId, modelId: "gpt-5.4" },
+    taskProjectId: null,
+    taskGoalId: null,
+    workspace: null,
+  };
+}
+
+function dispatch(h: Harness, agentId: string, name: string, args: Record<string, unknown>): string {
+  return dispatchAgentTool(h.deps, toolCtx(h, agentId), { id: `call_${randomUUID()}`, name, arguments: args });
+}
+
+describe("update_goal", () => {
+  test("the CEO rewrites an active goal and the change is audited", () => {
+    const h = createHarness();
+    const output = dispatch(h, h.ceoId, "update_goal", {
+      goal_id: h.goalId,
+      title: "Ship the SMB dashboard",
+      description: "Pivot from consumer to SMB analytics.",
+    });
+    expect(output).toContain(`Goal updated: "Ship the SMB dashboard"`);
+    expect(output).toContain(`(was "Ship it")`);
+
+    const goal = h.connection.db.prepare("select title, description, status from goals where id = ?").get(h.goalId) as
+      { title: string; description: string; status: string };
+    expect(goal).toEqual({ title: "Ship the SMB dashboard", description: "Pivot from consumer to SMB analytics.", status: "active" });
+
+    const audit = h.connection.db.prepare(
+      "select count(*) as count from audit_events where org_id = ? and entity_type = 'goal' and entity_id = ? and action = 'updated'",
+    ).get(h.orgId, h.goalId) as { count: number };
+    expect(audit.count).toBe(1);
+    h.connection.close();
+  });
+
+  test("a description-only change keeps the title", () => {
+    const h = createHarness();
+    dispatch(h, h.ceoId, "update_goal", { goal_id: h.goalId, description: "Same goal, sharper scope." });
+    const goal = h.connection.db.prepare("select title, description from goals where id = ?").get(h.goalId) as
+      { title: string; description: string };
+    expect(goal).toEqual({ title: "Ship it", description: "Same goal, sharper scope." });
+    h.connection.close();
+  });
+
+  test("staff who do not own the goal are refused and nothing changes", () => {
+    const h = createHarness();
+    const output = dispatch(h, h.staffId, "update_goal", { goal_id: h.goalId, title: "Hijacked" });
+    expect(output).toContain("ERROR");
+    const goal = h.connection.db.prepare("select title from goals where id = ?").get(h.goalId) as { title: string };
+    expect(goal.title).toBe("Ship it");
+    h.connection.close();
+  });
+
+  test("an unknown goal id and an empty change are both loud errors", () => {
+    const h = createHarness();
+    expect(dispatch(h, h.ceoId, "update_goal", { goal_id: "gol_missing", title: "x" })).toContain("company_status");
+    expect(dispatch(h, h.ceoId, "update_goal", { goal_id: h.goalId })).toContain("ERROR");
+    h.connection.close();
+  });
+
+  test("a non-active goal reports its state instead of changing", () => {
+    const h = createHarness();
+    h.connection.db.prepare("update goals set status = 'achieved' where id = ?").run(h.goalId);
+    const output = dispatch(h, h.ceoId, "update_goal", { goal_id: h.goalId, title: "Too late" });
+    expect(output).toContain("achieved");
+    const goal = h.connection.db.prepare("select title from goals where id = ?").get(h.goalId) as { title: string };
+    expect(goal.title).toBe("Ship it");
+    h.connection.close();
+  });
+});
+
+describe("company_status", () => {
+  test("reports goals with real-work task counts and hides wake-task bookkeeping", () => {
+    const h = createHarness();
+    h.connection.transaction(() => {
+      h.deps.organization.createTask({
+        orgId: h.orgId, title: "Build the ingestion pipeline", description: "d", status: "in_progress",
+        assigneeAgentId: h.staffId, risk: "medium", projectId: null, goalId: h.goalId,
+        workspaceId: null, priority: "high", requiresFilesystem: false,
+      });
+      h.deps.organization.createTask({
+        orgId: h.orgId, title: "Write the launch post", description: "d", status: "done",
+        assigneeAgentId: h.staffId, risk: "low", projectId: null, goalId: h.goalId,
+        workspaceId: null, priority: "normal", requiresFilesystem: false,
+      });
+      h.deps.organization.createTask({
+        orgId: h.orgId, title: "Reply to CEO", description: "d", status: "backlog",
+        assigneeAgentId: h.staffId, risk: "low", projectId: null, goalId: null,
+        workspaceId: null, priority: "high", requiresFilesystem: false, origin: "chat_wake",
+      });
+    });
+
+    // createGoal materializes a kickoff task, so the goal starts with one
+    // backlog item of real work before the two tasks this test adds.
+    const output = dispatch(h, h.ceoId, "company_status", {});
+    expect(output).toContain(`[active] "Ship it" (goal_id=${h.goalId}, owner: CEO) — 1 backlog, 1 in flight, 1 done`);
+    expect(output).toContain("Real work tasks: 3 total — 1 backlog, 1 in progress, 0 in review, 1 done");
+    expect(output).toContain(`"Build the ingestion pipeline" — in_progress, Dev`);
+    expect(output).toContain(`"Write the launch post"`);
+    expect(output).not.toContain("Reply to CEO");
+    expect(output).toContain("Team: 2 active agents");
+    h.connection.close();
+  });
+
+  test("only officers can pull the company-wide status", () => {
+    const h = createHarness();
+    const output = dispatch(h, h.staffId, "company_status", {});
+    expect(output).toContain("ERROR");
+    expect(output).toContain("Ask the CEO");
     h.connection.close();
   });
 });

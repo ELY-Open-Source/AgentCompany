@@ -8,7 +8,7 @@ import { readMessagesTool } from "./agent-read-messages";
 import { grantConnectorTool, listConnectorsTool } from "./agent-connector-tools";
 import { bindSkillSlugs, grantSkillTool, listSkillsTool } from "./agent-skill-tools";
 import { createDocumentTool, writeDeliverableTool } from "./agent-deliverable-tools";
-import { GOAL_TOOLS } from "./agent-goal-tools";
+import { companyStatusTool, GOAL_TOOLS, updateGoalTool } from "./agent-goal-tools";
 import { describeSend } from "./agent-message-presence";
 import { optionalString, optionalStringArray, requireString } from "./agent-tool-args";
 import type { JsonRecord } from "./provider-http";
@@ -248,6 +248,10 @@ export function dispatchAgentTool(
         return grantConnectorTool(deps, ctx, call.arguments, "grant");
       case "revoke_connector":
         return grantConnectorTool(deps, ctx, call.arguments, "revoke");
+      case "company_status":
+        return companyStatusTool(deps, ctx);
+      case "update_goal":
+        return updateGoalTool(deps, ctx, call.arguments);
       case "list_skills":
         return listSkillsTool(deps, ctx);
       case "grant_skill":
