@@ -490,9 +490,13 @@ export class TaskExecutionService {
       limit 20
     `).all(scope.sourceThreadId, orgId) as Array<{ body_md: string; sender_type: string; sender_name: string }>;
     if (messages.length === 0) return null;
+    // Human principals are marked as the founder: an agent replying to its
+    // boss must know it is not talking to another agent.
+    const label = (m: { sender_type: string; sender_name: string }) =>
+      m.sender_type === "employee" || m.sender_type === "board" ? `${m.sender_name} (founder)` : m.sender_name;
     return {
       threadId: scope.sourceThreadId,
-      transcript: messages.map((m) => `[${m.sender_name}]: ${m.body_md}`).join("\n"),
+      transcript: messages.map((m) => `[${label(m)}]: ${m.body_md}`).join("\n"),
     };
   }
 
