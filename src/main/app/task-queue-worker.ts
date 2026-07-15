@@ -27,10 +27,16 @@ export function isAutonomousPaused(connection: DatabaseConnection): boolean {
 }
 
 /**
- * Atomically claims the oldest queued task_run by transitioning it
+ * Atomically claims the next queued task_run by transitioning it
  * `queued` -> `running` in one transaction; returns the claimed run or null.
  * Runs whose provider sits in a transient-failure cooldown are left queued —
  * they would fail on arrival, and waiting costs nothing.
+ *
+ * Claim order is interactive-first: a wake triggered by a human message
+ * (the founder DMing the CEO, a board member asking in a channel) means a
+ * person is waiting at the keyboard, so it outranks any amount of queued
+ * autonomous work; within each lane, first come first served. Non-chat runs
+ * carry no sourceSenderType and fall into the autonomous lane.
  */
 export function claimNextQueuedRun(connection: DatabaseConnection, excludedProviderIds: string[] = []): QueuedRun | null {
   return connection.transaction(() => {
@@ -38,7 +44,13 @@ export function claimNextQueuedRun(connection: DatabaseConnection, excludedProvi
       ? `and provider_id not in (${excludedProviderIds.map(() => "?").join(", ")})`
       : "";
     const row = connection.db
-      .prepare(`select id, org_id from task_runs where state = 'queued' ${exclusion} order by created_at asc limit 1`)
+      .prepare(`
+        select id, org_id from task_runs where state = 'queued' ${exclusion}
+        order by
+          case when json_extract(secret_scope_json, '$.sourceSenderType') in ('employee', 'board') then 0 else 1 end asc,
+          created_at asc
+        limit 1
+      `)
       .get(...excludedProviderIds) as QueuedRun | undefined;
     if (!row) return null;
     const result = connection.db

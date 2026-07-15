@@ -95,7 +95,7 @@ export class ChatAgentWakeService {
       requiresFilesystem: false,
       origin: "chat_wake",
     });
-    const runId = this.createQueuedRun({ orgId: input.orgId, taskId, agent, workspace, messageId, threadId, now });
+    const runId = this.createQueuedRun({ orgId: input.orgId, taskId, agent, workspace, messageId, threadId, senderType: input.senderType, now });
     this.recordPresence(agent.id, { command: "mention", args: "" }, now);
     return { targetId: agent.id, taskId, runId };
   }
@@ -118,7 +118,7 @@ export class ChatAgentWakeService {
       requiresFilesystem: false,
       origin: "chat_wake",
     });
-    const runId = this.createQueuedRun({ orgId: input.orgId, taskId, agent, workspace, messageId, threadId, now });
+    const runId = this.createQueuedRun({ orgId: input.orgId, taskId, agent, workspace, messageId, threadId, senderType: input.senderType, now });
     this.recordPresence(agent.id, slash, now);
     return { targetId: agent.id, taskId, runId };
   }
@@ -178,6 +178,7 @@ export class ChatAgentWakeService {
     workspace: WorkspaceContext | null;
     messageId: string;
     threadId: string;
+    senderType: SendMessageInput["senderType"];
     now: string;
   }): string {
     const providerId = input.agent.model_provider_id;
@@ -199,6 +200,9 @@ export class ChatAgentWakeService {
       credentialAccess: "provider_runtime_only",
       sourceMessageId: input.messageId,
       sourceThreadId: input.threadId,
+      // Who spoke decides scheduling: the queue claims human-triggered wakes
+      // before autonomous work (see claimNextQueuedRun).
+      sourceSenderType: input.senderType,
     });
     this.db.prepare(`
       insert into task_runs(
