@@ -12,12 +12,22 @@ export interface TaskQueueWorkerInput {
   connection: DatabaseConnection;
   mainWindow: BrowserWindow;
   intervalMs?: number;
+  /** Injectable execution service so tests can script the provider. */
+  taskExecution?: TaskExecutionService;
 }
 
 export interface QueuedRun {
   id: string;
   org_id: string;
+  provider_id: string | null;
 }
+
+/**
+ * Which queued runs a claim may take: "interactive" claims only wakes born
+ * from a human message (the founder is waiting at the keyboard); "any" claims
+ * everything, interactive-first.
+ */
+export type ClaimLane = "interactive" | "any";
 
 /** True while the operator has pulled the global autonomous handbrake. */
 export function isAutonomousPaused(connection: DatabaseConnection): boolean {
@@ -38,14 +48,17 @@ export function isAutonomousPaused(connection: DatabaseConnection): boolean {
  * autonomous work; within each lane, first come first served. Non-chat runs
  * carry no sourceSenderType and fall into the autonomous lane.
  */
-export function claimNextQueuedRun(connection: DatabaseConnection, excludedProviderIds: string[] = []): QueuedRun | null {
+export function claimNextQueuedRun(connection: DatabaseConnection, excludedProviderIds: string[] = [], lane: ClaimLane = "any"): QueuedRun | null {
   return connection.transaction(() => {
     const exclusion = excludedProviderIds.length > 0
       ? `and provider_id not in (${excludedProviderIds.map(() => "?").join(", ")})`
       : "";
+    const laneFilter = lane === "interactive"
+      ? "and json_extract(secret_scope_json, '$.sourceSenderType') in ('employee', 'board')"
+      : "";
     const row = connection.db
       .prepare(`
-        select id, org_id from task_runs where state = 'queued' ${exclusion}
+        select id, org_id, provider_id from task_runs where state = 'queued' ${exclusion} ${laneFilter}
         order by
           case when json_extract(secret_scope_json, '$.sourceSenderType') in ('employee', 'board') then 0 else 1 end asc,
           created_at asc
@@ -61,10 +74,13 @@ export function claimNextQueuedRun(connection: DatabaseConnection, excludedProvi
 }
 
 /**
- * Autonomous executor: every tick it claims the oldest `queued` task_run (the
- * bootstrap CEO run, plus any future heartbeat-created runs) and executes its
- * real agent loop. The claim is a single transaction (`queued` -> `running`,
- * verified by row changes) so a run is never executed twice.
+ * Autonomous executor with two execution slots. The autonomous slot grinds
+ * the queue one run at a time (bootstrap kickoff, heartbeat work, agent
+ * chatter). The interactive slot is reserved capacity for the human: a wake
+ * born from an employee or board message executes immediately, concurrently
+ * with whatever long autonomous run is in flight — the founder never queues
+ * behind batch work. Each claim is a single transaction (`queued` ->
+ * `running`, verified by row changes) so a run is never executed twice.
  */
 export function startTaskQueueWorker(input: TaskQueueWorkerInput): () => void {
   const notifyDataChanged = () => {
@@ -72,57 +88,58 @@ export function startTaskQueueWorker(input: TaskQueueWorkerInput): () => void {
       input.mainWindow.webContents.send(IPC_CHANNELS.rendererEvent, { type: "snapshot-changed" });
     }
   };
-  const taskExecution = new TaskExecutionService(input.connection.db, undefined, undefined, notifyDataChanged);
+  const taskExecution = input.taskExecution ?? new TaskExecutionService(input.connection.db, undefined, undefined, notifyDataChanged);
   const organization = new OrganizationService(input.connection.db);
   const intervalMs = input.intervalMs ?? DEFAULT_INTERVAL_MS;
-  let running = false;
+  const inFlight = { interactive: false, autonomous: false };
   let wasPaused = false;
 
-  const tick = async (): Promise<void> => {
-    if (running) return;
-    running = true;
-    try {
-      // The operator's global pause parks the whole engine: nothing new is
-      // enqueued or claimed until they resume. Queued work simply waits.
-      const paused = isAutonomousPaused(input.connection);
-      if (paused !== wasPaused) {
-        console.info(paused ? "[task-queue] paused by the operator; no new runs start." : "[task-queue] resumed by the operator.");
-        wasPaused = paused;
-      }
-      if (paused) return;
-      // Stale conversation wakes die before anything is claimed: replying to
-      // a thread hours later is noise, and a backlog of them would starve
-      // fresh messages (the founder's included) for the whole grind.
-      const expired = input.connection.transaction(() => expireStaleChatWakes(input.connection.db, new Date().toISOString()));
-      if (expired > 0) {
-        console.info(`[task-queue] expired ${expired} stale chat wake run(s); newer messages re-wake their agents.`);
+  const dispatch = (slot: "interactive" | "autonomous"): void => {
+    if (inFlight[slot]) return;
+    const claimed = slot === "interactive"
+      ? claimNextQueuedRun(input.connection, taskExecution.cooledProviderIds(), "interactive")
+      : claimNextQueuedRun(input.connection, taskExecution.cooledProviderIds(), "any");
+    if (!claimed) return;
+    inFlight[slot] = true;
+    notifyDataChanged();
+    void taskExecution.executeRun(claimed.org_id, claimed.id)
+      .catch(() => {
+        // executeRun records the failure on the run row; the UI reflects it.
+      })
+      .finally(() => {
+        inFlight[slot] = false;
         notifyDataChanged();
-      }
-      // Goal checkpoints first, so a review task created this tick is
-      // eligible for the same tick's heartbeat enqueue below.
-      const reviews = input.connection.transaction(() => spawnGoalReviews(input.connection.db, organization));
-      if (reviews.length > 0) notifyDataChanged();
-      const enqueued = input.connection.transaction(() => taskExecution.enqueueHeartbeatRuns());
-      const claimed = claimNextQueuedRun(input.connection, taskExecution.cooledProviderIds());
-      if (!claimed) {
-        if (enqueued.length > 0) notifyDataChanged();
-        return;
-      }
-      notifyDataChanged();
-      try {
-        await taskExecution.executeRun(claimed.org_id, claimed.id);
-      } catch {
-        // executeRun records the failure on the run row; the UI reflects it below.
-      }
-      notifyDataChanged();
-    } finally {
-      running = false;
-    }
+      });
   };
 
-  const interval = setInterval(() => {
-    void tick();
-  }, intervalMs);
-  void tick();
+  const tick = (): void => {
+    // The operator's global pause parks the whole engine: nothing new is
+    // enqueued or claimed until they resume. Queued work simply waits.
+    const paused = isAutonomousPaused(input.connection);
+    if (paused !== wasPaused) {
+      console.info(paused ? "[task-queue] paused by the operator; no new runs start." : "[task-queue] resumed by the operator.");
+      wasPaused = paused;
+    }
+    if (paused) return;
+    // Stale conversation wakes die before anything is claimed: replying to
+    // a thread hours later is noise, and a backlog of them would starve
+    // fresh messages (the founder's included) for the whole grind.
+    const expired = input.connection.transaction(() => expireStaleChatWakes(input.connection.db, new Date().toISOString()));
+    if (expired > 0) {
+      console.info(`[task-queue] expired ${expired} stale chat wake run(s); newer messages re-wake their agents.`);
+      notifyDataChanged();
+    }
+    // Goal checkpoints first, so a review task created this tick is
+    // eligible for the same tick's heartbeat enqueue below.
+    const reviews = input.connection.transaction(() => spawnGoalReviews(input.connection.db, organization));
+    if (reviews.length > 0) notifyDataChanged();
+    const enqueued = input.connection.transaction(() => taskExecution.enqueueHeartbeatRuns());
+    if (enqueued.length > 0) notifyDataChanged();
+    dispatch("interactive");
+    dispatch("autonomous");
+  };
+
+  const interval = setInterval(tick, intervalMs);
+  tick();
   return () => clearInterval(interval);
 }
