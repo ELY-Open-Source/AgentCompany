@@ -96,10 +96,14 @@ export function startTaskQueueWorker(input: TaskQueueWorkerInput): () => void {
 
   const dispatch = (slot: "interactive" | "autonomous"): void => {
     if (inFlight[slot]) return;
+    // The interactive lane may probe a cooled provider once per park window
+    // (a human is asking; a blip should not cost them ten silent minutes);
+    // autonomous work always waits the cooldown out.
     const claimed = slot === "interactive"
-      ? claimNextQueuedRun(input.connection, taskExecution.cooledProviderIds(), "interactive")
+      ? claimNextQueuedRun(input.connection, taskExecution.interactiveCooledProviderIds(), "interactive")
       : claimNextQueuedRun(input.connection, taskExecution.cooledProviderIds(), "any");
     if (!claimed) return;
+    if (slot === "interactive" && claimed.provider_id) taskExecution.noteInteractiveProbe(claimed.provider_id);
     inFlight[slot] = true;
     notifyDataChanged();
     void taskExecution.executeRun(claimed.org_id, claimed.id)

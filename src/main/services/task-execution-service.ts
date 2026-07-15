@@ -66,7 +66,7 @@ export class TaskExecutionService {
   /** Providers currently parked on their monthly quota, for transition logging. */
   private quotaBlockedProviders = new Map<string, string>();
   /** Providers parked after a transient failure (usage/rate limit, overload): id -> park state. */
-  private providerCooldowns = new Map<string, { until: number; label: string }>();
+  private providerCooldowns = new Map<string, { until: number; label: string; interactiveProbedAt?: number }>();
   /** Tasks already logged as budget-spent, so the park is announced once, not every 5s tick. */
   private spentTasksLogged = new Set<string>();
 
@@ -184,6 +184,7 @@ export class TaskExecutionService {
       );
       providerRequestId = result.lastRequestId;
       this.completeRun(orgId, runId, result.lastRequestId);
+      this.clearProviderCooldown(provider);
       this.audit.record({
         orgId,
         entityType: "task_run",
@@ -385,7 +386,13 @@ export class TaskExecutionService {
   private parkProvider(provider: TaskExecutionProviderRow, message: string): void {
     const active = this.providerCooldowns.get(provider.id);
     const wasParked = active !== undefined && active.until > this.now();
-    this.providerCooldowns.set(provider.id, { until: this.now() + PROVIDER_TRANSIENT_FAILURE_COOLDOWN_MS, label: provider.label });
+    this.providerCooldowns.set(provider.id, {
+      until: this.now() + PROVIDER_TRANSIENT_FAILURE_COOLDOWN_MS,
+      label: provider.label,
+      // A failed probe must not unlock endless probes: re-arming the park
+      // keeps the spent-probe mark until the window expires naturally.
+      interactiveProbedAt: wasParked ? active?.interactiveProbedAt : undefined,
+    });
     if (!wasParked) {
       const minutes = Math.round(PROVIDER_TRANSIENT_FAILURE_COOLDOWN_MS / 60_000);
       console.warn(`[task-queue] provider "${provider.label}" reported a transient failure ("${message}"); its tasks are parked for ${minutes} minutes.`);
@@ -407,6 +414,31 @@ export class TaskExecutionService {
       }
     }
     return active;
+  }
+
+  /**
+   * Cooled providers that even the interactive lane must skip: their one
+   * founder-probe for this park window is already spent. A cooled provider
+   * not yet probed stays interactively claimable — one human message is
+   * allowed through to learn whether the outage was a blip, instead of the
+   * founder sitting out the whole cooldown for a single failed background
+   * request.
+   */
+  interactiveCooledProviderIds(): string[] {
+    return this.cooledProviderIds().filter((id) => this.providerCooldowns.get(id)?.interactiveProbedAt !== undefined);
+  }
+
+  /** Marks the cooled provider's founder-probe as spent (no-op when healthy). */
+  noteInteractiveProbe(providerId: string): void {
+    const park = this.providerCooldowns.get(providerId);
+    if (park) park.interactiveProbedAt = this.now();
+  }
+
+  /** A served request is proof of health: the park ends for everyone at once. */
+  private clearProviderCooldown(provider: TaskExecutionProviderRow): void {
+    if (this.providerCooldowns.delete(provider.id)) {
+      console.info(`[task-queue] provider "${provider.label}" served a request; cooldown lifted early.`);
+    }
   }
 
   /**
