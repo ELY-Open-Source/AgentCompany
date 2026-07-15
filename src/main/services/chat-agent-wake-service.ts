@@ -28,6 +28,41 @@ export interface AgentWakeResult {
   runId: string;
 }
 
+/**
+ * How long a queued chat wake stays claimable. A wake run is a conversation
+ * reply; once the moment has passed — the app sat closed overnight, or the
+ * queue spent an hour behind other work — answering the stale thread reads
+ * as noise, burns provider budget, and its reply wakes yet more agents off a
+ * dead conversation. Expiring it costs nothing: any newer message re-wakes
+ * the same agent fresh.
+ */
+export const CHAT_WAKE_TTL_MS = 60 * 60_000;
+
+/**
+ * Fails every queued chat-mention run older than the TTL and closes its
+ * vehicle task (the reply was the task's whole deliverable — see
+ * closeChatWakeTask). Returns how many wakes were expired.
+ */
+export function expireStaleChatWakes(db: DatabaseSync, now: string): number {
+  const cutoff = new Date(new Date(now).getTime() - CHAT_WAKE_TTL_MS).toISOString();
+  const stale = db.prepare(`
+    select id, org_id, task_id from task_runs
+    where state = 'queued' and trigger = 'chat_mention' and created_at < ?
+  `).all(cutoff) as Array<{ id: string; org_id: string; task_id: string }>;
+  if (stale.length === 0) return 0;
+  const organization = new OrganizationService(db);
+  for (const run of stale) {
+    db.prepare("update task_runs set state = 'failed', completed_at = ?, error_message = ? where id = ?")
+      .run(now, "Expired: the conversation moved on before this reply could start. A newer message re-wakes the agent.", run.id);
+    const task = db.prepare("select status from tasks where id = ? and org_id = ?")
+      .get(run.task_id, run.org_id) as { status: string } | undefined;
+    if (task && (task.status === TASK_STATUS.BACKLOG || task.status === TASK_STATUS.IN_PROGRESS)) {
+      organization.updateTaskStatus(run.org_id, run.task_id, TASK_STATUS.DONE);
+    }
+  }
+  return stale.length;
+}
+
 export class ChatAgentWakeService {
   private readonly organization: OrganizationService;
 

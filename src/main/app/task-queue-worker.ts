@@ -1,6 +1,7 @@
 import type { BrowserWindow } from "electron";
 import type { DatabaseConnection } from "../database/connection";
 import { IPC_CHANNELS } from "../../shared/ipc";
+import { expireStaleChatWakes } from "../services/chat-agent-wake-service";
 import { OrganizationService } from "../services/organization-service";
 import { spawnGoalReviews } from "../services/goal-review-service";
 import { TaskExecutionService } from "../services/task-execution-service";
@@ -77,6 +78,14 @@ export function startTaskQueueWorker(input: TaskQueueWorkerInput): () => void {
         wasPaused = paused;
       }
       if (paused) return;
+      // Stale conversation wakes die before anything is claimed: replying to
+      // a thread hours later is noise, and a backlog of them would starve
+      // fresh messages (the founder's included) for the whole grind.
+      const expired = input.connection.transaction(() => expireStaleChatWakes(input.connection.db, new Date().toISOString()));
+      if (expired > 0) {
+        console.info(`[task-queue] expired ${expired} stale chat wake run(s); newer messages re-wake their agents.`);
+        notifyDataChanged();
+      }
       // Goal checkpoints first, so a review task created this tick is
       // eligible for the same tick's heartbeat enqueue below.
       const reviews = input.connection.transaction(() => spawnGoalReviews(input.connection.db, organization));
