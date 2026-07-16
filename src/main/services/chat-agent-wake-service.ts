@@ -4,6 +4,7 @@ import { RISK_LEVEL, TASK_PRIORITY, TASK_STATUS } from "../../shared/domain";
 import { createId } from "../../shared/ids";
 import type { ResolvedMention } from "./chat-mentions";
 import type { SlashInvocation } from "./chat-service-internal";
+import type { ChatService } from "./chat-service";
 import { OrganizationService } from "./organization-service";
 
 interface RunnableAgentRow {
@@ -61,6 +62,51 @@ export function expireStaleChatWakes(db: DatabaseSync, now: string): number {
     }
   }
   return stale.length;
+}
+
+/**
+ * A chat wake's deliverable is a reply VISIBLE in the source thread. The model
+ * is asked to post it with send_message, but a run that answers in plain final
+ * text has still produced the reply — delivery is the system's contract, not
+ * the model's prompt compliance. When the run never posted into the thread
+ * (checked by the run's start watermark, so any send_message it did make
+ * counts), its final text is delivered as the agent's message; otherwise the
+ * asker watches the run "complete" while the conversation stays silent.
+ * Returns true when a fallback message was posted. A delivery failure throws,
+ * so the run fails loudly instead of completing with nothing said.
+ */
+export function deliverChatReplyIfMissing(
+  db: DatabaseSync,
+  chat: ChatService,
+  input: {
+    orgId: string;
+    agentId: string;
+    spaceId: string;
+    threadId: string;
+    finalText: string;
+    /** ISO timestamp captured before the run's first provider turn. */
+    runStartedAt: string;
+  },
+): boolean {
+  const body = input.finalText.trim();
+  if (!body) return false;
+  const posted = db.prepare(`
+    select 1 from chat_messages
+    where org_id = ? and thread_id = ? and sender_type = 'agent' and sender_id = ? and created_at >= ?
+    limit 1
+  `).get(input.orgId, input.threadId, input.agentId, input.runStartedAt);
+  if (posted) return false;
+  console.info(`[chat] the reply run never posted into thread ${input.threadId}; delivering its final text as the reply.`);
+  chat.sendMessage({
+    orgId: input.orgId,
+    spaceId: input.spaceId,
+    threadId: input.threadId,
+    senderType: "agent",
+    senderId: input.agentId,
+    bodyMd: body,
+    attachmentFileIds: [],
+  });
+  return true;
 }
 
 export class ChatAgentWakeService {

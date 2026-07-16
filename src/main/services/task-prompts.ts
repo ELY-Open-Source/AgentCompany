@@ -68,6 +68,8 @@ export interface SkillRuntimeSnapshotRow {
 
 export interface ChatContextBlock {
   threadId: string;
+  /** The space the thread lives in — where the run's reply must land. */
+  spaceId: string;
   transcript: string;
 }
 

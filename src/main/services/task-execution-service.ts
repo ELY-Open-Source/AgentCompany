@@ -7,6 +7,7 @@ import { AuditService } from "./audit-service";
 import { ProviderService } from "./provider-service";
 import { OrganizationService } from "./organization-service";
 import { ChatService } from "./chat-service";
+import { deliverChatReplyIfMissing } from "./chat-agent-wake-service";
 import { SkillService } from "./skill-service";
 import { runAgentLoop } from "./agent-run-loop";
 import type { AgentToolContext } from "./agent-tools";
@@ -151,6 +152,9 @@ export class TaskExecutionService {
         .map(connectorDisplayName);
       const language = this.appLanguage();
       const externalTools = await loadComposioTools(this.db, orgId, agent.id);
+      // Watermark for the reply-delivery check below: anything the agent posts
+      // into the source thread from here on counts as its reply.
+      const runStartedAt = new Date().toISOString();
       const result = await runAgentLoop(
         {
           providers: this.providers,
@@ -183,6 +187,21 @@ export class TaskExecutionService {
         },
       );
       providerRequestId = result.lastRequestId;
+      // A chat wake's deliverable is the visible reply. If the model answered
+      // in plain text instead of calling send_message, deliver that text into
+      // the source thread BEFORE the run may complete — a delivery failure
+      // fails the run rather than closing it on silence.
+      if (chatContext) {
+        const delivered = deliverChatReplyIfMissing(this.db, this.chat, {
+          orgId,
+          agentId: agent.id,
+          spaceId: chatContext.spaceId,
+          threadId: chatContext.threadId,
+          finalText: result.finalText,
+          runStartedAt,
+        });
+        if (delivered) this.notifyDataChanged();
+      }
       this.completeRun(orgId, runId, result.lastRequestId);
       this.clearProviderCooldown(provider);
       this.audit.record({
@@ -511,6 +530,9 @@ export class TaskExecutionService {
       return null;
     }
     if (!scope.sourceThreadId) return null;
+    const thread = this.db.prepare("select space_id from chat_threads where id = ? and org_id = ?")
+      .get(scope.sourceThreadId, orgId) as { space_id: string } | undefined;
+    if (!thread) return null;
     const messages = this.db.prepare(`
       select m.body_md, m.sender_type, m.sender_id,
              coalesce(a.name, e.display_name, m.sender_type) as sender_name
@@ -528,6 +550,7 @@ export class TaskExecutionService {
       m.sender_type === "employee" || m.sender_type === "board" ? `${m.sender_name} (founder)` : m.sender_name;
     return {
       threadId: scope.sourceThreadId,
+      spaceId: thread.space_id,
       transcript: messages.map((m) => `[${label(m)}]: ${m.body_md}`).join("\n"),
     };
   }
