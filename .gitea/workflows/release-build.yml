@@ -1,0 +1,103 @@
+name: Build Release Installers
+
+# Builds the Windows and macOS installers whenever a release is published on
+# Gitea and attaches them to that release. Only releases whose tag points at a
+# commit containing this file will trigger it; to back-fill installers onto an
+# older release, run this workflow manually with the release ID as input
+# (note: a manual run builds the dispatched ref's code, not the old tag's).
+#
+# Runner facts these jobs rely on (host-mode act_runner on both machines):
+# - windows-latest: node 24 + pnpm + git + curl on PATH; default shell is
+#   Windows PowerShell 5.1, `shell: bash` is broken (WSL stub) - use cmd.
+# - macos-latest: node 24 (nvm) + corepack on PATH, no global pnpm; Xcode and
+#   notarytool installed. Signed builds additionally need:
+#     1. the "Developer ID Application: Yang Zhang (9PDD8M2SMS)" certificate
+#        WITH private key imported into the runner user's login keychain, and
+#        (one-time, so headless codesign does not hang on a keychain prompt):
+#          security unlock-keychain ~/Library/Keychains/login.keychain-db
+#          security set-key-partition-list -S apple-tool:,apple: -s \
+#            ~/Library/Keychains/login.keychain-db
+#     2. the APPLE_API_ISSUER repo secret (App Store Connect issuer ID) for
+#        notarization, used together with the API key file in the repo.
+#   Without these the macos job falls back to ad-hoc-signed, un-notarized
+#   installers and emits a warning.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      release_id:
+        description: "Gitea release ID to attach installers to (back-fill)"
+        required: true
+
+jobs:
+  windows:
+    name: Windows installer (NSIS x64)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        shell: cmd
+        run: call pnpm install --frozen-lockfile
+      - name: Build installer
+        shell: cmd
+        run: call pnpm run package:win
+      - name: List artifacts
+        shell: cmd
+        run: dir release
+      - name: Upload installer to release
+        shell: cmd
+        env:
+          GITEA_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_ID: ${{ github.event.release.id || inputs.release_id }}
+        run: node scripts/ci/upload-release-assets.mjs
+
+  macos:
+    name: macOS installers (dmg + zip, x64 + arm64)
+    runs-on: macos-latest
+    env:
+      COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Enable pnpm via corepack
+        run: |
+          corepack enable pnpm
+          pnpm --version
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Detect signing capability
+        id: signing
+        env:
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+        run: |
+          if security find-identity -v -p codesigning | grep -q "Developer ID Application: Yang Zhang (9PDD8M2SMS)" && [ -n "$APPLE_API_ISSUER" ]; then
+            echo "signed=true" >> "$GITHUB_OUTPUT"
+            echo "Developer ID identity and notarization credentials found: building signed + notarized installers."
+          else
+            echo "signed=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Building ad-hoc-signed, un-notarized macOS installers. To enable signing + notarization, see the setup steps in the header of this workflow file."
+          fi
+      - name: Build installers (signed + notarized)
+        if: steps.signing.outputs.signed == 'true'
+        env:
+          APPLE_API_KEY: ${{ github.workspace }}/ApiKey_ZDCSZ5IE7071.p8
+          APPLE_API_KEY_ID: ZDCSZ5IE7071
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+        # forceCodeSigning makes a signing failure fail the build instead of
+        # silently attaching unsigned installers to the release.
+        run: |
+          pnpm build
+          pnpm exec electron-builder --mac --x64 --arm64 --publish never -c.forceCodeSigning=true
+      - name: Build installers (ad-hoc fallback)
+        if: steps.signing.outputs.signed != 'true'
+        run: |
+          pnpm build
+          pnpm exec electron-builder --mac --x64 --arm64 --publish never --config electron-builder.unsigned.yml
+      - name: List artifacts
+        run: ls -la release
+      - name: Upload installers to release
+        env:
+          GITEA_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_ID: ${{ github.event.release.id || inputs.release_id }}
+        run: node scripts/ci/upload-release-assets.mjs

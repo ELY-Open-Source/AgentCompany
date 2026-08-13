@@ -1,0 +1,14 @@
+# CI fallback config: used by the release workflow when the runner has no
+# "Developer ID Application" identity in its keychain or the APPLE_API_ISSUER
+# secret is missing.
+#
+# identity "-" ad-hoc signs the bundle so it carries a fresh valid signature;
+# leaving it unsigned (identity: null) would keep the Electron dist's stale
+# signature, which macOS on Apple Silicon rejects outright as "damaged".
+# Ad-hoc builds are still not notarized: on first launch users must allow the
+# app via System Settings > Privacy & Security (or `xattr -cr` the app).
+extends: ./electron-builder.yml
+mac:
+  identity: "-"
+  hardenedRuntime: false
+  notarize: false
