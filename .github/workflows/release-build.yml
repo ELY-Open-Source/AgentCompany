@@ -1,0 +1,122 @@
+name: Build Release Installers
+
+# Builds the Windows and macOS installers whenever a release is published and
+# attaches them to that release. To back-fill installers onto an older
+# release, run this workflow manually with the release tag as input (note: a
+# manual run builds the dispatched ref's code, not the old tag's).
+#
+# Runs on GitHub-hosted runners (windows-latest / macos-latest). Node 24 comes
+# from actions/setup-node; pnpm is activated via corepack and pinned by the
+# `packageManager` field in package.json.
+#
+# macOS signing: hosted runners have no Developer ID certificate in the
+# keychain, so the signing-detection step falls back to ad-hoc-signed,
+# un-notarized installers with a warning. To ship signed + notarized builds
+# from hosted runners you would need to import the "Developer ID Application:
+# Yang Zhang (9PDD8M2SMS)" certificate (e.g. a base64 P12 secret + an import
+# step) and set the APPLE_API_ISSUER secret (App Store Connect issuer ID)
+# used together with the API key file in the repo.
+#
+# (2026-08: this pipeline ran as .gitea/workflows/release-build.yml against
+# self-hosted runners while the GitHub account was unavailable.)
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to attach installers to (back-fill)"
+        required: true
+
+permissions:
+  contents: write
+
+env:
+  COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
+
+jobs:
+  windows:
+    name: Windows installer (NSIS x64)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Enable pnpm via corepack
+        run: |
+          corepack enable pnpm
+          pnpm --version
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build installer
+        run: pnpm run package:win
+      - name: List artifacts
+        run: Get-ChildItem release
+      - name: Upload installer to release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name || inputs.tag }}
+        run: |
+          $exts = @('.exe', '.dmg', '.zip', '.AppImage', '.deb')
+          $files = Get-ChildItem release -File | Where-Object { $exts -contains $_.Extension }
+          if (-not $files) { throw "no uploadable artifacts found in release/" }
+          gh release upload $env:TAG @($files.FullName) --clobber
+
+  macos:
+    name: macOS installers (dmg + zip, x64 + arm64)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Enable pnpm via corepack
+        run: |
+          corepack enable pnpm
+          pnpm --version
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Detect signing capability
+        id: signing
+        env:
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+        run: |
+          if security find-identity -v -p codesigning | grep -q "Developer ID Application: Yang Zhang (9PDD8M2SMS)" && [ -n "$APPLE_API_ISSUER" ]; then
+            echo "signed=true" >> "$GITHUB_OUTPUT"
+            echo "Developer ID identity and notarization credentials found: building signed + notarized installers."
+          else
+            echo "signed=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Building ad-hoc-signed, un-notarized macOS installers. To enable signing + notarization, see the setup steps in the header of this workflow file."
+          fi
+      - name: Build installers (signed + notarized)
+        if: steps.signing.outputs.signed == 'true'
+        env:
+          APPLE_API_KEY: ${{ github.workspace }}/ApiKey_ZDCSZ5IE7071.p8
+          APPLE_API_KEY_ID: ZDCSZ5IE7071
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+        # forceCodeSigning makes a signing failure fail the build instead of
+        # silently attaching unsigned installers to the release.
+        run: |
+          pnpm build
+          pnpm exec electron-builder --mac --x64 --arm64 --publish never -c.forceCodeSigning=true
+      - name: Build installers (ad-hoc fallback)
+        if: steps.signing.outputs.signed != 'true'
+        run: |
+          pnpm build
+          pnpm exec electron-builder --mac --x64 --arm64 --publish never --config electron-builder.unsigned.yml
+      - name: List artifacts
+        run: ls -la release
+      - name: Upload installers to release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name || inputs.tag }}
+        run: |
+          shopt -s nullglob
+          files=(release/*.dmg release/*.zip)
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "no uploadable artifacts found in release/" >&2
+            exit 1
+          fi
+          gh release upload "$TAG" "${files[@]}" --clobber
