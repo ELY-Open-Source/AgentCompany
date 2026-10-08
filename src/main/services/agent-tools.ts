@@ -10,6 +10,7 @@ import { grantConnectorTool, listConnectorsTool } from "./agent-connector-tools"
 import { bindSkillSlugs, grantSkillTool, listSkillsTool } from "./agent-skill-tools";
 import { createDocumentTool, writeDeliverableTool } from "./agent-deliverable-tools";
 import { companyStatusTool, GOAL_TOOLS, updateGoalTool } from "./agent-goal-tools";
+import { ATTACHMENT_TOOLS, readAttachmentTool } from "./agent-attachment-tools";
 import { sendMessageTool } from "./agent-send-message";
 import { withSavepoint } from "../database/connection";
 import { optionalString, optionalStringArray, requireString } from "./agent-tool-args";
@@ -227,6 +228,7 @@ export const AGENT_TOOLS: ToolDefinition[] = [
     },
   },
   ...GOAL_TOOLS,
+  ...ATTACHMENT_TOOLS,
 ];
 
 export function dispatchAgentTool(
@@ -257,6 +259,8 @@ export function dispatchAgentTool(
         return grantConnectorTool(deps, ctx, call.arguments, "grant");
       case "revoke_connector":
         return grantConnectorTool(deps, ctx, call.arguments, "revoke");
+      case "read_attachment":
+        return readAttachmentTool(deps, ctx, call.arguments);
       case "company_status":
         return companyStatusTool(deps, ctx);
       case "update_goal":

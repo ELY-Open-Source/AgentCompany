@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, test } from "vitest";
@@ -8,6 +9,8 @@ import { ProviderService } from "../../src/main/services/provider-service";
 import { providerAdapters } from "../../src/main/services/provider-adapters";
 import { TaskExecutionService } from "../../src/main/services/task-execution-service";
 import { ChatService } from "../../src/main/services/chat-service";
+import { OrganizationService } from "../../src/main/services/organization-service";
+import { dispatchAgentTool, type AgentToolContext } from "../../src/main/services/agent-tools";
 import { ensureCeoDirectSpace } from "../../src/main/services/ceo-direct-space";
 import { claimNextQueuedRun } from "../../src/main/app/task-queue-worker";
 import type { AgentTurnResult, ProviderToolTurnInput } from "../../src/main/services/provider-tool-turn";
@@ -51,8 +54,8 @@ async function founderLine() {
   const spaceId = ensureCeoDirectSpace(connection.db, orgId)!;
   const kickoff = claimNextQueuedRun(connection);
   await execution.executeRun(kickoff!.org_id, kickoff!.id);
-  const say = (bodyMd: string, threadId: string | null) => {
-    const id = chat.sendMessage({ orgId, spaceId, threadId, senderType: "employee", senderId: founderId, bodyMd, attachmentFileIds: [] });
+  const say = (bodyMd: string, threadId: string | null, attachmentFileIds: string[] = []) => {
+    const id = chat.sendMessage({ orgId, spaceId, threadId, senderType: "employee", senderId: founderId, bodyMd, attachmentFileIds });
     return (connection.db.prepare("select thread_id from chat_messages where id = ?").get(id) as { thread_id: string }).thread_id;
   };
   const runWake = async () => {
@@ -77,7 +80,17 @@ async function founderLine() {
     const row = connection.db.prepare("select id from chat_messages where body_md = ?").get(bodyMd) as { id: string };
     chat.deleteMessage({ orgId, messageId: row.id, actorType: "employee", actorId: founderId });
   };
-  return { connection, wakePrompts, wakeInputs, say, runWake, runManually, edit, remove, onWakeTurn };
+  const addFile = (name: string, content: string) => {
+    const path = join(tmpdir(), `ac-attach-${randomUUID()}-${name}`);
+    writeFileSync(path, content);
+    const fileId = `fil_${randomUUID()}`;
+    connection.db.prepare(`
+      insert into file_objects(id, org_id, name, kind, size_bytes, sha256, storage_path, owner_type, owner_id, created_at)
+      values (?, ?, ?, 'md', ?, 'x', ?, 'employee', ?, ?)
+    `).run(fileId, orgId, name, content.length, path, founderId, new Date().toISOString());
+    return fileId;
+  };
+  return { connection, orgId, ceoId, wakePrompts, wakeInputs, say, runWake, runManually, edit, remove, onWakeTurn, addFile };
 }
 
 describe("chat wake context", () => {
@@ -255,6 +268,23 @@ describe("chat wake context", () => {
     expect(prompt).toContain("How is hiring going?");
     expect(prompt).not.toContain("99-1234");
     expect(h.connection.db.prepare("select count(*) as n from tasks where title like '%99-1234%' or description like '%99-1234%'").get()).toEqual({ n: 0 });
+    h.connection.close();
+  });
+
+  test("attachments travel with the message and can be read by file_id", async () => {
+    const h = await founderLine();
+    const fileId = h.addFile("spec.md", "# Spec\nShip the booking API by Friday.");
+    h.say("Please review the attached spec.", null, [fileId]);
+    await h.runWake();
+    expect(h.wakePrompts[0]).toContain(`Please review the attached spec. [attachments: spec.md (file_id=${fileId})]`);
+
+    const deps = { db: h.connection.db, organization: new OrganizationService(h.connection.db), chat: new ChatService(h.connection.db) };
+    const ctx: AgentToolContext = {
+      orgId: h.orgId, agent: { id: h.ceoId, modelProviderId: null, modelId: null },
+      taskProjectId: null, taskGoalId: null, taskId: null, sourceThreadId: null, workspace: null,
+    };
+    expect(dispatchAgentTool(deps, ctx, { id: "c1", name: "read_messages", arguments: { with: "Yang" } })).toContain(`[attachments: spec.md (file_id=${fileId})]`);
+    expect(dispatchAgentTool(deps, ctx, { id: "c2", name: "read_attachment", arguments: { file_id: fileId } })).toContain("Ship the booking API by Friday.");
     h.connection.close();
   });
 });

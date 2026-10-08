@@ -1,10 +1,11 @@
 import type { DatabaseSync } from "node:sqlite";
 import type { ChatContextBlock } from "./task-prompts";
+import { attachmentNote } from "./agent-attachment-tools";
 
 const HISTORY_LIMIT = 20;
 
 const MESSAGE_SELECT = `
-  select m.body_md, m.created_at, m.edited_at, m.sender_type, m.sender_id,
+  select m.id, m.body_md, m.created_at, m.edited_at, m.sender_type, m.sender_id,
          coalesce(a.name, e.display_name, m.sender_type) as sender_name,
          coalesce(a.role, e.role) as sender_role
   from chat_messages m
@@ -12,6 +13,7 @@ const MESSAGE_SELECT = `
   left join employees e on e.id = m.sender_id and m.sender_type = 'employee'`;
 
 interface ThreadMessageRow {
+  id: string;
   body_md: string;
   created_at: string;
   edited_at: string | null;
@@ -46,15 +48,15 @@ export function loadChatWakeContext(db: DatabaseSync, orgId: string, agentId: st
   return {
     threadId: scope.sourceThreadId,
     spaceId: thread.space_id,
-    history: [...(omitted > 0 ? [`(${omitted} earlier messages in this thread are not shown.)`] : []), ...history.map(formatMessage)].join("\n"),
-    fresh: fresh.map(formatMessage).join("\n"),
+    history: [...(omitted > 0 ? [`(${omitted} earlier messages in this thread are not shown.)`] : []), ...history.map((m) => formatMessage(db, m))].join("\n"),
+    fresh: fresh.map((m) => formatMessage(db, m)).join("\n"),
   };
 }
 
-function formatMessage(m: ThreadMessageRow): string {
+function formatMessage(db: DatabaseSync, m: ThreadMessageRow): string {
   const who = m.sender_role ? `${m.sender_name} (${m.sender_type}, ${m.sender_role})` : `${m.sender_name} (${m.sender_type})`;
   const edited = m.edited_at ? ` (edited ${utcMinute(m.edited_at)})` : "";
-  return `[${utcMinute(m.created_at)}] ${who}${edited}: ${m.body_md}`;
+  return `[${utcMinute(m.created_at)}] ${who}${edited}: ${m.body_md}${attachmentNote(db, m.id)}`;
 }
 
 function utcMinute(iso: string): string {
@@ -80,6 +82,6 @@ export function createRunMessagePoller(
     if (rows.length === 0) return null;
     watermark = rows[rows.length - 1].created_at;
     console.info(`[run-inbox] agent ${input.agentId}: ${rows.length} new message(s) injected mid-run`);
-    return ["Messages that arrived while you were working (they may change what you should do):", ...rows.map(formatMessage)].join("\n");
+    return ["Messages that arrived while you were working (they may change what you should do):", ...rows.map((m) => formatMessage(db, m))].join("\n");
   };
 }

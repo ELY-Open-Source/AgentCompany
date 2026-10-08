@@ -1,3 +1,4 @@
+import { attachmentNote } from "./agent-attachment-tools";
 import { optionalString } from "./agent-tool-args";
 import type { AgentToolContext, AgentToolDeps } from "./agent-tools";
 import type { JsonRecord } from "./provider-http";
@@ -75,14 +76,14 @@ function messagePage(
   ) as Array<{ id: string; row_id: number; body_md: string; created_at: string; thread_id: string; sender_name: string }>;
   if (rows.length === 0) return `No messages${filter.query ? ` matching "${filter.query}"` : ""}${filter.before ? " before that point" : ""} in ${label}.`;
   const page = rows.slice(0, filter.limit).reverse();
-  const lines = page.map((m) => `[${m.created_at}] ${m.sender_name} (thread=${m.thread_id}): ${m.body_md}`);
+  const lines = page.map((m) => `[${m.created_at}] ${m.sender_name} (thread=${m.thread_id}): ${m.body_md}${attachmentNote(deps.db, m.id)}`);
   if (rows.length > filter.limit) lines.unshift(`(Older messages exist: pass before="${page[0].id}" to read them.)`);
   return lines.join("\n");
 }
 
 function unansweredMentions(deps: AgentToolDeps, ctx: AgentToolContext, limit: number): string {
   const rows = deps.db.prepare(`
-    select m.body_md,
+    select m.id, m.body_md,
            coalesce(a.name, e.display_name, m.sender_type) as sender_name,
            m.thread_id, s.name as channel_name, s.space_type
     from chat_mentions cm
@@ -98,11 +99,11 @@ function unansweredMentions(deps: AgentToolDeps, ctx: AgentToolContext, limit: n
       )
     order by m.created_at desc
     limit ?
-  `).all(ctx.agent.id, ctx.orgId, limit) as Array<{ body_md: string; sender_name: string; thread_id: string; channel_name: string; space_type: string }>;
+  `).all(ctx.agent.id, ctx.orgId, limit) as Array<{ id: string; body_md: string; sender_name: string; thread_id: string; channel_name: string; space_type: string }>;
   if (rows.length === 0) return "No unanswered mentions.";
   return rows.reverse().map((m) => {
     const where = m.space_type === "direct" ? "in your direct conversation" : `in #${m.channel_name}`;
-    return `[${m.sender_name} ${where}] (thread=${m.thread_id}): ${m.body_md}`;
+    return `[${m.sender_name} ${where}] (thread=${m.thread_id}): ${m.body_md}${attachmentNote(deps.db, m.id)}`;
   }).join("\n");
 }
 
