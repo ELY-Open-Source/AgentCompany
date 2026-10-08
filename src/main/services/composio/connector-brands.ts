@@ -1,11 +1,4 @@
-/**
- * Display names and logo domains for the toolkits configured in the Composio
- * project. Logos come from img.logo.dev keyed by company domain (publishable
- * token — safe to embed). A slug outside this table renders with a prettified
- * name and the letter tile until its brand row is added here.
- */
-const LOGO_DEV_TOKEN = "***REMOVED***";
-
+/** Toolkit display names and logo.dev domains. */
 const BRANDS: Record<string, { name: string; domain: string }> = {
   airtable: { name: "Airtable", domain: "airtable.com" },
   attio: { name: "Attio", domain: "attio.com" },
@@ -60,8 +53,8 @@ export function connectorDisplayName(slug: string): string {
     .join(" ");
 }
 
-export function connectorLogoUrl(slug: string): string | null {
+export function connectorLogoUrl(slug: string, logoDevToken: string | null): string | null {
   const brand = BRANDS[slug];
-  if (!brand) return null;
-  return `https://img.logo.dev/${brand.domain}?token=${LOGO_DEV_TOKEN}`;
+  if (!brand || !logoDevToken) return null;
+  return `https://img.logo.dev/${brand.domain}?token=${encodeURIComponent(logoDevToken)}`;
 }

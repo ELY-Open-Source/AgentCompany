@@ -1,7 +1,7 @@
 import type { DatabaseSync } from "node:sqlite";
 import type { ToolDefinition, ToolCall } from "../provider-tool-turn";
 import { ComposioClient, type ComposioToolSchema } from "./composio-client";
-import { composioApiKey } from "./composio-credentials";
+import type { IntegrationKeyStore } from "../integration-key-store";
 import { ConnectorGrantsService } from "./connector-grants";
 
 const COMPOSIO_TOOL_PREFIX = "composio_";
@@ -52,14 +52,16 @@ export function composioSchemaToToolDefinition(schema: ComposioToolSchema): Tool
  * intersection of the company's active connections and the toolkits the CEO
  * granted this agent.
  */
-export async function loadComposioTools(db: DatabaseSync, orgId: string, agentId: string): Promise<ToolDefinition[]> {
-  const apiKey = composioApiKey();
-  if (!apiKey) return [];
+export async function loadComposioTools(db: DatabaseSync, keys: IntegrationKeyStore, orgId: string, agentId: string): Promise<ToolDefinition[]> {
   const grants = new ConnectorGrantsService(db);
   const toolkits = grants.toolkitsForAgent(orgId, agentId);
   if (toolkits.length === 0) return [];
+  const apiKey = keys.read("composio");
+  if (!apiKey) {
+    throw new Error(`Agent ${agentId} holds connector grants (${toolkits.join(", ")}) but no Composio API key is saved in Settings > Integrations.`);
+  }
   const toolkitsKey = toolkits.join(",");
-  const cacheKey = `${orgId}:${toolkitsKey}`;
+  const cacheKey = `${apiKey}:${orgId}:${toolkitsKey}`;
   const cached = toolCache.get(cacheKey);
   if (cached && Date.now() - cached.fetchedAt < CACHE_TTL_MS) {
     return cached.tools;
@@ -80,12 +82,13 @@ export async function loadComposioTools(db: DatabaseSync, orgId: string, agentId
 
 export async function executeComposioTool(
   db: DatabaseSync,
+  keys: IntegrationKeyStore,
   orgId: string,
   agentId: string,
   call: ToolCall,
 ): Promise<string> {
-  const apiKey = composioApiKey();
-  if (!apiKey) return "ERROR: The Composio integration is not configured in this build.";
+  const apiKey = keys.read("composio");
+  if (!apiKey) return "ERROR: No Composio API key is saved. Ask the board to add one in Settings > Integrations.";
   const toolSlug = originalToolName(call.name);
   const toolkit = toolkitForTool(toolSlug);
   const grants = new ConnectorGrantsService(db);

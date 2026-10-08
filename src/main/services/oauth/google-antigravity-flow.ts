@@ -9,7 +9,6 @@ import { generatePkce } from "./pkce";
 import type { OAuthCredentials, OAuthFlow, OAuthLoginCallbacks } from "./oauth-types";
 
 const CLIENT_ID = "1071006060591-tmhssin2h21lcre235vtolojh4g403ep.apps.googleusercontent.com";
-const CLIENT_SECRET_ENV = "AGENTCOMPANY_GOOGLE_ANTIGRAVITY_CLIENT_SECRET";
 const CALLBACK_PORT = 51121;
 const CALLBACK_PATH = "/oauth-callback";
 const REDIRECT_URI = `http://localhost:${CALLBACK_PORT}${CALLBACK_PATH}`;
@@ -24,9 +23,8 @@ const AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 const TOKEN_URL = "https://oauth2.googleapis.com/token";
 const CODE_ASSIST_ENDPOINTS = ["https://cloudcode-pa.googleapis.com", "https://daily-cloudcode-pa.sandbox.googleapis.com"];
 
-export function resolveAntigravityClientSecret(env: NodeJS.ProcessEnv = process.env): string {
-  const secret = env[CLIENT_SECRET_ENV]?.trim();
-  if (!secret) throw new Error(`${CLIENT_SECRET_ENV} is required for Google Antigravity OAuth.`);
+export function requireAntigravityClientSecret(secret: string | null | undefined): string {
+  if (!secret) throw new Error("Google Antigravity sign-in needs its OAuth client secret. Add it in Settings > Integrations.");
   return secret;
 }
 
@@ -45,13 +43,13 @@ function buildAuthorizeUrl(challenge: string, state: string): string {
   return `${AUTH_URL}?${params.toString()}`;
 }
 
-async function exchangeCode(code: string, verifier: string): Promise<{ access: string; refresh: string; expires: number }> {
+async function exchangeCode(code: string, verifier: string, clientSecret: string): Promise<{ access: string; refresh: string; expires: number }> {
   const response = await fetch(TOKEN_URL, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
       client_id: CLIENT_ID,
-      client_secret: resolveAntigravityClientSecret(),
+      client_secret: clientSecret,
       code,
       grant_type: "authorization_code",
       redirect_uri: REDIRECT_URI,
@@ -105,13 +103,13 @@ async function discoverProject(accessToken: string): Promise<string> {
 }
 
 /** Refresh an expired Antigravity access token, retaining the project id. */
-export async function refreshAntigravity(refreshToken: string, projectId: string): Promise<OAuthCredentials> {
+export async function refreshAntigravity(refreshToken: string, projectId: string, clientSecret: string): Promise<OAuthCredentials> {
   const response = await fetch(TOKEN_URL, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
       client_id: CLIENT_ID,
-      client_secret: resolveAntigravityClientSecret(),
+      client_secret: clientSecret,
       refresh_token: refreshToken,
       grant_type: "refresh_token",
     }),
@@ -129,13 +127,14 @@ export async function refreshAntigravity(refreshToken: string, projectId: string
 export const antigravityFlow: OAuthFlow = {
   providerKey: "google-antigravity",
   async login(callbacks: OAuthLoginCallbacks): Promise<OAuthCredentials> {
+    const clientSecret = requireAntigravityClientSecret(callbacks.clientSecret);
     const { verifier, challenge } = generatePkce();
     const server = await startOAuthCallbackServer({ port: CALLBACK_PORT, path: CALLBACK_PATH, signal: callbacks.signal });
     try {
       callbacks.onAuth({ url: buildAuthorizeUrl(challenge, verifier), instructions: "Complete the Google sign-in in your browser." });
       const result = await server.waitForCode();
       if (result.state !== verifier) throw new Error("OAuth state mismatch.");
-      const tokens = await exchangeCode(result.code, verifier);
+      const tokens = await exchangeCode(result.code, verifier, clientSecret);
       callbacks.onProgress?.("Resolving project");
       const projectId = await discoverProject(tokens.access);
       return { access: tokens.access, refresh: tokens.refresh, expires: tokens.expires, projectId };

@@ -22,6 +22,8 @@ export interface OAuthLoginCallbacks {
   signal?: AbortSignal;
   /** GitHub Enterprise domain for Copilot; null/empty means github.com. */
   enterpriseDomain?: string | null;
+  /** Client secret for flows that need one. */
+  clientSecret?: string | null;
 }
 
 export interface OAuthFlow {

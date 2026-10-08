@@ -125,6 +125,7 @@ describe("agent instruction wiring", () => {
       });
       const providerId = (connection.db.prepare("select id from providers where org_id = ? and provider_key = 'openai'").get(orgId) as { id: string }).id;
       providers.saveCredential({ orgId, providerId, secret: "sk-test", model: "gpt-5.4" });
+      providers.integrationKeys.write("composio", "ak_test");
       agentId = organization.createAgent({
         orgId, name: "Ada", role: "Engineer", department: "Engineering",
         modelProviderId: providerId, modelId: "gpt-5.4", budgetCents: 1000, managerAgentId: null,

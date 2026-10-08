@@ -2,11 +2,12 @@ import { useMemo, useState } from "react";
 import { ProvidersPanel } from "./settings/ProvidersPanel";
 import { WorkspacePanel } from "./settings/WorkspacePanel";
 import { AdvancedPanel } from "./settings/AdvancedPanel";
+import { IntegrationKeysPanel } from "./settings/IntegrationKeysPanel";
 import { t } from "../i18n/i18n";
 import type { PageProps } from "./types";
 import { activeOrgId, requireActiveEmployee, requireActiveOrganization } from "./types";
 
-type SettingsTab = "general" | "providers" | "advanced";
+type SettingsTab = "general" | "providers" | "integrations" | "advanced";
 
 interface NavSpec {
   id: SettingsTab;
@@ -16,6 +17,7 @@ interface NavSpec {
 const TABS: NavSpec[] = [
   { id: "general", label: t("General") },
   { id: "providers", label: t("Providers") },
+  { id: "integrations", label: t("Integrations") },
   { id: "advanced", label: t("Advanced") },
 ];
 
@@ -56,6 +58,7 @@ export function SettingsPage({ snapshot, actions }: PageProps) {
               actions={actions}
             />
           )}
+          {tab === "integrations" && <IntegrationKeysPanel keys={snapshot.integrationKeys} actions={actions} />}
           {tab === "advanced" && (
             <AdvancedPanel
               orgId={orgId}

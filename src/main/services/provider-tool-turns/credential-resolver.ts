@@ -26,7 +26,8 @@ import type { TurnCredential } from "../provider-tool-turn";
 import type { OAuthCredentials } from "../oauth/oauth-types";
 import { refreshCodex } from "../oauth/openai-codex-flow";
 import { refreshClaudePro } from "../oauth/anthropic-claude-flow";
-import { refreshAntigravity } from "../oauth/google-antigravity-flow";
+import { refreshAntigravity, requireAntigravityClientSecret } from "../oauth/google-antigravity-flow";
+import type { IntegrationKeyStore } from "../integration-key-store";
 import { refreshGitHubCopilotToken } from "../oauth/github-copilot-flow";
 import { refreshKimiCode } from "../oauth/kimi-code-flow";
 
@@ -53,7 +54,7 @@ function parseStoredOAuth(secret: string): StoredOAuth {
   return creds;
 }
 
-function refreshOAuth(providerKey: string, creds: StoredOAuth): Promise<OAuthCredentials> {
+function refreshOAuth(providerKey: string, creds: StoredOAuth, keys: IntegrationKeyStore): Promise<OAuthCredentials> {
   switch (providerKey) {
     case "gpt-account":
       return refreshCodex(creds.refresh);
@@ -61,7 +62,7 @@ function refreshOAuth(providerKey: string, creds: StoredOAuth): Promise<OAuthCre
       return refreshClaudePro(creds.refresh);
     case "google-antigravity":
       if (!creds.projectId) throw new Error("Antigravity credential is missing its project id; reconnect the provider.");
-      return refreshAntigravity(creds.refresh, creds.projectId);
+      return refreshAntigravity(creds.refresh, creds.projectId, requireAntigravityClientSecret(keys.read("google_antigravity_client_secret")));
     case "github-copilot":
       return refreshGitHubCopilotToken(creds.refresh, creds.enterpriseUrl ?? undefined);
     case "kimi-code":
@@ -110,6 +111,7 @@ function toTurnCredential(creds: StoredOAuth | OAuthCredentials): TurnCredential
 
 export async function resolveTurnCredential(deps: {
   authBroker: AuthBrokerService;
+  integrationKeys: IntegrationKeyStore;
   orgId: string;
   provider: ProviderRow;
 }): Promise<TurnCredential> {
@@ -123,7 +125,7 @@ export async function resolveTurnCredential(deps: {
   const creds = parseStoredOAuth(secret);
   if (Date.now() < creds.expires) return toTurnCredential(creds);
   if (!deps.provider.credential_id) throw new Error("Provider credential id is missing; reconnect the provider.");
-  const refreshed = await refreshOAuth(deps.provider.provider_key, creds);
+  const refreshed = await refreshOAuth(deps.provider.provider_key, creds, deps.integrationKeys);
   deps.authBroker.updateProviderSecret({
     orgId: deps.orgId,
     providerKey: deps.provider.provider_key,

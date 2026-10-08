@@ -1,4 +1,5 @@
 import type { AuditReplayRunRecord } from "./audit-domain";
+import type { IntegrationKeyStatus } from "./commands/integration-keys";
 import type { BoardInterventionRecord as BoardInterventionRecordModel } from "./board-domain";
 import type {
   ChatAttachmentRecord,
@@ -71,6 +72,7 @@ export interface AppSnapshot {
   uiPreferences: UiPreferences;
   /** True while the operator has paused the autonomous run engine. */
   autonomousPaused: boolean;
+  integrationKeys: IntegrationKeyStatus[];
   organizations: OrganizationRecord[];
   employees: EmployeeRecord[];
   agents: AgentRecord[];

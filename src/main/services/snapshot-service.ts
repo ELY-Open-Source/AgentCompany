@@ -1,6 +1,7 @@
 import type { DatabaseSync, StatementSync } from "node:sqlite";
 import type { AppSnapshot } from "../../shared/domain";
 import { PROVIDER_CATALOG } from "../../shared/provider-catalog";
+import { IntegrationKeyStore } from "./integration-key-store";
 import { currentProviderUsageWindow } from "../../shared/provider-runtime-domain";
 
 type Row = Record<string, unknown>;
@@ -87,6 +88,7 @@ export class SnapshotService {
       activeOrgId,
       uiPreferences: this.resolveUiPreferences(),
       autonomousPaused: this.resolveAutonomousPaused(),
+      integrationKeys: new IntegrationKeyStore(this.db).statuses(),
       organizations,
       employees: list(this.db, "employees", "created_at asc"),
       agents,

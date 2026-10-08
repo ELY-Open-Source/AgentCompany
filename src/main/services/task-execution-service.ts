@@ -151,7 +151,7 @@ export class TaskExecutionService {
         .toolkitsForAgent(orgId, agent.id)
         .map(connectorDisplayName);
       const language = this.appLanguage();
-      const externalTools = await loadComposioTools(this.db, orgId, agent.id);
+      const externalTools = await loadComposioTools(this.db, this.providers.integrationKeys, orgId, agent.id);
       // Watermark for the reply-delivery check below: anything the agent posts
       // into the source thread from here on counts as its reply.
       const runStartedAt = new Date().toISOString();

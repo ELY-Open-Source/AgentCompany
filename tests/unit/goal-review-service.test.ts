@@ -54,6 +54,10 @@ function addDoneTask(h: Harness, title: string, origin: string | null, updatedAt
   return taskId;
 }
 
+function hoursFromNow(hours: number): string {
+  return new Date(Date.now() + hours * 3_600_000).toISOString();
+}
+
 function reviews(h: Harness): Array<{ id: string; status: string }> {
   return h.connection.db.prepare("select id, status from tasks where goal_id = ? and origin = 'goal_review' order by created_at")
     .all(h.goalId) as Array<{ id: string; status: string }>;
@@ -84,15 +88,15 @@ describe("goal review service", () => {
     const [reviewId] = h.connection.transaction(() => spawnGoalReviews(h.connection.db, h.organization));
 
     // CEO closes the review without creating tasks or completing the goal: silence, not a loop.
-    setTaskStatus(h, reviewId, TASK_STATUS.DONE, "2026-08-01T10:00:00.000Z");
+    setTaskStatus(h, reviewId, TASK_STATUS.DONE, hoursFromNow(1));
     expect(h.connection.transaction(() => spawnGoalReviews(h.connection.db, h.organization))).toEqual([]);
 
     // Chatter never counts as progress.
-    addDoneTask(h, "Reply to CEO", "chat_wake", "2026-08-01T12:00:00.000Z");
+    addDoneTask(h, "Reply to CEO", "chat_wake", hoursFromNow(2));
     expect(h.connection.transaction(() => spawnGoalReviews(h.connection.db, h.organization))).toEqual([]);
 
     // A real completed task after the last review re-arms the checkpoint.
-    addDoneTask(h, "Implement tenant module", null, "2026-08-01T13:00:00.000Z");
+    addDoneTask(h, "Implement tenant module", null, hoursFromNow(3));
     expect(h.connection.transaction(() => spawnGoalReviews(h.connection.db, h.organization))).toHaveLength(1);
     expect(reviews(h)).toHaveLength(2);
     h.connection.close();

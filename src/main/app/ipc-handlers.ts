@@ -28,6 +28,7 @@ import { AutomationService } from "../services/automation-service";
 import { MeetingService } from "../services/meeting-service";
 import { SprintService } from "../services/sprint-service";
 import { ComposioConnectionService } from "../services/composio/composio-connection-service";
+import { IntegrationKeyStore } from "../services/integration-key-store";
 import { importStagedSkills, stageBuiltinSkillsLibrary } from "../services/builtin-skills";
 import { coalesce } from "./coalesce";
 import { normalizeExternalBrowserUrl } from "./external-url";
@@ -48,7 +49,8 @@ export function registerIpcHandlers(deps: IpcDeps): void {
   const approvals = new ApprovalService(deps.connection.db);
   const chat = new ChatService(deps.connection.db);
   const providers = new ProviderService(deps.connection.db);
-  const providerOAuth = new ProviderOAuthService();
+  const integrationKeys = new IntegrationKeyStore(deps.connection.db);
+  const providerOAuth = new ProviderOAuthService(integrationKeys);
   const skills = new SkillService(deps.connection.db, deps.artifactRoot);
   const notifyDataChanged = coalesce(() => {
     try {
@@ -137,6 +139,8 @@ export function registerIpcHandlers(deps: IpcDeps): void {
   ipcMain.handle(IPC_CHANNELS.updateAgent, (_event, input) => mutate(() => organization.updateAgent(input)));
   ipcMain.handle(IPC_CHANNELS.updateEmployeeProfile, (_event, input) => mutate(() => organization.updateEmployeeProfile(input)));
   ipcMain.handle(IPC_CHANNELS.setAutonomousPaused, (_event, input) => mutate(() => organization.setAutonomousPaused(Boolean(input.paused))));
+  ipcMain.handle(IPC_CHANNELS.setIntegrationKey, (_event, input) => mutate(() => integrationKeys.write(input.name, input.value)));
+  ipcMain.handle(IPC_CHANNELS.clearIntegrationKey, (_event, input) => mutate(() => integrationKeys.clear(input.name)));
   ipcMain.handle(IPC_CHANNELS.createTask, (_event, input) => mutate(() => organization.createTask(input)));
   ipcMain.handle(IPC_CHANNELS.updateTask, (_event, input) => mutate(() => organization.updateTask(input)));
   ipcMain.handle(IPC_CHANNELS.deleteTask, (_event, input) => mutate(() => organization.deleteTask(input)));
@@ -344,7 +348,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     }
   });
 
-  const composioConnections = new ComposioConnectionService(deps.connection.db);
+  const composioConnections = new ComposioConnectionService(deps.connection.db, integrationKeys);
 
   ipcMain.handle(IPC_CHANNELS.listConnectorCatalog, async () => {
     try {

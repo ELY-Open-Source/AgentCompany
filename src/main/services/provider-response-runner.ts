@@ -1,3 +1,4 @@
+import type { IntegrationKeyStore } from "./integration-key-store";
 import type { DatabaseSync } from "node:sqlite";
 import type { CancelProviderResponseInput, CreateProviderResponseInput, StreamProviderResponseInput } from "../../shared/commands";
 import { FEATURE_FLAG_KEY, PROVIDER_AUTH_TYPE, PROVIDER_DATA_POLICY, PROVIDER_EXECUTION_MODE, PROVIDER_REQUEST_STATE, type ProviderExecutionMode } from "../../shared/domain";
@@ -35,6 +36,7 @@ export interface ProviderResponseRunnerDeps {
   adapters: ProviderAdapterRegistry;
   audit: AuditService;
   authBroker: AuthBrokerService;
+  integrationKeys: IntegrationKeyStore;
   operations: OperationsService;
   rateLimitRegistry: ProviderRateLimitRegistry;
   responseObserver: ProviderResponseObserver;
@@ -114,7 +116,7 @@ export class ProviderResponseRunner {
     if (!model) throw new Error("Provider model is required.");
     const owner: ProviderRow & { model: string } = { ...provider, model };
     const turn = this.deps.toolTurn ?? selectToolTurn(provider.provider_key);
-    const credential = await resolveTurnCredential({ authBroker: this.deps.authBroker, orgId: input.orgId, provider });
+    const credential = await resolveTurnCredential({ authBroker: this.deps.authBroker, integrationKeys: this.deps.integrationKeys, orgId: input.orgId, provider });
     const promptChars = JSON.stringify(input.messages).length;
     const requestId = this.deps.requestStore.create({
       orgId: input.orgId,

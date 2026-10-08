@@ -27,7 +27,7 @@ export interface AgentRunLoopResult {
 }
 
 export interface AgentRunLoopDeps {
-  providers: Pick<ProviderService, "runToolTurn">;
+  providers: Pick<ProviderService, "runToolTurn" | "integrationKeys">;
   tools: AgentToolDeps;
   /** Called after each iteration's tool calls have written their effects. */
   onToolResults?: () => void;
@@ -72,7 +72,7 @@ export async function runAgentLoop(deps: AgentRunLoopDeps, input: AgentRunLoopIn
       toolCallCount += 1;
       let output: string;
       if (isComposioTool(call.name)) {
-        output = await executeComposioTool(deps.tools.db, input.orgId, input.toolContext.agent.id, call);
+        output = await executeComposioTool(deps.tools.db, deps.providers.integrationKeys, input.orgId, input.toolContext.agent.id, call);
       } else if (isWorkspaceTool(call.name)) {
         output = await executeWorkspaceTool(input.toolContext, call);
       } else if (isWebTool(call.name)) {

@@ -1,14 +1,14 @@
 import type { DatabaseSync } from "node:sqlite";
 import type { ConnectorCatalogEntry, ConnectComposioToolkitResult } from "../../../shared/commands";
 import { ComposioClient } from "./composio-client";
-import { composioApiKey } from "./composio-credentials";
+import { IntegrationKeyStore } from "../integration-key-store";
 import { getComposioUserId } from "./composio-tool-bridge";
 import { connectorDisplayName, connectorLogoUrl } from "./connector-brands";
 import { normalizeSlug } from "./connector-grants";
 
 const CATALOG_TTL_MS = 10 * 60 * 1000;
 
-let catalogCache: { fetchedAt: number; entries: ConnectorCatalogEntry[] } | null = null;
+let catalogCache: { fetchedAt: number; keys: string; entries: ConnectorCatalogEntry[] } | null = null;
 
 /**
  * Company-level Composio connections. The catalog mirrors the auth configs
@@ -25,7 +25,10 @@ let catalogCache: { fetchedAt: number; entries: ConnectorCatalogEntry[] } | null
 export class ComposioConnectionService {
   private static queues = new Map<string, Promise<unknown>>();
 
-  constructor(private readonly db: DatabaseSync) {}
+  constructor(
+    private readonly db: DatabaseSync,
+    private readonly keys: IntegrationKeyStore = new IntegrationKeyStore(db),
+  ) {}
 
   listCatalog(): Promise<ConnectorCatalogEntry[]> {
     return this.catalog(this.requireClient());
@@ -149,13 +152,16 @@ export class ComposioConnectionService {
   }
 
   private requireClient(): ComposioClient {
-    const apiKey = composioApiKey();
-    if (!apiKey) throw new Error("The Composio integration is not configured in this build.");
+    const apiKey = this.keys.read("composio");
+    if (!apiKey) throw new Error("No Composio API key is saved. Add one in Settings > Integrations.");
     return new ComposioClient(apiKey);
   }
 
   private async catalog(client: ComposioClient): Promise<ConnectorCatalogEntry[]> {
-    if (catalogCache && Date.now() - catalogCache.fetchedAt < CATALOG_TTL_MS) {
+    const logoDevToken = this.keys.read("logo_dev");
+    const keys = `${this.keys.read("composio")}
+${logoDevToken}`;
+    if (catalogCache && catalogCache.keys === keys && Date.now() - catalogCache.fetchedAt < CATALOG_TTL_MS) {
       return catalogCache.entries;
     }
     const configs = await client.listAuthConfigs();
@@ -167,11 +173,11 @@ export class ComposioConnectionService {
         slug: config.toolkitSlug,
         name: connectorDisplayName(config.toolkitSlug),
         authScheme: config.authScheme,
-        logoUrl: connectorLogoUrl(config.toolkitSlug),
+        logoUrl: connectorLogoUrl(config.toolkitSlug, logoDevToken),
       });
     }
     const entries = [...bySlug.values()].sort((a, b) => a.name.localeCompare(b.name));
-    catalogCache = { fetchedAt: Date.now(), entries };
+    catalogCache = { fetchedAt: Date.now(), keys, entries };
     return entries;
   }
 }

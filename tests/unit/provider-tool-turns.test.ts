@@ -19,6 +19,7 @@ import { ProviderService } from "../../src/main/services/provider-service";
 import { providerAdapters } from "../../src/main/services/provider-adapters";
 import { AuthBrokerService } from "../../src/main/services/auth-broker-service";
 import { loadConfiguredProvider } from "../../src/main/services/provider-internal";
+import { IntegrationKeyStore } from "../../src/main/services/integration-key-store";
 
 const CONVO: AgentTurnMessage[] = [
   { role: "user", text: "do it" },
@@ -228,6 +229,7 @@ describe("credential resolver", () => {
     const organization = new OrganizationService(connection.db);
     const providers = new ProviderService(connection.db, providerAdapters, testVault);
     const authBroker = new AuthBrokerService(connection.db, testVault);
+    const integrationKeys = new IntegrationKeyStore(connection.db, testVault);
     let orgId = "";
     let openaiId = "";
     let gptAccountId = "";
@@ -241,13 +243,31 @@ describe("credential resolver", () => {
     });
 
     return (async () => {
-      const apiKeyCred = await resolveTurnCredential({ authBroker, orgId, provider: loadConfiguredProvider(connection.db, orgId, openaiId) });
+      const apiKeyCred = await resolveTurnCredential({ authBroker, integrationKeys, orgId, provider: loadConfiguredProvider(connection.db, orgId, openaiId) });
       expect(apiKeyCred).toEqual({ apiKey: "sk-live" });
-      const oauthCred = await resolveTurnCredential({ authBroker, orgId, provider: loadConfiguredProvider(connection.db, orgId, gptAccountId) });
+      const oauthCred = await resolveTurnCredential({ authBroker, integrationKeys, orgId, provider: loadConfiguredProvider(connection.db, orgId, gptAccountId) });
       expect(oauthCred.accessToken).toBe("tok");
       expect(oauthCred.accountId).toBe("acct_1");
       connection.close();
     })();
+  });
+
+  test("an expired Antigravity credential without a saved client secret points to Settings", async () => {
+    const connection = new DatabaseConnection(join(tmpdir(), `ac-cred-${randomUUID()}.db`));
+    const organization = new OrganizationService(connection.db);
+    const providers = new ProviderService(connection.db, providerAdapters, testVault);
+    const authBroker = new AuthBrokerService(connection.db, testVault);
+    const integrationKeys = new IntegrationKeyStore(connection.db, testVault);
+    let orgId = "";
+    let antigravityId = "";
+    connection.transaction(() => {
+      orgId = organization.createOrganization({ organizationName: "Acme", employeeName: "Dana", mission: "m", goal: "g" });
+      antigravityId = (connection.db.prepare("select id from providers where org_id = ? and provider_key = 'google-antigravity'").get(orgId) as { id: string }).id;
+      providers.saveCredential({ orgId, providerId: antigravityId, secret: JSON.stringify({ access: "old", refresh: "r", expires: 0, projectId: "p" }), model: "gemini-3-pro" });
+    });
+    await expect(resolveTurnCredential({ authBroker, integrationKeys, orgId, provider: loadConfiguredProvider(connection.db, orgId, antigravityId) }))
+      .rejects.toThrow("Settings > Integrations");
+    connection.close();
   });
 });
 

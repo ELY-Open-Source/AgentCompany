@@ -3,7 +3,9 @@ import { randomUUID } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, test } from "vitest";
+import type { DatabaseSync } from "node:sqlite";
 import { DatabaseConnection } from "../../src/main/database/connection";
+import { IntegrationKeyStore } from "../../src/main/services/integration-key-store";
 import { OrganizationService } from "../../src/main/services/organization-service";
 import { ChatService } from "../../src/main/services/chat-service";
 import { runAgentLoop } from "../../src/main/services/agent-run-loop";
@@ -16,9 +18,10 @@ interface ScriptedTurn {
   toolCalls: ToolCall[];
 }
 
-function fakeProvider(script: ScriptedTurn[]) {
+function fakeProvider(script: ScriptedTurn[], db: DatabaseSync) {
   let index = 0;
   return {
+    integrationKeys: new IntegrationKeyStore(db),
     runToolTurn: async (): Promise<AgentTurnResult & { requestId: string }> => {
       const turn = script[index] ?? { text: "done", toolCalls: [] };
       index += 1;
@@ -85,7 +88,7 @@ describe("agent run loop (real tool dispatch)", () => {
     let toolResultNotifications = 0;
     const result = await runAgentLoop(
       {
-        providers: fakeProvider(script),
+        providers: fakeProvider(script, connection.db),
         tools: { db: connection.db, organization, chat: new ChatService(connection.db) },
         onToolResults: () => { toolResultNotifications += 1; },
       },
@@ -143,7 +146,7 @@ describe("agent run loop (real tool dispatch)", () => {
       { text: "done", toolCalls: [] },
     ];
     const result = await runAgentLoop(
-      { providers: fakeProvider(script), tools: { db: connection.db, organization, chat: new ChatService(connection.db) } },
+      { providers: fakeProvider(script, connection.db), tools: { db: connection.db, organization, chat: new ChatService(connection.db) } },
       { orgId, providerId, workspaceId: null, instructions: "i", initialUserTurn: "u", toolContext: ctx },
     );
     // The tool returns an error string to the model; nothing is written outside the root.
@@ -180,7 +183,7 @@ describe("agent run loop (real tool dispatch)", () => {
     ];
 
     await runAgentLoop(
-      { providers: fakeProvider(script), tools: { db: connection.db, organization, chat: new ChatService(connection.db) } },
+      { providers: fakeProvider(script, connection.db), tools: { db: connection.db, organization, chat: new ChatService(connection.db) } },
       { orgId, providerId, workspaceId: null, instructions: "i", initialUserTurn: "u", toolContext: ctx },
     );
 
@@ -226,7 +229,7 @@ describe("agent run loop (real tool dispatch)", () => {
       taskProjectId: null, taskGoalId: null, workspace: null,
     };
     await expect(runAgentLoop(
-      { providers: fakeProvider([{ text: "", toolCalls: [] }]), tools: { db: connection.db, organization, chat: new ChatService(connection.db) } },
+      { providers: fakeProvider([{ text: "", toolCalls: [] }], connection.db), tools: { db: connection.db, organization, chat: new ChatService(connection.db) } },
       { orgId, providerId, workspaceId: null, instructions: "i", initialUserTurn: "u", toolContext: ctx },
     )).rejects.toThrow(/empty turn/);
     connection.close();

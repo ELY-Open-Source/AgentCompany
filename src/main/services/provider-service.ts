@@ -7,6 +7,7 @@ import type { ProviderStreamRendererEvent } from "../../shared/provider-request-
 import { AuditService } from "./audit-service";
 import { AuthBrokerService, type ProviderSecretVault } from "./auth-broker-service";
 import { OperationsService } from "./operations-service";
+import { IntegrationKeyStore } from "./integration-key-store";
 import { SecretVault } from "./secret-vault";
 import { providerAdapters, providerRateLimitStateFromError, type ProviderAdapterRegistry } from "./provider-adapters";
 import { ProviderBackgroundService } from "./provider-background-service";
@@ -44,6 +45,7 @@ export class ProviderService {
   private readonly requestStore: ProviderRequestStore;
   private readonly background: ProviderBackgroundService;
   private readonly runner: ProviderResponseRunner;
+  readonly integrationKeys: IntegrationKeyStore;
 
   constructor(
     private readonly db: DatabaseSync,
@@ -54,6 +56,7 @@ export class ProviderService {
   ) {
     this.audit = new AuditService(db);
     this.authBroker = new AuthBrokerService(db, vault);
+    this.integrationKeys = new IntegrationKeyStore(db, vault);
     this.operations = new OperationsService(db);
     this.rateLimitRegistry = new ProviderRateLimitRegistry(db);
     this.requestStore = new ProviderRequestStore(db);
@@ -64,6 +67,7 @@ export class ProviderService {
       adapters,
       audit: this.audit,
       authBroker: this.authBroker,
+      integrationKeys: this.integrationKeys,
       operations: this.operations,
       rateLimitRegistry: this.rateLimitRegistry,
       responseObserver: this.responseObserver,

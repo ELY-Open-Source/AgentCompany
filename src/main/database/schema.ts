@@ -56,6 +56,7 @@ import { closeStaleWakeTasksSchema } from "./migrations/054-close-stale-wake-tas
 import { taskOriginSchema } from "./migrations/055-task-origin";
 import { kimiProvidersSchema } from "./migrations/056-kimi-providers";
 import { kimiCodeProviderSchema } from "./migrations/057-kimi-code-provider";
+import { integrationKeysSchema } from "./migrations/058-integration-keys";
 
 interface Migration {
   version: number;
@@ -121,6 +122,7 @@ const MIGRATIONS: Migration[] = [
   { version: 55, name: "task_origin", sql: taskOriginSchema },
   { version: 56, name: "kimi_providers", sql: kimiProvidersSchema },
   { version: 57, name: "kimi_code_provider", sql: kimiCodeProviderSchema },
+  { version: 58, name: "integration_keys", sql: integrationKeysSchema },
 ];
 
 const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;
