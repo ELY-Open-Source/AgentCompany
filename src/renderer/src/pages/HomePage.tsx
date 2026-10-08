@@ -360,5 +360,6 @@ function runStateLabel(state: string): string {
   if (state === "completed") return t("Done");
   if (state === "failed") return t("Failed");
   if (state === "superseded") return t("Superseded");
+  if (state === "stopped") return t("Stopped");
   return state;
 }

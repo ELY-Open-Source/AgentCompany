@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Avatar, Pill, Segmented } from "../shared/ui";
+import { Avatar, Button, Pill, Segmented } from "../shared/ui";
 import type { AgentRecord, ProviderRecord, TaskRecord, TaskRunRecord } from "../../../shared/domain";
 import type { PageProps } from "./types";
 import { activeOrgId, formatRelative } from "./types";
@@ -14,7 +14,7 @@ const FILTERS: Array<{ id: StatusFilter; label: string }> = [
   { id: "failed", label: t("Failed") },
 ];
 
-export function RunsPage({ snapshot }: PageProps) {
+export function RunsPage({ snapshot, actions }: PageProps) {
   const orgId = activeOrgId(snapshot);
   const taskRuns = useMemo(() => snapshot.taskRuns.filter((r) => r.orgId === orgId), [snapshot.taskRuns, orgId]);
   const tasks = useMemo(() => snapshot.tasks.filter((t) => t.orgId === orgId), [snapshot.tasks, orgId]);
@@ -89,7 +89,7 @@ export function RunsPage({ snapshot }: PageProps) {
       </aside>
       <div style={{ flex: 1, minWidth: 0, overflow: "auto", padding: 24 }}>
         {selected ? (
-          <RunDetail run={selected} tasks={tasks} agents={agents} providers={providers} providerRequests={providerRequests} />
+          <RunDetail run={selected} tasks={tasks} agents={agents} providers={providers} providerRequests={providerRequests} actions={actions} />
         ) : (
           <div style={{ display: "grid", placeItems: "center", height: "100%", color: "var(--text-3)", fontSize: 14 }}>
             {t("Select a run")}
@@ -100,7 +100,8 @@ export function RunsPage({ snapshot }: PageProps) {
   );
 }
 
-function RunDetail({ run, tasks, agents, providers, providerRequests }: {
+function RunDetail({ run, tasks, agents, providers, providerRequests, actions }: {
+  actions: PageProps["actions"];
   run: TaskRunRecord;
   tasks: TaskRecord[];
   agents: AgentRecord[];
@@ -115,6 +116,12 @@ function RunDetail({ run, tasks, agents, providers, providerRequests }: {
   const started = run.startedAt ? new Date(run.startedAt) : null;
   const completed = run.completedAt ? new Date(run.completedAt) : null;
   const durationMs = started && completed ? completed.getTime() - started.getTime() : null;
+  const [stopError, setStopError] = useState<string | null>(null);
+  const stop = (runId: string) => {
+    setStopError(null);
+    actions.run(() => window.agentCompany.stopRun({ runId }))
+      .catch((error: unknown) => setStopError(error instanceof Error ? error.message : String(error)));
+  };
 
   return (
     <div>
@@ -125,7 +132,9 @@ function RunDetail({ run, tasks, agents, providers, providerRequests }: {
           <div style={{ fontSize: 12, color: "var(--text-3)" }}>{run.id}</div>
         </div>
         <Pill tone={runTone(run.state)}>{runLabel(run.state)}</Pill>
+        {run.state === "running" && <Button size="small" onClick={() => stop(run.id)}>{t("Stop")}</Button>}
       </div>
+      {stopError && <div className="form-error" role="alert">{stopError}</div>}
 
       <div style={{ display: "grid", gridTemplateColumns: "120px 1fr", gap: "8px 16px", fontSize: 14, marginBottom: 20 }}>
         <MetaLabel>{t("Agent")}</MetaLabel><div>{agent?.name ?? "—"} ({agent?.role ?? "—"})</div>
@@ -204,6 +213,7 @@ function runLabel(state: string): string {
   if (state === "completed") return t("Done");
   if (state === "failed") return t("Failed");
   if (state === "superseded") return t("Superseded");
+  if (state === "stopped") return t("Stopped");
   return state;
 }
 

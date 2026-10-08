@@ -8,6 +8,7 @@ import type { AgentTurnMessage, ToolCall, ToolDefinition } from "./provider-tool
 import { isComposioTool, executeComposioTool } from "./composio/composio-tool-bridge";
 import { capToolOutput, compactToolHistory } from "./run-context-compaction";
 import { fitContextBudget } from "./context-budget";
+import { throwIfRunStopped, untilStopped } from "./run-control";
 
 const MAX_ITERATIONS = 12;
 
@@ -67,14 +68,19 @@ export async function runAgentLoop(deps: AgentRunLoopDeps, input: AgentRunLoopIn
       console.info(`[run-loop] iteration ${iteration}: elided ${compaction.elided} earlier tool result(s)`);
     }
     fitContextBudget(input.instructions, messages, allTools, input.inputBudgetTokens, iteration);
-    const turn = await deps.providers.runToolTurn({
+    throwIfRunStopped();
+    const turn = await untilStopped(deps.providers.runToolTurn({
       orgId: input.orgId,
       providerId: input.providerId,
       workspaceId: input.workspaceId,
       instructions: input.instructions,
       messages,
       tools: allTools,
+    })).catch((error: unknown) => {
+      throwIfRunStopped();
+      throw error;
     });
+    throwIfRunStopped();
     lastRequestId = turn.requestId;
     input.onModelTurn?.();
 
@@ -96,18 +102,19 @@ export async function runAgentLoop(deps: AgentRunLoopDeps, input: AgentRunLoopIn
     messages.push({ role: "assistant", text: turn.text, toolCalls: turn.toolCalls });
     const results: Array<{ toolCallId: string; toolName: string; output: string }> = [];
     for (const call of turn.toolCalls) {
+      throwIfRunStopped();
       toolCallCount += 1;
       let output: string;
       if (isComposioTool(call.name)) {
-        output = await executeComposioTool(deps.tools.db, deps.providers.integrationKeys, input.orgId, input.toolContext.agent.id, call);
+        output = await untilStopped(executeComposioTool(deps.tools.db, deps.providers.integrationKeys, input.orgId, input.toolContext.agent.id, call));
       } else if (isWorkspaceTool(call.name)) {
-        output = await executeWorkspaceTool(input.toolContext, call);
+        output = await untilStopped(executeWorkspaceTool(input.toolContext, call));
       } else if (isWebTool(call.name)) {
-        output = await executeWebTool(call);
+        output = await untilStopped(executeWebTool(call));
       } else if (call.name === "complete_goal") {
         // Runs an independent audit turn against the provider, so it needs
         // the loop's provider access rather than the sync dispatcher.
-        output = await completeGoalTool({
+        output = await untilStopped(completeGoalTool({
           deps: deps.tools,
           ctx: input.toolContext,
           providers: deps.providers,
@@ -115,7 +122,7 @@ export async function runAgentLoop(deps: AgentRunLoopDeps, input: AgentRunLoopIn
           workspaceId: input.workspaceId,
           inputBudgetTokens: input.inputBudgetTokens,
           call,
-        });
+        }));
       } else {
         output = dispatchAgentTool(deps.tools, input.toolContext, call, {
           announceTaskAssignments: shouldAnnounceTaskAssignment(call, turn.toolCalls),

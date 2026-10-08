@@ -48,6 +48,10 @@ export interface SetAutonomousPausedInput {
   paused: boolean;
 }
 
+export interface StopRunInput {
+  runId: string;
+}
+
 export interface UpdateEmployeeProfileInput {
   orgId: string;
   employeeId: string;

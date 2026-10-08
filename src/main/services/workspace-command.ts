@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { currentRunSignal } from "./run-control";
 
 const COMMAND_TIMEOUT_MS = 120_000;
 const KEEP_BYTES = 8_000;
@@ -51,6 +52,7 @@ export function runCommand(workspaceRoot: string, command: string): Promise<stri
       killedByTimeout = true;
       child.kill();
     }, COMMAND_TIMEOUT_MS);
+    currentRunSignal()?.addEventListener("abort", () => child.kill(), { once: true });
     const collect = (chunk: Buffer): void => output.push(chunk);
     child.stdout.on("data", collect);
     child.stderr.on("data", collect);

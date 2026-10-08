@@ -13,6 +13,7 @@ import { runAgentLoop, runTools } from "./agent-run-loop";
 import type { RunModel } from "./skill-runtime";
 import { combineMidRunPolls, createGoalChangePoller } from "./goal-change-poller";
 import { recordRunAction, runJournalLines } from "./run-journal";
+import { currentRunSignal, RUN_STOPPED_MESSAGE, withRunControl } from "./run-control";
 import type { AgentToolContext } from "./agent-tools";
 import {
   buildAgentInstructions,
@@ -46,6 +47,7 @@ const TASK_RUN_STATE = {
   COMPLETED: "completed",
   FAILED: "failed",
   SUPERSEDED: "superseded",
+  STOPPED: "stopped",
 } as const;
 
 
@@ -97,7 +99,7 @@ export class TaskExecutionService {
     const workspace = loadWorkspace(this.db, task.workspace_id);
     const isolation = createIsolationContext(this.db, input.orgId, task, agent, provider, workspace);
     const runId = this.createRun(input.orgId, task.id, agent.id, provider.id, isolation);
-    return this.executeAgentRun({ orgId: input.orgId, runId, task, agent, provider, workspace, isolation });
+    return withRunControl(runId, () => this.executeAgentRun({ orgId: input.orgId, runId, task, agent, provider, workspace, isolation }));
   }
 
   /** Executes a claimed run after re-checking that the task still matches it; a mismatch supersedes the run. */
@@ -155,7 +157,7 @@ export class TaskExecutionService {
       if (task && task.origin === null) recordRunMemory(this.db, { orgId, runId, projectId: task.project_id, taskTitle: task.title, outcome: "failed", text: message });
       throw error;
     }
-    return this.executeAgentRun(prepared);
+    return withRunControl(runId, () => this.executeAgentRun(prepared));
   }
 
   private async executeAgentRun(args: {
@@ -280,6 +282,11 @@ export class TaskExecutionService {
       return runId;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
+      // A stop wins over whatever error the interrupted step raised.
+      if (currentRunSignal()?.aborted) {
+        this.markStopped(orgId, runId, providerRequestId, { taskId: task.id, agentId: agent.id, providerId: provider.id });
+        throw error;
+      }
       this.failRun(orgId, runId, providerRequestId, message);
       if (isTransientProviderFailure(message)) this.cooldowns.park(provider, message);
       else if (task.origin === null) recordRunMemory(this.db, { orgId, runId, projectId: task.project_id, taskTitle: task.title, outcome: "failed", text: message });
@@ -413,6 +420,16 @@ export class TaskExecutionService {
       .get(run.task_id, orgId) as { status: string } | undefined;
     if (!task || (task.status !== TASK_STATUS.BACKLOG && task.status !== TASK_STATUS.IN_PROGRESS)) return;
     this.organization.updateTaskStatus(orgId, run.task_id, TASK_STATUS.DONE);
+  }
+
+  /** The operator stopped the run: not a failure, no retry budget spent, no memory recorded. */
+  private markStopped(orgId: string, runId: string, providerRequestId: string | null, payload: { taskId: string; agentId: string; providerId: string }): void {
+    this.db.prepare(`
+      update task_runs set state = ?, provider_request_id = coalesce(?, provider_request_id), completed_at = ?, error_message = ?
+      where id = ? and org_id = ?
+    `).run(TASK_RUN_STATE.STOPPED, providerRequestId, new Date().toISOString(), RUN_STOPPED_MESSAGE, runId, orgId);
+    this.closeChatWakeTask(orgId, runId);
+    this.audit.record({ orgId, entityType: "task_run", entityId: runId, actorType: "employee", actorId: null, action: "stopped", payload });
   }
 
   /** Closes a queued run that no longer matches its task; it is not a failure and spends no retry budget. */

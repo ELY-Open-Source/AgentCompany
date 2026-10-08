@@ -33,6 +33,7 @@ import { importStagedSkills, stageBuiltinSkillsLibrary } from "../services/built
 import { coalesce } from "./coalesce";
 import { normalizeExternalBrowserUrl } from "./external-url";
 import { resumeGoal } from "../services/goal-review-service";
+import { stopAllRuns, stopRun } from "../services/run-control";
 
 export interface IpcDeps {
   connection: DatabaseConnection;
@@ -147,7 +148,14 @@ export function registerIpcHandlers(deps: IpcDeps): void {
   ipcMain.handle(IPC_CHANNELS.createAgent, (_event, input) => mutate(() => organization.createAgent(input)));
   ipcMain.handle(IPC_CHANNELS.updateAgent, (_event, input) => mutate(() => organization.updateAgent(input)));
   ipcMain.handle(IPC_CHANNELS.updateEmployeeProfile, (_event, input) => mutate(() => organization.updateEmployeeProfile(input)));
-  ipcMain.handle(IPC_CHANNELS.setAutonomousPaused, (_event, input) => mutate(() => organization.setAutonomousPaused(Boolean(input.paused))));
+  ipcMain.handle(IPC_CHANNELS.setAutonomousPaused, (_event, input) => mutate(() => {
+    organization.setAutonomousPaused(Boolean(input.paused));
+    // Pausing also stops the sessions already running, not just future scheduling.
+    if (input.paused) stopAllRuns();
+  }));
+  ipcMain.handle(IPC_CHANNELS.stopRun, (_event, input) => mutate(() => {
+    if (!stopRun(input.runId)) throw new Error("That run is not running anymore.");
+  }));
   ipcMain.handle(IPC_CHANNELS.setIntegrationKey, (_event, input) => mutate(() => integrationKeys.write(input.name, input.value)));
   ipcMain.handle(IPC_CHANNELS.clearIntegrationKey, (_event, input) => mutate(() => integrationKeys.clear(input.name)));
   ipcMain.handle(IPC_CHANNELS.createTask, (_event, input) => mutate(() => organization.createTask(input)));

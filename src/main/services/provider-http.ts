@@ -1,5 +1,6 @@
 import type { ProviderObservedRateLimitState } from "../../shared/provider-runtime-domain";
 import { parseProviderRateLimitHeaders } from "./provider-rate-limit-registry";
+import { currentRunSignal, throwIfRunStopped } from "./run-control";
 
 export type JsonRecord = Record<string, unknown>;
 
@@ -69,7 +70,7 @@ export async function postEventStream(
   body: JsonRecord,
   timeouts: ProviderRequestTimeouts = {},
 ): Promise<ProviderEventStreamResponse> {
-  const controller = new AbortController();
+  const controller = linkedController();
   const response = await withDeadline(controller, timeouts.headersTimeoutMs ?? HEADERS_TIMEOUT_MS, () => fetch(endpoint, {
     method: "POST",
     headers: {
@@ -92,7 +93,7 @@ export async function postEventStream(
 }
 
 async function requestJson(endpoint: string, init: RequestInit, timeouts: ProviderRequestTimeouts = {}): Promise<ProviderJsonResponse> {
-  const controller = new AbortController();
+  const controller = linkedController();
   const response = await withDeadline(controller, timeouts.headersTimeoutMs ?? HEADERS_TIMEOUT_MS, () => fetch(endpoint, { ...init, signal: controller.signal }));
   const rateLimitState = parseProviderRateLimitHeaders(response.headers);
   const raw = await withDeadline(controller, timeouts.bodyTimeoutMs ?? BODY_TIMEOUT_MS, () => response.text());
@@ -110,11 +111,21 @@ async function requestJson(endpoint: string, init: RequestInit, timeouts: Provid
  * then stalls the body must not hang the caller, so the body read gets its
  * own (longer) deadline after the headers arrive.
  */
+/** A request controller that also aborts when the operator stops the run it belongs to. */
+function linkedController(): AbortController {
+  const controller = new AbortController();
+  const runSignal = currentRunSignal();
+  if (runSignal?.aborted) controller.abort();
+  else runSignal?.addEventListener("abort", () => controller.abort(), { once: true });
+  return controller;
+}
+
 async function withDeadline<T>(controller: AbortController, timeoutMs: number, operation: () => Promise<T>): Promise<T> {
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     return await operation();
   } catch (error) {
+    throwIfRunStopped();
     if (controller.signal.aborted) throw new ProviderHttpError("Provider request timed out.", null);
     throw error;
   } finally {

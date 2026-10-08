@@ -6,6 +6,7 @@ import type { AgentToolContext, AgentToolDeps } from "./agent-tools";
 import type { JsonRecord } from "./provider-http";
 import type { ProviderService } from "./provider-service";
 import type { AgentTurnMessage, ToolCall, ToolDefinition } from "./provider-tool-turn";
+import { throwIfRunStopped } from "./run-control";
 
 const AUDIT_MAX_ITERATIONS = 6;
 const STATUS_TASK_LINES = 8;
@@ -83,6 +84,7 @@ export async function completeGoalTool(args: GoalCompletionArgs): Promise<string
     if (!verdict.approved) {
       return `The independent audit rejected closing the goal: ${verdict.reason} The goal stays active — close that gap or create the tasks that will.`;
     }
+    throwIfRunStopped();
     deps.db.prepare("update goals set status = 'achieved', stalled_reason = null, updated_at = ? where id = ? and org_id = ?")
       .run(new Date().toISOString(), goal.id, ctx.orgId);
     new AuditService(deps.db).record({

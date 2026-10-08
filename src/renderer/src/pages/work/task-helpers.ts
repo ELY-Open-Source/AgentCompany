@@ -28,6 +28,7 @@ export function prettyRunState(state: string): string {
   if (state === "completed") return t("completed");
   if (state === "failed") return t("failed");
   if (state === "superseded") return t("superseded");
+  if (state === "stopped") return t("stopped");
   return state.replaceAll("_", " ");
 }
 

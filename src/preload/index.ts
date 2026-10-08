@@ -17,6 +17,7 @@ const api: DesktopApi = {
   updateAgent: (input) => invoke(IPC_CHANNELS.updateAgent, input),
   updateEmployeeProfile: (input) => invoke(IPC_CHANNELS.updateEmployeeProfile, input),
   setAutonomousPaused: (input) => invoke(IPC_CHANNELS.setAutonomousPaused, input),
+  stopRun: (input) => invoke(IPC_CHANNELS.stopRun, input),
   setIntegrationKey: (input) => invoke(IPC_CHANNELS.setIntegrationKey, input),
   clearIntegrationKey: (input) => invoke(IPC_CHANNELS.clearIntegrationKey, input),
   createTask: (input) => invoke(IPC_CHANNELS.createTask, input),

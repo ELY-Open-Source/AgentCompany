@@ -7,6 +7,7 @@ import type {
   CancelProviderResponseInput,
   CreateAgentInput,
   SetAutonomousPausedInput,
+  StopRunInput,
   SetIntegrationKeyInput,
   ClearIntegrationKeyInput,
   UpdateAgentInput,
@@ -119,6 +120,7 @@ export interface DesktopApi {
   updateAgent(input: UpdateAgentInput): Promise<DesktopResult<AppSnapshot>>;
   updateEmployeeProfile(input: UpdateEmployeeProfileInput): Promise<DesktopResult<AppSnapshot>>;
   setAutonomousPaused(input: SetAutonomousPausedInput): Promise<DesktopResult<AppSnapshot>>;
+  stopRun(input: StopRunInput): Promise<DesktopResult<AppSnapshot>>;
   setIntegrationKey(input: SetIntegrationKeyInput): Promise<DesktopResult<AppSnapshot>>;
   clearIntegrationKey(input: ClearIntegrationKeyInput): Promise<DesktopResult<AppSnapshot>>;
   createTask(input: CreateTaskInput): Promise<DesktopResult<AppSnapshot>>;

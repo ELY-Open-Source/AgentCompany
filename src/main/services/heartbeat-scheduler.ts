@@ -55,7 +55,7 @@ export class HeartbeatScheduler {
         and not exists (select 1 from tasks c where c.parent_task_id = t.id and c.status <> 'done')
         and (t.origin is not null or t.goal_id is null or exists (select 1 from goals g where g.id = t.goal_id and g.status = 'active'))
         and (a.heartbeat_interval_sec <= 0 or not exists (
-          select 1 from task_runs hb where hb.agent_id = a.id and hb.trigger = 'heartbeat' and hb.state <> 'superseded'
+          select 1 from task_runs hb where hb.agent_id = a.id and hb.trigger = 'heartbeat' and hb.state not in ('superseded', 'stopped')
             and hb.created_at > strftime('%Y-%m-%dT%H:%M:%fZ', ?, '-' || a.heartbeat_interval_sec || ' seconds')
         ))
       order by case t.priority when 'high' then 0 when 'normal' then 1 else 2 end, t.created_at
@@ -64,7 +64,7 @@ export class HeartbeatScheduler {
     const cooling = new Set(this.cooldowns.cooledProviderIds());
     const attemptMessages = this.db.prepare(`
       select r.error_message from task_runs r join tasks t on t.id = r.task_id
-      where r.task_id = ? and r.state <> 'superseded' and r.rowid > t.run_budget_floor
+      where r.task_id = ? and r.state not in ('superseded', 'stopped') and r.rowid > t.run_budget_floor
     `);
     const created: string[] = [];
     const pacedAgents = new Set<string>();
