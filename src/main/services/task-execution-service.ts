@@ -83,7 +83,7 @@ export class TaskExecutionService {
     this.audit = new AuditService(db);
     this.organization = new OrganizationService(db);
     this.chat = new ChatService(db);
-    this.cooldowns = new ProviderCooldowns(now);
+    this.cooldowns = new ProviderCooldowns(db, now);
     this.heartbeat = new HeartbeatScheduler(db, this.cooldowns, now, notifyDataChanged);
   }
 
