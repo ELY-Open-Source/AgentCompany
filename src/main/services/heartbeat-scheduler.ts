@@ -13,7 +13,7 @@ export class HeartbeatScheduler {
   /** Tasks already logged as budget-spent, so the park is announced once, not every 5s tick. */
   private spentTasksLogged = new Set<string>();
 
-  constructor(private readonly db: DatabaseSync, private readonly cooldowns: ProviderCooldowns) {}
+  constructor(private readonly db: DatabaseSync, private readonly cooldowns: ProviderCooldowns, private readonly now: () => number) {}
 
   /**
    * Heartbeat: keeps every open assigned task of a heartbeat-enabled agent
@@ -33,8 +33,10 @@ export class HeartbeatScheduler {
    */
   enqueueHeartbeatRuns(): string[] {
     const window = currentProviderUsageWindow();
+    const nowIso = new Date(this.now()).toISOString();
+    // An agent's heartbeat interval paces it: one heartbeat run per interval, its most important task first.
     const rows = this.db.prepare(`
-      select t.id as task_id, t.org_id as org_id, p.id as provider_id
+      select t.id as task_id, t.org_id as org_id, p.id as provider_id, a.id as agent_id, a.heartbeat_interval_sec as interval_sec
       from tasks t
       join agents a on a.id = t.assignee_agent_id and a.org_id = t.org_id
       join providers p on p.id = a.model_provider_id and p.org_id = t.org_id
@@ -47,13 +49,20 @@ export class HeartbeatScheduler {
         and coalesce(u.request_count, 0) < p.monthly_request_limit
         and not exists (select 1 from task_runs r where r.task_id = t.id and r.state in ('queued', 'running'))
         and not exists (select 1 from tasks c where c.parent_task_id = t.id and c.status <> 'done')
-    `).all(window.start) as Array<{ task_id: string; org_id: string; provider_id: string }>;
+        and (a.heartbeat_interval_sec <= 0 or not exists (
+          select 1 from task_runs hb where hb.agent_id = a.id and hb.trigger = 'heartbeat' and hb.state <> 'superseded'
+            and hb.created_at > strftime('%Y-%m-%dT%H:%M:%fZ', ?, '-' || a.heartbeat_interval_sec || ' seconds')
+        ))
+      order by case t.priority when 'high' then 0 when 'normal' then 1 else 2 end, t.created_at
+    `).all(window.start, nowIso) as Array<{ task_id: string; org_id: string; provider_id: string; agent_id: string; interval_sec: number }>;
     this.observeQuotaBlocks(window.start);
     const cooling = new Set(this.cooldowns.cooledProviderIds());
     const attemptMessages = this.db.prepare("select error_message from task_runs where task_id = ? and state <> 'superseded'");
     const created: string[] = [];
+    const pacedAgents = new Set<string>();
     for (const row of rows) {
       if (cooling.has(row.provider_id)) continue;
+      if (row.interval_sec > 0 && pacedAgents.has(row.agent_id)) continue;
       const attempts = (attemptMessages.all(row.task_id) as Array<{ error_message: string | null }>)
         .filter((run) => !isTransientProviderFailure(run.error_message)).length;
       if (attempts >= TASK_RETRY_BUDGET) {
@@ -62,6 +71,7 @@ export class HeartbeatScheduler {
       }
       try {
         created.push(this.enqueueRun(row.org_id, row.task_id));
+        pacedAgents.add(row.agent_id);
       } catch {
         // Skip tasks that cannot be prepared yet (e.g. provider not fully configured).
       }
@@ -120,7 +130,7 @@ export class HeartbeatScheduler {
     const workspace = loadWorkspace(this.db, task.workspace_id);
     const isolation = createIsolationContext(this.db, orgId, task, agent, provider, workspace);
     const runId = createId("run");
-    const now = new Date().toISOString();
+    const now = new Date(this.now()).toISOString();
     this.db.prepare(`
       insert into task_runs(
         id, org_id, task_id, agent_id, provider_id, provider_request_id,

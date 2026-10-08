@@ -79,7 +79,8 @@ describe("task dependencies", () => {
     expect(waiting).toHaveLength(1);
     expect(queuedTasks()).toEqual([childId]);
 
-    h.connection.db.prepare("update task_runs set state = 'completed' where state = 'queued'").run();
+    // Past the CEO's heartbeat interval, so pacing does not hold the parent back.
+    h.connection.db.prepare("update task_runs set state = 'completed', created_at = '2000-01-01T00:00:00.000Z' where state = 'queued'").run();
     h.organization.updateTaskStatus(h.orgId, childId, TASK_STATUS.DONE);
     h.connection.transaction(() => h.execution.enqueueHeartbeatRuns());
     expect(queuedTasks()).toEqual([parentId]);

@@ -654,6 +654,50 @@ describe("task execution service", () => {
     connection.close();
   });
 
+  test("each agent's heartbeat interval paces how often its work is queued, most important task first", () => {
+    const connection = createConnection();
+    const organization = new OrganizationService(connection.db);
+    const providers = new ProviderService(connection.db, providerAdapters, testVault);
+    let clock = Date.now();
+    const execution = new TaskExecutionService(connection.db, providers, undefined, undefined, () => clock);
+    let orgId = "";
+    const tasks: Record<string, string> = {};
+    connection.transaction(() => {
+      orgId = organization.createOrganization({ organizationName: "Acme", employeeName: "Dana Lee", mission: "m", goal: "g" });
+      const providerId = openAiProviderId(connection, orgId);
+      providers.saveCredential({ orgId, providerId, secret: "sk-live-provider", model: "gpt-5.4" });
+      for (const [name, interval] of [["Slow", 600], ["Eager", 0]] as const) {
+        const agentId = organization.createAgent({
+          orgId, name, role: "Engineer", department: "Engineering", modelProviderId: providerId, modelId: "gpt-5.4",
+          budgetCents: 10000, managerAgentId: null, heartbeatEnabled: true, heartbeatIntervalSec: interval,
+        });
+        for (const priority of [TASK_PRIORITY.LOW, TASK_PRIORITY.HIGH]) {
+          tasks[`${name}-${priority}`] = organization.createTask({
+            orgId, title: `${name} ${priority}`, description: "d", status: TASK_STATUS.BACKLOG, assigneeAgentId: agentId,
+            risk: RISK_LEVEL.LOW, projectId: null, goalId: null, workspaceId: null, priority, requiresFilesystem: false,
+          });
+        }
+      }
+    });
+    const queuedTasks = () => (connection.db.prepare("select task_id from task_runs where state = 'queued'").all() as Array<{ task_id: string }>).map((row) => row.task_id).sort();
+    const finishQueued = () => connection.db.prepare("update task_runs set state = 'completed' where state = 'queued'").run();
+
+    connection.transaction(() => execution.enqueueHeartbeatRuns());
+    expect(queuedTasks()).toEqual([tasks["Eager-high"], tasks["Eager-low"], tasks["Slow-high"]].sort());
+    finishQueued();
+
+    clock += 300_000;
+    connection.transaction(() => execution.enqueueHeartbeatRuns());
+    expect(queuedTasks()).toEqual([tasks["Eager-high"], tasks["Eager-low"]].sort());
+    finishQueued();
+
+    clock += 301_000;
+    connection.transaction(() => execution.enqueueHeartbeatRuns());
+    expect(queuedTasks()).toContain(tasks["Slow-high"]);
+    expect(queuedTasks()).not.toContain(tasks["Slow-low"]);
+    connection.close();
+  });
+
   test("an open task with a completed run keeps getting sessions until done or the budget is spent", () => {
     const connection = createConnection();
     const organization = new OrganizationService(connection.db);
