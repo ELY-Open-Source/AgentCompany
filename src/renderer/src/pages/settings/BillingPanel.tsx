@@ -1,6 +1,7 @@
 import { Avatar, Pill } from "../../shared/ui";
 import type { AgentRecord, HiringPolicyRecord, ProviderRecord, ProviderRequestRecord } from "../../../../shared/domain";
 import { money } from "../types";
+import { buildAgentSpend } from "./billing-helpers";
 import { t } from "../../i18n/i18n";
 
 export function BillingPanel({
@@ -24,7 +25,7 @@ export function BillingPanel({
   const reasoningTokens = sum((r) => r.reasoningTokens);
   const unreported = monthRequests.filter((r) => r.inputTokens === null).length;
   const failedRequests = monthRequests.filter((r) => r.state === "failed");
-  const agentSpend = buildAgentSpend(agents, providers, monthRequests);
+  const agentSpend = buildAgentSpend(agents, monthRequests);
 
   return (
     <div>
@@ -62,7 +63,7 @@ export function BillingPanel({
       <div className="section-label" style={{ marginBottom: 10 }}>{t("Cost by agent")}</div>
       <div className="card" style={{ padding: 0, overflow: "hidden", marginBottom: 20 }}>
         <div className="table-row head" style={{ gridTemplateColumns: "minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr)" }}>
-          <div>{t("Agent")}</div><div>{t("Budget")}</div><div>{t("Requests")}</div><div>{t("Input")}</div><div>{t("Output")}</div>
+          <div>{t("Agent")}</div><div>{t("Budget")}</div><div>{t("Requests")}</div><div>{t("Tokens")}</div><div>{t("Spent")}</div>
         </div>
         {agentSpend.map((row, i) => (
           <div key={row.agent.id} className="table-row" style={{ gridTemplateColumns: "minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr)", borderBottom: i === agentSpend.length - 1 ? "none" : "1px solid var(--border-soft)" }}>
@@ -72,8 +73,8 @@ export function BillingPanel({
             </div>
             <div className="num mono">{money(row.agent.budgetCents)}</div>
             <div className="num mono">{row.requestCount}</div>
-            <div className="num mono" style={{ fontSize: 12 }}>{row.inputChars.toLocaleString()}</div>
-            <div className="num mono" style={{ fontSize: 12 }}>{row.outputChars.toLocaleString()}</div>
+            <div className="num mono" style={{ fontSize: 12 }}>{row.tokens.toLocaleString()}</div>
+            <div className="num mono" style={{ fontSize: 12 }}>${(row.spentCents / 100).toFixed(2)}</div>
           </div>
         ))}
       </div>
@@ -111,28 +112,6 @@ function StatTile({ label, value, tone }: { label: string; value: string; tone?:
       <div className="num" style={{ fontSize: 18, fontWeight: 600, color: tone === "red" ? "var(--red)" : "var(--text-1)" }}>{value}</div>
     </div>
   );
-}
-
-interface AgentSpendRow {
-  agent: AgentRecord;
-  requestCount: number;
-  inputChars: number;
-  outputChars: number;
-}
-
-function buildAgentSpend(agents: AgentRecord[], providers: ProviderRecord[], requests: ProviderRequestRecord[]): AgentSpendRow[] {
-  return agents.map((agent) => {
-    const agentRequests = requests.filter((r) => {
-      if (!agent.modelProviderId) return false;
-      return r.providerId === agent.modelProviderId;
-    });
-    return {
-      agent,
-      requestCount: agentRequests.length,
-      inputChars: agentRequests.reduce((s, r) => s + r.inputCharCount, 0),
-      outputChars: agentRequests.reduce((s, r) => s + r.outputCharCount, 0),
-    };
-  }).sort((a, b) => b.requestCount - a.requestCount);
 }
 
 function withinDays(iso: string, days: number): boolean {

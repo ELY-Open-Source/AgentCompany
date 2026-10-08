@@ -32,6 +32,7 @@ export const zh: Record<string, string> = {
   "superseded": "已被取代",
   "stalled": "已停滞",
   "Resume": "恢复",
+  "Spent": "已花费",
   "Tokens": "Token",
   "not reported": "未报告",
   "{input} in · {output} out": "输入 {input} · 输出 {output}",
