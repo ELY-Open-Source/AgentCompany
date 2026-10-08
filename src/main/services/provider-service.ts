@@ -1,6 +1,6 @@
 import type { DatabaseSync } from "node:sqlite";
 import { createHash, randomBytes } from "node:crypto";
-import type { CancelProviderResponseInput, LaunchProviderSignInInput, ListProviderModelsInput, RevokeProviderCredentialInput, SaveProviderCredentialInput, StreamProviderResponseInput, UpdateProviderPolicyInput } from "../../shared/commands";
+import type { CancelProviderResponseInput, LaunchProviderSignInInput, ListProviderModelsInput, RevokeProviderCredentialInput, SaveProviderCredentialInput, StreamProviderResponseInput, UpdateProviderPolicyInput, SetProviderPricesInput } from "../../shared/commands";
 import type { ProviderModelEntry } from "../../shared/provider-models";
 import { PROVIDER_AUTH_TYPE, PROVIDER_DATA_POLICY, type ProviderAuthType } from "../../shared/domain";
 import type { ProviderStreamRendererEvent } from "../../shared/provider-request-domain";
@@ -256,6 +256,27 @@ export class ProviderService {
         redirectUri: session.redirectUri,
         partition: session.partition,
       },
+    });
+  }
+
+  /** Sets the per-million-token prices that turn recorded usage into spend. */
+  setPrices(input: SetProviderPricesInput): void {
+    const cents = (dollars: number | null, label: string): number | null => {
+      if (dollars === null) return null;
+      if (!Number.isFinite(dollars) || dollars < 0) throw new Error(`${label} price must be a number of dollars per million tokens, zero or more.`);
+      return dollars * 100;
+    };
+    const inputCents = cents(input.inputDollarsPerMtok, "Input");
+    const outputCents = cents(input.outputDollarsPerMtok, "Output");
+    if ((inputCents === null) !== (outputCents === null)) throw new Error("Set both the input and the output price, or neither.");
+    const result = this.db.prepare(`
+      update providers set input_cents_per_mtok = ?, cached_input_cents_per_mtok = ?, output_cents_per_mtok = ?
+      where id = ? and org_id = ?
+    `).run(inputCents, cents(input.cachedInputDollarsPerMtok, "Cached input"), outputCents, input.providerId, input.orgId);
+    if (result.changes === 0) throw new Error("Provider was not found.");
+    this.audit.record({
+      orgId: input.orgId, entityType: "provider", entityId: input.providerId, actorType: "employee", actorId: null,
+      action: "prices_updated", payload: { input: input.inputDollarsPerMtok, cachedInput: input.cachedInputDollarsPerMtok, output: input.outputDollarsPerMtok },
     });
   }
 

@@ -26,6 +26,7 @@ interface ProvidersPanelProps {
   actions: SnapshotActions;
 }
 
+const PRICE_GRID = "minmax(150px, 1.4fr) 110px 110px 110px 92px";
 const POLICY_GRID = "minmax(150px, 1.2fr) minmax(118px, 0.8fr) minmax(140px, 1fr) 112px 124px 124px 92px";
 type WorkspaceScope = "organization" | "workspace";
 
@@ -81,6 +82,7 @@ export function ProvidersPanel({ orgId, employeeId, providers, authProfiles, cat
             providerRateLimits={providerRateLimits}
             actions={actions}
           />
+          <ProviderPricesTable orgId={orgId} providers={connected} actions={actions} />
         </>
       )}
 
@@ -157,6 +159,51 @@ function ProviderPolicyTable({
         })}
       </div>
     </>
+  );
+}
+
+/** Prices turn recorded token usage into spend, which agent and department budgets are checked against. */
+function ProviderPricesTable({ orgId, providers, actions }: { orgId: string; providers: ProviderRecord[]; actions: SnapshotActions }) {
+  return (
+    <>
+      <div className="section-label" style={{ marginBottom: 10 }}>{t("Prices (US$ per million tokens)")}</div>
+      <div className="card" style={{ padding: 0, overflowX: "auto", marginBottom: 28 }}>
+        <div className="table-row head" style={{ gridTemplateColumns: PRICE_GRID, minWidth: 640 }}>
+          <div>{t("Provider")}</div><div>{t("Input")}</div><div>{t("Cached input")}</div><div>{t("Output")}</div><div />
+        </div>
+        {providers.map((provider) => <ProviderPricesRow key={provider.id} orgId={orgId} provider={provider} actions={actions} />)}
+      </div>
+    </>
+  );
+}
+
+function ProviderPricesRow({ orgId, provider, actions }: { orgId: string; provider: ProviderRecord; actions: SnapshotActions }) {
+  const asDollars = (cents: number | null) => (cents === null ? "" : String(cents / 100));
+  const [input, setInput] = useState(asDollars(provider.inputCentsPerMtok));
+  const [cached, setCached] = useState(asDollars(provider.cachedInputCentsPerMtok));
+  const [output, setOutput] = useState(asDollars(provider.outputCentsPerMtok));
+  const [error, setError] = useState<string | null>(null);
+  const price = (value: string) => (value.trim() === "" ? null : Number(value));
+  const save = () => {
+    setError(null);
+    actions.run(() => window.agentCompany.setProviderPrices({
+      orgId, providerId: provider.id, inputDollarsPerMtok: price(input), cachedInputDollarsPerMtok: price(cached), outputDollarsPerMtok: price(output),
+    })).catch((failure: unknown) => setError(failure instanceof Error ? failure.message : String(failure)));
+  };
+  const field = (label: string, value: string, onChange: (next: string) => void) => (
+    <input className="input" aria-label={t("{label} {kind} price", { label: provider.label, kind: label })} type="number" min={0} step="0.01" value={value} onChange={(event) => onChange(event.target.value)} />
+  );
+  return (
+    <div className="table-row" style={{ gridTemplateColumns: PRICE_GRID, minWidth: 640 }}>
+      <div style={{ fontWeight: 540 }}>{provider.label}{provider.inputCentsPerMtok === null && <div style={{ fontSize: 12, color: "var(--text-3)" }}>{t("Unpriced: spend is not counted")}</div>}</div>
+      {field(t("input"), input, setInput)}
+      {field(t("cached input"), cached, setCached)}
+      {field(t("output"), output, setOutput)}
+      <div>
+        <button type="button" className="button small" aria-label={t("Save {label} prices", { label: provider.label })} onClick={save}>{t("Save")}</button>
+        {error && <div className="form-error" role="alert">{error}</div>}
+      </div>
+    </div>
   );
 }
 

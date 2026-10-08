@@ -64,6 +64,15 @@ export interface UpdateProviderPolicyInput {
   contextWindowTokens: number;
 }
 
+/** List prices in dollars per million tokens; null leaves a price unset. */
+export interface SetProviderPricesInput {
+  orgId: string;
+  providerId: string;
+  inputDollarsPerMtok: number | null;
+  cachedInputDollarsPerMtok: number | null;
+  outputDollarsPerMtok: number | null;
+}
+
 export interface CreateProviderResponseInput {
   orgId: string;
   providerId: string;

@@ -296,6 +296,10 @@ export interface ProviderRecord {
   workspaceScope: string;
   /** Model context window the run budget is computed against. */
   contextWindowTokens: number;
+  /** Prices in cents per million tokens; null until the operator sets them. */
+  inputCentsPerMtok: number | null;
+  cachedInputCentsPerMtok: number | null;
+  outputCentsPerMtok: number | null;
   createdAt: string;
 }
 

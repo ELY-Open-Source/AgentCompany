@@ -19,8 +19,8 @@ import {
 const TURNS: Record<string, ToolTurnFn> = {
   openai: runOpenAiResponsesTurn,
   anthropic: runAnthropicTurn,
-  xai: makeChatCompletionsTurn("https://api.x.ai/v1/chat/completions", "xAI"),
-  groq: makeChatCompletionsTurn("https://api.groq.com/openai/v1/chat/completions", "Groq"),
+  xai: makeChatCompletionsTurn("https://api.x.ai/v1/chat/completions", "xAI", true),
+  groq: makeChatCompletionsTurn("https://api.groq.com/openai/v1/chat/completions", "Groq", true),
   mistral: makeChatCompletionsTurn("https://api.mistral.ai/v1/chat/completions", "Mistral"),
   cerebras: makeChatCompletionsTurn("https://api.cerebras.ai/v1/chat/completions", "Cerebras"),
   openrouter: makeChatCompletionsTurn("https://openrouter.ai/api/v1/chat/completions", "OpenRouter"),

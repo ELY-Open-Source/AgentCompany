@@ -4,6 +4,7 @@ import { createId } from "../../shared/ids";
 import type { ProviderCooldowns } from "./provider-cooldowns";
 import { assertExecutionApproval, createIsolationContext, loadWorkspace, requireAgentProvider, requireAssignedAgent, requireTask } from "./task-run-preparation";
 import { AuditService } from "./audit-service";
+import { budgetBlock, isPriced, providerPrices } from "./spend";
 
 /** Sessions that made no progress before a task stalls. */
 const TASK_RETRY_BUDGET = 3;
@@ -14,6 +15,8 @@ const TASK_SESSION_CEILING = 12;
 export class HeartbeatScheduler {
   /** Providers currently parked on their monthly quota, for transition logging. */
   private quotaBlockedProviders = new Map<string, string>();
+  /** Agents parked on a spent monthly budget, for log-once. */
+  private readonly budgetParkedAgents = new Set<string>();
 
   constructor(
     private readonly db: DatabaseSync,
@@ -61,6 +64,13 @@ export class HeartbeatScheduler {
     for (const row of rows) {
       if (cooling.has(row.provider_id)) continue;
       if (row.interval_sec > 0 && pacedAgents.has(row.agent_id)) continue;
+      const overBudget = budgetBlock(this.db, row.agent_id, isPriced(providerPrices(this.db, row.provider_id)), new Date(this.now()));
+      if (overBudget) {
+        if (!this.budgetParkedAgents.has(row.agent_id)) console.info(`[task-queue] ${overBudget} Its work waits.`);
+        this.budgetParkedAgents.add(row.agent_id);
+        continue;
+      }
+      this.budgetParkedAgents.delete(row.agent_id);
       const sessions = (sessionsOf.all(row.task_id) as Array<{ error_message: string | null; progressed: number }>)
         .filter((run) => !isTransientProviderFailure(run.error_message));
       const stuck = sessions.filter((run) => run.progressed === 0).length;

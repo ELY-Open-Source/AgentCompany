@@ -1,6 +1,7 @@
 import type { DatabaseSync } from "node:sqlite";
 import { PROVIDER_EXECUTION_MODE, PROVIDER_REQUEST_STATE, type ProviderExecutionMode } from "../../shared/domain";
 import { createId } from "../../shared/ids";
+import type { TokenUsage } from "./spend";
 import { currentProviderUsageWindow } from "../../shared/provider-runtime-domain";
 
 export interface ProviderRequestOwner {
@@ -19,6 +20,11 @@ export interface CreateProviderRequestInput {
   inputCharCount: number;
   executionMode: ProviderExecutionMode;
   createdAt: string;
+  /** The agent and task run the call works for, when it is part of a run. */
+  agentId?: string | null;
+  taskRunId?: string | null;
+  /** The agent's department at call time, which its spend is charged to. */
+  department?: string | null;
 }
 
 export interface ProviderRequestProgressInput {
@@ -104,9 +110,9 @@ export class ProviderRequestStore {
         id, org_id, provider_id, provider_key, workspace_id, model, prompt_sha256,
         response_text, raw_response_json, state, error_message, input_char_count,
         output_char_count, execution_mode, policy_decision, external_response_id,
-        stream_event_count, cancelled_at, created_at, completed_at
+        stream_event_count, cancelled_at, created_at, completed_at, agent_id, task_run_id, department
       )
-      values (?, ?, ?, ?, ?, ?, ?, null, null, ?, null, ?, 0, ?, ?, null, 0, null, ?, null)
+      values (?, ?, ?, ?, ?, ?, ?, null, null, ?, null, ?, 0, ?, ?, null, 0, null, ?, null, ?, ?, ?)
     `).run(
       requestId,
       input.orgId,
@@ -120,8 +126,19 @@ export class ProviderRequestStore {
       input.executionMode,
       policyDecision(input.provider, input.workspaceId),
       input.createdAt,
+      input.agentId ?? null,
+      input.taskRunId ?? null,
+      input.department ?? null,
     );
     return requestId;
+  }
+
+  /** Records the tokens a call used and what it cost (null when its provider has no prices). */
+  recordSpend(requestId: string, usage: TokenUsage, costCents: number | null): void {
+    this.db.prepare(`
+      update provider_requests set input_tokens = ?, output_tokens = ?, cached_input_tokens = ?, reasoning_tokens = ?, cost_cents = ?
+      where id = ?
+    `).run(usage.inputTokens, usage.outputTokens, usage.cachedInputTokens, usage.reasoningTokens, costCents, requestId);
   }
 
   /** Terminal states (succeeded, failed, cancelled) are final: these transitions return false once one is reached. */

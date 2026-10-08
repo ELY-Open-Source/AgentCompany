@@ -16,6 +16,8 @@ import { hashPrompt, readProviderResponseId, requireStreamText } from "./provide
 import { type AgentTurnMessage, type AgentTurnResult, type ToolDefinition, type ToolTurnFn } from "./provider-tool-turn";
 import { selectToolTurn, supportsToolTurn } from "./provider-tool-turns/router";
 import { resolveTurnCredential } from "./provider-tool-turns/credential-resolver";
+import { currentRunId } from "./run-control";
+import { budgetBlock, isPriced, providerPrices, readTokenUsage, requestCostCents } from "./spend";
 import {
   HEALTH_STATE_HEALTHY,
   WORKSPACE_SCOPES,
@@ -47,6 +49,9 @@ export interface ProviderResponseRunnerDeps {
 }
 
 export class ProviderResponseRunner {
+  /** Providers already logged as not reporting token usage. */
+  private readonly unreportedUsage = new Set<string>();
+
   constructor(private readonly deps: ProviderResponseRunnerDeps) {}
 
   async createResponse(input: ProviderResponseCreateInput): Promise<string> {
@@ -116,9 +121,19 @@ export class ProviderResponseRunner {
     if (!model) throw new Error("Provider model is required.");
     const owner: ProviderRow & { model: string } = { ...provider, model };
     const turn = this.deps.toolTurn ?? selectToolTurn(provider.provider_key);
+    // A call made for a run is spent by its agent: refuse before calling once its budget is gone.
+    const taskRunId = currentRunId();
+    const agent = taskRunId
+      ? this.deps.db.prepare("select a.id, a.department from task_runs r join agents a on a.id = r.agent_id where r.id = ?").get(taskRunId) as { id: string; department: string }
+      : null;
+    const blocked = agent ? budgetBlock(this.deps.db, agent.id, isPriced(providerPrices(this.deps.db, provider.id)), new Date()) : null;
+    if (blocked) throw new Error(blocked);
     const credential = await resolveTurnCredential({ authBroker: this.deps.authBroker, integrationKeys: this.deps.integrationKeys, orgId: input.orgId, provider });
     const promptChars = JSON.stringify(input.messages).length;
     const requestId = this.deps.requestStore.create({
+      agentId: agent?.id ?? null,
+      taskRunId,
+      department: agent?.department ?? null,
       orgId: input.orgId,
       provider: owner,
       model,
@@ -149,6 +164,7 @@ export class ProviderResponseRunner {
         action: "response_created",
       });
       this.deps.requestStore.recordUsage(input.orgId, provider.id, promptChars, result.text.length);
+      this.recordSpend(requestId, owner, result.rawResponseJson);
       return { ...result, requestId };
     } catch (error) {
       this.deps.responseObserver.recordFailure({
@@ -162,6 +178,16 @@ export class ProviderResponseRunner {
       });
       throw error;
     }
+  }
+
+  private recordSpend(requestId: string, provider: { id: string; provider_key: string }, rawResponseJson: string): void {
+    const usage = readTokenUsage(rawResponseJson);
+    if (!usage) {
+      if (!this.unreportedUsage.has(provider.provider_key)) console.warn(`[spend] ${provider.provider_key} returned no token usage; its calls cost nothing on record.`);
+      this.unreportedUsage.add(provider.provider_key);
+      return;
+    }
+    this.deps.requestStore.recordSpend(requestId, usage, requestCostCents(usage, providerPrices(this.deps.db, provider.id)));
   }
 
   async streamResponse(input: StreamProviderResponseInput, onEvent: (event: ProviderStreamRendererEvent) => void): Promise<string> {

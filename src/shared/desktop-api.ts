@@ -89,6 +89,7 @@ import type {
   StreamProviderResponseInput,
   SyncEmployeeIdentityInput,
   UpdateProviderPolicyInput,
+  SetProviderPricesInput,
   UpdateTaskStatusInput,
 } from "./commands";
 import type { ProviderStreamRendererEvent } from "./provider-request-domain";
@@ -164,6 +165,7 @@ export interface DesktopApi {
   checkProviderHealth(input: CheckProviderHealthInput): Promise<DesktopResult<AppSnapshot>>;
   listProviderModels(input: ListProviderModelsInput): Promise<DesktopResult<ProviderModelEntry[]>>;
   updateProviderPolicy(input: UpdateProviderPolicyInput): Promise<DesktopResult<AppSnapshot>>;
+  setProviderPrices(input: SetProviderPricesInput): Promise<DesktopResult<AppSnapshot>>;
   openExternalUrl(url: string): Promise<DesktopResult<null>>;
   createProviderResponse(input: CreateProviderResponseInput): Promise<DesktopResult<AppSnapshot>>;
   streamProviderResponse(input: StreamProviderResponseInput): Promise<DesktopResult<AppSnapshot>>;

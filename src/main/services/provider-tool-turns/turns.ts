@@ -60,20 +60,22 @@ export async function runOpenAiResponsesTurn(input: ProviderToolTurnInput): Prom
  * "Provider request timed out." even though it is working. Streamed turns
  * emit chunks continuously and only a truly dead connection times out.
  */
-async function runChatCompletionsStream(endpoint: string, headers: Record<string, string>, input: ProviderToolTurnInput): Promise<AgentTurnResult> {
+async function runChatCompletionsStream(endpoint: string, headers: Record<string, string>, input: ProviderToolTurnInput, requestUsage = false): Promise<AgentTurnResult> {
   const body: JsonRecord = {
     model: input.model,
     messages: toChatMessages(input.instructions, input.messages),
     tools: chatToolDefs(input.tools),
     tool_choice: "auto",
     stream: true,
+    // Some providers only report a stream's token usage when asked; the others send it unasked and may reject the field.
+    ...(requestUsage ? { stream_options: { include_usage: true } } : {}),
   };
   const response = await postEventStream(endpoint, headers, body);
   return accumulateChatStream(response.messages);
 }
 
-export function makeChatCompletionsTurn(endpoint: string, label: string): (input: ProviderToolTurnInput) => Promise<AgentTurnResult> {
-  return async (input) => runChatCompletionsStream(endpoint, { authorization: `Bearer ${requireApiKey(input.credential, label)}` }, input);
+export function makeChatCompletionsTurn(endpoint: string, label: string, requestUsage = false): (input: ProviderToolTurnInput) => Promise<AgentTurnResult> {
+  return async (input) => runChatCompletionsStream(endpoint, { authorization: `Bearer ${requireApiKey(input.credential, label)}` }, input, requestUsage);
 }
 
 // ---- Anthropic Messages (api key) ----

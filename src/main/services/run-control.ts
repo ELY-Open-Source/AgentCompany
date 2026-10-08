@@ -3,7 +3,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 /** The error message a run ends with when the operator stops it. */
 export const RUN_STOPPED_MESSAGE = "Stopped by the operator.";
 
-const runSignals = new AsyncLocalStorage<AbortSignal>();
+const runScope = new AsyncLocalStorage<{ runId: string; signal: AbortSignal }>();
 const controllers = new Map<string, AbortController>();
 const settling = new Map<string, Promise<unknown>>();
 
@@ -11,7 +11,7 @@ const settling = new Map<string, Promise<unknown>>();
 export async function withRunControl<T>(runId: string, operation: () => Promise<T>): Promise<T> {
   const controller = new AbortController();
   controllers.set(runId, controller);
-  const running = runSignals.run(controller.signal, operation);
+  const running = runScope.run({ runId, signal: controller.signal }, operation);
   settling.set(runId, running.catch(() => undefined));
   try {
     return await running;
@@ -49,7 +49,12 @@ export function stopAllRuns(): number {
 
 /** The stop signal of the run this code executes in, if any. */
 export function currentRunSignal(): AbortSignal | undefined {
-  return runSignals.getStore();
+  return runScope.getStore()?.signal;
+}
+
+/** The task run this code executes in, if any. */
+export function currentRunId(): string | null {
+  return runScope.getStore()?.runId ?? null;
 }
 
 /** Why the current run was stopped, or null while it may continue. */

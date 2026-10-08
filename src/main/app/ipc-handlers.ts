@@ -211,6 +211,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
   ipcMain.handle(IPC_CHANNELS.saveProviderCredential, (_event, input) => mutate(() => providers.saveCredential(input)));
   ipcMain.handle(IPC_CHANNELS.revokeProviderCredential, (_event, input) => mutate(() => providers.revokeCredential(input)));
   ipcMain.handle(IPC_CHANNELS.updateProviderPolicy, (_event, input) => mutate(() => providers.updatePolicy(input)));
+  ipcMain.handle(IPC_CHANNELS.setProviderPrices, (_event, input) => mutate(() => providers.setPrices(input)));
   ipcMain.handle(IPC_CHANNELS.checkProviderHealth, async (_event, input) => {
     try {
       await providers.checkHealth(input.orgId, input.providerId);
