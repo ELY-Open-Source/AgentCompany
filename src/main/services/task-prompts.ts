@@ -160,6 +160,14 @@ function roleVoice(input: AgentInstructionContext): string {
   return "You own your craft. Ask the question early instead of guessing, do the work properly, and when you are stuck for more than a few minutes say so in the thread instead of spinning in place.";
 }
 
+function skillToolLines(toolsManifest: string, available: string[]): string[] {
+  const { requiredTools } = JSON.parse(toolsManifest) as { requiredTools: string[] };
+  const missing = requiredTools.filter((tool) => !available.includes(tool));
+  if (missing.length === 0) return [""];
+  console.warn(`[skills] run lacks tools its skills name: ${missing.join(", ")}`);
+  return ["", `Your skills name tools you do not have in this run: ${missing.join(", ")}. Work without them, and say so if that blocks the task.`];
+}
+
 export function buildTaskPrompt(input: {
   task: TaskExecutionTaskRow;
   agent: TaskExecutionAgentRow;
@@ -177,6 +185,8 @@ export function buildTaskPrompt(input: {
   knowledgeLines: string[];
   /** Completed runs this task already spent without reaching done. */
   priorCompletedRuns: number;
+  /** Names of the tools the model can call this run. */
+  availableToolNames: string[];
 }): string {
   const lines = [
     "Execute this AgentCompany task.",
@@ -214,8 +224,7 @@ export function buildTaskPrompt(input: {
       "",
       "Skills you carry this run — these are mandatory working practice, not suggestions. Apply each one to how you work and what you produce:",
       input.skillRuntimeSnapshot.compiled_prompt,
-      "",
-      `Tool allowlist: ${input.skillRuntimeSnapshot.tools_manifest}`,
+      ...skillToolLines(input.skillRuntimeSnapshot.tools_manifest, input.availableToolNames),
       `Skill revisions: ${input.skillRuntimeSnapshot.source_revision_ids}`,
     );
   }

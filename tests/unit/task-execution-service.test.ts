@@ -135,7 +135,8 @@ describe("task execution service", () => {
     expect(capturedPrompt).toContain("Execution context:");
     expect(capturedPrompt).toContain("Secret scope:");
     expect(capturedPrompt).toContain("Skills you carry this run");
-    expect(capturedPrompt).toContain("Tool allowlist:");
+    expect(capturedPrompt).not.toContain("Tool allowlist");
+    expect(capturedPrompt).toContain("Your skills name tools you do not have in this run: file_search. Work without them, and say so if that blocks the task.");
     expect(state.auditEvents.some((event) => event.entityType === "task_run" && event.action === "completed")).toBe(true);
     rmSync(skillDir, { recursive: true, force: true });
     connection.close();

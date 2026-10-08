@@ -9,7 +9,7 @@ import { OrganizationService } from "./organization-service";
 import { ChatService } from "./chat-service";
 import { deliverChatReplyIfMissing } from "./chat-agent-wake-service";
 import { SkillService } from "./skill-service";
-import { runAgentLoop } from "./agent-run-loop";
+import { runAgentLoop, runTools } from "./agent-run-loop";
 import type { AgentToolContext } from "./agent-tools";
 import {
   buildAgentInstructions,
@@ -197,6 +197,7 @@ export class TaskExecutionService {
             handoffLines: renderTaskHandoff(this.db, orgId, task.handoff_json),
             knowledgeLines: relevantKnowledgeLines(this.db, { orgId, agentId: agent.id, projectId: task.project_id, goalId: task.goal_id, taskId: task.id }, `${task.title}\n${task.description}`),
             priorCompletedRuns: this.completedRunCount(task.id, runId),
+            availableToolNames: runTools(externalTools).map((tool) => tool.name),
           }),
           toolContext,
           externalTools,

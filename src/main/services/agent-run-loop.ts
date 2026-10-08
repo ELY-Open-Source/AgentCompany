@@ -41,6 +41,11 @@ export interface AgentRunLoopDeps {
   onToolResults?: () => void;
 }
 
+/** Every tool the model can call in a run. */
+export function runTools(externalTools: ToolDefinition[]): ToolDefinition[] {
+  return [...AGENT_TOOLS, ...WORKSPACE_TOOLS, ...WEB_TOOLS, ...externalTools];
+}
+
 /**
  * Drives a real tool-use loop against the live provider: prompt the model with
  * the agent tools, execute every tool call it makes, feed results back, and
@@ -48,7 +53,7 @@ export interface AgentRunLoopDeps {
  * iteration cap is hit (which throws rather than silently truncating).
  */
 export async function runAgentLoop(deps: AgentRunLoopDeps, input: AgentRunLoopInput): Promise<AgentRunLoopResult> {
-  const allTools = [...AGENT_TOOLS, ...WORKSPACE_TOOLS, ...WEB_TOOLS, ...(input.externalTools ?? [])];
+  const allTools = runTools(input.externalTools ?? []);
   const messages: AgentTurnMessage[] = [{ role: "user", text: input.initialUserTurn }];
   let toolCallCount = 0;
   let lastRequestId = "";
