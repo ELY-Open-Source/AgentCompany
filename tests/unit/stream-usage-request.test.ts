@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { providerAdapters } from "../../src/main/services/provider-adapters";
-import { makeChatCompletionsTurn } from "../../src/main/services/provider-tool-turns/turns";
+import { makeChatCompletionsTurn, runCopilotTurn } from "../../src/main/services/provider-tool-turns/turns";
 
 const bodies: Array<Record<string, unknown>> = [];
 
@@ -28,5 +28,16 @@ describe("stream usage requests", () => {
 
     await makeChatCompletionsTurn("https://api.x.ai/v1/chat/completions", "xAI", true)({ credential: { apiKey: "k" }, model: "m", instructions: null, messages: [{ role: "user", text: "hi" }], tools: [] });
     expect(bodies.at(-1)?.stream_options).toEqual({ include_usage: true });
+  });
+});
+
+describe("system instructions", () => {
+  test("the GitHub Copilot turn sends the agent's instructions like every other Responses turn", async () => {
+    vi.stubGlobal("fetch", async (_url: string, init: RequestInit) => {
+      bodies.push(JSON.parse(String(init.body)) as Record<string, unknown>);
+      return new Response(JSON.stringify({ output: [{ type: "message", content: [{ type: "output_text", text: "ok" }] }] }), { status: 200, headers: { "content-type": "application/json" } });
+    });
+    await runCopilotTurn({ credential: { accessToken: "tid=1;exp=9999999999" }, model: "gpt-5.4", instructions: "You are Ada, the backend engineer.", messages: [{ role: "user", text: "hi" }], tools: [] });
+    expect(bodies.at(-1)?.instructions).toBe("You are Ada, the backend engineer.");
   });
 });

@@ -164,6 +164,7 @@ export async function runCopilotTurn(input: ProviderToolTurnInput): Promise<Agen
     tools: responsesToolDefs(input.tools),
     tool_choice: "auto",
     store: false,
+    ...(input.instructions ? { instructions: input.instructions } : {}),
   };
   const response = await postJson(`${baseUrl}/responses`, {
     Authorization: `Bearer ${access}`,
