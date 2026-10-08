@@ -11,6 +11,7 @@ import { deliverChatReplyIfMissing } from "./chat-agent-wake-service";
 import { SkillService } from "./skill-service";
 import { runAgentLoop, runTools } from "./agent-run-loop";
 import type { RunModel } from "./skill-runtime";
+import { combineMidRunPolls, createGoalChangePoller } from "./goal-change-poller";
 import type { AgentToolContext } from "./agent-tools";
 import {
   buildAgentInstructions,
@@ -121,6 +122,10 @@ export class TaskExecutionService {
       if (!sameWorkspaceAccess(run.workspace_mount_json, workspaceAccess(task, workspace))) {
         return this.supersedeRun(orgId, runId, run, "the task's workspace access changed after this run was queued.");
       }
+      const goal = task.origin === null && task.goal_id
+        ? this.db.prepare("select status from goals where id = ?").get(task.goal_id) as { status: string } | undefined
+        : undefined;
+      if (goal && goal.status !== "active") return this.supersedeRun(orgId, runId, run, `the task's goal is ${goal.status}, so its work stops.`);
       const openSubtask = this.db.prepare("select title from tasks where parent_task_id = ? and status <> 'done' limit 1").get(task.id) as { title: string } | undefined;
       if (openSubtask) return this.supersedeRun(orgId, runId, run, `the task has open subtasks ("${openSubtask.title}"); it runs again once they are done.`);
       const approvalProblem = executionApprovalProblem(this.db, orgId, task);
@@ -187,6 +192,8 @@ export class TaskExecutionService {
         .toolkitsForAgent(orgId, agent.id)
         .map(connectorDisplayName);
       const language = this.appLanguage();
+      // Baseline taken before any await, so a goal closed while tools load still reaches the session.
+      const goalChanges = createGoalChangePoller(this.db, task.goal_id);
       const externalTools = await loadComposioTools(this.db, this.providers.integrationKeys, orgId, agent.id);
       const result = await runAgentLoop(
         {
@@ -223,7 +230,10 @@ export class TaskExecutionService {
           externalTools,
           onModelTurn: contextRecorder.commit,
           inputBudgetTokens: inputBudgetTokens(provider.context_window_tokens),
-          pollNewMessages: createRunMessagePoller(this.db, { orgId, onInjected: contextRecorder.addMidRun, agentId: agent.id, sourceThreadId: chatContext?.threadId ?? null, runStartedAt }),
+          pollNewMessages: combineMidRunPolls(
+            goalChanges,
+            createRunMessagePoller(this.db, { orgId, onInjected: contextRecorder.addMidRun, agentId: agent.id, sourceThreadId: chatContext?.threadId ?? null, runStartedAt }),
+          ),
         },
       );
       providerRequestId = result.lastRequestId;

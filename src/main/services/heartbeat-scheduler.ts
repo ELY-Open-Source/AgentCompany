@@ -53,6 +53,7 @@ export class HeartbeatScheduler {
         and coalesce(u.request_count, 0) < p.monthly_request_limit
         and not exists (select 1 from task_runs r where r.task_id = t.id and r.state in ('queued', 'running'))
         and not exists (select 1 from tasks c where c.parent_task_id = t.id and c.status <> 'done')
+        and (t.origin is not null or t.goal_id is null or exists (select 1 from goals g where g.id = t.goal_id and g.status = 'active'))
         and (a.heartbeat_interval_sec <= 0 or not exists (
           select 1 from task_runs hb where hb.agent_id = a.id and hb.trigger = 'heartbeat' and hb.state <> 'superseded'
             and hb.created_at > strftime('%Y-%m-%dT%H:%M:%fZ', ?, '-' || a.heartbeat_interval_sec || ' seconds')
