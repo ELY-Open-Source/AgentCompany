@@ -35,6 +35,15 @@ export interface ProviderRequestRecord {
   cancelledAt: string | null;
   createdAt: string;
   completedAt: string | null;
+  agentId: string | null;
+  taskRunId: string | null;
+  /** Provider-reported token usage; null when the provider reported none. */
+  inputTokens: number | null;
+  outputTokens: number | null;
+  cachedInputTokens: number | null;
+  reasoningTokens: number | null;
+  /** Null when the provider has no prices or reported no usage. */
+  costCents: number | null;
 }
 
 export interface ProviderStreamRendererEvent {

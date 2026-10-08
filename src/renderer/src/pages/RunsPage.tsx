@@ -106,7 +106,7 @@ function RunDetail({ run, tasks, agents, providers, providerRequests, actions }:
   tasks: TaskRecord[];
   agents: AgentRecord[];
   providers: ProviderRecord[];
-  providerRequests: Array<{ id: string; orgId: string; providerId: string; model: string; state: string; responseText: string | null; inputCharCount: number; outputCharCount: number; createdAt: string }>;
+  providerRequests: Array<{ id: string; orgId: string; providerId: string; model: string; state: string; responseText: string | null; inputCharCount: number; outputCharCount: number; createdAt: string; inputTokens: number | null; outputTokens: number | null; costCents: number | null }>;
 }) {
   const task = tasks.find((t) => t.id === run.taskId);
   const agent = agents.find((a) => a.id === run.agentId);
@@ -169,6 +169,8 @@ function RunDetail({ run, tasks, agents, providers, providerRequests, actions }:
             <MetaLabel>{t("State")}</MetaLabel><div>{request.state}</div>
             <MetaLabel>{t("Input chars")}</MetaLabel><div className="num">{request.inputCharCount.toLocaleString()}</div>
             <MetaLabel>{t("Output chars")}</MetaLabel><div className="num">{request.outputCharCount.toLocaleString()}</div>
+            <MetaLabel>{t("Tokens")}</MetaLabel><div className="num">{request.inputTokens === null ? t("not reported") : t("{input} in · {output} out", { input: request.inputTokens.toLocaleString(), output: (request.outputTokens ?? 0).toLocaleString() })}</div>
+            <MetaLabel>{t("Cost")}</MetaLabel><div className="num">{request.costCents === null ? t("unpriced") : `$${(request.costCents / 100).toFixed(4)}`}</div>
           </div>
           {request.responseText && (
             <div style={{ marginTop: 12 }}>

@@ -17,8 +17,12 @@ export function BillingPanel({
   const totalBudget = agents.reduce((sum, a) => sum + a.budgetCents, 0);
   const totalCap = hiringPolicies.reduce((sum, p) => sum + p.monthlyBudgetLimitCents, 0);
   const monthRequests = providerRequests.filter((r) => withinDays(r.createdAt, 30));
-  const totalInputChars = monthRequests.reduce((s, r) => s + r.inputCharCount, 0);
-  const totalOutputChars = monthRequests.reduce((s, r) => s + r.outputCharCount, 0);
+  const sum = (pick: (request: ProviderRequestRecord) => number | null) => monthRequests.reduce((s, r) => s + (pick(r) ?? 0), 0);
+  const inputTokens = sum((r) => r.inputTokens);
+  const cachedTokens = sum((r) => r.cachedInputTokens);
+  const outputTokens = sum((r) => r.outputTokens);
+  const reasoningTokens = sum((r) => r.reasoningTokens);
+  const unreported = monthRequests.filter((r) => r.inputTokens === null).length;
   const failedRequests = monthRequests.filter((r) => r.state === "failed");
   const agentSpend = buildAgentSpend(agents, providers, monthRequests);
 
@@ -37,9 +41,11 @@ export function BillingPanel({
         <div className="card" style={{ padding: 14 }}>
           <div className="card-label" style={{ marginBottom: 8 }}>{t("Token usage (30d)")}</div>
           <div style={{ display: "grid", gridTemplateColumns: "100px 1fr", gap: "6px 14px", fontSize: 12 }}>
-            <span style={{ color: "var(--text-3)" }}>{t("Input chars")}</span><span className="num">{totalInputChars.toLocaleString()}</span>
-            <span style={{ color: "var(--text-3)" }}>{t("Output chars")}</span><span className="num">{totalOutputChars.toLocaleString()}</span>
-            <span style={{ color: "var(--text-3)" }}>{t("Total")}</span><span className="num">{(totalInputChars + totalOutputChars).toLocaleString()}</span>
+            <span style={{ color: "var(--text-3)" }}>{t("Input")}</span><span className="num">{inputTokens.toLocaleString()}</span>
+            <span style={{ color: "var(--text-3)" }}>{t("of which cached")}</span><span className="num">{cachedTokens.toLocaleString()}</span>
+            <span style={{ color: "var(--text-3)" }}>{t("Output")}</span><span className="num">{outputTokens.toLocaleString()}</span>
+            <span style={{ color: "var(--text-3)" }}>{t("of which reasoning")}</span><span className="num">{reasoningTokens.toLocaleString()}</span>
+            {unreported > 0 && <><span style={{ color: "var(--text-3)" }}>{t("Calls without usage")}</span><span className="num">{unreported}</span></>}
           </div>
         </div>
         <div className="card" style={{ padding: 14 }}>

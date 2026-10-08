@@ -120,28 +120,34 @@ export function SuccessRateChart({ taskRuns }: { taskRuns: TaskRunRecord[] }) {
   );
 }
 
-export function CostTrendChart({ providerRequests }: { providerRequests: Array<{ createdAt: string; inputCharCount: number; outputCharCount: number }> }) {
+/** Daily model tokens as the providers reported them; calls without reported usage are counted, not guessed. */
+export function CostTrendChart({ providerRequests }: { providerRequests: Array<{ createdAt: string; inputTokens: number | null; outputTokens: number | null }> }) {
   const buckets = last7DayBuckets(providerRequests.map((r) => r.createdAt));
-  const charBuckets = buckets.map((b, i) => {
+  const tokenBuckets = buckets.map((b, i) => {
     const dayStart = dayStartMs(i);
     const dayEnd = dayStart + 86400000;
-    const chars = providerRequests
+    const tokens = providerRequests
       .filter((r) => { const t = new Date(r.createdAt).getTime(); return t >= dayStart && t < dayEnd; })
-      .reduce((s, r) => s + r.inputCharCount + r.outputCharCount, 0);
-    return { ...b, chars };
+      .reduce((s, r) => s + (r.inputTokens ?? 0) + (r.outputTokens ?? 0), 0);
+    return { ...b, tokens };
   });
-  const totalChars = charBuckets.reduce((s, b) => s + b.chars, 0);
-  const max = Math.max(1, ...charBuckets.map((b) => b.chars));
-  const coords = charBuckets.map((b, i) => ({
+  const totalTokens = tokenBuckets.reduce((s, b) => s + b.tokens, 0);
+  // Same seven calendar days as the chart.
+  const unreported = providerRequests.filter((r) => r.inputTokens === null && new Date(r.createdAt).getTime() >= dayStartMs(0)).length;
+  const max = Math.max(1, ...tokenBuckets.map((b) => b.tokens));
+  const coords = tokenBuckets.map((b, i) => ({
     x: (i / 6) * (CHART_W - 10) + 5,
-    y: CHART_H - 20 - (b.chars / max) * (CHART_H - 30),
+    y: CHART_H - 20 - (b.tokens / max) * (CHART_H - 30),
     b,
   }));
   const points = coords.map((c) => `${c.x},${c.y}`).join(" ");
   const [hover, setHover] = useState<number | null>(null);
-  const readout = hover !== null && charBuckets[hover]
-    ? `${charBuckets[hover]!.label} · ${kchars(charBuckets[hover]!.chars)}`
-    : t("{n} this week", { n: kchars(totalChars) });
+  const week = unreported > 0
+    ? t("{n} tokens this week · {count} calls without usage", { n: compact(totalTokens), count: unreported })
+    : t("{n} tokens this week", { n: compact(totalTokens) });
+  const readout = hover !== null && tokenBuckets[hover]
+    ? `${tokenBuckets[hover]!.label} · ${compact(tokenBuckets[hover]!.tokens)}`
+    : week;
 
   return (
     <ChartCard title={t("Token usage")} readout={readout}>
@@ -159,9 +165,10 @@ export function CostTrendChart({ providerRequests }: { providerRequests: Array<{
   );
 }
 
-function kchars(chars: number): string {
-  if (chars >= 1000) return `${(chars / 1000).toFixed(chars >= 10000 ? 0 : 1)}k`;
-  return String(chars);
+function compact(count: number): string {
+  if (count >= 1_000_000) return `${(count / 1_000_000).toFixed(1)}M`;
+  if (count >= 1000) return `${(count / 1000).toFixed(count >= 10000 ? 0 : 1)}k`;
+  return String(count);
 }
 
 const weekdayFormat = new Intl.DateTimeFormat(undefined, { weekday: "short" });

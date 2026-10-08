@@ -122,7 +122,8 @@ export class SnapshotService {
         select id, org_id, provider_id, provider_key, workspace_id, model, prompt_sha256,
                response_text, state, error_message, input_char_count, output_char_count,
                execution_mode, policy_decision, external_response_id, stream_event_count,
-               cancelled_at, created_at, completed_at
+               cancelled_at, created_at, completed_at, agent_id, task_run_id,
+               input_tokens, output_tokens, cached_input_tokens, reasoning_tokens, cost_cents
         from provider_requests order by created_at desc limit 100
       `)).map((row) => camel(row) as unknown as AppSnapshot["providerRequests"][number]),
       providerRateLimits,
