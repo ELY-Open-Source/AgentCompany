@@ -191,6 +191,17 @@ describe("execution modes", () => {
     expect(db.prepare("select state from approvals where id = ?").get(review)).toEqual({ state: "pending" });
   });
 
+  test("a task without file access cannot write files, directly or by holding them for review", () => {
+    for (const mode of ["ai_ceo", "ai_cofounder"] as const) {
+      const h = harness(mode);
+      const readOnly = { ...h.ctx, workspace: { ...h.ctx.workspace!, writeAccess: false } };
+      expect(dispatchAgentTool(h.deps, readOnly, call("write_deliverable", { path: "notes.md", content: "x" })))
+        .toBe("ERROR: This task has read-only workspace access, so it cannot write files. Put the output in a document (create_document), or ask for a task with requires_filesystem, which the operator approves.");
+      expect(existsSync(join(h.ctx.workspace!.localPath, "notes.md"))).toBe(false);
+      expect(h.connection.db.prepare("select count(*) as n from held_deliverables").get()).toEqual({ n: 0 });
+    }
+  });
+
   test("AI CEO mode ships deliverables without review", () => {
     const h = harness("ai_ceo");
     const wrote = dispatchAgentTool(h.deps, h.ctx, call("write_deliverable", { path: "plan/business-plan.md", content: "# Plan" }));

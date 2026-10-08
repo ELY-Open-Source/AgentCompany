@@ -267,7 +267,14 @@ export function buildTaskPrompt(input: {
     );
     return lines.join("\n");
   }
-  if (input.task.requires_filesystem === 1 && input.workspace) {
+  // Only a task with approved file access can write files; every other task delivers through documents.
+  const writesFiles = input.task.requires_filesystem === 1 && input.workspace !== null;
+  const planStep = writesFiles
+    ? "write the initial operating plan into the workspace (write_deliverable). Then use send_message with /handoff @Name and attachment_file_ids to pass the operating plan to the relevant report."
+    : "write the initial operating plan as a document (create_document). Then point each relevant report to its doc_id in your message.";
+  const outputStep = writesFiles ? "write real output with write_deliverable" : "write real output as documents (create_document)";
+  const handoffStep = writesFiles ? " Hand files over with /handoff and attachment_file_ids." : " Point teammates to documents by doc_id.";
+  if (writesFiles) {
     lines.push(
       "",
       "This task carries filesystem access: read the existing code with list_files and read_file before changing anything, write changes with write_deliverable, and prove they work with run_command (install, build, test). Real output is code that builds and tests that pass — a document describing the work does not close an engineering task.",
@@ -296,14 +303,14 @@ export function buildTaskPrompt(input: {
       : `Tell your manager the plan in a direct message. Then ${park}`;
     lines.push(
       "",
-      `Your team is currently empty. First ${firstHiresFor(input.agent.role_level)}, create and assign their first tasks (create_task), and write the initial operating plan into the workspace (write_deliverable). Then use send_message with /handoff @Name and attachment_file_ids to pass the operating plan to the relevant report. Brief EACH report in a direct message (send_message with to="Their Name") about the work you assigned them — note the thread_id each returns so you can follow up in the same conversation. ${announce}`,
+      `Your team is currently empty. First ${firstHiresFor(input.agent.role_level)}, create and assign their first tasks (create_task), and ${planStep} Brief EACH report in a direct message (send_message with to="Their Name") about the work you assigned them — note the thread_id each returns so you can follow up in the same conversation. ${announce}`,
     );
   } else {
     const manager = input.managerName ?? "your manager";
     const managerReference = input.managerName ? `${manager} (${agentMention(input.managerName)})` : manager;
     lines.push(
       "",
-      `First, read_messages to check if anyone has said something you should respond to — reply to them like a colleague, not a report. Then do the work: write real output with write_deliverable, raise decisions and blockers with ${managerReference} in a direct message (send_message with to=), and keep team-wide topics in channels. Hand files over with /handoff and attachment_file_ids. Keep conversation going — ask questions, share your thinking, push back if something seems wrong. Before you finish: if the work is genuinely done, call update_task_status(task_id="${input.task.id}", status="done", evidence="what you produced and where"); if it needs another session, move it to "in_progress" and say in the thread what remains — an open task will be run again.`,
+      `First, read_messages to check if anyone has said something you should respond to — reply to them like a colleague, not a report. Then do the work: ${outputStep}, raise decisions and blockers with ${managerReference} in a direct message (send_message with to=), and keep team-wide topics in channels.${handoffStep} Keep conversation going — ask questions, share your thinking, push back if something seems wrong. Before you finish: if the work is genuinely done, call update_task_status(task_id="${input.task.id}", status="done", evidence="what you produced and where"); if it needs another session, move it to "in_progress" and say in the thread what remains — an open task will be run again.`,
     );
   }
   lines.push("", RECORD_LEARNINGS_INSTRUCTION);

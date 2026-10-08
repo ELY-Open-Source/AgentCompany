@@ -226,6 +226,9 @@ describe("agent instruction wiring", () => {
     expect(capturedPrompt).toContain("Tell your manager the plan in a direct message.");
     expect(capturedPrompt).not.toContain("#general");
     expect(capturedPrompt).not.toContain("Then do the work: write real output");
+    // A task without file access plans in a document; it is never told to write files.
+    expect(capturedPrompt).toContain("write the initial operating plan as a document (create_document)");
+    expect(capturedPrompt).not.toContain("(write_deliverable)");
     connection.close();
   });
 });

@@ -14,6 +14,10 @@ const REVIEW_EXCERPT_CHARS = 4000;
 
 export function writeDeliverableTool(deps: AgentToolDeps, ctx: AgentToolContext, args: JsonRecord): string {
   if (!ctx.workspace) throw new Error("No workspace is bound to this task; cannot write deliverables.");
+  // Writing a file is writing the workspace: only a task the operator approved for file access may, as with run_command.
+  if (!ctx.workspace.writeAccess) {
+    throw new Error("This task has read-only workspace access, so it cannot write files. Put the output in a document (create_document), or ask for a task with requires_filesystem, which the operator approves.");
+  }
   const path = requireString(args.path, "path");
   const content = requireString(args.content, "content");
   if (reviewsDeliverables(deps.db, ctx.orgId)) {

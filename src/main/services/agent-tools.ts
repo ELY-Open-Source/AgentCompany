@@ -112,7 +112,7 @@ export const AGENT_TOOLS: ToolDefinition[] = [
   },
   {
     name: "write_deliverable",
-    description: "Write a deliverable file into the company workspace folder (relative path). Use this to produce real output.",
+    description: "Write a deliverable file into the company workspace folder (relative path). Only tasks with filesystem access may write files; otherwise use create_document.",
     parameters: {
       type: "object",
       additionalProperties: false,
