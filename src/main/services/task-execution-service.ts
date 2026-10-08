@@ -107,17 +107,38 @@ export class TaskExecutionService {
       from task_runs where id = ? and org_id = ?
     `).get(runId, orgId) as RunRow | undefined;
     if (!run) throw new Error("Task run was not found.");
-    const task = this.requireTask(orgId, run.task_id);
-    const agent = this.requireAssignedAgent(orgId, task);
-    const provider = this.requireAgentProvider(orgId, agent);
-    const workspace = this.workspace(task.workspace_id);
-    const isolation: TaskRunIsolation = {
-      executionContextId: run.execution_context_id,
-      serviceIdentityId: run.service_identity_id,
-      workspaceMountJson: run.workspace_mount_json,
-      secretScopeJson: run.secret_scope_json,
-    };
-    return this.executeAgentRun({ orgId, runId, task, agent, provider, workspace, isolation });
+    let prepared: Parameters<TaskExecutionService["executeAgentRun"]>[0];
+    try {
+      const task = this.requireTask(orgId, run.task_id);
+      if (task.assignee_agent_id !== run.agent_id) {
+        throw new Error(`Task was reassigned after this run was queued (run agent ${run.agent_id}, assignee ${task.assignee_agent_id ?? "none"}).`);
+      }
+      const agent = this.requireAssignedAgent(orgId, task);
+      const provider = this.requireAgentProvider(orgId, agent);
+      const workspace = this.workspace(task.workspace_id);
+      const isolation: TaskRunIsolation = {
+        executionContextId: run.execution_context_id,
+        serviceIdentityId: run.service_identity_id,
+        workspaceMountJson: run.workspace_mount_json,
+        secretScopeJson: run.secret_scope_json,
+      };
+      prepared = { orgId, runId, task, agent, provider, workspace, isolation };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(`[task-run] run ${runId} failed before execution: ${message}`);
+      this.failRun(orgId, runId, null, message);
+      this.audit.record({
+        orgId,
+        entityType: "task_run",
+        entityId: runId,
+        actorType: "system",
+        actorId: null,
+        action: "failed",
+        payload: { taskId: run.task_id, agentId: run.agent_id, providerId: run.provider_id, stage: "preparation", errorMessage: message },
+      });
+      throw error;
+    }
+    return this.executeAgentRun(prepared);
   }
 
   private async executeAgentRun(args: {
@@ -297,6 +318,9 @@ export class TaskExecutionService {
   }
 
   private createRun(orgId: string, taskId: string, agentId: string, providerId: string, isolation: TaskRunIsolation): string {
+    const busy = this.db.prepare("select t.title from task_runs r join tasks t on t.id = r.task_id where r.agent_id = ? and r.state = 'running' limit 1")
+      .get(agentId) as { title: string } | undefined;
+    if (busy) throw new Error(`This agent is already working on "${busy.title}"; run again when that session ends.`);
     const runId = createId("run");
     const now = new Date().toISOString();
     this.db.prepare(`

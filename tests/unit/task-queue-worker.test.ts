@@ -40,14 +40,17 @@ describe("task queue worker claim", () => {
     const second = seedQueuedRun(connection, orgId, taskId, agentId, providerId);
 
     const claimedA = claimNextQueuedRun(connection);
+    // One session per agent: the second run waits while the first is running.
+    expect(claimNextQueuedRun(connection)).toBeNull();
+    connection.db.prepare("update task_runs set state = 'completed' where id = ?").run(claimedA!.id);
     const claimedB = claimNextQueuedRun(connection);
     const claimedC = claimNextQueuedRun(connection);
 
     expect([claimedA?.id, claimedB?.id].sort()).toEqual([first, second].sort());
     expect(claimedC).toBeNull();
 
-    const states = (connection.db.prepare("select state from task_runs where org_id = ? order by created_at").all(orgId) as Array<{ state: string }>).map((r) => r.state);
-    expect(states).toEqual(["running", "running"]);
+    const states = (connection.db.prepare("select state from task_runs where org_id = ? order by created_at").all(orgId) as Array<{ state: string }>).map((r) => r.state).sort();
+    expect(states).toEqual(["completed", "running"]);
     connection.close();
   });
 

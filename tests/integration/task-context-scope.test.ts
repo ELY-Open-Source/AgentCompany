@@ -7,6 +7,7 @@ import { OnboardingService } from "../../src/main/services/onboarding-service";
 import { ProviderService } from "../../src/main/services/provider-service";
 import { providerAdapters } from "../../src/main/services/provider-adapters";
 import { TaskExecutionService } from "../../src/main/services/task-execution-service";
+import { OrganizationService } from "../../src/main/services/organization-service";
 import { claimNextQueuedRun } from "../../src/main/app/task-queue-worker";
 import { canonicalMentionHandle } from "../../src/shared/mention-handles";
 import type { AgentTurnResult, ProviderToolTurnInput, ToolCall } from "../../src/main/services/provider-tool-turn";
@@ -64,9 +65,53 @@ describe("task prompt scope", () => {
     const task = connection.db.prepare("select id from tasks where org_id = ? and title = 'Build the booking API'").get(orgId) as { id: string };
     await execution.runTask({ orgId, taskId: task.id });
 
+    const danaId = (connection.db.prepare("select id from agents where org_id = ? and name = 'Dana Lee'").get(orgId) as { id: string }).id;
+    connection.db.prepare("update task_runs set state = 'running' where agent_id = ? and trigger = 'chat_mention'").run(danaId);
+    await expect(execution.runTask({ orgId, taskId: task.id })).rejects.toThrow("This agent is already working on");
+    const busyTaskId = (connection.db.prepare("select task_id from task_runs where agent_id = ? and state = 'running'").get(danaId) as { task_id: string }).task_id;
+    expect(() => new OrganizationService(connection.db).deleteTask({ orgId, taskId: busyTaskId })).toThrow("has a run in progress");
+    expect(connection.db.prepare("select count(*) as n from task_runs where task_id = ? and state = 'running'").get(busyTaskId)).toEqual({ n: 1 });
     expect(danaPrompts).toHaveLength(1);
     expect(danaPrompts[0]).toContain("Build the booking API");
     expect(danaPrompts[0]).not.toContain(CHANNEL_NOTE);
+    connection.close();
+  });
+
+  test("a queued run whose task was reassigned fails instead of running as someone else", async () => {
+    const connection = new DatabaseConnection(join(tmpdir(), `ac-reassign-${randomUUID()}.db`));
+    let calls = 0;
+    const turn = async (): Promise<AgentTurnResult> => {
+      calls += 1;
+      return { text: "done", toolCalls: [], rawResponseJson: "{}" };
+    };
+    const providers = new ProviderService(connection.db, providerAdapters, testVault, undefined, turn);
+    const onboarding = new OnboardingService({ db: connection.db, saveProviderCredential: (input) => providers.saveCredential(input) });
+    const organization = new OrganizationService(connection.db);
+    const execution = new TaskExecutionService(connection.db, providers);
+    let orgId = "";
+    let ceoId = "";
+    connection.transaction(() => {
+      const summary = onboarding.bootstrap({
+        companyName: "OrbitOps AI", companyDescription: "Ops.", employeeName: "Yang", workspacePath: "",
+        executionMode: "ai_ceo", autoApproveHires: true, reviewDeliverables: false,
+        goalTitle: "Stand up a service business.", goalDescription: "Win customers.",
+        providerKey: "openai", providerSecret: "sk-test-key", providerModel: "gpt-5.4",
+      });
+      orgId = summary.orgId;
+      ceoId = summary.ceoAgentId;
+    });
+    const providerId = (connection.db.prepare("select model_provider_id as id from agents where id = ?").get(ceoId) as { id: string }).id;
+    const otherId = organization.createAgent({
+      orgId, name: "Ops Lead", role: "Ops", department: "Operations",
+      modelProviderId: providerId, modelId: "gpt-5.4", budgetCents: 1000, managerAgentId: ceoId,
+    });
+    const kickoff = claimNextQueuedRun(connection)!;
+    const taskId = (connection.db.prepare("select task_id from task_runs where id = ?").get(kickoff.id) as { task_id: string }).task_id;
+    connection.db.prepare("update tasks set assignee_agent_id = ? where id = ?").run(otherId, taskId);
+
+    await expect(execution.executeRun(orgId, kickoff.id)).rejects.toThrow("Task was reassigned after this run was queued");
+    expect(connection.db.prepare("select state from task_runs where id = ?").get(kickoff.id)).toEqual({ state: "failed" });
+    expect(calls).toBe(0);
     connection.close();
   });
 });

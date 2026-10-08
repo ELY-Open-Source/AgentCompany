@@ -98,3 +98,41 @@ describe("queue claim priority", () => {
     h.connection.close();
   });
 });
+
+describe("one session per agent", () => {
+  test("a queued run for an agent that is already running waits; others proceed", () => {
+    const h = harness();
+    const spaceWithCeo = h.chat.ensureDirectSpace(h.orgId, { type: "employee", id: h.employeeId }, { type: "agent", id: h.ceoId });
+    const spaceWithDana = h.chat.ensureDirectSpace(h.orgId, { type: "employee", id: h.employeeId }, { type: "agent", id: h.danaId });
+    const say = (spaceId: string, bodyMd: string) => h.chat.sendMessage({
+      orgId: h.orgId, spaceId, threadId: null, senderType: "employee", senderId: h.employeeId, bodyMd, attachmentFileIds: [],
+    });
+    say(spaceWithCeo, "First question?");
+    say(spaceWithCeo, "Second, separate question?");
+    say(spaceWithDana, "Dana, a question?");
+
+    const first = claimNextQueuedRun(h.connection)!;
+    expect(h.connection.db.prepare("select agent_id from task_runs where id = ?").get(first.id)).toEqual({ agent_id: h.ceoId });
+    const second = claimNextQueuedRun(h.connection)!;
+    expect(h.connection.db.prepare("select agent_id from task_runs where id = ?").get(second.id)).toEqual({ agent_id: h.danaId });
+    expect(claimNextQueuedRun(h.connection)).toBeNull();
+
+    h.connection.db.prepare("update task_runs set state = 'completed' where id = ?").run(first.id);
+    const third = claimNextQueuedRun(h.connection)!;
+    expect(h.connection.db.prepare("select agent_id from task_runs where id = ?").get(third.id)).toEqual({ agent_id: h.ceoId });
+    h.connection.close();
+  });
+
+  test("a running run whose agent was deleted blocks nobody", () => {
+    const h = harness();
+    const spaceWithDana = h.chat.ensureDirectSpace(h.orgId, { type: "employee", id: h.employeeId }, { type: "agent", id: h.danaId });
+    h.chat.sendMessage({ orgId: h.orgId, spaceId: spaceWithDana, threadId: null, senderType: "employee", senderId: h.employeeId, bodyMd: "Hi?", attachmentFileIds: [] });
+    h.connection.db.prepare(`
+      insert into task_runs(id, org_id, task_id, agent_id, provider_id, execution_context_id, service_identity_id, workspace_mount_json, secret_scope_json, trigger, state, created_at)
+      select 'run_orphan', org_id, task_id, null, provider_id, 'ctx_orphan', service_identity_id, workspace_mount_json, '{}', 'manual', 'running', created_at
+      from task_runs where agent_id = ?
+    `).run(h.danaId);
+    expect(h.connection.db.prepare("select agent_id from task_runs where id = ?").get(claimNextQueuedRun(h.connection)!.id)).toEqual({ agent_id: h.danaId });
+    h.connection.close();
+  });
+});

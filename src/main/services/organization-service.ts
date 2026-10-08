@@ -512,6 +512,9 @@ export class OrganizationService {
   }
 
   deleteTask(input: DeleteTaskInput): void {
+    const running = this.db.prepare("select 1 from task_runs where task_id = ? and org_id = ? and state = 'running' limit 1")
+      .get(input.taskId, input.orgId);
+    if (running) throw new Error("This task has a run in progress; wait for it to finish before deleting the task.");
     const result = this.db.prepare("delete from tasks where id = ? and org_id = ?").run(input.taskId, input.orgId);
     if (result.changes === 0) throw new Error("Task was not found.");
     this.audit.record({

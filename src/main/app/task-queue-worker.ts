@@ -46,7 +46,8 @@ export function isAutonomousPaused(connection: DatabaseConnection): boolean {
  * (the founder DMing the CEO, a board member asking in a channel) means a
  * person is waiting at the keyboard, so it outranks any amount of queued
  * autonomous work; within each lane, first come first served. Non-chat runs
- * carry no sourceSenderType and fall into the autonomous lane.
+ * carry no sourceSenderType and fall into the autonomous lane. An agent
+ * runs one session at a time: its queued runs wait while one is running.
  */
 export function claimNextQueuedRun(connection: DatabaseConnection, excludedProviderIds: string[] = [], lane: ClaimLane = "any"): QueuedRun | null {
   return connection.transaction(() => {
@@ -59,6 +60,7 @@ export function claimNextQueuedRun(connection: DatabaseConnection, excludedProvi
     const row = connection.db
       .prepare(`
         select id, org_id, provider_id from task_runs where state = 'queued' ${exclusion} ${laneFilter}
+          and not exists (select 1 from task_runs busy where busy.state = 'running' and busy.agent_id = task_runs.agent_id)
         order by
           case when json_extract(secret_scope_json, '$.sourceSenderType') in ('employee', 'board') then 0 else 1 end asc,
           created_at asc
