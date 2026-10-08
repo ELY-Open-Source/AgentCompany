@@ -3,7 +3,6 @@ import type { DatabaseSync } from "node:sqlite";
 import type { CancelProviderResponseInput, CreateProviderResponseInput, StreamProviderResponseInput } from "../../shared/commands";
 import { FEATURE_FLAG_KEY, PROVIDER_AUTH_TYPE, PROVIDER_DATA_POLICY, PROVIDER_EXECUTION_MODE, PROVIDER_REQUEST_STATE, type ProviderExecutionMode } from "../../shared/domain";
 import type { ProviderStreamRendererEvent } from "../../shared/provider-request-domain";
-import { currentProviderUsageWindow, PROVIDER_MONTHLY_LIMIT_MESSAGE } from "../../shared/provider-runtime-domain";
 import type { AuditService } from "./audit-service";
 import type { AuthBrokerService } from "./auth-broker-service";
 import type { OperationsService } from "./operations-service";
@@ -128,7 +127,6 @@ export class ProviderResponseRunner {
       : null;
     const blocked = agent ? budgetBlock(this.deps.db, agent.id, isPriced(providerPrices(this.deps.db, provider.id)), new Date()) : null;
     if (blocked) throw new Error(blocked);
-    const credential = await resolveTurnCredential({ authBroker: this.deps.authBroker, integrationKeys: this.deps.integrationKeys, orgId: input.orgId, provider });
     // Everything the model reads: instructions, the conversation, and the tool definitions.
     const turnInputChars = (input.instructions?.length ?? 0) + JSON.stringify(input.messages).length + JSON.stringify(input.tools).length;
     const requestId = this.deps.requestStore.create({
@@ -146,6 +144,7 @@ export class ProviderResponseRunner {
     });
     const startedAt = Date.now();
     try {
+      const credential = await resolveTurnCredential({ authBroker: this.deps.authBroker, integrationKeys: this.deps.integrationKeys, orgId: input.orgId, provider });
       const result = await turn({ credential, model, instructions: input.instructions, messages: input.messages, tools: input.tools });
       // Tool calls are output the model wrote, as much as its text.
       const outputChars = result.text.length + (result.toolCalls.length > 0 ? JSON.stringify(result.toolCalls).length : 0);
@@ -356,14 +355,7 @@ export class ProviderResponseRunner {
     if (executionMode === PROVIDER_EXECUTION_MODE.BACKGROUND && provider.background_enabled !== 1) {
       throw new Error("Background execution is disabled for this provider policy.");
     }
-    const window = currentProviderUsageWindow();
-    const usage = this.deps.db.prepare(`
-      select request_count
-      from provider_usage_windows
-      where org_id = ? and provider_id = ? and window_start = ?
-    `).get(orgId, provider.id, window.start) as { request_count: number } | undefined;
-    const requestCount = usage?.request_count ?? 0;
-    if (requestCount >= provider.monthly_request_limit) throw new Error(PROVIDER_MONTHLY_LIMIT_MESSAGE);
+    this.deps.requestStore.assertMonthlyCapacity(orgId, provider);
   }
 
   private normalizeWorkspaceId(orgId: string, workspaceId: string | null): string | null {

@@ -5,7 +5,7 @@ import { providerPrices, readTokenUsage, requestCostCents, type TokenUsage } fro
 
 /** Providers already logged as not reporting token usage. */
 const providersWithoutUsage = new Set<string>();
-import { currentProviderUsageWindow } from "../../shared/provider-runtime-domain";
+import { currentProviderUsageWindow, PROVIDER_MONTHLY_LIMIT_MESSAGE } from "../../shared/provider-runtime-domain";
 
 export interface ProviderRequestOwner {
   id: string;
@@ -270,6 +270,19 @@ export class ProviderRequestStore {
     `).get(requestId, orgId, PROVIDER_EXECUTION_MODE.BACKGROUND) as ProviderBackgroundRequestRow | undefined;
     if (!request) throw new Error("Provider background request was not found.");
     return request;
+  }
+
+  /** Refuses a call once finished plus in-flight calls reach the limit; callers create the request right after, before any await, as the reservation. */
+  assertMonthlyCapacity(orgId: string, provider: { id: string; monthly_request_limit: number }): void {
+    const window = currentProviderUsageWindow();
+    const finished = this.db.prepare("select request_count from provider_usage_windows where org_id = ? and provider_id = ? and window_start = ?")
+      .get(orgId, provider.id, window.start) as { request_count: number } | undefined;
+    // Startup recovery fails requests a crash left open, so every open row here is a live reservation.
+    const inFlight = this.db.prepare(`
+      select count(*) as n from provider_requests
+      where org_id = ? and provider_id = ? and state in (?, ?) and created_at >= ?
+    `).get(orgId, provider.id, PROVIDER_REQUEST_STATE.PENDING, PROVIDER_REQUEST_STATE.STREAMING, window.start) as { n: number };
+    if ((finished?.request_count ?? 0) + inFlight.n >= provider.monthly_request_limit) throw new Error(PROVIDER_MONTHLY_LIMIT_MESSAGE);
   }
 
   /** Settles a successful call: reads the provider's token usage, prices it, and adds it to the request and the month's totals. */
