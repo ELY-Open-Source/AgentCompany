@@ -33,13 +33,17 @@ import { connectorDisplayName } from "./composio/connector-brands";
 import { ConnectorGrantsService } from "./composio/connector-grants";
 import { ProviderCooldowns } from "./provider-cooldowns";
 import { HeartbeatScheduler } from "./heartbeat-scheduler";
-import { assertExecutionApproval, createIsolationContext, loadGoal, loadProject, loadWorkspace, requireAgentProvider, requireAssignedAgent, requireTask } from "./task-run-preparation";
+import {
+  assertExecutionApproval, createIsolationContext, executionApprovalProblem, loadGoal, loadProject, loadWorkspace,
+  requireAgentProvider, requireAssignedAgent, requireTask, sameWorkspaceAccess, workspaceAccess,
+} from "./task-run-preparation";
 
 const TASK_RUN_STATE = {
   QUEUED: "queued",
   RUNNING: "running",
   COMPLETED: "completed",
   FAILED: "failed",
+  SUPERSEDED: "superseded",
 } as const;
 
 
@@ -94,11 +98,7 @@ export class TaskExecutionService {
     return this.executeAgentRun({ orgId: input.orgId, runId, task, agent, provider, workspace, isolation });
   }
 
-  /**
-   * Executes an existing `running` task_run (claimed by the autonomous queue
-   * worker). System-initiated, so it does not re-gate on the manual execution
-   * approval — the operator configured the company to run autonomously.
-   */
+  /** Executes a claimed run after re-checking that the task still matches it; a mismatch supersedes the run. */
   async executeRun(orgId: string, runId: string): Promise<string> {
     const run = this.db.prepare(`
       select task_id, agent_id, provider_id, execution_context_id, service_identity_id, workspace_mount_json, secret_scope_json
@@ -108,12 +108,21 @@ export class TaskExecutionService {
     let prepared: Parameters<TaskExecutionService["executeAgentRun"]>[0];
     try {
       const task = requireTask(this.db, orgId, run.task_id);
+      if (task.status === TASK_STATUS.DONE) return this.supersedeRun(orgId, runId, run, "the task was closed after this run was queued.");
       if (task.assignee_agent_id !== run.agent_id) {
-        throw new Error(`Task was reassigned after this run was queued (run agent ${run.agent_id}, assignee ${task.assignee_agent_id ?? "none"}).`);
+        return this.supersedeRun(orgId, runId, run, `the task was reassigned after this run was queued (run agent ${run.agent_id}, assignee ${task.assignee_agent_id ?? "none"}).`);
       }
       const agent = requireAssignedAgent(this.db, orgId, task);
       const provider = requireAgentProvider(this.db, orgId, agent);
+      if (provider.id !== run.provider_id) {
+        return this.supersedeRun(orgId, runId, run, `the assignee's provider changed after this run was queued (${run.provider_id ?? "none"} -> ${provider.id}).`);
+      }
       const workspace = loadWorkspace(this.db, task.workspace_id);
+      if (!sameWorkspaceAccess(run.workspace_mount_json, workspaceAccess(task, workspace))) {
+        return this.supersedeRun(orgId, runId, run, "the task's workspace access changed after this run was queued.");
+      }
+      const approvalProblem = executionApprovalProblem(this.db, orgId, task);
+      if (approvalProblem) return this.supersedeRun(orgId, runId, run, approvalProblem);
       const isolation: TaskRunIsolation = {
         executionContextId: run.execution_context_id,
         serviceIdentityId: run.service_identity_id,
@@ -387,6 +396,25 @@ export class TaskExecutionService {
       .get(run.task_id, orgId) as { status: string } | undefined;
     if (!task || (task.status !== TASK_STATUS.BACKLOG && task.status !== TASK_STATUS.IN_PROGRESS)) return;
     this.organization.updateTaskStatus(orgId, run.task_id, TASK_STATUS.DONE);
+  }
+
+  /** Closes a queued run that no longer matches its task; it is not a failure and spends no retry budget. */
+  private supersedeRun(orgId: string, runId: string, run: RunRow, reason: string): string {
+    const message = `Superseded: ${reason}`;
+    console.info(`[task-run] run ${runId} ${message}`);
+    this.db.prepare("update task_runs set state = ?, completed_at = ?, error_message = ? where id = ? and org_id = ?")
+      .run(TASK_RUN_STATE.SUPERSEDED, new Date().toISOString(), message, runId, orgId);
+    this.closeChatWakeTask(orgId, runId);
+    this.audit.record({
+      orgId,
+      entityType: "task_run",
+      entityId: runId,
+      actorType: "system",
+      actorId: null,
+      action: "superseded",
+      payload: { taskId: run.task_id, agentId: run.agent_id, providerId: run.provider_id, reason },
+    });
+    return runId;
   }
 
   private failRun(orgId: string, runId: string, providerRequestId: string | null, errorMessage: string): void {

@@ -34,7 +34,13 @@ export function requireAssignedAgent(db: DatabaseSync, orgId: string, task: Task
 }
 
 export function assertExecutionApproval(db: DatabaseSync, orgId: string, task: TaskExecutionTaskRow): void {
-  if (task.risk !== RISK_LEVEL.HIGH && task.requires_filesystem !== 1) return;
+  const problem = executionApprovalProblem(db, orgId, task);
+  if (problem) throw new Error(problem);
+}
+
+/** Why the task may not execute without approval, or null when it may. */
+export function executionApprovalProblem(db: DatabaseSync, orgId: string, task: TaskExecutionTaskRow): string | null {
+  if (task.risk !== RISK_LEVEL.HIGH && task.requires_filesystem !== 1) return null;
   const approval = db.prepare(`
     select id, state
     from approvals
@@ -45,9 +51,20 @@ export function assertExecutionApproval(db: DatabaseSync, orgId: string, task: T
     order by created_at desc
     limit 1
   `).get(orgId, task.id) as TaskApprovalRow | undefined;
-  if (!approval || approval.state !== APPROVAL_STATE.APPROVED) {
-    throw new Error("Approved task execution approval is required.");
-  }
+  if (!approval || approval.state !== APPROVAL_STATE.APPROVED) return "Approved task execution approval is required.";
+  return null;
+}
+
+/** The workspace a run of this task may touch, and how. */
+export function workspaceAccess(task: TaskExecutionTaskRow, workspace: WorkspaceRow | null): Array<{ workspaceId: string; mode: string }> {
+  return workspace ? [{ workspaceId: workspace.id, mode: task.requires_filesystem === 1 ? "read_write" : "read_only" }] : [];
+}
+
+/** True when a run's recorded mounts grant exactly the access the task needs now. */
+export function sameWorkspaceAccess(mountJson: string, current: Array<{ workspaceId: string; mode: string }>): boolean {
+  const recorded = (JSON.parse(mountJson) as Array<{ workspaceId: string; mode: string }>)
+    .map((mount) => ({ workspaceId: mount.workspaceId, mode: mount.mode }));
+  return JSON.stringify(recorded) === JSON.stringify(current);
 }
 
 export function requireAgentProvider(db: DatabaseSync, orgId: string, agent: TaskExecutionAgentRow): TaskExecutionProviderRow {
@@ -88,11 +105,10 @@ export function createIsolationContext(
   const serviceIdentityId = requireServiceIdentity(db, orgId, agent.id);
   const executionContextId = createId("ctx");
   const workspaceMounts = workspace ? [{
-    workspaceId: workspace.id,
+    ...workspaceAccess(task, workspace)[0],
     name: workspace.name,
     localPath: workspace.local_path,
     repoRef: workspace.repo_ref,
-    mode: task.requires_filesystem === 1 ? "read_write" : "read_only",
   }] : [];
   return {
     executionContextId,

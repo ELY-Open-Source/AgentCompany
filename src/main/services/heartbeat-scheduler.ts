@@ -49,7 +49,7 @@ export class HeartbeatScheduler {
     `).all(window.start) as Array<{ task_id: string; org_id: string; provider_id: string }>;
     this.observeQuotaBlocks(window.start);
     const cooling = new Set(this.cooldowns.cooledProviderIds());
-    const attemptMessages = this.db.prepare("select error_message from task_runs where task_id = ?");
+    const attemptMessages = this.db.prepare("select error_message from task_runs where task_id = ? and state <> 'superseded'");
     const created: string[] = [];
     for (const row of rows) {
       if (cooling.has(row.provider_id)) continue;

@@ -115,8 +115,9 @@ describe("task prompt scope", () => {
     const taskId = (connection.db.prepare("select task_id from task_runs where id = ?").get(kickoff.id) as { task_id: string }).task_id;
     connection.db.prepare("update tasks set assignee_agent_id = ? where id = ?").run(otherId, taskId);
 
-    await expect(execution.executeRun(orgId, kickoff.id)).rejects.toThrow("Task was reassigned after this run was queued");
-    expect(connection.db.prepare("select state from task_runs where id = ?").get(kickoff.id)).toEqual({ state: "failed" });
+    await execution.executeRun(orgId, kickoff.id);
+    expect(connection.db.prepare("select state, error_message like '%reassigned%' as reassigned from task_runs where id = ?").get(kickoff.id))
+      .toEqual({ state: "superseded", reassigned: 1 });
     expect(calls).toBe(0);
     connection.close();
   });

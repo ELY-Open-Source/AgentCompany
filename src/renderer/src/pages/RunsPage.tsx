@@ -138,6 +138,12 @@ function RunDetail({ run, tasks, agents, providers, providerRequests }: {
         <MetaLabel>{t("Context")}</MetaLabel><div className="mono" style={{ fontSize: 12, overflow: "hidden", textOverflow: "ellipsis" }}>{run.executionContextId}</div>
       </div>
 
+      {run.state === "superseded" && run.errorMessage && (
+        <div className="card" style={{ padding: 16, marginBottom: 16 }}>
+          <div className="section-label" style={{ marginBottom: 8 }}>{t("Why it did not run")}</div>
+          <div style={{ fontSize: 14, color: "var(--text-1)", whiteSpace: "pre-wrap", lineHeight: 1.5 }}>{run.errorMessage}</div>
+        </div>
+      )}
       {run.state === "failed" && run.errorMessage && (
         <div className="card" style={{ padding: 16, marginBottom: 16, borderColor: "var(--red)" }}>
           <div className="section-label" style={{ color: "var(--red)", marginBottom: 8 }}>{t("Error")}</div>
@@ -197,6 +203,7 @@ function runLabel(state: string): string {
   if (state === "running") return t("Running");
   if (state === "completed") return t("Done");
   if (state === "failed") return t("Failed");
+  if (state === "superseded") return t("Superseded");
   return state;
 }
 

@@ -80,10 +80,10 @@ describe("run memory", () => {
   test("a run that fails before it starts is remembered too", async () => {
     const h = await company(() => ({ text: "unused", toolCalls: [], rawResponseJson: "{}" }));
     const kickoff = claimNextQueuedRun(h.connection)!;
-    h.connection.db.prepare("update tasks set assignee_agent_id = null where id = (select task_id from task_runs where id = ?)").run(kickoff.id);
-    await expect(h.execution.executeRun(h.orgId, kickoff.id)).rejects.toThrow("Task was reassigned after this run was queued");
+    h.connection.db.prepare("delete from providers where id = (select provider_id from task_runs where id = ?)").run(kickoff.id);
+    await expect(h.execution.executeRun(h.orgId, kickoff.id)).rejects.toThrow("Task assignee provider was not found.");
     expect(h.memories().map((entry) => entry.category)).toEqual(["failure_cause"]);
-    expect(h.memories()[0].content).toContain("Task was reassigned after this run was queued");
+    expect(h.memories()[0].content).toContain("Task assignee provider was not found.");
     h.connection.close();
   });
 
