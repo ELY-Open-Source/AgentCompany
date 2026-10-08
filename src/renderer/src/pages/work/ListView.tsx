@@ -1,6 +1,6 @@
 import { Avatar, IconButton, Pill } from "../../shared/ui";
-import type { AgentRecord, ProjectRecord, ProviderRecord, TaskRecord } from "../../../../shared/domain";
-import { canRun, prettyStatus, providerFor } from "./task-helpers";
+import type { AgentRecord, ProjectRecord, ProviderRecord, TaskRecord, TaskRunRecord } from "../../../../shared/domain";
+import { prettyStatus, providerFor, runBlocker } from "./task-helpers";
 import { t } from "../../i18n/i18n";
 
 const GRID = "minmax(0, 3fr) 110px 96px minmax(0, 1.2fr) 88px";
@@ -10,6 +10,7 @@ export function ListView({
   agents,
   projects,
   providers,
+  taskRuns,
   onRun,
   onOpen,
 }: {
@@ -17,6 +18,7 @@ export function ListView({
   agents: AgentRecord[];
   projects: ProjectRecord[];
   providers: ProviderRecord[];
+  taskRuns: TaskRunRecord[];
   onRun: (task: TaskRecord) => void;
   onOpen: (task: TaskRecord) => void;
 }) {
@@ -62,7 +64,7 @@ export function ListView({
               )}
             </div>
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 4 }} onClick={(event) => event.stopPropagation()}>
-              {assignee && <IconButton icon="send" label={t("Run {title}", { title: task.title })} onClick={() => onRun(task)} disabled={!canRun(provider)} />}
+              {assignee && <IconButton icon="send" label={t("Run {title}", { title: task.title })} onClick={() => onRun(task)} disabled={runBlocker(task, provider, taskRuns) !== null} />}
               <IconButton icon="more" label={t("Open {title}", { title: task.title })} onClick={() => onOpen(task)} />
             </div>
           </div>

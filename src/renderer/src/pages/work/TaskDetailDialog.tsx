@@ -13,7 +13,7 @@ import type {
 } from "../../../../shared/domain";
 import { TASK_STATUS } from "../../../../shared/domain";
 import { auditEventLabel, formatRelative } from "../types";
-import { canRun, nextStatus, prettyRunState, prettyStatus, providerFor, runsForTask, runTone } from "./task-helpers";
+import { nextStatus, prettyRunState, prettyStatus, providerFor, runBlocker, runsForTask, runTone } from "./task-helpers";
 import type { SnapshotActions } from "../../app/useSnapshot";
 import { t } from "../../i18n/i18n";
 
@@ -123,7 +123,7 @@ export function TaskDetailDialog({
 
         <div className="modal-actions">
           <Button tone="ghost" onClick={deleteTask}><Icon name="x" size={16} /> {t("Delete")}</Button>
-          {assignee && <Button onClick={() => onRun(task)} disabled={!canRun(provider)}><Icon name="send" size={16} /> {t("Run")}</Button>}
+          {assignee && <Button onClick={() => onRun(task)} disabled={runBlocker(task, provider, taskRuns) !== null}><Icon name="send" size={16} /> {t("Run")}</Button>}
           {advanceTo && <Button tone="primary" onClick={() => onAdvance(task)}><Icon name="check" size={16} /> {prettyStatus(advanceTo)}</Button>}
         </div>
 

@@ -341,6 +341,47 @@ describe("task execution service", () => {
     connection.close();
   });
 
+  test("a manual run refuses a task that is done or already has a session queued or running", async () => {
+    const connection = createConnection();
+    const organization = new OrganizationService(connection.db);
+    let turns = 0;
+    const fakeToolTurn = async (): Promise<AgentTurnResult> => {
+      turns += 1;
+      return { text: "done", toolCalls: [], rawResponseJson: JSON.stringify({ id: `resp-${turns}` }) };
+    };
+    const providers = new ProviderService(connection.db, providerAdapters, testVault, undefined, fakeToolTurn);
+    const execution = new TaskExecutionService(connection.db, providers);
+    let orgId = "";
+    let taskId = "";
+    connection.transaction(() => {
+      orgId = organization.createOrganization({ organizationName: "Acme", employeeName: "Dana Lee", mission: "m", goal: "g" });
+      const providerId = openAiProviderId(connection, orgId);
+      providers.saveCredential({ orgId, providerId, secret: "sk-live-provider", model: "gpt-5.4" });
+      const agentId = organization.createAgent({
+        orgId, name: "Ada", role: "Execution lead", department: "Engineering",
+        modelProviderId: providerId, modelId: "gpt-5.4", budgetCents: 10000, managerAgentId: null,
+      });
+      taskId = organization.createTask({
+        orgId, title: "Draft launch checklist", description: "d", status: TASK_STATUS.IN_PROGRESS,
+        assigneeAgentId: agentId, risk: RISK_LEVEL.LOW, projectId: null, goalId: null,
+        workspaceId: null, priority: TASK_PRIORITY.NORMAL, requiresFilesystem: false,
+      });
+    });
+    const firstRun = await execution.runTask({ orgId, taskId });
+
+    connection.db.prepare("update task_runs set state = 'queued' where id = ?").run(firstRun);
+    await expect(execution.runTask({ orgId, taskId })).rejects.toThrow('"Draft launch checklist" already has a queued session; it will run shortly.');
+    connection.db.prepare("update task_runs set state = 'running' where id = ?").run(firstRun);
+    await expect(execution.runTask({ orgId, taskId })).rejects.toThrow('"Draft launch checklist" already has a running session.');
+
+    connection.db.prepare("update task_runs set state = 'completed' where id = ?").run(firstRun);
+    connection.db.prepare("update tasks set status = 'done' where id = ?").run(taskId);
+    await expect(execution.runTask({ orgId, taskId })).rejects.toThrow('"Draft launch checklist" is done. Reopen it before running it again.');
+    expect(connection.db.prepare("select count(*) as n from task_runs where task_id = ?").get(taskId)).toEqual({ n: 1 });
+    expect(turns).toBe(1);
+    connection.close();
+  });
+
   test("requires task assignees to have a model provider", async () => {
     const connection = createConnection();
     const organization = new OrganizationService(connection.db);

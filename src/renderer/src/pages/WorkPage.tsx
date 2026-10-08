@@ -20,7 +20,7 @@ import { TaskDetailDialog } from "./work/TaskDetailDialog";
 import { ProjectOverview } from "./work/ProjectOverview";
 import { ListView } from "./work/ListView";
 import { TimelineView } from "./work/TimelineView";
-import { canRun, latestTaskRun, nextStatus, prettyRunState, providerFor, runTone } from "./work/task-helpers";
+import { latestTaskRun, nextStatus, prettyRunState, providerFor, runBlocker, runTone } from "./work/task-helpers";
 import type { PageProps } from "./types";
 import { activeOrgId } from "./types";
 import { t } from "../i18n/i18n";
@@ -125,6 +125,7 @@ export function WorkPage({ snapshot, actions }: PageProps) {
               agents={agents}
               projects={projects}
               providers={providers}
+              taskRuns={taskRuns}
               onRun={runTask}
               onOpen={(task) => setDetailTaskId(task.id)}
             />
@@ -256,7 +257,7 @@ function BoardView({
                   task={task}
                   assignee={agents.find((agent) => agent.id === task.assigneeAgentId) ?? null}
                   project={projects.find((project) => project.id === task.projectId) ?? null}
-                  provider={providerFor(agents.find((agent) => agent.id === task.assigneeAgentId) ?? null, providers)}
+                  blocker={runBlocker(task, providerFor(agents.find((agent) => agent.id === task.assigneeAgentId) ?? null, providers), taskRuns)}
                   latestRun={latestTaskRun(task.id, taskRuns)}
                   onAdvance={() => onAdvance(task)}
                   onRun={() => onRun(task)}
@@ -275,7 +276,7 @@ function TaskCard({
   task,
   assignee,
   project,
-  provider,
+  blocker,
   latestRun,
   onAdvance,
   onRun,
@@ -284,7 +285,7 @@ function TaskCard({
   task: TaskRecord;
   assignee: AgentRecord | null;
   project: ProjectRecord | null;
-  provider: ProviderRecord | null;
+  blocker: string | null;
   latestRun: TaskRunRecord | null;
   onAdvance: () => void;
   onRun: () => void;
@@ -337,7 +338,7 @@ function TaskCard({
         )}
         <div style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center", flexShrink: 0 }} onClick={(event) => event.stopPropagation()}>
           {assignee && <Avatar name={assignee.name} size="sm" bot />}
-          {assignee && <IconButton icon="send" label={canRun(provider) ? t("Run {title}", { title: task.title }) : t("Connect a provider to run")} onClick={onRun} disabled={!canRun(provider)} />}
+          {assignee && <IconButton icon="send" label={blocker ?? t("Run {title}", { title: task.title })} onClick={onRun} disabled={blocker !== null} />}
           {nextStatus(task.status) && <IconButton icon="check" label={t("Advance")} onClick={onAdvance} />}
         </div>
       </div>

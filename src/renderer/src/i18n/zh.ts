@@ -29,6 +29,8 @@ export const zh: Record<string, string> = {
   "Integrations": "集成密钥",
   "Document": "文档",
   "Writing": "写作方式",
+  "Done tasks do not run": "已完成的任务不能再运行",
+  "A session is already queued or running": "已有会话在排队或运行中",
   "Conversational (house style)": "日常沟通（公司文风）",
   "Technical spec": "技术规格",
   "Structured output": "结构化输出",

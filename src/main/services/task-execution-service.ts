@@ -79,6 +79,12 @@ export class TaskExecutionService {
 
   async runTask(input: RunTaskInput): Promise<string> {
     const task = requireTask(this.db, input.orgId, input.taskId);
+    if (task.status === TASK_STATUS.DONE) throw new Error(`"${task.title}" is done. Reopen it before running it again.`);
+    const inFlight = this.db.prepare("select state from task_runs where task_id = ? and state in ('queued', 'running') limit 1")
+      .get(task.id) as { state: string } | undefined;
+    if (inFlight) {
+      throw new Error(inFlight.state === "queued" ? `"${task.title}" already has a queued session; it will run shortly.` : `"${task.title}" already has a running session.`);
+    }
     assertExecutionApproval(this.db, input.orgId, task);
     const agent = requireAssignedAgent(this.db, input.orgId, task);
     const provider = requireAgentProvider(this.db, input.orgId, agent);

@@ -2,6 +2,7 @@ import {
   TASK_STATUS,
   type AgentRecord,
   type ProviderRecord,
+  type TaskRecord,
   type TaskRunRecord,
   type TaskStatus,
 } from "../../../../shared/domain";
@@ -41,8 +42,12 @@ export function providerFor(assignee: AgentRecord | null, providers: ProviderRec
   return providers.find((provider) => provider.id === assignee.modelProviderId) ?? null;
 }
 
-export function canRun(provider: ProviderRecord | null): boolean {
-  return provider?.enabled === true && provider.authState === "configured";
+/** Why a manual run is not possible right now, or null when it is. */
+export function runBlocker(task: TaskRecord, provider: ProviderRecord | null, taskRuns: TaskRunRecord[]): string | null {
+  if (provider?.enabled !== true || provider.authState !== "configured") return t("Connect a provider to run");
+  if (task.status === "done") return t("Done tasks do not run");
+  if (taskRuns.some((run) => run.taskId === task.id && (run.state === "queued" || run.state === "running"))) return t("A session is already queued or running");
+  return null;
 }
 
 export function latestTaskRun(taskId: string, taskRuns: TaskRunRecord[]): TaskRunRecord | null {
