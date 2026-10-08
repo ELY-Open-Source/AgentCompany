@@ -6,7 +6,7 @@ function run(agentId: string | null, contextJson: string | null): TaskRunRecord 
   return {
     id: `run_${Math.random()}`, orgId: "org", taskId: "tsk", agentId, providerId: null, providerRequestId: null,
     executionContextId: null, serviceIdentityId: null, workspaceMountJson: "[]", secretScopeJson: "{}",
-    trigger: "chat_mention", state: "completed", createdAt: "", startedAt: null, completedAt: null, errorMessage: null, contextJson,
+    trigger: "chat_mention", state: "completed", createdAt: "", startedAt: null, completedAt: null, errorMessage: null, contextJson, capabilityWarnings: null,
   };
 }
 

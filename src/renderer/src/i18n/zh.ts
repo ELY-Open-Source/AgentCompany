@@ -32,6 +32,7 @@ export const zh: Record<string, string> = {
   "superseded": "已被取代",
   "stalled": "已停滞",
   "Resume": "恢复",
+  "Missing this run": "本次运行缺少的能力",
   "Disconnect": "断开连接",
   "Revokes the sign-in at {provider} and erases it from this computer.": "在 {provider} 撤销登录授权，并从本机删除。",
   "Erases the key from this computer. {provider} keeps accepting it until you revoke it in your account.": "仅从本机删除密钥。在你于 {provider} 账号中撤销之前，该密钥仍然有效。",

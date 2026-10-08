@@ -3,6 +3,7 @@ import type { ToolDefinition, ToolCall } from "../provider-tool-turn";
 import { ComposioClient, type ComposioToolSchema } from "./composio-client";
 import type { IntegrationKeyStore } from "../integration-key-store";
 import { ConnectorGrantsService } from "./connector-grants";
+import { currentRunId } from "../run-control";
 
 const COMPOSIO_TOOL_PREFIX = "composio_";
 export const FIND_ACTIONS_TOOL = "composio_find_actions";
@@ -66,7 +67,7 @@ export async function executeComposioTool(
   const toolkits = new ConnectorGrantsService(db).toolkitsForAgent(orgId, agentId);
   if (toolkits.length === 0) return "ERROR: You hold no connector grants. Ask the CEO to grant you one (grant_connector).";
   try {
-    if (call.name === FIND_ACTIONS_TOOL) return await findActions(apiKey, toolkits, call.arguments);
+    if (call.name === FIND_ACTIONS_TOOL) return await findActions(db, apiKey, toolkits, call.arguments);
     if (call.name === RUN_ACTION_TOOL) return await runAction(db, apiKey, orgId, agentId, toolkits, call.arguments);
     return `ERROR: ${call.name} is not a connector tool; use ${FIND_ACTIONS_TOOL} and ${RUN_ACTION_TOOL}.`;
   } catch (error) {
@@ -74,12 +75,12 @@ export async function executeComposioTool(
   }
 }
 
-async function findActions(apiKey: string, toolkits: string[], args: Record<string, unknown>): Promise<string> {
+async function findActions(db: DatabaseSync, apiKey: string, toolkits: string[], args: Record<string, unknown>): Promise<string> {
   const query = typeof args.query === "string" ? args.query.trim().toLowerCase() : "";
   if (!query) return "ERROR: query is required: say in a few words what you want to do.";
   const toolkit = typeof args.toolkit === "string" ? args.toolkit.toLowerCase() : null;
   if (toolkit && !toolkits.includes(toolkit)) return `ERROR: You hold no grant for "${toolkit}". Your services: ${toolkits.join(", ")}.`;
-  const actions = (await actionCatalog(apiKey, toolkits)).filter((action) => !toolkit || action.toolkitSlug?.toLowerCase() === toolkit);
+  const actions = (await actionCatalog(db, apiKey, toolkits)).filter((action) => !toolkit || action.toolkitSlug?.toLowerCase() === toolkit);
   const words = query.split(/[^a-z0-9]+/).filter(Boolean);
   const scored = actions
     .map((action) => {
@@ -99,7 +100,7 @@ async function findActions(apiKey: string, toolkits: string[], args: Record<stri
 async function runAction(db: DatabaseSync, apiKey: string, orgId: string, agentId: string, toolkits: string[], args: Record<string, unknown>): Promise<string> {
   const name = typeof args.action === "string" ? args.action.trim().toUpperCase() : "";
   if (!name) return `ERROR: action is required; find one with ${FIND_ACTIONS_TOOL}.`;
-  const action = (await actionCatalog(apiKey, toolkits)).find((candidate) => candidate.name.toUpperCase() === name);
+  const action = (await actionCatalog(db, apiKey, toolkits)).find((candidate) => candidate.name.toUpperCase() === name);
   if (!action?.toolkitSlug) return `ERROR: ${name} is not an action of your connected services (${toolkits.join(", ")}); find one with ${FIND_ACTIONS_TOOL}.`;
   const toolkit = action.toolkitSlug.toLowerCase();
   // Grants are read again after the catalog load: one revoked meanwhile must stop the action.
@@ -117,14 +118,33 @@ async function runAction(db: DatabaseSync, apiKey: string, orgId: string, agentI
   return JSON.stringify(result.data);
 }
 
-/** The full action list of the granted toolkits, every page of it; a failed listing is an error the agent sees. */
-async function actionCatalog(apiKey: string, toolkits: string[]): Promise<ComposioToolSchema[]> {
+/** The full action list of the granted toolkits, every page of it; a failed listing reaches the agent and is named on the run. */
+async function actionCatalog(db: DatabaseSync, apiKey: string, toolkits: string[]): Promise<ComposioToolSchema[]> {
   const cacheKey = `${apiKey}:${[...toolkits].sort().join(",")}`;
   const cached = catalogCache.get(cacheKey);
   if (cached && Date.now() - cached.fetchedAt < CATALOG_TTL_MS) return cached.actions;
-  const actions = await new ComposioClient(apiKey).getTools(toolkits);
-  catalogCache.set(cacheKey, { actions, fetchedAt: Date.now() });
-  return actions;
+  try {
+    const actions = await new ComposioClient(apiKey).getTools(toolkits);
+    catalogCache.set(cacheKey, { actions, fetchedAt: Date.now() });
+    return actions;
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    noteMissingCapability(db, `The actions of ${toolkits.join(", ")} could not be listed: ${reason}`);
+    throw error;
+  }
+}
+
+/** Names a capability the current run went without, once, on the run the user looks at; also logged. */
+function noteMissingCapability(db: DatabaseSync, text: string): void {
+  // One line per gap: error bodies (JSON, HTML) arrive with their own line breaks.
+  const warning = text.replace(/\s+/g, " ").trim();
+  console.warn(`[connectors] ${warning}`);
+  const runId = currentRunId();
+  if (!runId) return;
+  const row = db.prepare("select capability_warnings from task_runs where id = ?").get(runId) as { capability_warnings: string | null } | undefined;
+  const lines = row?.capability_warnings ? row.capability_warnings.split("\n") : [];
+  if (lines.includes(warning)) return;
+  db.prepare("update task_runs set capability_warnings = ? where id = ?").run([...lines, warning].join("\n"), runId);
 }
 
 export function getComposioUserId(db: DatabaseSync, orgId: string): string {

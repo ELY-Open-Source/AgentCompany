@@ -169,6 +169,9 @@ function OverviewTab({ task, assignee, project, goal, workspace, provider, runs 
                 {run.state === "failed" && run.errorMessage && (
                   <span style={{ color: "var(--red)", fontSize: 12, paddingLeft: 4 }}>{run.errorMessage}</span>
                 )}
+                {run.capabilityWarnings && (
+                  <span style={{ color: "var(--amber)", fontSize: 12, paddingLeft: 4, whiteSpace: "pre-wrap" }}>{t("Missing this run")}: {run.capabilityWarnings}</span>
+                )}
               </div>
             ))}
           </div>

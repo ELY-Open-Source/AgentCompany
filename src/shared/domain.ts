@@ -163,6 +163,8 @@ export interface TaskRunRecord {
   errorMessage: string | null;
   /** JSON RunContextManifest: which messages the run read. */
   contextJson: string | null;
+  /** Capabilities the run could not load, one per line, so the user sees what it worked without. */
+  capabilityWarnings: string | null;
 }
 
 export interface ApprovalRecord {

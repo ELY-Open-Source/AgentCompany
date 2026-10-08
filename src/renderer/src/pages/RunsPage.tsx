@@ -160,6 +160,13 @@ function RunDetail({ run, tasks, agents, providers, providerRequests, actions }:
         </div>
       )}
 
+      {run.capabilityWarnings && (
+        <div className="card" style={{ padding: 16, marginBottom: 16, borderColor: "var(--amber)" }}>
+          <div className="section-label" style={{ color: "var(--amber)", marginBottom: 8 }}>{t("Missing this run")}</div>
+          <div style={{ fontSize: 14, color: "var(--text-1)", whiteSpace: "pre-wrap", lineHeight: 1.5 }}>{run.capabilityWarnings}</div>
+        </div>
+      )}
+
       {request && (
         <div className="card" style={{ padding: 16, marginBottom: 16 }}>
           <div className="section-label" style={{ marginBottom: 8 }}>{t("Provider request")}</div>

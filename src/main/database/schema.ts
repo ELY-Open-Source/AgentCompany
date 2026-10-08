@@ -78,6 +78,7 @@ import { runPinsSchema } from "./migrations/076-run-pins";
 import { modelChecksSchema } from "./migrations/077-model-checks";
 import { requestErrorCodesSchema } from "./migrations/078-request-error-codes";
 import { eraseRetiredCredentialsSchema } from "./migrations/079-erase-retired-credentials";
+import { runCapabilityWarningsSchema } from "./migrations/080-run-capability-warnings";
 
 interface Migration {
   version: number;
@@ -165,6 +166,7 @@ const MIGRATIONS: Migration[] = [
   { version: 77, name: "model_checks", sql: modelChecksSchema },
   { version: 78, name: "request_error_codes", sql: requestErrorCodesSchema },
   { version: 79, name: "erase_retired_credentials", sql: eraseRetiredCredentialsSchema },
+  { version: 80, name: "run_capability_warnings", sql: runCapabilityWarningsSchema },
 ];
 
 const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;
