@@ -62,7 +62,8 @@ export class ProviderResponseRunner {
     input.onRequestCreated?.(requestId);
     const startedAt = Date.now();
     try {
-      const authProfile = execution.adapter.parseAuthProfile(execution.credential.secret);
+      // Read inside the request's try, so an unreadable credential is logged as this request's failure.
+      const authProfile = execution.adapter.parseAuthProfile(loadCredential(this.deps.authBroker, execution.orgId, execution.provider).secret);
       const result = await execution.adapter.createResponse({
         authProfile,
         model: execution.provider.model,
@@ -240,7 +241,8 @@ export class ProviderResponseRunner {
     let providerResponseId: string | null = null;
     let finished = false;
     try {
-      const authProfile = execution.adapter.parseAuthProfile(execution.credential.secret);
+      // Read inside the request's try, so an unreadable credential is logged as this request's failure.
+      const authProfile = execution.adapter.parseAuthProfile(loadCredential(this.deps.authBroker, execution.orgId, execution.provider).secret);
       const result = await execution.adapter.streamResponse({
         authProfile,
         model: execution.provider.model,
@@ -376,7 +378,6 @@ export class ProviderResponseRunner {
       executionMode,
       provider: { ...provider, model: provider.model },
       adapter: requireAdapter(this.deps.adapters, provider.provider_key, provider.auth_type),
-      credential: loadCredential(this.deps.authBroker, input.orgId, provider),
     };
   }
 
@@ -429,7 +430,6 @@ interface PreparedProviderExecution {
   executionMode: ProviderExecutionMode;
   provider: ProviderRow & { model: string };
   adapter: ProviderAdapterRegistry[string];
-  credential: { secret: string };
 }
 
 interface TurnCaller {

@@ -69,7 +69,8 @@ export class ProviderBackgroundService {
     input.onRequestCreated?.(requestId);
     const startedAt = Date.now();
     try {
-      const authProfile = execution.adapter.parseAuthProfile(execution.credential.secret);
+      // Read inside the request's try, so an unreadable credential is logged as this request's failure.
+      const authProfile = execution.adapter.parseAuthProfile(this.loadCredential(input.orgId, execution.provider).secret);
       const result = await execution.adapter.createBackgroundResponse({
         authProfile,
         model: execution.provider.model,
@@ -234,7 +235,6 @@ export class ProviderBackgroundService {
       instructions: input.instructions?.trim() || null,
       provider: { ...provider, model: provider.model },
       adapter: this.requireAdapter(provider.provider_key, provider.auth_type),
-      credential: this.loadCredential(input.orgId, provider),
     };
   }
 
@@ -326,7 +326,6 @@ interface PreparedBackgroundExecution {
   instructions: string | null;
   provider: ProviderRow & { model: string };
   adapter: ProviderAdapterRegistry[string];
-  credential: { secret: string };
 }
 
 interface ProviderRow {
