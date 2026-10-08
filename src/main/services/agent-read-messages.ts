@@ -43,10 +43,15 @@ export function readMessagesTool(deps: AgentToolDeps, ctx: AgentToolContext, arg
     left join agents a on a.id = m.sender_id and m.sender_type = 'agent'
     left join employees e on e.id = m.sender_id and m.sender_type = 'employee'
     where cm.target_type = 'agent' and cm.target_id = ? and m.org_id = ? and m.deleted_at is null
+      and not exists (
+        select 1 from chat_messages reply
+        where reply.thread_id = m.thread_id and reply.sender_type = 'agent' and reply.sender_id = cm.target_id
+          and reply.created_at > coalesce(m.edited_at, m.created_at) and reply.deleted_at is null
+      )
     order by m.created_at desc
     limit ?
   `).all(ctx.agent.id, ctx.orgId, limit) as Array<{ body_md: string; sender_name: string; thread_id: string; channel_name: string; space_type: string }>;
-  if (rows.length === 0) return "No recent mentions.";
+  if (rows.length === 0) return "No unanswered mentions.";
   return rows.reverse().map((m) => {
     const where = m.space_type === "direct" ? "in your direct conversation" : `in #${m.channel_name}`;
     return `[${m.sender_name} ${where}] (thread=${m.thread_id}): ${m.body_md}`;

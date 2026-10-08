@@ -129,7 +129,7 @@ export const AGENT_TOOLS: ToolDefinition[] = [
   },
   {
     name: "read_messages",
-    description: "Read recent messages from a channel, a direct conversation, or your direct mentions. Check what your teammates have been saying before you respond or start work.",
+    description: "Read recent messages from a channel, a direct conversation, or (with no arguments) the mentions you have not answered in their thread yet. Check what your teammates have been saying before you respond or start work.",
     parameters: {
       type: "object",
       additionalProperties: false,

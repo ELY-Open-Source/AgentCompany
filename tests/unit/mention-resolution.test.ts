@@ -124,5 +124,23 @@ describe("mention resolution", () => {
     };
     const inbox = dispatchAgentTool(deps, danaCtx, call("read_messages", {}));
     expect(inbox).toContain("check the deployment");
+
+    // Once Dana answers in that thread, the mention is handled and leaves her inbox.
+    const threadId = /thread=([^)]+)\)/.exec(inbox)?.[1];
+    expect(threadId).toBeTruthy();
+    dispatchAgentTool(deps, danaCtx, call("send_message", { channel: "engineering", body: "Deployment checked.", thread_id: threadId }));
+    expect(dispatchAgentTool(deps, danaCtx, call("read_messages", {}))).toBe("No unanswered mentions.");
+
+    dispatchAgentTool(deps, ceoCtx, call("send_message", { channel: "engineering", body: "@dana one more: ship it", thread_id: threadId }));
+    const next = dispatchAgentTool(deps, danaCtx, call("read_messages", {}));
+    expect(next).toContain("ship it");
+    expect(next).not.toContain("check the deployment");
+
+    // A mention added later by editing an old message is unanswered again.
+    dispatchAgentTool(deps, ceoCtx, call("send_message", { channel: "engineering", body: "status?", thread_id: threadId }));
+    const plainId = (connection.db.prepare("select id from chat_messages where body_md = 'status?'").get() as { id: string }).id;
+    dispatchAgentTool(deps, danaCtx, call("send_message", { channel: "engineering", body: "All good.", thread_id: threadId }));
+    deps.chat.editMessage({ orgId, messageId: plainId, bodyMd: "@dana status on the rollback?", actorType: "agent", actorId: ceoId });
+    expect(dispatchAgentTool(deps, danaCtx, call("read_messages", {}))).toContain("status on the rollback");
   });
 });
