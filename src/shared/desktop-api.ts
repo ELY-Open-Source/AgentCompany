@@ -172,6 +172,7 @@ export interface DesktopApi {
   checkProviderModel(input: { orgId: string; providerId: string; model: string }): Promise<DesktopResult<ModelCheckResult>>;
   updateProviderPolicy(input: UpdateProviderPolicyInput): Promise<DesktopResult<AppSnapshot>>;
   setProviderPrices(input: SetProviderPricesInput): Promise<DesktopResult<AppSnapshot>>;
+  setGoalAuditor(input: { orgId: string; providerId: string; modelId: string }): Promise<DesktopResult<AppSnapshot>>;
   openExternalUrl(url: string): Promise<DesktopResult<null>>;
   createProviderResponse(input: CreateProviderResponseInput): Promise<DesktopResult<AppSnapshot>>;
   streamProviderResponse(input: StreamProviderResponseInput): Promise<DesktopResult<AppSnapshot>>;

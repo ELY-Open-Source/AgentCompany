@@ -11,6 +11,7 @@ import type { ProviderService } from "./provider-service";
 import { unreadableArguments, type AgentTurnMessage, type ToolCall, type ToolDefinition } from "./provider-tool-turn";
 import { MAX_TOOL_CALLS_PER_TURN, throwIfRunStopped, untilStopped } from "./run-control";
 import { heldWorkTitles } from "./held-deliverables";
+import { goalAuditor, resultPointers, type GoalAuditor, type ResultPointers } from "./goal-audit-inputs";
 import { DOCUMENT_TOOLS, listDocumentsTool, readDocumentTool } from "./agent-document-tools";
 
 const AUDIT_MAX_ITERATIONS = 6;
@@ -47,12 +48,10 @@ export const GOAL_TOOLS: ToolDefinition[] = [
       type: "object",
       additionalProperties: false,
       properties: {
-        evidence: {
-          type: "string",
-          description: "The concrete evidence that the goal is achieved: what exists, where it lives in the workspace, and what verification passed.",
-        },
+        files: { type: "array", items: { type: "string" }, description: "Workspace paths of the files that hold the result." },
+        documents: { type: "array", items: { type: "string" }, description: "Doc ids of the documents that hold the result." },
       },
-      required: ["evidence"],
+      required: [],
     },
   },
 ];
@@ -63,7 +62,6 @@ export interface GoalCompletionArgs {
   providers: Pick<ProviderService, "runToolTurn">;
   providerId: string;
   workspaceId: string | null;
-  inputBudgetTokens: number;
   call: ToolCall;
 }
 
@@ -82,13 +80,14 @@ export async function completeGoalTool(args: GoalCompletionArgs): Promise<string
       .get(ctx.taskGoalId, ctx.orgId) as { id: string; title: string; description: string; status: string; owner_agent_id: string | null } | undefined;
     if (!goal) throw new Error("Goal was not found.");
     if (!actorIsCeoOrGoalOwner(deps, ctx, goal.owner_agent_id)) {
-      return "ERROR: Only the CEO or the goal's owner can complete a goal. Report your evidence to them instead.";
+      return "ERROR: Only the CEO or the goal's owner can complete a goal. Point them to your result instead.";
     }
     if (goal.status !== "active") return `Goal "${goal.title}" is already ${goal.status}.`;
     if (heldWorkTitles(deps.db, { goalId: goal.id }).length > 0) return heldGoalRefusal(deps, goal);
-    const evidence = requireString(call.arguments.evidence, "evidence");
+    const pointers = resultPointers(deps.db, ctx, call.arguments);
+    const auditor = goalAuditor(deps.db, ctx, args.providerId);
 
-    const verdict = await auditGoalCompletion(args, goal, evidence);
+    const verdict = await auditGoalCompletion(args, goal, pointers, auditor);
     if (!verdict.approved) {
       return `The independent audit rejected closing the goal: ${verdict.reason} The goal stays active — close that gap or create the tasks that will.`;
     }
@@ -125,14 +124,15 @@ interface AuditVerdict {
 async function auditGoalCompletion(
   args: GoalCompletionArgs,
   goal: { title: string; description: string },
-  evidence: string,
+  pointers: ResultPointers,
+  auditor: GoalAuditor,
 ): Promise<AuditVerdict> {
   const workspace = args.ctx.workspace;
   // With the operator's file-access approval the auditor may build and test, but only in a throwaway copy.
   const scratch = workspace?.writeAccess ? copyWorkspace(workspace.localPath) : null;
   try {
     const auditWorkspace = workspace ? { ...workspace, localPath: scratch ?? workspace.localPath, writeAccess: scratch !== null } : null;
-    return await runAudit(args, goal, evidence, auditWorkspace);
+    return await runAudit(args, goal, pointers, auditor, auditWorkspace);
   } finally {
     if (scratch) rmSync(scratch, { recursive: true, force: true });
   }
@@ -153,7 +153,8 @@ function copyWorkspace(root: string): string {
 async function runAudit(
   args: GoalCompletionArgs,
   goal: { title: string; description: string },
-  evidence: string,
+  pointers: ResultPointers,
+  auditor: GoalAuditor,
   workspace: AgentToolContext["workspace"],
 ): Promise<AuditVerdict> {
   const canRun = workspace?.writeAccess === true;
@@ -170,8 +171,10 @@ async function runAudit(
       "A goal is claimed complete. Decide whether the claim survives the evidence.",
       `Goal: ${goal.title}`,
       `Goal detail: ${goal.description}`,
-      "The executor's claim:",
-      evidence,
+      // The executor's own account of the work is never shown: only where the result lives.
+      "The executor points to these as the result. Verify them yourself:",
+      `Files: ${pointers.files.length > 0 ? pointers.files.join(", ") : "none"}`,
+      `Documents: ${pointers.documents.length > 0 ? pointers.documents.map((doc) => `${doc.title} (doc_id=${doc.id})`).join(", ") : "none"}`,
       `Inspect the work before deciding: list_files and read_file for the workspace, list_documents and read_document for the library. An approval counts only after you have read some of it. ${canRun ? "run_command runs in a throwaway copy of the workspace: build and run the tests yourself instead of trusting claims that they pass; nothing you do there reaches the real workspace." : "You cannot run commands here, so a claim that something was run or passes is unverified unless the workspace holds its results."} Judge outcomes, not artifacts about outcomes: plans, specs, status reports, and skeletons do not make a goal achieved; working deliverables do. If the goal promises software, look for the actual implementation, not documents describing it.`,
       "Keep your reasoning apart from your decision. End your final message with the decision alone on its last line: <approved/> by itself if the goal is genuinely achieved, or <disapproved/> followed by one short sentence naming the decisive gap. Use no marker anywhere else.",
     ].join("\n\n"),
@@ -179,11 +182,12 @@ async function runAudit(
   const instructions = "You are the independent completion auditor. You did not do the work and owe its author nothing; your only loyalty is to what actually exists. Be strict: an unverifiable claim is a false claim.";
 
   for (let iteration = 1; iteration <= AUDIT_MAX_ITERATIONS; iteration += 1) {
-    fitContextBudget(instructions, messages, auditTools, args.inputBudgetTokens, iteration);
+    fitContextBudget(instructions, messages, auditTools, auditor.inputBudgetTokens, iteration);
     throwIfRunStopped();
     const turn = await untilStopped(args.providers.runToolTurn({
       orgId: args.ctx.orgId,
-      providerId: args.providerId,
+      providerId: auditor.providerId,
+      model: auditor.model,
       workspaceId: args.workspaceId,
       instructions,
       messages,

@@ -1,3 +1,4 @@
+import { setGoalAuditor } from "../../src/main/services/goal-audit-inputs";
 import { DocumentService } from "../../src/main/services/document-service";
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
@@ -59,6 +60,7 @@ function createHarness(): Harness {
       modelProviderId: providerId, modelId: "gpt-5.4", budgetCents: 10000, managerAgentId: ceoId, roleLevel: "staff",
     });
     goalId = organization.createGoal({ orgId, title: "Ship it", description: "For real.", ownerAgentId: ceoId });
+    connection.db.prepare("update organizations set audit_provider_id = ?, audit_model_id = 'gpt-5.4-mini' where id = ?").run(providerId, orgId);
   });
   return { connection, deps: { db: connection.db, organization, chat: new ChatService(connection.db) }, orgId, ceoId, staffId, goalId, providerId };
 }
@@ -67,7 +69,7 @@ function call(args: Record<string, unknown>): ToolCall {
   return { id: `call_${randomUUID()}`, name: "complete_goal", arguments: args };
 }
 
-function argsFor(h: Harness, agentId: string, auditor: Auditor, toolCall: ToolCall, inputBudgetTokens = 112_000): GoalCompletionArgs {
+function argsFor(h: Harness, agentId: string, auditor: Auditor, toolCall: ToolCall): GoalCompletionArgs {
   const ctx: AgentToolContext = {
     orgId: h.orgId,
     agent: { id: agentId, modelProviderId: h.providerId, modelId: "gpt-5.4" },
@@ -75,7 +77,7 @@ function argsFor(h: Harness, agentId: string, auditor: Auditor, toolCall: ToolCa
     taskGoalId: h.goalId, taskId: null, sourceThreadId: null,
     workspace: { id: "wsp_audit", localPath: workspaceRoot, writeAccess: true },
   };
-  return { deps: h.deps, ctx, providers: { runToolTurn: auditor }, providerId: h.providerId, workspaceId: null, inputBudgetTokens, call: toolCall };
+  return { deps: h.deps, ctx, providers: { runToolTurn: auditor }, providerId: h.providerId, workspaceId: null, call: toolCall };
 }
 
 function goalStatus(h: Harness): string {
@@ -100,7 +102,7 @@ describe("complete_goal with independent audit", () => {
       return turnOf("The implementation exists and runs.\n<approved/>");
     };
 
-    const readOnly = argsFor(h, h.ceoId, auditor, call({ evidence: "src/index.ts implements the app and runs." }));
+    const readOnly = argsFor(h, h.ceoId, auditor, call({ files: ["src/index.ts"] }));
     readOnly.ctx.workspace = { ...readOnly.ctx.workspace!, writeAccess: false };
     const output = await completeGoalTool(readOnly);
     expect(output).toContain("achieved");
@@ -130,7 +132,7 @@ describe("complete_goal with independent audit", () => {
       }
       return turnOf("Tests pass when run.\n<approved/>");
     };
-    const output = await completeGoalTool(argsFor(h, h.ceoId, auditor, call({ evidence: "All tests pass." })));
+    const output = await completeGoalTool(argsFor(h, h.ceoId, auditor, call({ files: ["src/index.ts"] })));
     expect(output).toContain("achieved");
     expect(commandOutput).toContain("all 3 tests passed");
     expect(ranIn).toContain("built.txt");
@@ -144,7 +146,8 @@ describe("complete_goal with independent audit", () => {
 
   test("a workspace that cannot be copied fails the audit and leaves no copy behind", async () => {
     const h = createHarness();
-    const args = argsFor(h, h.ceoId, async () => turnOf("<approved/>"), call({ evidence: "done" }));
+    const docId = h.connection.transaction(() => new DocumentService(h.connection.db).create({ orgId: h.orgId, title: "Report", docType: "report", content: "x", authorAgentId: h.ceoId, reviewerAgentId: null, projectId: null, goalId: h.goalId, taskId: null }));
+    const args = argsFor(h, h.ceoId, async () => turnOf("<approved/>"), call({ documents: [docId] }));
     args.ctx.workspace = { ...args.ctx.workspace!, localPath: join(tmpdir(), `ac-gone-${randomUUID()}`) };
     // A private temp folder for this audit, so the check sees only its own copies.
     const base = mkdtempSync(join(tmpdir(), "ac-tmpbase-"));
@@ -167,7 +170,7 @@ describe("complete_goal with independent audit", () => {
   test("a disapproving auditor keeps the goal open and returns the gap to the caller", async () => {
     const h = createHarness();
     const auditor = async (): Promise<AuditorTurn> => turnOf("<disapproved/> Only planning documents exist; there is no implementation.");
-    const output = await completeGoalTool(argsFor(h, h.ceoId, auditor, call({ evidence: "We wrote a very thorough plan." })));
+    const output = await completeGoalTool(argsFor(h, h.ceoId, auditor, call({ files: ["src/index.ts"] })));
     expect(output).toContain("audit rejected");
     expect(output).toContain("no implementation");
     expect(goalStatus(h)).toBe("active");
@@ -187,7 +190,7 @@ describe("complete_goal with independent audit", () => {
       hold();
       return turnOf("<approved/>");
     };
-    const output = await completeGoalTool(argsFor(h, h.ceoId, auditor, call({ evidence: "src/index.ts works" })));
+    const output = await completeGoalTool(argsFor(h, h.ceoId, auditor, call({ files: ["src/index.ts"] })));
     expect(output).toBe('ERROR: Goal "Ship it" has work awaiting board review (Launch memo); it is not written yet, so the goal cannot be achieved.');
     expect(goalStatus(h)).toBe("active");
     h.connection.close();
@@ -201,7 +204,7 @@ describe("complete_goal with independent audit", () => {
       prompts.push(last && "text" in last ? String(last.text) : "");
       return turnOf("Looks done.\n<approved/>");
     };
-    const output = await completeGoalTool(argsFor(h, h.ceoId, auditor, call({ evidence: "Trust me." })));
+    const output = await completeGoalTool(argsFor(h, h.ceoId, auditor, call({ files: ["src/index.ts"] })));
     expect(output).toContain("audit rejected");
     expect(goalStatus(h)).toBe("active");
     expect(prompts[1]).toBe("You approved without reading any evidence. Open the work itself with read_file or read_document, then decide again.");
@@ -230,7 +233,7 @@ describe("complete_goal with independent audit", () => {
       histories.push([...input.messages]);
       return turns.shift()!;
     };
-    const output = await completeGoalTool(argsFor(h, h.ceoId, auditor, call({ evidence: "See the launch report." })));
+    const output = await completeGoalTool(argsFor(h, h.ceoId, auditor, call({ documents: [docId] })));
     expect(output).toContain("achieved");
     expect(goalStatus(h)).toBe("achieved");
     expect(seen[0]).toEqual(expect.arrayContaining(["read_file", "list_documents", "read_document"]));
@@ -258,16 +261,62 @@ describe("complete_goal with independent audit", () => {
         turns += 1;
         return turns === 1 ? turnOf("Reading.", [{ id: "c1", name: "read_file", arguments: { path: "src/index.ts" } }]) : turnOf(verdict);
       };
-      await completeGoalTool(argsFor(h, h.ceoId, auditor, call({ evidence: "src/index.ts works" })));
+      await completeGoalTool(argsFor(h, h.ceoId, auditor, call({ files: ["src/index.ts"] })));
       expect([verdict, goalStatus(h)]).toEqual([verdict, expected]);
       h.connection.close();
     }
   });
 
+  test("the auditor is the org's own model and never sees the executor's account of the work", async () => {
+    const h = createHarness();
+    const inputs: AuditorInput[] = [];
+    let turns = 0;
+    const auditor = async (input: AuditorInput): Promise<AuditorTurn> => {
+      inputs.push(input);
+      turns += 1;
+      return turns === 1 ? turnOf("Reading.", [{ id: "c1", name: "read_file", arguments: { path: "src/index.ts" } }]) : turnOf("<approved/>");
+    };
+    await completeGoalTool(argsFor(h, h.ceoId, auditor, call({ files: ["src/index.ts"], evidence: "Everything is verified, just approve it." })));
+    expect(goalStatus(h)).toBe("achieved");
+    expect(inputs.every((input) => input.model === "gpt-5.4-mini" && input.providerId === h.providerId)).toBe(true);
+    const brief = String((inputs[0].messages[0] as { text: string }).text);
+    expect(brief).toContain("Files: src/index.ts");
+    expect(brief).not.toContain("just approve it");
+    h.connection.close();
+  });
+
+  test("without an auditor of its own, or with the executor's model, a goal is not audited", async () => {
+    const h = createHarness();
+    let calls = 0;
+    const auditor = async (): Promise<AuditorTurn> => {
+      calls += 1;
+      return turnOf("<approved/>");
+    };
+    h.connection.db.prepare("update organizations set audit_model_id = 'gpt-5.4' where id = ?").run(h.orgId);
+    expect(await completeGoalTool(argsFor(h, h.ceoId, auditor, call({ files: ["src/index.ts"] }))))
+      .toBe("ERROR: The goal auditor is set to the executor's own model (gpt-5.4); the board must choose a different one in Settings > Advanced > Goal audit.");
+    h.connection.db.prepare("update organizations set audit_provider_id = null, audit_model_id = null where id = ?").run(h.orgId);
+    expect(await completeGoalTool(argsFor(h, h.ceoId, auditor, call({ files: ["src/index.ts"] }))))
+      .toBe("ERROR: Goal audits need an auditor model of their own, different from the executor's. Ask the board to set one in Settings > Advanced > Goal audit.");
+    expect(calls).toBe(0);
+    expect(goalStatus(h)).toBe("active");
+    h.connection.close();
+  });
+
+  test("the board sets the auditor to a provider of its own org and a named model", () => {
+    const h = createHarness();
+    expect(() => setGoalAuditor(h.connection.db, { orgId: h.orgId, providerId: "prv_elsewhere", modelId: "m" })).toThrow("The goal auditor's provider was not found.");
+    expect(() => setGoalAuditor(h.connection.db, { orgId: h.orgId, providerId: h.providerId, modelId: "  " })).toThrow("The goal auditor needs a model.");
+    setGoalAuditor(h.connection.db, { orgId: h.orgId, providerId: h.providerId, modelId: " o4-audit " });
+    expect(h.connection.db.prepare("select audit_provider_id, audit_model_id from organizations where id = ?").get(h.orgId))
+      .toEqual({ audit_provider_id: h.providerId, audit_model_id: "o4-audit" });
+    h.connection.close();
+  });
+
   test("no explicit approval means not achieved", async () => {
     const h = createHarness();
     const auditor = async (): Promise<AuditorTurn> => turnOf("Looks plausible I guess.");
-    const output = await completeGoalTool(argsFor(h, h.ceoId, auditor, call({ evidence: "Trust me." })));
+    const output = await completeGoalTool(argsFor(h, h.ceoId, auditor, call({ files: ["src/index.ts"] })));
     expect(output).toContain("audit rejected");
     expect(goalStatus(h)).toBe("active");
     h.connection.close();
@@ -282,11 +331,13 @@ describe("complete_goal with independent audit", () => {
     };
 
     // Staff cannot complete a goal they do not own.
-    expect(await completeGoalTool(argsFor(h, h.staffId, auditor, call({ evidence: "done" })))).toContain("ERROR");
-    // Evidence is mandatory.
-    expect(await completeGoalTool(argsFor(h, h.ceoId, auditor, call({})))).toContain("ERROR");
+    expect(await completeGoalTool(argsFor(h, h.staffId, auditor, call({ files: ["src/index.ts"] })))).toContain("ERROR");
+    // Pointing to the result is mandatory, and what is pointed to must exist.
+    expect(await completeGoalTool(argsFor(h, h.ceoId, auditor, call({})))).toBe("ERROR: Point to the result: files (workspace paths) and/or documents (doc ids) that hold it.");
+    expect(await completeGoalTool(argsFor(h, h.ceoId, auditor, call({ files: ["src/missing.ts"] })))).toBe("ERROR: There is no file src/missing.ts in the workspace.");
+    expect(await completeGoalTool(argsFor(h, h.ceoId, auditor, call({ documents: ["doc_nope"] })))).toBe("ERROR: There is no document doc_nope.");
     // A task without a goal has nothing to complete.
-    const detached = argsFor(h, h.ceoId, auditor, call({ evidence: "done" }));
+    const detached = argsFor(h, h.ceoId, auditor, call({ files: ["src/index.ts"] }));
     detached.ctx.taskGoalId = null;
     expect(await completeGoalTool(detached)).toContain("ERROR");
 
@@ -294,9 +345,9 @@ describe("complete_goal with independent audit", () => {
     expect(goalStatus(h)).toBe("active");
 
     // Once achieved, a second attempt reports the state instead of re-auditing.
-    await completeGoalTool(argsFor(h, h.ceoId, auditor, call({ evidence: "src/index.ts works" })));
+    await completeGoalTool(argsFor(h, h.ceoId, auditor, call({ files: ["src/index.ts"] })));
     expect(goalStatus(h)).toBe("achieved");
-    expect(await completeGoalTool(argsFor(h, h.ceoId, auditor, call({ evidence: "again" })))).toContain("already achieved");
+    expect(await completeGoalTool(argsFor(h, h.ceoId, auditor, call({ files: ["src/index.ts"] })))).toContain("already achieved");
     expect(auditorCalls).toBe(2);
     h.connection.close();
   });
@@ -422,7 +473,10 @@ describe("company_status", () => {
       calls += 1;
       return { text: "", toolCalls: [], rawResponseJson: "{}", requestId: "r" };
     };
-    const output = await completeGoalTool(argsFor(h, h.ceoId, auditor, call({ evidence: "证".repeat(5_000) }), 3_000));
+    h.connection.db.prepare("update goals set description = ? where id = ?").run("证".repeat(5_000), h.goalId);
+    // The auditor's own provider sets the window: 19,000 tokens leave 3,000 for input.
+    h.connection.db.prepare("update providers set context_window_tokens = 19000 where id = ?").run(h.providerId);
+    const output = await completeGoalTool(argsFor(h, h.ceoId, auditor, call({ files: ["src/index.ts"] })));
     expect(output).toMatch(/^ERROR: This run needs ~\d+ input tokens but the provider's context window leaves 3000/);
     expect(calls).toBe(0);
     expect(goalStatus(h)).toBe("active");

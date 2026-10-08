@@ -63,6 +63,7 @@ export function SettingsPage({ snapshot, actions }: PageProps) {
           {tab === "advanced" && (
             <AdvancedPanel
               orgId={orgId}
+              organization={organization}
               agents={agents}
               providers={providers}
               catalog={snapshot.providerCatalog}

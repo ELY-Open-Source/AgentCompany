@@ -137,7 +137,6 @@ export async function runAgentLoop(deps: AgentRunLoopDeps, input: AgentRunLoopIn
           providers: deps.providers,
           providerId: input.providerId,
           workspaceId: input.workspaceId,
-          inputBudgetTokens: input.inputBudgetTokens,
           call,
         }));
       } else {

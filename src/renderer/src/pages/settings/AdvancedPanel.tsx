@@ -3,6 +3,7 @@ import type { ProviderRateLimitStateRecord } from "../../../../shared/provider-r
 import type {
   AgentRecord,
   HiringPolicyRecord,
+  OrganizationRecord,
   ProviderCatalogEntry,
   ProviderRecord,
   ProviderRequestRecord,
@@ -10,12 +11,14 @@ import type {
 } from "../../../../shared/domain";
 import type { SnapshotActions } from "../../app/useSnapshot";
 import { BillingPanel } from "./BillingPanel";
+import { GoalAuditPanel } from "./GoalAuditPanel";
 import { ProviderRequestPanel } from "./ProviderRequestPanel";
 import { t } from "../../i18n/i18n";
 
 /** The low-frequency operator surfaces, one section each. */
 export function AdvancedPanel({
   orgId,
+  organization,
   agents,
   providers,
   catalog,
@@ -27,6 +30,7 @@ export function AdvancedPanel({
   actions,
 }: {
   orgId: string;
+  organization: OrganizationRecord;
   agents: AgentRecord[];
   providers: ProviderRecord[];
   catalog: ProviderCatalogEntry[];
@@ -54,6 +58,10 @@ export function AdvancedPanel({
           />
         </div>
       )}
+
+      <div style={{ marginTop: 28 }}>
+        <GoalAuditPanel organization={organization} providers={connected} actions={actions} />
+      </div>
 
       <div style={{ marginTop: 28 }}>
         <BillingPanel agents={agents} providers={providers} usage={usage} providerRateLimits={providerRateLimits} hiringPolicies={hiringPolicies} />

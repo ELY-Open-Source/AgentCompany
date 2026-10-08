@@ -1,3 +1,4 @@
+import { DocumentService } from "../../src/main/services/document-service";
 import { randomUUID } from "node:crypto";
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
@@ -73,10 +74,14 @@ describe("stopping runs", () => {
         stopRun(runId);
         return { text: "Verified. <approved/>", toolCalls: [], rawResponseJson: "{}" };
       }
-      return { text: "Closing.", toolCalls: [{ id: "c1", name: "complete_goal", arguments: { goal_id: goalId, evidence: "Shipped." } }], rawResponseJson: "{}" };
+      return { text: "Closing.", toolCalls: [{ id: "c1", name: "complete_goal", arguments: { documents: [docId] } }], rawResponseJson: "{}" };
     };
     const { connection, execution, orgId, claim } = company(turn);
     const goalId = (connection.db.prepare("select id from goals where org_id = ?").get(orgId) as { id: string }).id;
+    const ceoId = (connection.db.prepare("select id from agents where org_id = ? and role_level = 'c_suite'").get(orgId) as { id: string }).id;
+    const docId = connection.transaction(() => new DocumentService(connection.db).create({ orgId, title: "MVP", docType: "report", content: "Live.", authorAgentId: ceoId, reviewerAgentId: null, projectId: null, goalId, taskId: null }));
+    // The org audits goals with a model of its own.
+    connection.db.prepare("update organizations set audit_provider_id = (select id from providers where org_id = ? and provider_key = 'openai'), audit_model_id = 'gpt-5.4-mini' where id = ?").run(orgId, orgId);
     runId = claim();
     await expect(execution.executeRun(orgId, runId)).rejects.toThrow(RUN_STOPPED_MESSAGE);
     expect(connection.db.prepare("select status from goals where id = ?").get(goalId)).toEqual({ status: "active" });

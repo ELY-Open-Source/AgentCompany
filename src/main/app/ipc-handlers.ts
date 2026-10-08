@@ -30,6 +30,7 @@ import { SprintService } from "../services/sprint-service";
 import { ComposioConnectionService } from "../services/composio/composio-connection-service";
 import { ConnectorGrantsService } from "../services/composio/connector-grants";
 import { approvalDrifts } from "../services/approval-drift";
+import { setGoalAuditor } from "../services/goal-audit-inputs";
 import { IntegrationKeyStore } from "../services/integration-key-store";
 import { importStagedSkills, stageBuiltinSkillsLibrary } from "../services/builtin-skills";
 import { coalesce } from "./coalesce";
@@ -224,6 +225,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
   });
   ipcMain.handle(IPC_CHANNELS.updateProviderPolicy, (_event, input) => mutate(() => providers.updatePolicy(input)));
   ipcMain.handle(IPC_CHANNELS.setProviderPrices, (_event, input) => mutate(() => providers.setPrices(input)));
+  ipcMain.handle(IPC_CHANNELS.setGoalAuditor, (_event, input) => mutate(() => setGoalAuditor(deps.connection.db, input)));
   ipcMain.handle(IPC_CHANNELS.checkProviderHealth, async (_event, input) => {
     try {
       await providers.checkHealth(input.orgId, input.providerId);

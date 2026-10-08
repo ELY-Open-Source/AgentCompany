@@ -130,7 +130,7 @@ function goalReviewDescription(goalTitle: string): string {
     `Every task under the goal "${goalTitle.trim()}" is finished, but the goal itself is still open. Decide what happens next — this is a checkpoint, not a formality.`,
     "First gather evidence: list_files and read_file the workspace, and read what the team reported. Plans, specs, and status documents are not the product. If the goal promises working software, the proof is code in the workspace that builds and passes its tests (run_command).",
     "Then take exactly one of these actions before closing this task:",
-    "1. The goal is genuinely achieved -> call complete_goal with your evidence. An independent auditor inspects the workspace before the goal actually closes, so claims without substance will bounce.",
+    "1. The goal is genuinely achieved -> call complete_goal with the files and documents that hold the result. An independent auditor inspects the workspace before the goal actually closes, so claims without substance will bounce.",
     "2. It is not achieved -> create the next wave of tasks (create_task, assigned by name). Implementation work must set requires_filesystem: true so the assignee can change code and run commands. Documents alone must not close the next wave either.",
   ].join("\n\n");
 }

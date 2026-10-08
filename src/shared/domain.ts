@@ -45,6 +45,9 @@ export interface OrganizationRecord {
   executionMode: string;
   autoApproveHires: boolean;
   reviewDeliverables: boolean;
+  /** The provider and model that audit goal completion, never the executor's own; null until the board sets them. */
+  auditProviderId: string | null;
+  auditModelId: string | null;
   createdAt: string;
 }
 

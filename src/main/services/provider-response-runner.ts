@@ -114,6 +114,8 @@ export class ProviderResponseRunner {
     instructions: string | null;
     messages: AgentTurnMessage[];
     tools: ToolDefinition[];
+    /** A model chosen for this call (a goal auditor's), outside the session's pinned model and account. */
+    model?: string;
   }): Promise<AgentTurnResult & { requestId: string }> {
     const provider = loadConfiguredProvider(this.deps.db, input.orgId, input.providerId);
     const workspaceId = this.normalizeWorkspaceId(input.orgId, input.workspaceId ?? null);
@@ -128,12 +130,14 @@ export class ProviderResponseRunner {
     const pins = taskRunId
       ? this.deps.db.prepare("select run_model, run_credential_id from task_runs where id = ?").get(taskRunId) as { run_model: string | null; run_credential_id: string | null }
       : null;
-    if (pins?.run_credential_id && pins.run_credential_id !== provider.credential_id) {
+    const chosen = input.model ?? null;
+    if (!chosen && pins?.run_credential_id && pins.run_credential_id !== provider.credential_id) {
       throw new Error("The provider's account was reconnected during this session; the next session continues with the new account.");
     }
     // Every turn of a session calls the model the session started with (checked then), whatever the configuration says now.
-    if (!pins?.run_model) assertModelSelectable(provider.provider_key, agent?.model_id ?? null, provider.model);
-    const model = pins?.run_model ?? effectiveModel(agent?.model_id ?? null, provider.model);
+    if (chosen) assertModelSelectable(provider.provider_key, chosen, provider.model);
+    else if (!pins?.run_model) assertModelSelectable(provider.provider_key, agent?.model_id ?? null, provider.model);
+    const model = chosen ?? pins?.run_model ?? effectiveModel(agent?.model_id ?? null, provider.model);
     if (!model) throw new Error("Provider model is required.");
     const owner: ProviderRow & { model: string } = { ...provider, model };
     const turn = this.deps.toolTurn ?? selectToolTurn(provider.provider_key);
