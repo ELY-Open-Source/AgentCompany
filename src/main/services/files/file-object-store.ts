@@ -5,6 +5,7 @@ import type { DatabaseSync } from "node:sqlite";
 import { FILE_SCAN_STATE, type FileScanState } from "../../../shared/domain";
 import { createId } from "../../../shared/ids";
 import { resolveWorkspacePath } from "./workspace-path";
+import { withSavepoint } from "../../database/connection";
 
 export interface FileScanResult {
   state: FileScanState;
@@ -155,26 +156,19 @@ export function recordWorkspaceFile(db: DatabaseSync, input: {
   const name = basename(input.relativePath);
   const scan = scanFileContent(name, bytes);
   const now = new Date().toISOString();
-  db.exec("begin immediate");
-  try {
-    const id = upsertFileObject(db, {
-      orgId: input.orgId,
-      name,
-      kind: fileKind(name),
-      sizeBytes: bytes.byteLength,
-      sha256: createHash("sha256").update(bytes).digest("hex"),
-      storagePath: absolute,
-      ownerType: input.ownerType,
-      ownerId: input.ownerId,
-      scan,
-      now,
-    });
-    db.exec("commit");
-    return id;
-  } catch (error) {
-    db.exec("rollback");
-    throw error;
-  }
+  // A savepoint, not a transaction: an approved deliverable is recorded inside the approval's own transaction.
+  return withSavepoint(db, "record_workspace_file", () => upsertFileObject(db, {
+    orgId: input.orgId,
+    name,
+    kind: fileKind(name),
+    sizeBytes: bytes.byteLength,
+    sha256: createHash("sha256").update(bytes).digest("hex"),
+    storagePath: absolute,
+    ownerType: input.ownerType,
+    ownerId: input.ownerId,
+    scan,
+    now,
+  }));
 }
 
 function grantWorkspaceAccess(db: DatabaseSync, orgId: string, fileId: string, now: string): void {

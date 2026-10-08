@@ -4,6 +4,7 @@ import { APPROVAL_STATE, ROLE_KEY } from "../../shared/domain";
 import { createId } from "../../shared/ids";
 import { AuditService } from "./audit-service";
 import { settleHire } from "./agent-admission";
+import { settleHeldDeliverable } from "./held-deliverables";
 import { IdentityAccessService } from "./identity-access-service";
 import { OrgGovernanceService } from "./org-governance-service";
 
@@ -101,6 +102,10 @@ export class ApprovalService {
       action: input.state,
       payload: { decidedAt: now },
     });
+    // Last, so nothing after it can fail once a file is on disk.
+    if (approval.source_entity_type === "held_deliverable" && approval.source_entity_id) {
+      settleHeldDeliverable(this.db, approval.source_entity_id, input.state === APPROVAL_STATE.APPROVED);
+    }
   }
 
   private assertRequesterBelongsToOrg(input: CreateApprovalInput): void {

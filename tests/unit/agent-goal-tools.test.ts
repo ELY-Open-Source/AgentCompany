@@ -117,6 +117,22 @@ describe("complete_goal with independent audit", () => {
     h.connection.close();
   });
 
+  test("work held for board review keeps the goal open, even when held while the audit runs", async () => {
+    const h = createHarness();
+    const hold = () => h.connection.db.prepare(`
+      insert into held_deliverables(id, org_id, approval_id, kind, goal_id, title, doc_type, content, state, created_at)
+      values (?, ?, 'app_x', 'document_create', ?, 'Launch memo', 'memo', 'draft', 'held', ?)
+    `).run(`hld_${randomUUID()}`, h.orgId, h.goalId, new Date().toISOString());
+    const auditor = async (): Promise<AuditorTurn> => {
+      hold();
+      return turnOf("<approved/>");
+    };
+    const output = await completeGoalTool(argsFor(h, h.ceoId, auditor, call({ evidence: "src/index.ts works" })));
+    expect(output).toBe('ERROR: Goal "Ship it" has work awaiting board review (Launch memo); it is not written yet, so the goal cannot be achieved.');
+    expect(goalStatus(h)).toBe("active");
+    h.connection.close();
+  });
+
   test("no explicit approval means not achieved", async () => {
     const h = createHarness();
     const auditor = async (): Promise<AuditorTurn> => turnOf("Looks plausible I guess.");

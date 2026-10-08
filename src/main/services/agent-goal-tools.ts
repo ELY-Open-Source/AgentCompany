@@ -7,6 +7,7 @@ import type { JsonRecord } from "./provider-http";
 import type { ProviderService } from "./provider-service";
 import { unreadableArguments, type AgentTurnMessage, type ToolCall, type ToolDefinition } from "./provider-tool-turn";
 import { MAX_TOOL_CALLS_PER_TURN, throwIfRunStopped, untilStopped } from "./run-control";
+import { heldWorkTitles } from "./held-deliverables";
 
 const AUDIT_MAX_ITERATIONS = 6;
 const STATUS_TASK_LINES = 8;
@@ -78,6 +79,7 @@ export async function completeGoalTool(args: GoalCompletionArgs): Promise<string
       return "ERROR: Only the CEO or the goal's owner can complete a goal. Report your evidence to them instead.";
     }
     if (goal.status !== "active") return `Goal "${goal.title}" is already ${goal.status}.`;
+    if (heldWorkTitles(deps.db, { goalId: goal.id }).length > 0) return heldGoalRefusal(deps, goal);
     const evidence = requireString(call.arguments.evidence, "evidence");
 
     const verdict = await auditGoalCompletion(args, goal, evidence);
@@ -85,6 +87,8 @@ export async function completeGoalTool(args: GoalCompletionArgs): Promise<string
       return `The independent audit rejected closing the goal: ${verdict.reason} The goal stays active — close that gap or create the tasks that will.`;
     }
     throwIfRunStopped();
+    // Work held for review while the audit ran keeps the goal open too.
+    if (heldWorkTitles(deps.db, { goalId: goal.id }).length > 0) return heldGoalRefusal(deps, goal);
     deps.db.prepare("update goals set status = 'achieved', stalled_reason = null, updated_at = ? where id = ? and org_id = ?")
       .run(new Date().toISOString(), goal.id, ctx.orgId);
     new AuditService(deps.db).record({
@@ -100,6 +104,11 @@ export async function completeGoalTool(args: GoalCompletionArgs): Promise<string
   } catch (error) {
     return `ERROR: ${error instanceof Error ? error.message : String(error)}`;
   }
+}
+
+function heldGoalRefusal(deps: GoalCompletionArgs["deps"], goal: { id: string; title: string }): string {
+  const held = heldWorkTitles(deps.db, { goalId: goal.id });
+  return `ERROR: Goal "${goal.title}" has work awaiting board review (${held.join(", ")}); it is not written yet, so the goal cannot be achieved.`;
 }
 
 interface AuditVerdict {

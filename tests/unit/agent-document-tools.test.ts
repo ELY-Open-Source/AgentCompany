@@ -91,12 +91,14 @@ describe("agent document tools", () => {
     h.connection.close();
   });
 
-  test("in review mode an update goes to Approvals", () => {
-    const h = harness(true);
+  test("in review mode an update is held in Approvals and the document keeps its version", () => {
+    const h = harness(false);
     const docId = /doc_id=(doc_\w+)/.exec(h.run("create_document", { title: "Policy", doc_type: "policy", content: "v1" }))![1];
-    expect(h.run("update_document", { doc_id: docId, content: "v2", reason: "Tighter wording" })).toContain("queued for board review");
-    const approvals = h.connection.db.prepare("select title from approvals where org_id = ? and kind = 'deliverable_review' order by created_at").all(h.orgId);
-    expect(approvals).toEqual([{ title: "Review policy: Policy" }, { title: "Review policy update: Policy" }]);
+    h.connection.db.prepare("update organizations set review_deliverables = 1 where id = ?").run(h.orgId);
+    expect(h.run("update_document", { doc_id: docId, content: "v2", reason: "Tighter wording" })).toContain("held for board review");
+    const approvals = h.connection.db.prepare("select title from approvals where org_id = ? and kind = 'deliverable_review'").all(h.orgId);
+    expect(approvals).toEqual([{ title: "Review policy update: Policy" }]);
+    expect(h.connection.db.prepare("select version, content from documents where id = ?").get(docId)).toEqual({ version: 1, content: "v1" });
     h.connection.close();
   });
 });

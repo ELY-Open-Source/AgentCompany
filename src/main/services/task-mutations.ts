@@ -3,6 +3,7 @@ import { RISK_LEVEL, TASK_STATUS, type TaskPriority } from "../../shared/domain"
 import type { CreateTaskInput, DeleteTaskInput, UpdateTaskInput } from "../../shared/commands";
 import { AuditService } from "./audit-service";
 import { withSavepoint } from "../database/connection";
+import { heldWorkTitles } from "./held-deliverables";
 
 type StatusActor = { type: "system" } | { type: "agent"; id: string };
 
@@ -98,6 +99,8 @@ export class TaskMutations {
         const assignee = task.assignee_agent_id ? (this.db.prepare("select name from agents where id = ?").get(task.assignee_agent_id) as { name: string }).name : "the CEO";
         throw new Error(`Only ${assignee}, their managers or the open reviewer can change "${task.title}".`);
       }
+      const held = input.status === TASK_STATUS.DONE ? heldWorkTitles(this.db, { taskId: task.id }) : [];
+      if (held.length > 0) throw new Error(`"${task.title}" has work awaiting board review (${held.join(", ")}); it is not written yet, so the task cannot be done.`);
       const finishing = input.status === TASK_STATUS.DONE || input.status === TASK_STATUS.REVIEW;
       if (finishing && !input.evidence) {
         throw new Error('"evidence" is required to move work to review or done: say what was produced and where (file_ids, document ids, test results).');

@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { mkdirSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, test } from "vitest";
@@ -71,17 +71,87 @@ function pendingApprovals(h: Harness, kind: string): Array<{ state: string; sour
 }
 
 describe("execution modes", () => {
-  test("AI Co-Founder mode queues every deliverable and document for board review", () => {
+  test("AI Co-Founder mode holds every deliverable and document until the board approves it", () => {
     const h = harness("ai_cofounder");
+    const db = h.connection.db;
+    const root = h.ctx.workspace!.localPath;
     const wrote = dispatchAgentTool(h.deps, h.ctx, call("write_deliverable", { path: "plan/business-plan.md", content: "# Plan" }));
-    expect(wrote).toContain("queued for board review");
+    expect(wrote).toContain("held for board review");
     const doc = dispatchAgentTool(h.deps, h.ctx, call("create_document", { title: "Launch memo", doc_type: "memo", content: "Ship it." }));
-    expect(doc).toContain("queued for board review");
+    expect(doc).toContain("held for board review");
+    // Nothing exists for anyone to use while the reviews wait.
+    expect(existsSync(join(root, "plan", "business-plan.md"))).toBe(false);
+    expect(db.prepare("select count(*) as n from documents where org_id = ?").get(h.orgId)).toEqual({ n: 0 });
 
-    const reviews = pendingApprovals(h, "deliverable_review");
-    expect(reviews).toHaveLength(2);
-    expect(reviews.every((review) => review.state === "pending")).toBe(true);
-    expect(reviews.map((review) => review.source_entity_type).sort()).toEqual(["document", "file"]);
+    const reviews = db.prepare("select id, state, source_entity_type, details from approvals where org_id = ? and kind = 'deliverable_review' order by rowid").all(h.orgId) as Array<{ id: string; state: string; source_entity_type: string; details: string }>;
+    expect(reviews.map((review) => [review.state, review.source_entity_type])).toEqual([["pending", "held_deliverable"], ["pending", "held_deliverable"]]);
+    expect(reviews[0].details).toContain("# Plan");
+    expect(reviews[1].details).toContain("Ship it.");
+    const employeeId = (db.prepare("select id from employees where org_id = ?").get(h.orgId) as { id: string }).id;
+    for (const review of reviews) {
+      h.connection.transaction(() => new ApprovalService(db).decide({ orgId: h.orgId, approvalId: review.id, state: "approved", decidedByEmployeeId: employeeId }));
+    }
+    expect(readFileSync(join(root, "plan", "business-plan.md"), "utf8")).toBe("# Plan");
+    expect(db.prepare("select title, content from documents where org_id = ?").all(h.orgId)).toEqual([{ title: "Launch memo", content: "Ship it." }]);
+  });
+
+  test("a declined deliverable is never written, and held work keeps its task open", () => {
+    const h = harness("ai_cofounder");
+    const db = h.connection.db;
+    const employeeId = (db.prepare("select id from employees where org_id = ?").get(h.orgId) as { id: string }).id;
+    const taskId = h.connection.transaction(() => h.deps.organization.createTask({
+      orgId: h.orgId, title: "Write the plan", description: "d", status: "in_progress", assigneeAgentId: h.ceoId, risk: "low",
+      projectId: null, goalId: null, workspaceId: null, priority: TASK_PRIORITY.NORMAL, requiresFilesystem: false,
+    }));
+    const ctx = { ...h.ctx, taskId };
+    dispatchAgentTool(h.deps, ctx, call("write_deliverable", { path: "plan.md", content: "draft" }));
+    const finish = () => h.deps.organization.agentSetTaskStatus({ orgId: h.orgId, taskId, status: "done", agentId: h.ceoId, evidence: "plan.md" });
+    expect(finish).toThrow('"Write the plan" has work awaiting board review (plan.md); it is not written yet, so the task cannot be done.');
+    const review = (db.prepare("select id from approvals where org_id = ? and kind = 'deliverable_review'").get(h.orgId) as { id: string }).id;
+    h.connection.transaction(() => new ApprovalService(db).decide({ orgId: h.orgId, approvalId: review, state: "declined", decidedByEmployeeId: employeeId }));
+    expect(existsSync(join(h.ctx.workspace!.localPath, "plan.md"))).toBe(false);
+    expect(db.prepare("select state from held_deliverables").get()).toEqual({ state: "declined" });
+    finish();
+  });
+
+  test("an approved file whose registration fails leaves the workspace as it was", () => {
+    const h = harness("ai_cofounder");
+    const db = h.connection.db;
+    const root = h.ctx.workspace!.localPath;
+    writeFileSync(join(root, "kept.md"), "old");
+    dispatchAgentTool(h.deps, h.ctx, call("write_deliverable", { path: "kept.md", content: "new" }));
+    dispatchAgentTool(h.deps, h.ctx, call("write_deliverable", { path: "fresh.md", content: "new" }));
+    db.exec("create trigger registry_down before insert on file_objects begin select raise(abort, 'registry down'); end;");
+    const employeeId = (db.prepare("select id from employees where org_id = ?").get(h.orgId) as { id: string }).id;
+    for (const review of db.prepare("select id from approvals where kind = 'deliverable_review'").all() as Array<{ id: string }>) {
+      expect(() => h.connection.transaction(() => new ApprovalService(db).decide({ orgId: h.orgId, approvalId: review.id, state: "approved", decidedByEmployeeId: employeeId })))
+        .toThrow("registry down");
+    }
+    expect(readFileSync(join(root, "kept.md"), "utf8")).toBe("old");
+    expect(existsSync(join(root, "fresh.md"))).toBe(false);
+    expect(db.prepare("select state from held_deliverables order by rowid").all()).toEqual([{ state: "held" }, { state: "held" }]);
+    // A failing state change is caught before anything is written.
+    db.exec("drop trigger registry_down; create trigger held_down before update on held_deliverables begin select raise(abort, 'held store down'); end;");
+    const first = (db.prepare("select id from approvals where kind = 'deliverable_review' order by rowid").get() as { id: string }).id;
+    expect(() => h.connection.transaction(() => new ApprovalService(db).decide({ orgId: h.orgId, approvalId: first, state: "approved", decidedByEmployeeId: employeeId })))
+      .toThrow("held store down");
+    expect(readFileSync(join(root, "kept.md"), "utf8")).toBe("old");
+  });
+
+  test("a held document update is refused at approval if the document moved on meanwhile", () => {
+    const h = harness("ai_ceo");
+    const db = h.connection.db;
+    const created = dispatchAgentTool(h.deps, h.ctx, call("create_document", { title: "Memo", doc_type: "memo", content: "v1" }));
+    const docId = /doc_id=([^,]+)/.exec(created)![1];
+    db.prepare("update organizations set review_deliverables = 1 where id = ?").run(h.orgId);
+    expect(dispatchAgentTool(h.deps, h.ctx, call("update_document", { doc_id: docId, content: "v2 draft", reason: "tighten" }))).toContain("held for board review");
+    expect(db.prepare("select version, content from documents where id = ?").get(docId)).toEqual({ version: 1, content: "v1" });
+    db.prepare("update documents set version = 2 where id = ?").run(docId);
+    const employeeId = (db.prepare("select id from employees where org_id = ?").get(h.orgId) as { id: string }).id;
+    const review = (db.prepare("select id from approvals where org_id = ? and kind = 'deliverable_review'").get(h.orgId) as { id: string }).id;
+    expect(() => h.connection.transaction(() => new ApprovalService(db).decide({ orgId: h.orgId, approvalId: review, state: "approved", decidedByEmployeeId: employeeId })))
+      .toThrow("The document moved from v1 to v2 after this draft was held; decline the review and ask for a fresh draft.");
+    expect(db.prepare("select state from approvals where id = ?").get(review)).toEqual({ state: "pending" });
   });
 
   test("AI CEO mode ships deliverables without review", () => {

@@ -1,5 +1,6 @@
 import { optionalEnum, optionalLimit, optionalText, requireString } from "./agent-tool-args";
-import { requestDeliverableReview } from "./agent-deliverable-tools";
+import { holdForReview } from "./agent-deliverable-tools";
+import { reviewsDeliverables } from "./held-deliverables";
 import type { AgentToolContext, AgentToolDeps } from "./agent-tools";
 import { DocumentService } from "./document-service";
 import type { JsonRecord } from "./provider-http";
@@ -108,22 +109,20 @@ export function readDocumentTool(deps: AgentToolDeps, ctx: AgentToolContext, arg
 
 export function updateDocumentTool(deps: AgentToolDeps, ctx: AgentToolContext, args: JsonRecord): string {
   const id = requireString(args.doc_id, "doc_id");
-  const doc = deps.db.prepare("select title, doc_type, status from documents where id = ? and org_id = ?")
-    .get(id, ctx.orgId) as { title: string; doc_type: string; status: string } | undefined;
+  const doc = deps.db.prepare("select title, doc_type, status, version from documents where id = ? and org_id = ?")
+    .get(id, ctx.orgId) as { title: string; doc_type: string; status: string; version: number } | undefined;
   if (!doc) throw new Error(`No document with doc_id "${id}".`);
   const content = requireString(args.content, "content");
   const title = optionalText(args.title, "title") ?? doc.title;
   const reason = requireString(args.reason, "reason");
+  if (reviewsDeliverables(deps.db, ctx.orgId)) {
+    holdForReview(deps, ctx, { kind: "document_update", documentId: id, baseVersion: doc.version, title, reason }, content, `Review ${doc.doc_type} update: ${title}`);
+    return `The update to "${title}" is held for board review in Approvals. The document keeps its current version until the update is approved.`;
+  }
   const version = new DocumentService(deps.db).update({
     orgId: ctx.orgId, documentId: id, title, content, status: doc.status, reason, changedByType: "agent", changedById: ctx.agent.id,
   });
-  const review = requestDeliverableReview(deps, ctx, {
-    title: `Review ${doc.doc_type} update: ${title}`,
-    details: `Document "${title}" v${version} was updated by an agent run (${content.length} chars). Reason: ${reason}`,
-    sourceEntityType: "document",
-    sourceEntityId: id,
-  });
-  return `Updated document "${title}" to v${version} (doc_id=${id}).${review ? " The update is queued for board review in Approvals." : ""}`;
+  return `Updated document "${title}" to v${version} (doc_id=${id}).`;
 }
 
 function producedBy(row: DocumentRow): string {
