@@ -65,7 +65,7 @@ describe("task dependencies", () => {
       .toThrow(`"${parentTitle}" has open subtasks: Hire the CTO. It can close once they are done.`);
     const ctx = { orgId: h.orgId, agent: { id: h.ceoId, modelProviderId: null, modelId: null }, taskProjectId: null, taskGoalId: null, taskId: null, sourceThreadId: null, workspace: null };
     const deps = { db: h.connection.db, organization: h.organization, chat: new ChatService(h.connection.db) };
-    expect(dispatchAgentTool(deps, ctx, { id: "c1", name: "update_task_status", arguments: { task_id: parentId, status: "done" } }))
+    expect(dispatchAgentTool(deps, ctx, { id: "c1", name: "update_task_status", arguments: { task_id: parentId, status: "done", evidence: "Delegated." } }))
       .toBe(`ERROR: "${parentTitle}" has open subtasks: Hire the CTO. It can close once they are done.`);
 
     // A run queued before the subtask existed is superseded instead of running ahead of it.

@@ -129,7 +129,7 @@ describe("task execution service", () => {
     expect(skillRuntimeSnapshot?.source_revision_ids).toContain(revisionId);
     expect(capturedPrompt).toContain("Task: Draft launch checklist");
     expect(capturedPrompt).toContain(`Task id: ${taskId}`);
-    expect(capturedPrompt).toContain(`update_task_status(task_id="${taskId}", status="done")`);
+    expect(capturedPrompt).toContain(`update_task_status(task_id="${taskId}", status="done", evidence="what you produced and where")`);
     expect(capturedPrompt).toContain("Assignee: Ada (Execution lead)");
     expect(capturedPrompt).toContain("Workspace: Task Workspace");
     expect(capturedPrompt).toContain("Execution context:");

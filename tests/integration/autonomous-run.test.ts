@@ -192,7 +192,7 @@ describe("autonomous bootstrap run", () => {
       if (taskId && !alreadyClosed) {
         return {
           text: "Reviewed the goal; closing the kickoff.",
-          toolCalls: [call("update_task_status", { task_id: taskId, status: "done" })],
+          toolCalls: [call("update_task_status", { task_id: taskId, status: "done", evidence: "Operating plan posted in #general." })],
           rawResponseJson: JSON.stringify({ id: "resp_goal_close" }),
         };
       }

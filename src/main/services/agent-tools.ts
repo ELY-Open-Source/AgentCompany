@@ -15,7 +15,7 @@ import { KNOWLEDGE_TOOLS, recordKnowledgeTool, reviseKnowledgeTool, searchKnowle
 import { DOCUMENT_TOOLS, DOCUMENT_TYPES, listDocumentsTool, readDocumentTool, updateDocumentTool } from "./agent-document-tools";
 import { sendMessageTool } from "./agent-send-message";
 import { withSavepoint } from "../database/connection";
-import { optionalEnum, optionalString, optionalStringArray, requireString } from "./agent-tool-args";
+import { optionalEnum, optionalString, optionalStringArray, optionalText, requireString } from "./agent-tool-args";
 import { CEO_FIRST_HIRES } from "./org-building";
 import type { JsonRecord } from "./provider-http";
 import type { ToolCall, ToolDefinition } from "./provider-tool-turn";
@@ -98,13 +98,14 @@ export const AGENT_TOOLS: ToolDefinition[] = [
   },
   {
     name: "update_task_status",
-    description: "Move a task to a new status.",
+    description: "Move a task you own, manage or review to a new status. Moving your own work to done sends it to your manager's review first.",
     parameters: {
       type: "object",
       additionalProperties: false,
       properties: {
         task_id: { type: "string" },
         status: { type: "string", enum: ["backlog", "in_progress", "review", "done"] },
+        evidence: { type: "string", description: "Required for review and done: what was produced and where (file_ids, document ids, test results) or what you checked." },
       },
       required: ["task_id", "status"],
     },
@@ -382,15 +383,16 @@ function delegationParent(db: DatabaseSync, ctx: AgentToolContext): string | nul
 function updateTaskStatus(deps: AgentToolDeps, ctx: AgentToolContext, args: JsonRecord): string {
   const taskId = requireString(args.task_id, "task_id");
   const status = normalizeStatus(args.status);
-  deps.organization.updateTaskStatus(ctx.orgId, taskId, status);
-  if (status !== TASK_STATUS.REVIEW) return `Task ${taskId} moved to ${status}.`;
+  const applied = deps.organization.agentSetTaskStatus({ orgId: ctx.orgId, taskId, status, agentId: ctx.agent.id, evidence: optionalText(args.evidence, "evidence") });
+  if (applied !== TASK_STATUS.REVIEW) return `Task ${taskId} moved to ${applied}.`;
+  const routed = status === TASK_STATUS.DONE ? "review: done needs sign-off from your manager" : "review";
   const reviewer = deps.db.prepare(`
     select a.name from tasks r join agents a on a.id = r.assignee_agent_id
     where r.review_of_task_id = ? and r.status <> 'done' limit 1
   `).get(taskId) as { name: string } | undefined;
   return reviewer
-    ? `Task ${taskId} moved to review. ${reviewer.name} will review it.`
-    : `Task ${taskId} moved to review. It has no manager to review it, so it waits for the operator on the Work board.`;
+    ? `Task ${taskId} moved to ${routed}. ${reviewer.name} will review it.`
+    : `Task ${taskId} moved to ${routed}. It has no manager to review it, so it waits for the operator on the Work board.`;
 }
 
 

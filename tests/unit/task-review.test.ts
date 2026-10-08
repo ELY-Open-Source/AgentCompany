@@ -34,11 +34,11 @@ describe("task review", () => {
   test("moving work to review hands a review task to the assignee's manager; the verdict closes it", () => {
     const h = setup();
     const taskId = h.task(h.devId, "Login page");
-    expect(dispatchAgentTool(h.deps, h.ctx(h.devId), { id: "c1", name: "update_task_status", arguments: { task_id: taskId, status: "review" } }))
+    expect(dispatchAgentTool(h.deps, h.ctx(h.devId), { id: "c1", name: "update_task_status", arguments: { task_id: taskId, status: "review", evidence: "Login page in file_id=fil_1" } }))
       .toBe(`Task ${taskId} moved to review. Cleo will review it.`);
     const [review] = h.reviews(taskId);
     expect(review).toMatchObject({ title: "Review: Login page", assignee_agent_id: h.ceoId, status: "backlog", origin: "task_review", priority: "high" });
-    expect(review.description).toContain(`update_task_status(task_id="${taskId}", status="done")`);
+    expect(review.description).toContain(`update_task_status(task_id="${taskId}", status="done", evidence="what you checked")`);
     expect(review.description).toContain(`update_task_status(task_id="${taskId}", status="in_progress")`);
 
     // Moving to review again while one is open does not duplicate it.
@@ -58,7 +58,7 @@ describe("task review", () => {
     expect(h.reviews(taskId).map((row) => row.status)).toEqual(["done"]);
 
     const ceoTask = h.task(h.ceoId, "Company plan");
-    expect(dispatchAgentTool(h.deps, h.ctx(h.ceoId), { id: "c2", name: "update_task_status", arguments: { task_id: ceoTask, status: "review" } }))
+    expect(dispatchAgentTool(h.deps, h.ctx(h.ceoId), { id: "c2", name: "update_task_status", arguments: { task_id: ceoTask, status: "review", evidence: "Plan in the plan document" } }))
       .toBe(`Task ${ceoTask} moved to review. It has no manager to review it, so it waits for the operator on the Work board.`);
     expect(h.reviews(ceoTask)).toEqual([]);
     h.connection.close();

@@ -297,7 +297,7 @@ export function buildTaskPrompt(input: {
     const managerReference = input.managerName ? `${manager} (${agentMention(input.managerName)})` : manager;
     lines.push(
       "",
-      `First, read_messages to check if anyone has said something you should respond to — reply to them like a colleague, not a report. Then do the work: write real output with write_deliverable, raise decisions and blockers with ${managerReference} in a direct message (send_message with to=), and keep team-wide topics in channels. Hand files over with /handoff and attachment_file_ids. Keep conversation going — ask questions, share your thinking, push back if something seems wrong. Before you finish: if the work is genuinely done, call update_task_status(task_id="${input.task.id}", status="done"); if it needs another session, move it to "in_progress" and say in the thread what remains — an open task will be run again.`,
+      `First, read_messages to check if anyone has said something you should respond to — reply to them like a colleague, not a report. Then do the work: write real output with write_deliverable, raise decisions and blockers with ${managerReference} in a direct message (send_message with to=), and keep team-wide topics in channels. Hand files over with /handoff and attachment_file_ids. Keep conversation going — ask questions, share your thinking, push back if something seems wrong. Before you finish: if the work is genuinely done, call update_task_status(task_id="${input.task.id}", status="done", evidence="what you produced and where"); if it needs another session, move it to "in_progress" and say in the thread what remains — an open task will be run again.`,
     );
   }
   lines.push("", RECORD_LEARNINGS_INSTRUCTION);

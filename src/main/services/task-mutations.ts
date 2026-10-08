@@ -4,6 +4,8 @@ import type { CreateTaskInput, DeleteTaskInput, UpdateTaskInput } from "../../sh
 import { AuditService } from "./audit-service";
 import { withSavepoint } from "../database/connection";
 
+type StatusActor = { type: "system" } | { type: "agent"; id: string };
+
 interface TaskRow {
   id: string;
   title: string;
@@ -14,6 +16,7 @@ interface TaskRow {
   goal_id: string | null;
   workspace_id: string | null;
   priority: TaskPriority;
+  origin: string | null;
 }
 
 /** Edits, deletion and status moves of existing tasks, with their hierarchy and review rules. */
@@ -25,11 +28,20 @@ export class TaskMutations {
   }
 
   update(input: UpdateTaskInput): void {
+    withSavepoint(this.db, "task_update", () => this.applyUpdate(input));
+  }
+
+  private applyUpdate(input: UpdateTaskInput): void {
     const now = new Date().toISOString();
     if (input.assigneeAgentId && !this.db.prepare("select 1 from agents where id = ? and org_id = ?").get(input.assigneeAgentId, input.orgId)) {
       throw new Error("Assignee agent was not found.");
     }
     if (input.parentTaskId) this.assertParentAllowed(input.orgId, input.taskId, input.parentTaskId, input.title.trim());
+    const before = this.requireTask(input.orgId, input.taskId);
+    // Work in review that changes hands goes back to in progress; the new assignee submits it for their own manager's review.
+    if (before.status === TASK_STATUS.REVIEW && before.assignee_agent_id !== input.assigneeAgentId) {
+      this.applyStatus(input.orgId, before, TASK_STATUS.IN_PROGRESS, { type: "system" }, null);
+    }
     const result = this.db.prepare(`
       update tasks set title = ?, description = ?, assignee_agent_id = ?, risk = ?, priority = ?, parent_task_id = ?, updated_at = ?,
         stalled_reason = null, run_budget_floor = (select coalesce(max(rowid), 0) from task_runs)
@@ -66,15 +78,65 @@ export class TaskMutations {
   }
 
   updateStatus(orgId: string, taskId: string, status: string): void {
-    withSavepoint(this.db, "task_status", () => this.applyStatus(orgId, taskId, status));
+    withSavepoint(this.db, "task_status", () => this.applyStatus(orgId, this.requireTask(orgId, taskId), status, { type: "system" }, null));
   }
 
-  private applyStatus(orgId: string, taskId: string, status: string): void {
+  /** Assignee, managers up the chain or the open reviewer may move a task; finishing needs evidence and a manager's sign-off. */
+  agentSetStatus(input: { orgId: string; taskId: string; status: string; agentId: string; evidence: string | null }): string {
+    return withSavepoint(this.db, "task_status", () => {
+      const task = this.requireTask(input.orgId, input.taskId);
+      const isAssignee = task.assignee_agent_id === input.agentId;
+      const isManager = this.managesAssignee(input.orgId, input.agentId, task.assignee_agent_id);
+      const isReviewer = Boolean(this.db.prepare("select 1 from tasks where review_of_task_id = ? and assignee_agent_id = ? and status <> 'done'").get(task.id, input.agentId));
+      if (!isAssignee && !isManager && !isReviewer) {
+        const assignee = task.assignee_agent_id ? (this.db.prepare("select name from agents where id = ?").get(task.assignee_agent_id) as { name: string }).name : "the CEO";
+        throw new Error(`Only ${assignee}, their managers or the open reviewer can change "${task.title}".`);
+      }
+      const finishing = input.status === TASK_STATUS.DONE || input.status === TASK_STATUS.REVIEW;
+      if (finishing && !input.evidence) {
+        throw new Error('"evidence" is required to move work to review or done: say what was produced and where (file_ids, document ids, test results).');
+      }
+      // Plain work its own assignee calls done goes to the manager first; vehicles (reviews, chat replies) close directly.
+      const needsSignOff = input.status === TASK_STATUS.DONE && task.status !== TASK_STATUS.DONE && task.origin === null
+        && isAssignee && this.activeManagerOf(input.orgId, task.assignee_agent_id) !== null;
+      const applied = needsSignOff ? TASK_STATUS.REVIEW : input.status;
+      this.applyStatus(input.orgId, task, applied, { type: "agent", id: input.agentId }, input.evidence);
+      return applied;
+    });
+  }
+
+  private requireTask(orgId: string, taskId: string): TaskRow {
     const task = this.db.prepare(`
-      select id, title, description, status, assignee_agent_id, project_id, goal_id, workspace_id, priority
+      select id, title, description, status, assignee_agent_id, project_id, goal_id, workspace_id, priority, origin
       from tasks where id = ? and org_id = ?
     `).get(taskId, orgId) as TaskRow | undefined;
     if (!task) throw new Error("Task was not found.");
+    return task;
+  }
+
+  /** True when the agent sits above the assignee in the management chain; unassigned work belongs to the CEO. */
+  private managesAssignee(orgId: string, agentId: string, assigneeId: string | null): boolean {
+    if (!assigneeId) return Boolean(this.db.prepare("select 1 from agents where id = ? and org_id = ? and role_level = 'c_suite'").get(agentId, orgId));
+    return Boolean(this.db.prepare(`
+      with recursive chain(id) as (
+        select manager_agent_id from agents where id = ? and org_id = ?
+        union select a.manager_agent_id from agents a join chain c on a.id = c.id where a.manager_agent_id is not null
+      )
+      select 1 from chain where id = ? limit 1
+    `).get(assigneeId, orgId, agentId));
+  }
+
+  private activeManagerOf(orgId: string, agentId: string | null): string | null {
+    if (!agentId) return null;
+    const row = this.db.prepare(`
+      select m.id from agents a join agents m on m.id = a.manager_agent_id
+      where a.id = ? and a.org_id = ? and m.lifecycle = 'active'
+    `).get(agentId, orgId) as { id: string } | undefined;
+    return row?.id ?? null;
+  }
+
+  private applyStatus(orgId: string, task: TaskRow, status: string, actor: StatusActor, evidence: string | null): void {
+    const taskId = task.id;
     if (status === TASK_STATUS.DONE) this.assertNoOpenSubtasks(orgId, task);
     const reopening = task.status === TASK_STATUS.DONE && status !== TASK_STATUS.DONE;
     // Reopening a done task gives it a fresh run budget.
@@ -88,24 +150,22 @@ export class TaskMutations {
       orgId,
       entityType: "task",
       entityId: taskId,
-      actorType: "system",
-      actorId: null,
+      actorType: actor.type,
+      actorId: actor.type === "agent" ? actor.id : null,
       action: "status_changed",
-      payload: { status },
+      payload: evidence ? { status, evidence } : { status },
     });
-    if (status === TASK_STATUS.REVIEW && task.status !== TASK_STATUS.REVIEW) this.openReview(orgId, task);
+    if (status === TASK_STATUS.REVIEW && task.status !== TASK_STATUS.REVIEW) this.openReview(orgId, task, evidence);
     if (task.status === TASK_STATUS.REVIEW && status !== TASK_STATUS.REVIEW) this.closeReviews(orgId, taskId, status);
   }
 
   /** Hands work in review to the assignee's manager as a review task; without one it waits for the operator. */
-  private openReview(orgId: string, task: TaskRow): void {
+  private openReview(orgId: string, task: TaskRow, evidence: string | null): void {
     const assignee = task.assignee_agent_id
-      ? this.db.prepare("select name, manager_agent_id from agents where id = ?").get(task.assignee_agent_id) as { name: string; manager_agent_id: string | null }
+      ? this.db.prepare("select name from agents where id = ?").get(task.assignee_agent_id) as { name: string }
       : null;
-    const reviewer = assignee?.manager_agent_id
-      ? this.db.prepare("select id from agents where id = ? and org_id = ? and lifecycle = 'active'").get(assignee.manager_agent_id, orgId) as { id: string } | undefined
-      : undefined;
-    if (!reviewer) {
+    const reviewerId = this.activeManagerOf(orgId, task.assignee_agent_id);
+    if (!reviewerId) {
       this.audit.record({ orgId, entityType: "task", entityId: task.id, actorType: "system", actorId: null, action: "review_requested", payload: { reviewer: "operator" } });
       return;
     }
@@ -116,10 +176,11 @@ export class TaskMutations {
       description: [
         `${author} moved "${task.title}" (task_id=${task.id}) to review.`,
         `Task brief:\n${task.description}`,
-        `Check the actual output against the brief: read_messages for their report, list_files/read_file and list_documents for what they produced. If it meets the brief, approve it with update_task_status(task_id="${task.id}", status="done"). If not, send it back with update_task_status(task_id="${task.id}", status="in_progress") and tell ${author} in a direct message exactly what to fix. Either verdict closes this review.`,
+        `Evidence given: ${evidence ?? "none; ask for it"}`,
+        `Check the actual output against the brief: read_messages for their report, list_files/read_file and list_documents for what they produced. If it meets the brief, approve it with update_task_status(task_id="${task.id}", status="done", evidence="what you checked"). If not, send it back with update_task_status(task_id="${task.id}", status="in_progress") and tell ${author} in a direct message exactly what to fix. Either verdict closes this review.`,
       ].join("\n\n"),
       status: TASK_STATUS.BACKLOG,
-      assigneeAgentId: reviewer.id,
+      assigneeAgentId: reviewerId,
       risk: RISK_LEVEL.LOW,
       projectId: task.project_id,
       goalId: task.goal_id,

@@ -481,4 +481,8 @@ export class OrganizationService {
   updateTaskStatus(orgId: string, taskId: string, status: string): void {
     this.tasks.updateStatus(orgId, taskId, status);
   }
+
+  agentSetTaskStatus(input: { orgId: string; taskId: string; status: string; agentId: string; evidence: string | null }): string {
+    return this.tasks.agentSetStatus(input);
+  }
 }
