@@ -1,12 +1,13 @@
 import type { DatabaseSync } from "node:sqlite";
 import type { ConnectorCatalogEntry, ConnectComposioToolkitResult } from "../../../shared/commands";
-import { ComposioClient } from "./composio-client";
+import { ComposioClient, type ComposioConnectedAccount } from "./composio-client";
 import { IntegrationKeyStore } from "../integration-key-store";
 import { getComposioUserId } from "./composio-tool-bridge";
 import { connectorDisplayName, connectorLogoUrl } from "./connector-brands";
 import { normalizeSlug } from "./connector-grants";
 
 const CATALOG_TTL_MS = 10 * 60 * 1000;
+const WAITING_STATUSES = new Set(["INITIALIZING", "INITIATED"]);
 
 let catalogCache: { fetchedAt: number; keys: string; entries: ConnectorCatalogEntry[] } | null = null;
 
@@ -34,15 +35,7 @@ export class ComposioConnectionService {
     return this.catalog(this.requireClient());
   }
 
-  /**
-   * Starts (or restarts) the company's connection for a toolkit: initiates a
-   * connected account against the toolkit's configured auth config via the
-   * link flow and records the pending account locally as INITIALIZING — the
-   * poll that follows adopts Composio's real status. Any previous account
-   * for the toolkit is deleted first so reconnecting replaces instead of
-   * accumulating accounts in Composio. The returned redirect URL completes
-   * authorization (or API-key entry) in the browser.
-   */
+  /** Starts a toolkit's connection; a reconnect waits beside an active account until refresh finds it authorized. */
   connectToolkit(orgId: string, toolkitSlug: string): Promise<ConnectComposioToolkitResult> {
     return this.serialize(orgId, () => this.connectToolkitNow(orgId, toolkitSlug));
   }
@@ -61,15 +54,22 @@ export class ComposioConnectionService {
     const entry = (await this.catalog(client)).find((item) => item.slug === slug);
     if (!entry) throw new Error(`No auth config for "${slug}" exists in the Composio project.`);
     const previous = this.db.prepare(
-      "select id from connector_accounts where org_id = ? and toolkit_slug = ?",
-    ).get(orgId, slug) as { id: string } | undefined;
-    if (previous) await client.deleteConnectedAccount(previous.id);
+      "select id, status, pending_account_id from connector_accounts where org_id = ? and toolkit_slug = ?",
+    ).get(orgId, slug) as { id: string; status: string; pending_account_id: string | null } | undefined;
     const account = await client.createConnectedAccount({
       authConfigId: entry.authConfigId,
       userId: getComposioUserId(this.db, orgId),
     });
     if (!account.id) throw new Error("Composio did not return a connected account id.");
     const now = new Date().toISOString();
+    // The local row moves to the new account before any old one is deleted; refresh ignores accounts no row tracks.
+    if (previous?.status === "ACTIVE") {
+      this.db.prepare("update connector_accounts set pending_account_id = ?, updated_at = ? where org_id = ? and toolkit_slug = ?")
+        .run(account.id, now, orgId, slug);
+      console.info(`[connectors] ${slug} reconnect ${account.id} started; ${previous.id} stays in use until it is authorized`);
+      if (previous.pending_account_id) await client.deleteConnectedAccount(previous.pending_account_id);
+      return { accountId: account.id, redirectUrl: account.redirectUrl };
+    }
     this.db.prepare(`
       insert into connector_accounts(id, org_id, toolkit_slug, toolkit_name, auth_config_id, status, created_at, updated_at)
       values (?, ?, ?, ?, ?, ?, ?, ?)
@@ -78,17 +78,15 @@ export class ComposioConnectionService {
         toolkit_name = excluded.toolkit_name,
         auth_config_id = excluded.auth_config_id,
         status = excluded.status,
+        pending_account_id = null,
         updated_at = excluded.updated_at
     `).run(account.id, orgId, slug, entry.name, entry.authConfigId, "INITIALIZING", now, now);
+    if (previous?.pending_account_id) await client.deleteConnectedAccount(previous.pending_account_id);
+    if (previous) await client.deleteConnectedAccount(previous.id);
     return { accountId: account.id, redirectUrl: account.redirectUrl };
   }
 
-  /**
-   * Pulls account statuses from Composio and updates the local mirror, in
-   * both directions: statuses adopt Composio's truth, and local rows whose
-   * account no longer exists in Composio are removed along with their
-   * grants — deleting an account in the dashboard cleans up here too.
-   */
+  /** Mirrors Composio: tracked accounts take its status, gone ones are removed with their grants, untracked toolkits are adopted. */
   refreshAccounts(orgId: string): Promise<void> {
     return this.serialize(orgId, () => this.refreshAccountsNow(orgId));
   }
@@ -98,13 +96,26 @@ export class ComposioConnectionService {
     const accounts = await client.listConnectedAccounts(getComposioUserId(this.db, orgId));
     const now = new Date().toISOString();
     const liveIds = new Set(accounts.map((account) => account.id));
+    const reconnects = this.db.prepare("select id, toolkit_slug, pending_account_id from connector_accounts where org_id = ? and pending_account_id is not null")
+      .all(orgId) as Array<{ id: string; toolkit_slug: string; pending_account_id: string }>;
+    for (const row of reconnects) await this.settleReconnect(client, row, accounts.find((account) => account.id === row.pending_account_id), liveIds.has(row.id));
+    const localRows = this.db.prepare("select id, toolkit_slug, pending_account_id from connector_accounts where org_id = ?")
+      .all(orgId) as Array<{ id: string; toolkit_slug: string; pending_account_id: string | null }>;
+    for (const row of localRows) {
+      if (liveIds.has(row.id)) continue;
+      this.removeLocalAccount(orgId, row.toolkit_slug);
+    }
+    const tracked = new Map(localRows.filter((row) => liveIds.has(row.id)).map((row) => [row.toolkit_slug, row]));
     for (const account of accounts) {
       if (!account.toolkitSlug) continue;
+      const row = tracked.get(account.toolkitSlug);
+      // A toolkit's row follows only its own account; others (a waiting reconnect, an orphan) never replace it.
+      if (row && row.id !== account.id) continue;
+      tracked.set(account.toolkitSlug, { id: account.id, toolkit_slug: account.toolkitSlug, pending_account_id: null });
       this.db.prepare(`
         insert into connector_accounts(id, org_id, toolkit_slug, toolkit_name, auth_config_id, status, created_at, updated_at)
         values (?, ?, ?, ?, ?, ?, ?, ?)
         on conflict(org_id, toolkit_slug) do update set
-          id = excluded.id,
           auth_config_id = excluded.auth_config_id,
           status = excluded.status,
           updated_at = excluded.updated_at
@@ -119,12 +130,27 @@ export class ComposioConnectionService {
         now,
       );
     }
-    const localRows = this.db.prepare("select id, toolkit_slug from connector_accounts where org_id = ?")
-      .all(orgId) as Array<{ id: string; toolkit_slug: string }>;
-    for (const row of localRows) {
-      if (liveIds.has(row.id)) continue;
-      this.removeLocalAccount(orgId, row.toolkit_slug);
+  }
+
+  /** A waiting reconnect replaces the old account once active (or once the old one is gone); one that failed or vanished is dropped and the old account stays. */
+  private async settleReconnect(
+    client: ComposioClient,
+    row: { id: string; toolkit_slug: string; pending_account_id: string },
+    pending: ComposioConnectedAccount | undefined,
+    oldIsLive: boolean,
+  ): Promise<void> {
+    const now = new Date().toISOString();
+    if (pending && (pending.status === "ACTIVE" || !oldIsLive)) {
+      if (oldIsLive) await client.deleteConnectedAccount(row.id);
+      this.db.prepare("update connector_accounts set id = ?, auth_config_id = ?, status = ?, pending_account_id = null, updated_at = ? where id = ?")
+        .run(pending.id, pending.authConfigId, pending.status, now, row.id);
+      console.info(`[connectors] ${row.toolkit_slug} reconnect ${pending.id} replaced ${row.id}`);
+      return;
     }
+    if (pending && WAITING_STATUSES.has(pending.status)) return;
+    if (pending) await client.deleteConnectedAccount(pending.id);
+    this.db.prepare("update connector_accounts set pending_account_id = null, updated_at = ? where id = ?").run(now, row.id);
+    console.warn(`[connectors] ${row.toolkit_slug} reconnect ${row.pending_account_id} ended ${pending?.status ?? "missing"}; ${row.id} stays in use`);
   }
 
   /**
@@ -139,10 +165,16 @@ export class ComposioConnectionService {
   private async disconnectToolkitNow(orgId: string, toolkitSlug: string): Promise<void> {
     const slug = normalizeSlug(toolkitSlug);
     const row = this.db.prepare(
-      "select id from connector_accounts where org_id = ? and toolkit_slug = ?",
-    ).get(orgId, slug) as { id: string } | undefined;
+      "select id, pending_account_id from connector_accounts where org_id = ? and toolkit_slug = ?",
+    ).get(orgId, slug) as { id: string; pending_account_id: string | null } | undefined;
     if (!row) return;
-    await this.requireClient().deleteConnectedAccount(row.id);
+    const client = this.requireClient();
+    // Every account Composio holds for the toolkit goes, so an orphan from a failed delete cannot be adopted back.
+    const ids = new Set([row.id, ...(row.pending_account_id ? [row.pending_account_id] : [])]);
+    for (const account of await client.listConnectedAccounts(getComposioUserId(this.db, orgId))) {
+      if (account.toolkitSlug === slug) ids.add(account.id);
+    }
+    for (const id of ids) await client.deleteConnectedAccount(id);
     this.removeLocalAccount(orgId, slug);
   }
 

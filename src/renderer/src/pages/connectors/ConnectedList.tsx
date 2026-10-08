@@ -61,6 +61,7 @@ export function ConnectedList({
                 />
                 <span style={{ fontWeight: 600, fontSize: 13.5 }}>{account.toolkitName}</span>
                 <Pill tone={STATUS_TONE[account.status]} dot>{account.status.charAt(0) + account.status.slice(1).toLowerCase()}</Pill>
+                {account.pendingAccountId && <Pill tone="amber" dot>{t("Reconnect waiting for authorization")}</Pill>}
                 <span className="row" style={{ gap: 6, marginLeft: "auto" }}>
                   <Button size="small" disabled={busy} onClick={() => onReconnect(account.toolkitSlug)}>
                     {busySlug === account.toolkitSlug && busyAction === "connect" ? t("Opening…") : t("Reconnect")}

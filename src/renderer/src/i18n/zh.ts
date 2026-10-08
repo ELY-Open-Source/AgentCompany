@@ -382,6 +382,7 @@ export const zh: Record<string, string> = {
   "Recent messages": "最近消息",
   "Recently decided": "最近已决",
   "Reconnect": "重新连接",
+  "Reconnect waiting for authorization": "重新连接等待授权",
   "Refresh models": "刷新模型",
   "Region": "区域",
   "Rejected": "已驳回",

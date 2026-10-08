@@ -83,7 +83,7 @@ export function useConnectorCatalog(orgId: string, actions: SnapshotActions): {
           const account = data?.connectorAccounts.find(
             (item) => item.orgId === orgId && item.toolkitSlug === toolkitSlug,
           );
-          if (account?.status === "ACTIVE") return;
+          if (account?.status === "ACTIVE" && !account.pendingAccountId) return;
           poll(attempt + 1);
         });
       }, CONNECT_POLL_INTERVAL_MS);

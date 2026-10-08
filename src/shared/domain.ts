@@ -453,6 +453,8 @@ export interface ConnectorAccountRecord {
   toolkitName: string;
   authConfigId: string;
   status: string;
+  /** A reconnect waiting for authorization; the current account keeps working until it is active. */
+  pendingAccountId: string | null;
   createdAt: string;
   updatedAt: string;
 }
