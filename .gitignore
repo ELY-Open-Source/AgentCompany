@@ -9,3 +9,25 @@ design-source/
 .DS_Store
 ailine
 .wrangler
+
+# Credentials and signing material
+/cred.md
+/cred.txt
+*.p8
+*.p12
+*.cer
+*.pem
+*.key
+*.certSigningRequest
+*.mobileprovision
+.env
+.env.*
+!.env.example
+
+# Internal planning documents
+/AGENTS.md
+/PRODUCT.md
+/NewPRD.md
+/PRD*.md
+/task.md
+/AgentCompany-问题清单.md
