@@ -1,8 +1,14 @@
 import { spawn, spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
+import { mkdirSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { currentRunSignal } from "./run-control";
 
 const COMMAND_TIMEOUT_MS = 120_000;
 const KEEP_BYTES = 8_000;
+/** What a command may inherit: enough for the OS and toolchains to run, nothing that carries the user's keys, tokens or profile. */
+const INHERITED_ENV = ["PATH", "PATHEXT", "SystemRoot", "SystemDrive", "windir", "ComSpec", "NUMBER_OF_PROCESSORS", "PROCESSOR_ARCHITECTURE", "OS", "LANG", "LC_ALL", "TERM"];
 
 /** Keeps the first and last KEEP_BYTES of a stream and counts what it drops. */
 export class BoundedOutput {
@@ -47,7 +53,7 @@ export function runCommand(workspaceRoot: string, command: string, options: { ti
   const timeoutMs = options.timeoutMs ?? COMMAND_TIMEOUT_MS;
   return new Promise((resolvePromise) => {
     // Its own process group on POSIX, so the whole tree can be killed at once.
-    const child = spawn(command, { shell: true, cwd: workspaceRoot, windowsHide: true, detached: process.platform !== "win32" });
+    const child = spawn(command, { shell: true, cwd: workspaceRoot, env: commandEnvironment(workspaceRoot), windowsHide: true, detached: process.platform !== "win32" });
     const output = new BoundedOutput();
     let settled = false;
     const runSignal = currentRunSignal();
@@ -77,6 +83,19 @@ export function runCommand(workspaceRoot: string, command: string, options: { ti
     child.on("error", (error) => finish(`ERROR: ${error.message}`));
     child.on("close", (code, signal) => finish(formatCommandResult(code, signal, output.text())));
   });
+}
+
+/** A command's environment: the allowlisted variables plus a home and temp folder of the workspace's own, so ~ is not the user's profile. */
+export function commandEnvironment(workspaceRoot: string): NodeJS.ProcessEnv {
+  const home = join(tmpdir(), `agentcompany-home-${createHash("sha256").update(workspaceRoot).digest("hex").slice(0, 12)}`);
+  const temp = join(home, "tmp");
+  mkdirSync(temp, { recursive: true });
+  const env: NodeJS.ProcessEnv = { HOME: home, USERPROFILE: home, APPDATA: join(home, "AppData", "Roaming"), LOCALAPPDATA: join(home, "AppData", "Local"), TMP: temp, TEMP: temp, TMPDIR: temp };
+  for (const name of INHERITED_ENV) {
+    const value = process.env[name];
+    if (value !== undefined) env[name] = value;
+  }
+  return env;
 }
 
 /** The tool result for a finished command; no exit code means it was killed, which is never success. */

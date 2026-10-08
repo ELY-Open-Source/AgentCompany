@@ -113,11 +113,14 @@ export function createIsolationContext(
   if (task.requires_filesystem === 1 && !workspace) throw new Error("Filesystem tasks require a workspace.");
   const serviceIdentityId = requireServiceIdentity(db, orgId, agent.id);
   const executionContextId = createId("ctx");
+  // The mount mode guides the tools; the host does not enforce it, and commands run with the user's file access in an allowlisted environment.
   const workspaceMounts = workspace ? [{
     ...workspaceAccess(task, workspace)[0],
     name: workspace.name,
     localPath: workspace.local_path,
     repoRef: workspace.repo_ref,
+    hostEnforcement: "advisory",
+    commandEnvironment: "allowlisted",
   }] : [];
   return {
     executionContextId,

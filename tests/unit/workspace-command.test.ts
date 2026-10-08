@@ -1,5 +1,5 @@
 import { mkdtempSync, readFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, test, vi } from "vitest";
 import { BoundedOutput, formatCommandResult, runCommand } from "../../src/main/services/workspace-command";
@@ -73,5 +73,22 @@ describe("command results", () => {
     expect(formatCommandResult(2, null, "")).toBe("exit code 2\n(no output)");
     expect(formatCommandResult(null, "SIGKILL", "partial")).toBe("ERROR: the command was killed by SIGKILL before it exited; treat it as failed.\npartial");
     expect(formatCommandResult(null, null, "")).toBe("ERROR: the command ended without an exit code; treat it as failed.\n(no output)");
+  });
+});
+
+describe("the environment a command runs in", () => {
+  test("a command sees no inherited secrets and a home of its own, while PATH still finds tools", async () => {
+    const root = mkdtempSync(join(tmpdir(), "ac-env-"));
+    process.env.AGENTCOMPANY_TEST_SECRET = "sk-should-not-leak";
+    try {
+      const output = await runCommand(root, "node -e \"console.log(process.env.AGENTCOMPANY_TEST_SECRET ?? 'none'); console.log(require('os').homedir())\"");
+      const [code, secret, home] = output.split(/\r?\n/);
+      expect(code).toBe("exit code 0");
+      expect(secret).toBe("none");
+      expect(home).not.toBe(homedir());
+      expect(home).toContain("agentcompany-home-");
+    } finally {
+      delete process.env.AGENTCOMPANY_TEST_SECRET;
+    }
   });
 });

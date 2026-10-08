@@ -12,7 +12,7 @@ import { TaskMutations } from "./task-mutations";
 import { normalizeAvatarColor, normalizeAvatarImage } from "./avatar-values";
 import { approvalDecision, autonomy } from "./org-approvals";
 import { admitAgent } from "./agent-admission";
-import { TASK_APPROVAL_KINDS_SQL, TASK_SNAPSHOT_SQL } from "./task-approval";
+import { HOST_ACCESS_NOTE, TASK_APPROVAL_KINDS_SQL, TASK_SNAPSHOT_SQL } from "./task-approval";
 
 export class OrganizationService {
   private readonly audit: AuditService;
@@ -302,7 +302,7 @@ export class OrganizationService {
         id, org_id, kind, title, details, risk, requested_by_type, requested_by_id, source_entity_type, source_entity_id,
         state, decided_by_employee_id, created_at, decided_at, subject_snapshot
       ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(approvalId, orgId, approvalKind, task.title, task.description, RISK_LEVEL.HIGH, "system", null, "task", taskId,
+    `).run(approvalId, orgId, approvalKind, task.title, task.requires_filesystem === 1 ? `${task.description}\n\n${HOST_ACCESS_NOTE}` : task.description, RISK_LEVEL.HIGH, "system", null, "task", taskId,
       decision.state, decision.decidedBy, now, decision.decidedAt, task.snapshot);
     this.settleApproval(orgId, approvalId, approvalKind, RISK_LEVEL.HIGH, autoApprove);
   }

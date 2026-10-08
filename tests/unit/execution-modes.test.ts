@@ -11,7 +11,7 @@ import { ApprovalService } from "../../src/main/services/approval-service";
 import { runJournalLines } from "../../src/main/services/run-journal";
 import { DocumentService } from "../../src/main/services/document-service";
 import { approvalDrifts } from "../../src/main/services/approval-drift";
-import { executionApprovalProblem, requireAssignedAgent } from "../../src/main/services/task-run-preparation";
+import { createIsolationContext, executionApprovalProblem, loadWorkspace, requireAssignedAgent } from "../../src/main/services/task-run-preparation";
 import { TASK_PRIORITY } from "../../src/shared/domain";
 import type { TaskExecutionTaskRow } from "../../src/main/services/task-prompts";
 
@@ -200,6 +200,22 @@ describe("execution modes", () => {
       expect(existsSync(join(h.ctx.workspace!.localPath, "notes.md"))).toBe(false);
       expect(h.connection.db.prepare("select count(*) as n from held_deliverables").get()).toEqual({ n: 0 });
     }
+  });
+
+  test("file access is approved with its true reach, and the run's records call host isolation advisory", () => {
+    const h = harness("ai_cofounder");
+    const db = h.connection.db;
+    const taskId = h.connection.transaction(() => h.deps.organization.createTask({
+      orgId: h.orgId, title: "Fix the build", description: "Make CI green.", status: "backlog", assigneeAgentId: h.ceoId, risk: "low",
+      projectId: null, goalId: null, workspaceId: h.ctx.workspace!.id, priority: TASK_PRIORITY.NORMAL, requiresFilesystem: true,
+    }));
+    const approval = db.prepare("select details from approvals where source_entity_id = ?").get(taskId) as { details: string };
+    expect(approval.details).toBe("Make CI green.\n\nApproving lets this task run commands on this computer with your user's file access: they can read and change files outside the workspace. Only their environment is cleaned of keys and your profile.");
+    const task = db.prepare("select * from tasks where id = ?").get(taskId) as unknown as Parameters<typeof createIsolationContext>[2];
+    const agent = db.prepare("select * from agents where id = ?").get(h.ceoId) as unknown as Parameters<typeof createIsolationContext>[3];
+    const provider = db.prepare("select * from providers where id = (select model_provider_id from agents where id = ?)").get(h.ceoId) as unknown as Parameters<typeof createIsolationContext>[4];
+    const isolation = createIsolationContext(db, h.orgId, task, agent, provider, loadWorkspace(db, h.ctx.workspace!.id));
+    expect(JSON.parse(isolation.workspaceMountJson)[0]).toMatchObject({ mode: "read_write", hostEnforcement: "advisory", commandEnvironment: "allowlisted" });
   });
 
   test("AI CEO mode ships deliverables without review", () => {

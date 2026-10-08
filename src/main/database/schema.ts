@@ -86,6 +86,7 @@ import { connectorGrantLimitsSchema } from "./migrations/084-connector-grant-lim
 import { approvalSubjectSnapshotSchema } from "./migrations/085-approval-subject-snapshot";
 import { heldDeliverablesSchema } from "./migrations/086-held-deliverables";
 import { goalAuditorSchema } from "./migrations/087-goal-auditor";
+import { hostAccessNoteSchema } from "./migrations/088-host-access-note";
 
 interface Migration {
   version: number;
@@ -181,6 +182,7 @@ const MIGRATIONS: Migration[] = [
   { version: 85, name: "approval_subject_snapshot", sql: approvalSubjectSnapshotSchema },
   { version: 86, name: "held_deliverables", sql: heldDeliverablesSchema },
   { version: 87, name: "goal_auditor", sql: goalAuditorSchema },
+  { version: 88, name: "host_access_note", sql: hostAccessNoteSchema },
 ];
 
 const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;
