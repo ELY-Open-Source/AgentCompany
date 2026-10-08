@@ -48,7 +48,7 @@ export async function runOpenAiResponsesTurn(input: ProviderToolTurnInput): Prom
   };
   const response = await postJson("https://api.openai.com/v1/responses", { authorization: `Bearer ${requireApiKey(input.credential, "OpenAI")}` }, body);
   const parsed = parseResponsesOutput(response.data);
-  return { ...parsed, rawResponseJson: JSON.stringify(response.data) };
+  return { ...parsed, rawResponseJson: JSON.stringify(response.data), rateLimitState: response.rateLimitState };
 }
 
 // ---- OpenAI Chat Completions, streamed (xAI, Groq, Mistral, Cerebras, OpenRouter, Kimi, Kimi CN) ----
@@ -71,7 +71,7 @@ async function runChatCompletionsStream(endpoint: string, headers: Record<string
     ...(requestUsage ? { stream_options: { include_usage: true } } : {}),
   };
   const response = await postEventStream(endpoint, headers, body);
-  return accumulateChatStream(response.messages);
+  return { ...(await accumulateChatStream(response.messages)), rateLimitState: response.rateLimitState };
 }
 
 export function makeChatCompletionsTurn(endpoint: string, label: string, requestUsage = false): (input: ProviderToolTurnInput) => Promise<AgentTurnResult> {
@@ -90,7 +90,7 @@ export async function runAnthropicTurn(input: ProviderToolTurnInput): Promise<Ag
   };
   const response = await postJson("https://api.anthropic.com/v1/messages", { "x-api-key": requireApiKey(input.credential, "Anthropic"), "anthropic-version": "2023-06-01" }, body);
   const parsed = parseAnthropicContent(response.data);
-  return { ...parsed, rawResponseJson: JSON.stringify(response.data) };
+  return { ...parsed, rawResponseJson: JSON.stringify(response.data), rateLimitState: response.rateLimitState };
 }
 
 // ---- Claude Pro/Max (OAuth subscription) ----
@@ -116,7 +116,7 @@ export async function runClaudeProTurn(input: ProviderToolTurnInput): Promise<Ag
     "x-app": "cli",
   }, body);
   const parsed = parseAnthropicContent(response.data);
-  return { ...parsed, rawResponseJson: JSON.stringify(response.data) };
+  return { ...parsed, rawResponseJson: JSON.stringify(response.data), rateLimitState: response.rateLimitState };
 }
 
 // ---- Kimi Code (OAuth plan, streamed chat completions at the coding endpoint) ----
@@ -150,7 +150,7 @@ export async function runCodexTurn(input: ProviderToolTurnInput): Promise<AgentT
     "User-Agent": `agentcompany (${osPlatform()} ${osRelease()}; ${osArch()})`,
     "OpenAI-Beta": "responses=experimental",
   }, body);
-  return accumulateResponsesStream(response.messages);
+  return { ...(await accumulateResponsesStream(response.messages)), rateLimitState: response.rateLimitState };
 }
 
 // ---- GitHub Copilot (OAuth, openai-responses at the proxy) ----
@@ -172,7 +172,7 @@ export async function runCopilotTurn(input: ProviderToolTurnInput): Promise<Agen
     "Openai-Intent": "conversation-edits",
   }, body);
   const parsed = parseResponsesOutput(response.data);
-  return { ...parsed, rawResponseJson: JSON.stringify(response.data) };
+  return { ...parsed, rawResponseJson: JSON.stringify(response.data), rateLimitState: response.rateLimitState };
 }
 
 // ---- Custom OpenAI-compatible endpoint (base URL + key) ----
@@ -188,7 +188,7 @@ export async function runCustomOpenAiTurn(input: ProviderToolTurnInput): Promise
   };
   const response = await postJson(`${input.credential.baseUrl}/chat/completions`, { authorization: `Bearer ${requireApiKey(input.credential, "Custom OpenAI-compatible provider")}` }, body);
   const parsed = parseChatChoice(response.data);
-  return { ...parsed, rawResponseJson: JSON.stringify(response.data) };
+  return { ...parsed, rawResponseJson: JSON.stringify(response.data), rateLimitState: response.rateLimitState };
 }
 
 // ---- Custom Anthropic-compatible endpoint (base URL + key) ----
@@ -204,7 +204,7 @@ export async function runCustomAnthropicTurn(input: ProviderToolTurnInput): Prom
   };
   const response = await postJson(`${input.credential.baseUrl}/v1/messages`, { "x-api-key": requireApiKey(input.credential, "Custom Anthropic-compatible provider"), "anthropic-version": "2023-06-01" }, body);
   const parsed = parseAnthropicContent(response.data);
-  return { ...parsed, rawResponseJson: JSON.stringify(response.data) };
+  return { ...parsed, rawResponseJson: JSON.stringify(response.data), rateLimitState: response.rateLimitState };
 }
 
 // ---- Google Antigravity (OAuth, Gemini Code Assist, SSE) ----
@@ -225,7 +225,7 @@ export async function runAntigravityTurn(input: ProviderToolTurnInput): Promise<
     Authorization: `Bearer ${access}`,
     "User-Agent": `antigravity/${ANTIGRAVITY_VERSION} darwin/arm64`,
   }, body);
-  return accumulateGeminiStream(response.messages);
+  return { ...(await accumulateGeminiStream(response.messages)), rateLimitState: response.rateLimitState };
 }
 
 // ---- Azure OpenAI (Chat Completions at the resource deployment) ----
@@ -244,7 +244,7 @@ export async function runAzureTurn(input: ProviderToolTurnInput): Promise<AgentT
   const url = `${input.credential.baseUrl}/openai/deployments/${input.credential.deployment}/chat/completions?api-version=2024-10-21`;
   const response = await postJson(url, { "api-key": apiKey }, body);
   const parsed = parseChatChoice(response.data);
-  return { ...parsed, rawResponseJson: JSON.stringify(response.data) };
+  return { ...parsed, rawResponseJson: JSON.stringify(response.data), rateLimitState: response.rateLimitState };
 }
 
 // ---- AWS Bedrock (Converse API, SigV4) ----
@@ -268,7 +268,7 @@ export async function runBedrockTurn(input: ProviderToolTurnInput): Promise<Agen
   });
   const response = await postJson(signed.url, signed.headers, converse);
   const parsed = parseBedrockOutput(response.data);
-  return { ...parsed, rawResponseJson: JSON.stringify(response.data) };
+  return { ...parsed, rawResponseJson: JSON.stringify(response.data), rateLimitState: response.rateLimitState };
 }
 
 // ---- Google Vertex AI (Gemini generateContent, service-account auth) ----
@@ -281,5 +281,5 @@ export async function runVertexTurn(input: ProviderToolTurnInput): Promise<Agent
   const url = `https://${region}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${region}/publishers/google/models/${input.model}:generateContent`;
   const response = await postJson(url, { authorization: `Bearer ${token}` }, body);
   const parsed = parseGeminiResponse(response.data);
-  return { ...parsed, rawResponseJson: JSON.stringify(response.data) };
+  return { ...parsed, rawResponseJson: JSON.stringify(response.data), rateLimitState: response.rateLimitState };
 }

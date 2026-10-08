@@ -3,9 +3,9 @@ import type { DatabaseSync } from "node:sqlite";
 /** Without a provider-given wait, parks double from this base with each failure in a row, up to the cap. */
 const BACKOFF_BASE_MS = 2 * 60_000;
 const BACKOFF_CAP_MS = 30 * 60_000;
-/** A provider-given wait is honored within these bounds. */
+/** A provider-given wait (Retry-After, a usage window's reset) is honored within these bounds; the cap only guards against garbage. */
 const RETRY_AFTER_MIN_MS = 30_000;
-const RETRY_AFTER_MAX_MS = 60 * 60_000;
+const RETRY_AFTER_MAX_MS = 24 * 60 * 60_000;
 
 interface CooldownRow {
   provider_id: string;

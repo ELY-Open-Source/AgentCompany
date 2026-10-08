@@ -234,10 +234,14 @@ export class TaskExecutionService {
           }),
           toolContext,
           externalTools,
-          onModelTurn: () => {
+          onModelTurn: (turn) => {
             contextRecorder.commit();
             // A served request ends the provider's failure streak, so the next park starts small again.
             this.cooldowns.clear(provider);
+            // A response that says no requests remain parks the provider until its reset, before the next call fails into it.
+            const limits = turn.rateLimitState;
+            const resetIn = limits?.resetAt ? Date.parse(limits.resetAt) - Date.now() : 0;
+            if (limits?.remainingRequests === 0 && resetIn > 0) this.cooldowns.park(provider, "no requests left until the provider's reset", resetIn);
           },
           onToolCompleted: (call, output) => recordRunAction(this.db, { orgId, runId, taskId: task.id, call, output }),
           inputBudgetTokens: inputBudgetTokens(provider.context_window_tokens),
@@ -265,7 +269,6 @@ export class TaskExecutionService {
         if (delivered) this.notifyDataChanged();
       }
       this.completeRun(orgId, runId, result.lastRequestId, result.hitStepLimit);
-      this.cooldowns.clear(provider);
       if (task.origin === null) recordRunMemory(this.db, { orgId, runId, projectId: task.project_id, taskTitle: task.title, outcome: "completed", text: result.finalText });
       this.audit.record({
         orgId,

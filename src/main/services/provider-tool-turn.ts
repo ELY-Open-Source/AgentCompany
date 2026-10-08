@@ -1,3 +1,4 @@
+import type { ProviderObservedRateLimitState } from "../../shared/provider-runtime-domain";
 /**
  * Shared contract for a single tool-use ("function calling") turn against any
  * provider backend. The agent loop maintains a normalized conversation
@@ -30,6 +31,8 @@ export interface AgentTurnResult {
   text: string;
   toolCalls: ToolCall[];
   rawResponseJson: string;
+  /** Rate-limit headers of the response, when the provider sent any. */
+  rateLimitState?: ProviderObservedRateLimitState | null;
 }
 
 /** Resolved per-request credential, already refreshed if it was an OAuth token. */

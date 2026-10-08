@@ -31,7 +31,9 @@ describe("provider cooldown sizing", () => {
     cooldowns.park(provider, "503", null);
     expect(parkedFor()).toBe(2 * 60_000);
     cooldowns.park(provider, "429", 5 * 3_600_000);
-    expect(parkedFor()).toBe(60 * 60_000);
+    expect(parkedFor()).toBe(5 * 3_600_000);
+    cooldowns.park(provider, "429", 30 * 3_600_000);
+    expect(parkedFor()).toBe(24 * 3_600_000);
     vi.restoreAllMocks();
     connection.close();
   });

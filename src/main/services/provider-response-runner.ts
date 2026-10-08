@@ -146,6 +146,7 @@ export class ProviderResponseRunner {
     try {
       const credential = await resolveTurnCredential({ authBroker: this.deps.authBroker, integrationKeys: this.deps.integrationKeys, orgId: input.orgId, provider });
       const result = await turn({ credential, model, instructions: input.instructions, messages: input.messages, tools: input.tools });
+      recordObservedRateLimit(this.deps.rateLimitRegistry, input.orgId, owner, model, result.rateLimitState ?? null);
       // Tool calls are output the model wrote, as much as its text.
       const outputChars = result.text.length + (result.toolCalls.length > 0 ? JSON.stringify(result.toolCalls).length : 0);
       this.deps.requestStore.markSucceeded({

@@ -4,7 +4,7 @@ import { completeGoalTool } from "./agent-goal-tools";
 import { executeWebTool, isWebTool, WEB_TOOLS } from "./agent-web-tools";
 import { executeWorkspaceTool, isWorkspaceTool, WORKSPACE_TOOLS } from "./agent-workspace-tools";
 import { canonicalMentionHandle } from "../../shared/mention-handles";
-import type { AgentTurnMessage, ToolCall, ToolDefinition } from "./provider-tool-turn";
+import type { AgentTurnMessage, AgentTurnResult, ToolCall, ToolDefinition } from "./provider-tool-turn";
 import { isComposioTool, executeComposioTool } from "./composio/composio-tool-bridge";
 import { capToolOutput, compactToolHistory } from "./run-context-compaction";
 import { fitContextBudget } from "./context-budget";
@@ -25,8 +25,8 @@ export interface AgentRunLoopInput {
   externalTools?: ToolDefinition[];
   /** Messages that arrived mid-run, or null. */
   pollNewMessages?: () => string | null;
-  /** Called after each model turn the provider answered. */
-  onModelTurn?: () => void;
+  /** Called after each model turn the provider answered, with that turn. */
+  onModelTurn?: (turn: AgentTurnResult) => void;
   /** Called with every executed tool call and its full output. */
   onToolCompleted?: (call: ToolCall, output: string) => void;
   /** Input tokens the provider's context window leaves after the output reserve. */
@@ -84,7 +84,7 @@ export async function runAgentLoop(deps: AgentRunLoopDeps, input: AgentRunLoopIn
     });
     throwIfRunStopped();
     lastRequestId = turn.requestId;
-    input.onModelTurn?.();
+    input.onModelTurn?.(turn);
 
     if (turn.toolCalls.length === 0) {
       if (toolCallCount === 0 && !turn.text.trim()) {
