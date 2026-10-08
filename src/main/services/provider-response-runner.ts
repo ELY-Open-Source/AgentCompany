@@ -17,7 +17,7 @@ import { type AgentTurnMessage, type AgentTurnResult, type ToolDefinition, type 
 import { selectToolTurn, supportsToolTurn } from "./provider-tool-turns/router";
 import { resolveTurnCredential } from "./provider-tool-turns/credential-resolver";
 import { currentRunId } from "./run-control";
-import { budgetBlock, isPriced, providerPrices, readTokenUsage, requestCostCents } from "./spend";
+import { budgetBlock, isPriced, providerPrices } from "./spend";
 import {
   HEALTH_STATE_HEALTHY,
   WORKSPACE_SCOPES,
@@ -49,9 +49,6 @@ export interface ProviderResponseRunnerDeps {
 }
 
 export class ProviderResponseRunner {
-  /** Providers already logged as not reporting token usage. */
-  private readonly unreportedUsage = new Set<string>();
-
   constructor(private readonly deps: ProviderResponseRunnerDeps) {}
 
   async createResponse(input: ProviderResponseCreateInput): Promise<string> {
@@ -87,7 +84,10 @@ export class ProviderResponseRunner {
         startedAt,
         action: "response_created",
       });
-      this.deps.requestStore.recordUsage(input.orgId, execution.provider.id, execution.prompt.length, result.text.length);
+      this.deps.requestStore.settleUsage({
+        orgId: input.orgId, requestId, provider: execution.provider, rawResponseJson: result.rawResponseJson,
+        inputCharCount: execution.prompt.length, outputCharCount: result.text.length,
+      });
       return requestId;
     } catch (error) {
       this.deps.responseObserver.recordFailure({
@@ -163,8 +163,10 @@ export class ProviderResponseRunner {
         startedAt,
         action: "response_created",
       });
-      this.deps.requestStore.recordUsage(input.orgId, provider.id, promptChars, result.text.length);
-      this.recordSpend(requestId, owner, result.rawResponseJson);
+      this.deps.requestStore.settleUsage({
+        orgId: input.orgId, requestId, provider: owner, rawResponseJson: result.rawResponseJson,
+        inputCharCount: promptChars, outputCharCount: result.text.length,
+      });
       return { ...result, requestId };
     } catch (error) {
       this.deps.responseObserver.recordFailure({
@@ -178,16 +180,6 @@ export class ProviderResponseRunner {
       });
       throw error;
     }
-  }
-
-  private recordSpend(requestId: string, provider: { id: string; provider_key: string }, rawResponseJson: string): void {
-    const usage = readTokenUsage(rawResponseJson);
-    if (!usage) {
-      if (!this.unreportedUsage.has(provider.provider_key)) console.warn(`[spend] ${provider.provider_key} returned no token usage; its calls cost nothing on record.`);
-      this.unreportedUsage.add(provider.provider_key);
-      return;
-    }
-    this.deps.requestStore.recordSpend(requestId, usage, requestCostCents(usage, providerPrices(this.deps.db, provider.id)));
   }
 
   async streamResponse(input: StreamProviderResponseInput, onEvent: (event: ProviderStreamRendererEvent) => void): Promise<string> {
@@ -209,6 +201,7 @@ export class ProviderResponseRunner {
       for await (const event of result.events) {
         if (event.type === "error") throw new Error(event.textDelta ?? "Provider stream failed.");
         rawEvents.push(event.rawEventJson);
+        if (event.type === "usage") continue;
         if (event.providerResponseId) providerResponseId = event.providerResponseId;
         if (event.textDelta) textParts.push(event.textDelta);
         const responseText = textParts.join("");
@@ -258,7 +251,10 @@ export class ProviderResponseRunner {
         startedAt,
         action: "response_streamed",
       });
-      this.deps.requestStore.recordUsage(input.orgId, execution.provider.id, execution.prompt.length, responseText.length);
+      this.deps.requestStore.settleUsage({
+        orgId: input.orgId, requestId, provider: execution.provider, rawResponseJson: JSON.stringify(rawEvents),
+        inputCharCount: execution.prompt.length, outputCharCount: responseText.length,
+      });
       return requestId;
     } catch (error) {
       this.deps.responseObserver.recordFailure({

@@ -78,7 +78,7 @@ export class ProviderResponseObserver {
     });
     // A late error on a request already cancelled or finished changes nothing.
     if (!failed) return;
-    this.requestStore.recordUsage(input.orgId, input.provider.id, input.inputCharCount, 0);
+    this.requestStore.recordUsage(input.orgId, input.provider.id, input.inputCharCount, 0, null);
     this.recordProviderHealth(input.provider.id, input.orgId, HEALTH_STATE_FAILED, message);
     this.operations.recordSignal({
       orgId: input.orgId,

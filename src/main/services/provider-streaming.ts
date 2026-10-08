@@ -3,7 +3,8 @@ import type { JsonRecord, ProviderEventStreamMessage } from "./provider-http";
 import { isRecord } from "./provider-http";
 
 export interface ProviderStreamEvent {
-  type: "message_start" | "text_delta" | "message_stop" | "error";
+  /** usage: a chunk that only reports token usage; it is recorded, never shown. */
+  type: "message_start" | "text_delta" | "message_stop" | "error" | "usage";
   textDelta: string | null;
   providerResponseId: string | null;
   rawEventJson: string;
@@ -71,6 +72,8 @@ export async function* mapOpenAiChatCompletionStream(messages: AsyncIterable<Pro
         yield streamEvent("message_start", null, message);
       }
       yield streamEvent("message_stop", null, message);
+    } else if (!delta && isRecord(message.data.usage)) {
+      yield streamEvent("usage", null, message);
     }
   }
 }
@@ -82,6 +85,11 @@ export async function* mapAnthropicMessageStream(messages: AsyncIterable<Provide
     if (type === "message_start") {
       started = true;
       yield streamEvent("message_start", null, message);
+      continue;
+    }
+    // Anthropic reports output tokens on message_delta, input tokens on message_start.
+    if (type === "message_delta") {
+      yield streamEvent("usage", null, message);
       continue;
     }
     if (type === "content_block_delta") {

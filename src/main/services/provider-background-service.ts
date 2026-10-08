@@ -170,7 +170,10 @@ export class ProviderBackgroundService {
           startedAt,
           action: "background_response_completed",
         });
-        this.requestStore.recordUsage(request.org_id, provider.id, request.input_char_count, responseText.length);
+        this.requestStore.settleUsage({
+          orgId: request.org_id, requestId: request.id, provider, rawResponseJson: result.rawResponseJson,
+          inputCharCount: request.input_char_count, outputCharCount: responseText.length,
+        });
         return;
       }
       if (CANCELLED_BACKGROUND_STATUSES.has(result.status)) {

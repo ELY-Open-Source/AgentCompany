@@ -42,7 +42,7 @@ export interface ProviderStreamRendererEvent {
   providerId: string;
   providerKey: string;
   model: string;
-  streamEventType: "message_start" | "text_delta" | "message_stop" | "error";
+  streamEventType: "message_start" | "text_delta" | "message_stop" | "error" | "usage";
   textDelta: string | null;
   responseText: string;
   providerResponseId: string | null;

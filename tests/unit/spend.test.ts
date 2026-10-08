@@ -17,6 +17,13 @@ describe("token usage and cost", () => {
     expect(readTokenUsage(JSON.stringify(responsesStream))).toEqual({ inputTokens: 10, outputTokens: 5, cachedInputTokens: 0, reasoningTokens: 0 });
     const moonshotStream = ["{\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\",\"usage\":{\"prompt_tokens\":40,\"completion_tokens\":9}}]}"];
     expect(readTokenUsage(JSON.stringify(moonshotStream))).toEqual({ inputTokens: 40, outputTokens: 9, cachedInputTokens: 0, reasoningTokens: 0 });
+    const anthropicStream = [
+      "{\"type\":\"message_start\",\"message\":{\"usage\":{\"input_tokens\":700,\"cache_read_input_tokens\":300,\"output_tokens\":1}}}",
+      "{\"type\":\"content_block_delta\",\"delta\":{\"type\":\"text_delta\",\"text\":\"hi\"}}",
+      "{\"type\":\"message_delta\",\"usage\":{\"output_tokens\":42}}",
+      "{\"type\":\"message_stop\"}",
+    ];
+    expect(readTokenUsage(JSON.stringify(anthropicStream))).toEqual({ inputTokens: 1000, outputTokens: 42, cachedInputTokens: 300, reasoningTokens: 0 });
     expect(readTokenUsage(JSON.stringify({ output: [] }))).toBeNull();
   });
 

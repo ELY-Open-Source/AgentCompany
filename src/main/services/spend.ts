@@ -19,12 +19,15 @@ export interface TokenPrices {
 /** Reads token usage from a provider's raw response: one JSON body, or the list of a stream's event payloads. */
 export function readTokenUsage(rawResponseJson: string): TokenUsage | null {
   const parsed = JSON.parse(rawResponseJson) as unknown;
-  const bodies = Array.isArray(parsed) ? parsed.map(parseEvent) : [parsed];
-  for (let index = bodies.length - 1; index >= 0; index -= 1) {
-    const usage = usageIn(bodies[index]);
-    if (usage) return usage;
-  }
-  return null;
+  const reports = (Array.isArray(parsed) ? parsed.map(parseEvent) : [parsed])
+    .map(usageIn)
+    .filter((usage): usage is TokenUsage => usage !== null);
+  if (reports.length === 0) return null;
+  // A stream may report input early and output late (Anthropic): the last report wins, input taken from the last one that has it.
+  const last = reports[reports.length - 1];
+  if (last.inputTokens > 0) return last;
+  const withInput = [...reports].reverse().find((usage) => usage.inputTokens > 0);
+  return withInput ? { ...last, inputTokens: withInput.inputTokens, cachedInputTokens: withInput.cachedInputTokens } : last;
 }
 
 /** True when calls to this provider cost money on record. */
@@ -94,7 +97,9 @@ function usageIn(body: unknown): TokenUsage | null {
   if (!isRecord(body)) return null;
   const nested = isRecord(body.response) ? body.response : null;
   const firstChoice = Array.isArray(body.choices) && isRecord(body.choices[0]) ? body.choices[0] : null;
-  const openAiStyle = record(body.usage) ?? record(nested?.usage) ?? record(isRecord(body.x_groq) ? body.x_groq.usage : null) ?? record(firstChoice?.usage);
+  const message = isRecord(body.message) ? body.message : null;
+  const openAiStyle = record(body.usage) ?? record(nested?.usage) ?? record(message?.usage)
+    ?? record(isRecord(body.x_groq) ? body.x_groq.usage : null) ?? record(firstChoice?.usage);
   if (openAiStyle) return fromOpenAiOrAnthropic(openAiStyle);
   const gemini = record(body.usageMetadata) ?? record(nested?.usageMetadata);
   if (gemini) return fromGemini(gemini);
@@ -120,11 +125,11 @@ function fromOpenAiOrAnthropic(usage: Record<string, unknown>): TokenUsage | nul
       reasoningTokens: count(record(usage.completion_tokens_details)?.reasoning_tokens),
     };
   }
-  if (typeof usage.input_tokens !== "number") return null;
+  if (typeof usage.input_tokens !== "number" && typeof usage.output_tokens !== "number") return null;
   // Anthropic reports cache reads and writes beside input_tokens; Responses reports them inside it.
   const anthropicCache = count(usage.cache_read_input_tokens) + count(usage.cache_creation_input_tokens);
   return {
-    inputTokens: usage.input_tokens + anthropicCache,
+    inputTokens: count(usage.input_tokens) + anthropicCache,
     outputTokens: count(usage.output_tokens),
     cachedInputTokens: count(usage.cache_read_input_tokens) + count(record(usage.input_tokens_details)?.cached_tokens),
     reasoningTokens: count(record(usage.output_tokens_details)?.reasoning_tokens),

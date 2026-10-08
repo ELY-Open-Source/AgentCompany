@@ -1,7 +1,10 @@
 import type { DatabaseSync } from "node:sqlite";
 import { PROVIDER_EXECUTION_MODE, PROVIDER_REQUEST_STATE, type ProviderExecutionMode } from "../../shared/domain";
 import { createId } from "../../shared/ids";
-import type { TokenUsage } from "./spend";
+import { providerPrices, readTokenUsage, requestCostCents, type TokenUsage } from "./spend";
+
+/** Providers already logged as not reporting token usage. */
+const providersWithoutUsage = new Set<string>();
 import { currentProviderUsageWindow } from "../../shared/provider-runtime-domain";
 
 export interface ProviderRequestOwner {
@@ -269,20 +272,48 @@ export class ProviderRequestStore {
     return request;
   }
 
-  recordUsage(orgId: string, providerId: string, inputCharCount: number, outputCharCount: number): void {
+  /** Settles a successful call: reads the provider's token usage, prices it, and adds it to the request and the month's totals. */
+  settleUsage(input: { orgId: string; requestId: string; provider: { id: string; provider_key: string }; rawResponseJson: string; inputCharCount: number; outputCharCount: number }): void {
+    const usage = readTokenUsage(input.rawResponseJson);
+    if (!usage) {
+      if (!providersWithoutUsage.has(input.provider.provider_key)) console.warn(`[spend] ${input.provider.provider_key} returned no token usage; its calls cost nothing on record.`);
+      providersWithoutUsage.add(input.provider.provider_key);
+      this.recordUsage(input.orgId, input.provider.id, input.inputCharCount, input.outputCharCount, null);
+      return;
+    }
+    const costCents = requestCostCents(usage, providerPrices(this.db, input.provider.id));
+    this.recordSpend(input.requestId, usage, costCents);
+    this.recordUsage(input.orgId, input.provider.id, input.inputCharCount, input.outputCharCount, { usage, costCents });
+  }
+
+  /** Adds one call to the provider's monthly totals; spend is null when the provider reported no token usage. */
+  recordUsage(orgId: string, providerId: string, inputCharCount: number, outputCharCount: number, spend: { usage: TokenUsage; costCents: number | null } | null): void {
     const window = currentProviderUsageWindow();
     const now = new Date().toISOString();
+    const usage = spend?.usage;
     this.db.prepare(`
       insert into provider_usage_windows(
         id, org_id, provider_id, window_start, window_end, request_count,
-        input_char_count, output_char_count, created_at, updated_at
-      ) values (?, ?, ?, ?, ?, 1, ?, ?, ?, ?)
+        input_char_count, output_char_count, created_at, updated_at,
+        input_tokens, output_tokens, cached_input_tokens, reasoning_tokens, cost_cents, requests_without_usage, unpriced_requests
+      ) values (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       on conflict(provider_id, window_start) do update set
         request_count = request_count + 1,
         input_char_count = input_char_count + excluded.input_char_count,
         output_char_count = output_char_count + excluded.output_char_count,
+        input_tokens = input_tokens + excluded.input_tokens,
+        output_tokens = output_tokens + excluded.output_tokens,
+        cached_input_tokens = cached_input_tokens + excluded.cached_input_tokens,
+        reasoning_tokens = reasoning_tokens + excluded.reasoning_tokens,
+        cost_cents = cost_cents + excluded.cost_cents,
+        requests_without_usage = requests_without_usage + excluded.requests_without_usage,
+        unpriced_requests = unpriced_requests + excluded.unpriced_requests,
         updated_at = excluded.updated_at
-    `).run(createId("puw"), orgId, providerId, window.start, window.end, inputCharCount, outputCharCount, now, now);
+    `).run(
+      createId("puw"), orgId, providerId, window.start, window.end, inputCharCount, outputCharCount, now, now,
+      usage?.inputTokens ?? 0, usage?.outputTokens ?? 0, usage?.cachedInputTokens ?? 0, usage?.reasoningTokens ?? 0,
+      spend?.costCents ?? 0, spend ? 0 : 1, spend && spend.costCents === null ? 1 : 0,
+    );
   }
 }
 

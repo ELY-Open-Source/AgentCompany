@@ -48,6 +48,7 @@ describe("provider streaming", () => {
       message(null, { choices: [{ delta: { content: "Hel" } }] }),
       message(null, { choices: [{ delta: { content: "lo" } }] }),
       message(null, { choices: [{ delta: {}, finish_reason: "stop" }] }),
+      message(null, { choices: [], usage: { prompt_tokens: 12, completion_tokens: 3 } }),
     ])));
 
     expect(events.map((event) => [event.type, event.textDelta])).toEqual([
@@ -55,6 +56,7 @@ describe("provider streaming", () => {
       ["text_delta", "Hel"],
       ["text_delta", "lo"],
       ["message_stop", null],
+      ["usage", null],
     ]);
   });
 
@@ -63,6 +65,7 @@ describe("provider streaming", () => {
       message("message_start", { type: "message_start" }),
       message("content_block_delta", { type: "content_block_delta", delta: { type: "text_delta", text: "Hel" } }),
       message("content_block_delta", { type: "content_block_delta", delta: { type: "text_delta", text: "lo" } }),
+      message("message_delta", { type: "message_delta", usage: { output_tokens: 7 } }),
       message("message_stop", { type: "message_stop" }),
     ])));
 
@@ -70,6 +73,7 @@ describe("provider streaming", () => {
       ["message_start", null],
       ["text_delta", "Hel"],
       ["text_delta", "lo"],
+      ["usage", null],
       ["message_stop", null],
     ]);
   });

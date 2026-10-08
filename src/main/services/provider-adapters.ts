@@ -186,12 +186,14 @@ export const providerAdapters: ProviderAdapterRegistry = {
     label: "xAI",
     endpoint: "https://api.x.ai/v1/chat/completions",
     healthUrl: "https://api.x.ai/v1/models",
+    requestStreamUsage: true,
   }),
   groq: openAiCompatibleAdapter({
     providerKey: "groq",
     label: "Groq",
     endpoint: "https://api.groq.com/openai/v1/chat/completions",
     healthUrl: "https://api.groq.com/openai/v1/models",
+    requestStreamUsage: true,
   }),
   mistral: openAiCompatibleAdapter({
     providerKey: "mistral",
@@ -367,11 +369,14 @@ function openAiCompatibleAdapter({
   label,
   endpoint,
   healthUrl,
+  requestStreamUsage = false,
 }: {
   providerKey: string;
   label: string;
   endpoint: string;
   healthUrl: string;
+  /** Providers that report a stream's token usage only when asked (xAI, Groq). */
+  requestStreamUsage?: boolean;
 }): ProviderAdapter {
   return {
     providerKey,
@@ -394,6 +399,7 @@ function openAiCompatibleAdapter({
         model: input.model,
         messages,
         stream: true,
+        ...(requestStreamUsage ? { stream_options: { include_usage: true } } : {}),
       });
       return { events: mapOpenAiChatCompletionStream(response.messages), rateLimitState: response.rateLimitState };
     },
