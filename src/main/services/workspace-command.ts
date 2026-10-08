@@ -75,10 +75,16 @@ export function runCommand(workspaceRoot: string, command: string, options: { ti
     child.stdout.on("data", collect);
     child.stderr.on("data", collect);
     child.on("error", (error) => finish(`ERROR: ${error.message}`));
-    child.on("close", (code) => {
-      finish(`exit code ${code ?? 0}\n${output.text().trim() || "(no output)"}`);
-    });
+    child.on("close", (code, signal) => finish(formatCommandResult(code, signal, output.text())));
   });
+}
+
+/** The tool result for a finished command; no exit code means it was killed, which is never success. */
+export function formatCommandResult(code: number | null, signal: NodeJS.Signals | null, text: string): string {
+  const body = text.trim() || "(no output)";
+  if (code !== null) return `exit code ${code}\n${body}`;
+  const how = signal ? `was killed by ${signal} before it exited` : "ended without an exit code";
+  return `ERROR: the command ${how}; treat it as failed.\n${body}`;
 }
 
 /** Kills a process and every process it started; returns why that failed, or null. */

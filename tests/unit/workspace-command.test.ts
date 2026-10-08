@@ -2,7 +2,7 @@ import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, test, vi } from "vitest";
-import { BoundedOutput, runCommand } from "../../src/main/services/workspace-command";
+import { BoundedOutput, formatCommandResult, runCommand } from "../../src/main/services/workspace-command";
 import { stopRun, withRunControl } from "../../src/main/services/run-control";
 
 describe("bounded command output", () => {
@@ -64,5 +64,14 @@ describe("run_command and run stops", () => {
     });
     expect(warn.mock.calls.filter((call) => String(call[0]).startsWith("[run_command] killing"))).toEqual([]);
     warn.mockRestore();
+  });
+});
+
+describe("command results", () => {
+  test("a signal-terminated command is reported as killed, never as exit code 0", () => {
+    expect(formatCommandResult(0, null, "built")).toBe("exit code 0\nbuilt");
+    expect(formatCommandResult(2, null, "")).toBe("exit code 2\n(no output)");
+    expect(formatCommandResult(null, "SIGKILL", "partial")).toBe("ERROR: the command was killed by SIGKILL before it exited; treat it as failed.\npartial");
+    expect(formatCommandResult(null, null, "")).toBe("ERROR: the command ended without an exit code; treat it as failed.\n(no output)");
   });
 });
