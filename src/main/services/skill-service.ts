@@ -284,7 +284,7 @@ export class SkillService {
         readFileSync(row.object_key, "utf8").trim(),
       ].join("\n\n");
       const partTokens = estimateTokens(part);
-      if (compiledParts.length > 0 && compiledTokens + partTokens > input.maxTokens) {
+      if (compiledTokens + partTokens > input.maxTokens) {
         omitted.push(manifest.name);
         continue;
       }

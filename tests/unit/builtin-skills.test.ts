@@ -247,4 +247,23 @@ describe("built-in skills", () => {
     expect(parseFrontmatter(HUMANIZER_MD).description).toContain("sound more natural and human-written");
     expect(parseFrontmatter("no frontmatter")).toEqual({});
   });
+
+  test("no skill, not even the first forced one, may exceed the skill budget", () => {
+    const h = harness();
+    const staged = stageBuiltinSkillsLibrary(h.sourceRoot, h.libraryRoot);
+    h.connection.transaction(() => importStagedSkills(h.skills, h.orgId, staged));
+    let agentId = "";
+    h.connection.transaction(() => {
+      agentId = h.organization.createAgent({
+        orgId: h.orgId, name: "Ada", role: "Engineer", department: "Engineering",
+        modelProviderId: null, modelId: null, budgetCents: 1000, managerAgentId: null,
+      });
+    });
+    const snapshotId = h.connection.transaction(() => h.skills.resolveRuntimeSnapshot({ orgId: h.orgId, agentId, runId: "run_tiny", maxTokens: 10 }));
+    const prompt = (h.connection.db.prepare("select compiled_prompt from skill_runtime_snapshots where id = ?").get(snapshotId) as { compiled_prompt: string }).compiled_prompt;
+    expect(prompt).not.toContain("# Skill:");
+    expect(prompt).toContain("# Skills omitted for size");
+    expect(prompt).toContain("humanizer");
+    h.connection.close();
+  });
 });
