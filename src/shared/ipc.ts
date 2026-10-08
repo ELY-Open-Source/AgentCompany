@@ -68,6 +68,7 @@ export const IPC_CHANNELS = {
   deleteDocument: "agentcompany:delete-document",
   createKnowledgeEntry: "agentcompany:create-knowledge-entry",
   deleteKnowledgeEntry: "agentcompany:delete-knowledge-entry",
+  resumeGoal: "agentcompany:resume-goal",
   updateKnowledgeEntry: "agentcompany:update-knowledge-entry",
   listDocumentVersions: "agentcompany:list-document-versions",
   listKnowledgeRevisions: "agentcompany:list-knowledge-revisions",

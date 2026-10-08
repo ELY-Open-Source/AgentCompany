@@ -56,7 +56,7 @@ export function HomePage({ snapshot, actions, navigate }: PageProps) {
       <p className="page-sub">{renderSummary(pendingApprovals.length, agents.length)}</p>
 
       <div style={STRIP}>
-        <GoalCard goal={primaryGoal} progress={goalProgress} organizationName={organization.name} />
+        <GoalCard goal={primaryGoal} progress={goalProgress} organizationName={organization.name} actions={actions} />
         <SpendCard providers={providers} totalBudgetCents={totalBudgetCents} capCents={budgetCapCents} agents={agents} />
         <WaitingCard
           approvals={pendingApprovals}
@@ -88,12 +88,20 @@ function GoalCard({
   goal,
   progress,
   organizationName,
+  actions,
 }: {
   goal: GoalRecord | null;
   progress: { percent: number; status: "ahead" | "on_track" | "behind" } | null;
   organizationName: string;
+  actions: PageProps["actions"];
 }) {
   const percent = progress?.percent ?? 0;
+  const [resumeError, setResumeError] = useState<string | null>(null);
+  const resume = (stalled: GoalRecord) => {
+    setResumeError(null);
+    actions.run(() => window.agentCompany.resumeGoal({ orgId: stalled.orgId, goalId: stalled.id }))
+      .catch((error: unknown) => setResumeError(error instanceof Error ? error.message : String(error)));
+  };
   return (
     <section className="card">
       <div className="card-label" style={{ marginBottom: 12 }}>{t("Quarter goal")}</div>
@@ -107,6 +115,13 @@ function GoalCard({
       <div style={{ marginTop: 12, height: 4, background: "var(--panel-3)", borderRadius: 999, overflow: "hidden" }}>
         <div style={{ width: `${percent}%`, height: "100%", background: "var(--text-1)", transition: "width var(--motion-slow) var(--ease-out)" }} />
       </div>
+      {goal?.status === "active" && goal.stalledReason && (
+        <div className="row" style={{ marginTop: 12, gap: 8, alignItems: "center" }}>
+          <span className="form-error" role="status" style={{ flex: 1, marginTop: 0 }}>{goal.stalledReason}</span>
+          <Button size="small" onClick={() => resume(goal)}>{t("Resume")}</Button>
+        </div>
+      )}
+      {resumeError && <div className="form-error" role="alert">{resumeError}</div>}
     </section>
   );
 }

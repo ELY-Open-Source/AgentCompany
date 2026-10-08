@@ -32,6 +32,7 @@ const api: DesktopApi = {
   deleteDocument: (input) => invoke(IPC_CHANNELS.deleteDocument, input),
   createKnowledgeEntry: (input) => invoke(IPC_CHANNELS.createKnowledgeEntry, input),
   deleteKnowledgeEntry: (input) => invoke(IPC_CHANNELS.deleteKnowledgeEntry, input),
+  resumeGoal: (input) => invoke(IPC_CHANNELS.resumeGoal, input),
   updateKnowledgeEntry: (input) => invoke(IPC_CHANNELS.updateKnowledgeEntry, input),
   listDocumentVersions: (input) => invoke(IPC_CHANNELS.listDocumentVersions, input),
   listKnowledgeRevisions: (input) => invoke(IPC_CHANNELS.listKnowledgeRevisions, input),

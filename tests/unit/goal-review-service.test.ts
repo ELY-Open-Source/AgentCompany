@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { describe, expect, test } from "vitest";
 import { DatabaseConnection } from "../../src/main/database/connection";
 import { OrganizationService } from "../../src/main/services/organization-service";
-import { spawnGoalReviews } from "../../src/main/services/goal-review-service";
+import { markStalledGoals, resumeGoal, spawnGoalReviews } from "../../src/main/services/goal-review-service";
 import { RISK_LEVEL, TASK_PRIORITY, TASK_STATUS } from "../../src/shared/domain";
 
 interface Harness {
@@ -58,6 +58,10 @@ function hoursFromNow(hours: number): string {
   return new Date(Date.now() + hours * 3_600_000).toISOString();
 }
 
+function stalledReason(h: Harness): string | null {
+  return (h.connection.db.prepare("select stalled_reason from goals where id = ?").get(h.goalId) as { stalled_reason: string | null }).stalled_reason;
+}
+
 function reviews(h: Harness): Array<{ id: string; status: string }> {
   return h.connection.db.prepare("select id, status from tasks where goal_id = ? and origin = 'goal_review' order by created_at")
     .all(h.goalId) as Array<{ id: string; status: string }>;
@@ -87,9 +91,12 @@ describe("goal review service", () => {
     setTaskStatus(h, h.kickoffId, TASK_STATUS.DONE);
     const [reviewId] = h.connection.transaction(() => spawnGoalReviews(h.connection.db, h.organization));
 
-    // CEO closes the review without creating tasks or completing the goal: silence, not a loop.
+    // CEO closes the review without creating tasks or completing the goal: no loop, but a visible stall.
     setTaskStatus(h, reviewId, TASK_STATUS.DONE, hoursFromNow(1));
     expect(h.connection.transaction(() => spawnGoalReviews(h.connection.db, h.organization))).toEqual([]);
+    expect(markStalledGoals(h.connection.db)).toBe(1);
+    expect(markStalledGoals(h.connection.db)).toBe(0);
+    expect(stalledReason(h)).toBe("Stalled: the last goal review neither closed the goal nor planned new work. Resume it to run a fresh review.");
 
     // Chatter never counts as progress.
     addDoneTask(h, "Reply to CEO", "chat_wake", hoursFromNow(2));
@@ -99,6 +106,23 @@ describe("goal review service", () => {
     addDoneTask(h, "Implement tenant module", null, hoursFromNow(3));
     expect(h.connection.transaction(() => spawnGoalReviews(h.connection.db, h.organization))).toHaveLength(1);
     expect(reviews(h)).toHaveLength(2);
+    expect(stalledReason(h)).toBeNull();
+    h.connection.close();
+  });
+
+  test("a review that spends its run budget stalls the goal; resuming closes it and starts a fresh review", () => {
+    const h = createHarness();
+    setTaskStatus(h, h.kickoffId, TASK_STATUS.DONE);
+    const [reviewId] = h.connection.transaction(() => spawnGoalReviews(h.connection.db, h.organization));
+    h.connection.db.prepare("update tasks set stalled_reason = 'Stalled: 3 sessions' where id = ?").run(reviewId);
+    expect(markStalledGoals(h.connection.db)).toBe(1);
+    expect(stalledReason(h)).toBe("Stalled: the goal review spent its run budget without a decision. Resume it to run a fresh review.");
+    expect(h.connection.db.prepare("select count(*) as n from audit_events where entity_id = ? and action = 'stalled'").get(h.goalId)).toEqual({ n: 1 });
+
+    const fresh = h.connection.transaction(() => resumeGoal(h.connection.db, h.organization, h.orgId, h.goalId));
+    expect(reviews(h)).toEqual([{ id: reviewId, status: "done" }, { id: fresh, status: "backlog" }]);
+    expect(stalledReason(h)).toBeNull();
+    expect(() => resumeGoal(h.connection.db, h.organization, h.orgId, h.goalId)).toThrow('Goal "Ship the platform" is not stalled.');
     h.connection.close();
   });
 

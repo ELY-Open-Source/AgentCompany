@@ -93,6 +93,11 @@ export interface ListKnowledgeRevisionsInput {
   entryId: string;
 }
 
+export interface ResumeGoalInput {
+  orgId: string;
+  goalId: string;
+}
+
 export interface DeleteKnowledgeEntryInput {
   orgId: string;
   entryId: string;

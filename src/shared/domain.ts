@@ -126,6 +126,8 @@ export interface GoalRecord {
   description: string;
   status: string;
   ownerAgentId: string | null;
+  /** Set when the goal's review loop stopped without a decision. */
+  stalledReason: string | null;
   createdAt: string;
   updatedAt: string;
 }

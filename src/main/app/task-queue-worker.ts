@@ -3,7 +3,7 @@ import type { DatabaseConnection } from "../database/connection";
 import { IPC_CHANNELS } from "../../shared/ipc";
 import { expireStaleChatWakes } from "../services/chat-agent-wake-service";
 import { OrganizationService } from "../services/organization-service";
-import { spawnGoalReviews } from "../services/goal-review-service";
+import { markStalledGoals, spawnGoalReviews } from "../services/goal-review-service";
 import { TaskExecutionService } from "../services/task-execution-service";
 import { runningWorkspaceWriter } from "../services/workspace-write-lock";
 
@@ -132,7 +132,8 @@ export function startTaskQueueWorker(input: TaskQueueWorkerInput): () => void {
     // Goal checkpoints first, so a review task created this tick is
     // eligible for the same tick's heartbeat enqueue below.
     const reviews = input.connection.transaction(() => spawnGoalReviews(input.connection.db, organization));
-    if (reviews.length > 0) notifyDataChanged();
+    const stalledGoals = input.connection.transaction(() => markStalledGoals(input.connection.db));
+    if (reviews.length > 0 || stalledGoals > 0) notifyDataChanged();
     const enqueued = input.connection.transaction(() => taskExecution.enqueueHeartbeatRuns());
     if (enqueued.length > 0) notifyDataChanged();
     dispatch("interactive");

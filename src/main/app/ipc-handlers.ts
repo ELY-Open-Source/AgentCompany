@@ -32,6 +32,7 @@ import { IntegrationKeyStore } from "../services/integration-key-store";
 import { importStagedSkills, stageBuiltinSkillsLibrary } from "../services/builtin-skills";
 import { coalesce } from "./coalesce";
 import { normalizeExternalBrowserUrl } from "./external-url";
+import { resumeGoal } from "../services/goal-review-service";
 
 export interface IpcDeps {
   connection: DatabaseConnection;
@@ -171,6 +172,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
   ipcMain.handle(IPC_CHANNELS.deleteDocument, (_event, input) => mutate(() => documents.delete(input)));
   ipcMain.handle(IPC_CHANNELS.createKnowledgeEntry, (_event, input) => mutate(() => knowledge.create(input)));
   ipcMain.handle(IPC_CHANNELS.deleteKnowledgeEntry, (_event, input) => mutate(() => knowledge.delete(input)));
+  ipcMain.handle(IPC_CHANNELS.resumeGoal, (_event, input) => mutate(() => resumeGoal(deps.connection.db, organization, input.orgId, input.goalId)));
   ipcMain.handle(IPC_CHANNELS.updateKnowledgeEntry, (_event, input) => mutate(() => knowledge.update(input)));
   ipcMain.handle(IPC_CHANNELS.listDocumentVersions, (_event, input) => query("document_versions_failed", () =>
     documents.versions(input.orgId, input.documentId).map((v) => ({

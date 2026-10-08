@@ -31,6 +31,7 @@ import type {
   DeleteDocumentInput,
   DeleteTaskInput,
   DeleteKnowledgeEntryInput,
+  ResumeGoalInput,
   UpdateAutomationRuleInput,
   UpdateDocumentInput,
   UpdateTaskInput,
@@ -133,6 +134,7 @@ export interface DesktopApi {
   deleteDocument(input: DeleteDocumentInput): Promise<DesktopResult<AppSnapshot>>;
   createKnowledgeEntry(input: CreateKnowledgeEntryInput): Promise<DesktopResult<AppSnapshot>>;
   deleteKnowledgeEntry(input: DeleteKnowledgeEntryInput): Promise<DesktopResult<AppSnapshot>>;
+  resumeGoal(input: ResumeGoalInput): Promise<DesktopResult<AppSnapshot>>;
   updateKnowledgeEntry(input: UpdateKnowledgeEntryInput): Promise<DesktopResult<AppSnapshot>>;
   listDocumentVersions(input: ListDocumentVersionsInput): Promise<DesktopResult<DocumentVersionRecord[]>>;
   listKnowledgeRevisions(input: ListKnowledgeRevisionsInput): Promise<DesktopResult<KnowledgeRevisionRecord[]>>;

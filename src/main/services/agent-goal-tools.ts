@@ -83,7 +83,7 @@ export async function completeGoalTool(args: GoalCompletionArgs): Promise<string
     if (!verdict.approved) {
       return `The independent audit rejected closing the goal: ${verdict.reason} The goal stays active — close that gap or create the tasks that will.`;
     }
-    deps.db.prepare("update goals set status = 'achieved', updated_at = ? where id = ? and org_id = ?")
+    deps.db.prepare("update goals set status = 'achieved', stalled_reason = null, updated_at = ? where id = ? and org_id = ?")
       .run(new Date().toISOString(), goal.id, ctx.orgId);
     new AuditService(deps.db).record({
       orgId: ctx.orgId,
