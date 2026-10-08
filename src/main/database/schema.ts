@@ -74,6 +74,7 @@ import { spendSchema } from "./migrations/072-spend";
 import { usageWindowTokensSchema } from "./migrations/073-usage-window-tokens";
 import { runFailureKindSchema } from "./migrations/074-run-failure-kind";
 import { providerCooldownsSchema } from "./migrations/075-provider-cooldowns";
+import { runPinsSchema } from "./migrations/076-run-pins";
 
 interface Migration {
   version: number;
@@ -157,6 +158,7 @@ const MIGRATIONS: Migration[] = [
   { version: 73, name: "usage_window_tokens", sql: usageWindowTokensSchema },
   { version: 74, name: "run_failure_kind", sql: runFailureKindSchema },
   { version: 75, name: "provider_cooldowns", sql: providerCooldownsSchema },
+  { version: 76, name: "run_pins", sql: runPinsSchema },
 ];
 
 const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;

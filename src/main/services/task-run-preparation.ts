@@ -67,6 +67,13 @@ export function sameWorkspaceAccess(mountJson: string, current: Array<{ workspac
   return JSON.stringify(recorded) === JSON.stringify(current);
 }
 
+/** Azure calls the deployment stored with its credential, so an agent there cannot pick another model. */
+export function assertModelSelectable(providerKey: string, agentModelId: string | null, providerModel: string | null): void {
+  if (providerKey === "azure-openai" && agentModelId && agentModelId !== providerModel) {
+    throw new Error(`Azure OpenAI calls the deployment configured on the provider; this agent asks for "${agentModelId}". Clear the agent's model or set it to "${providerModel}".`);
+  }
+}
+
 /** The model a run calls: the agent's own choice, or else its provider's default. */
 export function effectiveModel(agentModelId: string | null, providerModel: string | null): string | null {
   return agentModelId?.trim() || providerModel;
@@ -75,7 +82,7 @@ export function effectiveModel(agentModelId: string | null, providerModel: strin
 export function requireAgentProvider(db: DatabaseSync, orgId: string, agent: TaskExecutionAgentRow): TaskExecutionProviderRow {
   if (!agent.model_provider_id) throw new Error("Task assignee requires a model provider.");
   const provider = db.prepare(`
-    select id, label, provider_key, model, context_window_tokens
+    select id, label, provider_key, model, credential_id, context_window_tokens
     from providers
     where id = ? and org_id = ?
   `).get(agent.model_provider_id, orgId) as TaskExecutionProviderRow | undefined;

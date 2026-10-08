@@ -37,7 +37,7 @@ import { ConnectorGrantsService } from "./composio/connector-grants";
 import { ProviderCooldowns } from "./provider-cooldowns";
 import { HeartbeatScheduler } from "./heartbeat-scheduler";
 import {
-  assertExecutionApproval, createIsolationContext, effectiveModel, executionApprovalProblem, loadGoal, loadProject, loadWorkspace,
+  assertExecutionApproval, assertModelSelectable, createIsolationContext, effectiveModel, executionApprovalProblem, loadGoal, loadProject, loadWorkspace,
   requireAgentProvider, requireAssignedAgent, requireTask, sameWorkspaceAccess, workspaceAccess,
 } from "./task-run-preparation";
 
@@ -175,7 +175,15 @@ export class TaskExecutionService {
     let providerRequestId: string | null = null;
     let skillRuntimeSnapshot: SkillRuntimeSnapshotRow | null = null;
     try {
-      skillRuntimeSnapshot = this.resolveSkillRuntimeSnapshot(orgId, agent.id, runId, skillBudgetTokens(provider.context_window_tokens), `${task.title}\n${task.description}`, { providerKey: provider.provider_key, model: effectiveModel(agent.model_id, provider.model) }, task.writing_mode === WRITING_MODE.CONVERSATIONAL);
+      // The session keeps the model and account it started with; a resumed run keeps its original pins.
+      const pinned = (this.db.prepare("select run_model from task_runs where id = ?").get(runId) as { run_model: string | null }).run_model;
+      if (pinned === null) {
+        assertModelSelectable(provider.provider_key, agent.model_id, provider.model);
+        this.db.prepare("update task_runs set run_model = ?, run_credential_id = ? where id = ?")
+          .run(effectiveModel(agent.model_id, provider.model), provider.credential_id, runId);
+      }
+      const runModel = pinned ?? effectiveModel(agent.model_id, provider.model);
+      skillRuntimeSnapshot = this.resolveSkillRuntimeSnapshot(orgId, agent.id, runId, skillBudgetTokens(provider.context_window_tokens), `${task.title}\n${task.description}`, { providerKey: provider.provider_key, model: runModel }, task.writing_mode === WRITING_MODE.CONVERSATIONAL);
       // Watermark for reply delivery and mid-run message polling.
       const runStartedAt = new Date().toISOString();
       const chatContext = loadChatWakeContext(this.db, orgId, agent.id, isolation.secretScopeJson);
@@ -227,6 +235,7 @@ export class TaskExecutionService {
             handoffLines: renderTaskHandoff(this.db, orgId, task.handoff_json),
             knowledgeLines: relevantKnowledgeLines(this.db, { orgId, agentId: agent.id, projectId: task.project_id, goalId: task.goal_id, taskId: task.id }, `${task.title}\n${task.description}`),
             priorCompletedRuns: this.completedRunCount(task.id, runId),
+            runModel,
             journalLines: runJournalLines(this.db, task.id),
             subtasks: (this.db.prepare("select title, status = 'done' as done from tasks where parent_task_id = ? order by created_at").all(task.id) as Array<{ title: string; done: number }>)
               .map((row) => ({ title: row.title, done: row.done === 1 })),

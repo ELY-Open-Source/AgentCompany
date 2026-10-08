@@ -1,6 +1,5 @@
 import { WRITING_MODE, type WritingMode } from "../../shared/domain";
 import { CEO_FIRST_HIRES, firstHiresFor, leadsPeople } from "./org-building";
-import { effectiveModel } from "./task-run-preparation";
 import { canonicalMentionHandle } from "../../shared/mention-handles";
 
 const RECORD_LEARNINGS_INSTRUCTION =
@@ -41,6 +40,7 @@ export interface TaskExecutionProviderRow {
   label: string;
   provider_key: string;
   model: string | null;
+  credential_id: string | null;
   context_window_tokens: number;
 }
 
@@ -202,6 +202,8 @@ export function buildTaskPrompt(input: {
   knowledgeLines: string[];
   /** Completed runs this task already spent without reaching done. */
   priorCompletedRuns: number;
+  /** The model this session calls (pinned at its start). */
+  runModel: string | null;
   /** What earlier sessions on this task already did, and where the last one failed. */
   journalLines: string[];
   /** Names of the tools the model can call this run. */
@@ -221,7 +223,7 @@ export function buildTaskPrompt(input: {
     `Requires filesystem: ${input.task.requires_filesystem === 1 ? "yes" : "no"}`,
     `Assignee: ${input.agent.name} (${input.agent.role})`,
     ...(input.managerName ? [`Reports to: ${input.managerName}`] : []),
-    `Provider: ${input.provider.label} ${effectiveModel(input.agent.model_id, input.provider.model) ?? ""}`.trim(),
+    `Provider: ${input.provider.label} ${input.runModel ?? ""}`.trim(),
     `Execution context: ${input.isolation.executionContextId}`,
     `Service identity: ${input.isolation.serviceIdentityId}`,
   ];

@@ -17,7 +17,7 @@ import { selectToolTurn, supportsToolTurn } from "./provider-tool-turns/router";
 import { resolveTurnCredential } from "./provider-tool-turns/credential-resolver";
 import { currentRunId } from "./run-control";
 import { budgetBlock, isPriced, promptChars, providerPrices } from "./spend";
-import { effectiveModel } from "./task-run-preparation";
+import { assertModelSelectable, effectiveModel } from "./task-run-preparation";
 import {
   HEALTH_STATE_HEALTHY,
   WORKSPACE_SCOPES,
@@ -122,11 +122,15 @@ export class ProviderResponseRunner {
     const agent = taskRunId
       ? this.deps.db.prepare("select a.id, a.department, a.model_id from task_runs r join agents a on a.id = r.agent_id where r.id = ?").get(taskRunId) as { id: string; department: string; model_id: string | null }
       : null;
-    // Azure calls the deployment stored with its credential, so an agent there cannot pick another model.
-    if (provider.provider_key === "azure-openai" && agent?.model_id && agent.model_id !== provider.model) {
-      throw new Error(`Azure OpenAI calls the deployment configured on the provider; this agent asks for "${agent.model_id}". Clear the agent's model or set it to "${provider.model}".`);
+    const pins = taskRunId
+      ? this.deps.db.prepare("select run_model, run_credential_id from task_runs where id = ?").get(taskRunId) as { run_model: string | null; run_credential_id: string | null }
+      : null;
+    if (pins?.run_credential_id && pins.run_credential_id !== provider.credential_id) {
+      throw new Error("The provider's account was reconnected during this session; the next session continues with the new account.");
     }
-    const model = effectiveModel(agent?.model_id ?? null, provider.model);
+    // Every turn of a session calls the model the session started with (checked then), whatever the configuration says now.
+    if (!pins?.run_model) assertModelSelectable(provider.provider_key, agent?.model_id ?? null, provider.model);
+    const model = pins?.run_model ?? effectiveModel(agent?.model_id ?? null, provider.model);
     if (!model) throw new Error("Provider model is required.");
     const owner: ProviderRow & { model: string } = { ...provider, model };
     const turn = this.deps.toolTurn ?? selectToolTurn(provider.provider_key);
