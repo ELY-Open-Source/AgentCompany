@@ -14,7 +14,7 @@ import type {
 import { NewTaskDialog } from "./NewTaskDialog";
 import { AgentWorkloadChart, CostTrendChart, RunActivityChart, SuccessRateChart } from "./home/DashboardCharts";
 import type { PageProps } from "./types";
-import { activeOrgId, formatRelative, formatTime, money, requireActiveEmployee, requireActiveOrganization } from "./types";
+import { activeOrgId, formatRelative, formatTime, money, requireActiveEmployee, requireActiveOrganization, requireUsageStats } from "./types";
 import { t } from "../i18n/i18n";
 
 const STRIP: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 16, marginBottom: 16 };
@@ -37,7 +37,7 @@ export function HomePage({ snapshot, actions, navigate }: PageProps) {
   const taskRuns = useMemo(() => snapshot.taskRuns.filter((run) => run.orgId === orgId), [snapshot.taskRuns, orgId]);
   const chatMessages = useMemo(() => snapshot.chatMessages.filter((m) => m.orgId === orgId), [snapshot.chatMessages, orgId]);
   const chatSpaces = useMemo(() => snapshot.chatSpaces.filter((s) => s.orgId === orgId), [snapshot.chatSpaces, orgId]);
-  const providerRequests = useMemo(() => snapshot.providerRequests.filter((r) => r.orgId === orgId), [snapshot.providerRequests, orgId]);
+  const usageStats = requireUsageStats(snapshot.usageStats, orgId);
   const [newTaskOpen, setNewTaskOpen] = useState(false);
 
   const pendingApprovals = approvals.filter((approval) => approval.state === "pending");
@@ -69,9 +69,9 @@ export function HomePage({ snapshot, actions, navigate }: PageProps) {
 
       <div style={METRICS}>
         <AgentWorkloadChart agents={agents} tasks={tasks} />
-        <RunActivityChart taskRuns={taskRuns} />
-        <SuccessRateChart taskRuns={taskRuns} />
-        <CostTrendChart providerRequests={providerRequests} />
+        <RunActivityChart days={usageStats.days} />
+        <SuccessRateChart days={usageStats.days} />
+        <CostTrendChart days={usageStats.days} />
       </div>
 
       <div style={ACTIVITY}>

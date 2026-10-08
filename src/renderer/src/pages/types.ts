@@ -79,3 +79,10 @@ export function formatRelative(iso: string, reference: Date = new Date()): strin
   if (weeks < 5) return t("{n}w ago", { n: weeks });
   return new Date(iso).toLocaleDateString();
 }
+
+/** The active org's period statistics; the snapshot carries one entry per org. */
+export function requireUsageStats(stats: AppSnapshot["usageStats"], orgId: string): AppSnapshot["usageStats"][number] {
+  const found = stats.find((item) => item.orgId === orgId);
+  if (!found) throw new Error(`No usage statistics for organization ${orgId}.`);
+  return found;
+}

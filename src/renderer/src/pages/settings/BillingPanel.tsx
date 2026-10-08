@@ -1,20 +1,22 @@
 import { Avatar, Pill } from "../../shared/ui";
-import type { AgentRecord, HiringPolicyRecord, ProviderRecord, ProviderRequestRecord } from "../../../../shared/domain";
+import type { AgentRecord, HiringPolicyRecord, ProviderRecord } from "../../../../shared/domain";
 import { money } from "../types";
 import { buildAgentSpend } from "./billing-helpers";
 import type { ProviderRateLimitStateRecord } from "../../../../shared/provider-runtime-domain";
+import type { UsageStatsRecord } from "../../../../shared/usage-stats";
 import { t } from "../../i18n/i18n";
 
 export function BillingPanel({
   agents,
   providers,
-  providerRequests,
+  usage,
   providerRateLimits,
   hiringPolicies,
 }: {
   agents: AgentRecord[];
   providers: ProviderRecord[];
-  providerRequests: ProviderRequestRecord[];
+  /** Last 30 days over every call, computed in the main process. */
+  usage: UsageStatsRecord;
   providerRateLimits: ProviderRateLimitStateRecord[];
   hiringPolicies: HiringPolicyRecord[];
 }) {
@@ -23,15 +25,8 @@ export function BillingPanel({
   const unpricedCalls = providerRateLimits.reduce((s, usage) => s + usage.unpricedRequests + usage.requestsWithoutUsage, 0);
   const totalBudget = agents.reduce((sum, a) => sum + a.budgetCents, 0);
   const totalCap = hiringPolicies.reduce((sum, p) => sum + p.monthlyBudgetLimitCents, 0);
-  const monthRequests = providerRequests.filter((r) => withinDays(r.createdAt, 30));
-  const sum = (pick: (request: ProviderRequestRecord) => number | null) => monthRequests.reduce((s, r) => s + (pick(r) ?? 0), 0);
-  const inputTokens = sum((r) => r.inputTokens);
-  const cachedTokens = sum((r) => r.cachedInputTokens);
-  const outputTokens = sum((r) => r.outputTokens);
-  const reasoningTokens = sum((r) => r.reasoningTokens);
-  const unreported = monthRequests.filter((r) => r.inputTokens === null).length;
-  const failedRequests = monthRequests.filter((r) => r.state === "failed");
-  const agentSpend = buildAgentSpend(agents, monthRequests);
+  const { inputTokens, cachedInputTokens: cachedTokens, outputTokens, reasoningTokens, callsWithoutUsage: unreported } = usage.month;
+  const agentSpend = buildAgentSpend(agents, usage.agentSpend);
 
   return (
     <div>
@@ -40,8 +35,8 @@ export function BillingPanel({
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 12, marginBottom: 20 }}>
         <StatTile label={t("Monthly allocation")} value={money(totalBudget)} />
         <StatTile label={t("Budget cap")} value={totalCap > 0 ? money(totalCap) : "—"} />
-        <StatTile label={t("Requests (30d)")} value={String(monthRequests.length)} />
-        <StatTile label={t("Failures (30d)")} value={String(failedRequests.length)} tone={failedRequests.length > 0 ? "red" : undefined} />
+        <StatTile label={t("Requests (30d)")} value={String(usage.month.requests)} />
+        <StatTile label={t("Failures (30d)")} value={String(usage.month.failures)} tone={usage.month.failures > 0 ? "red" : undefined} />
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 20 }}>
@@ -95,8 +90,8 @@ export function BillingPanel({
           <div>{t("Provider")}</div><div>{t("Requests")}</div><div>{t("Errors")}</div><div>{t("Agents")}</div>
         </div>
         {providers.map((provider, index) => {
-          const requests = monthRequests.filter((r) => r.providerId === provider.id);
-          const errors = requests.filter((r) => r.state === "failed").length;
+          const activity = usage.providerActivity.find((row) => row.providerId === provider.id);
+          const errors = activity?.failures ?? 0;
           const boundAgents = agents.filter((a) => a.modelProviderId === provider.id).length;
           return (
             <div key={provider.id} className="table-row" style={{ gridTemplateColumns: "minmax(0, 1.6fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr)", borderBottom: index === providers.length - 1 ? "none" : "1px solid var(--border-soft)" }}>
@@ -104,7 +99,7 @@ export function BillingPanel({
                 <div style={{ fontWeight: 540 }}>{provider.label}</div>
                 {provider.model && <div style={{ fontSize: 12, color: "var(--text-3)" }}>{provider.model}</div>}
               </div>
-              <div className="num mono">{requests.length}</div>
+              <div className="num mono">{activity?.requests ?? 0}</div>
               <div>{errors > 0 ? <Pill tone="amber">{errors}</Pill> : <span className="num mono" style={{ color: "var(--text-3)" }}>0</span>}</div>
               <div className="num mono" style={{ color: "var(--text-2)" }}>{boundAgents}</div>
             </div>
@@ -122,8 +117,4 @@ function StatTile({ label, value, tone }: { label: string; value: string; tone?:
       <div className="num" style={{ fontSize: 18, fontWeight: 600, color: tone === "red" ? "var(--red)" : "var(--text-1)" }}>{value}</div>
     </div>
   );
-}
-
-function withinDays(iso: string, days: number): boolean {
-  return Date.now() - new Date(iso).getTime() < days * 24 * 60 * 60 * 1000;
 }

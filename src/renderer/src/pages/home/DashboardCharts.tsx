@@ -1,5 +1,6 @@
+import type { UsageStatsRecord } from "../../../../shared/usage-stats";
 import { useState, type ReactNode } from "react";
-import type { AgentRecord, TaskRecord, TaskRunRecord } from "../../../../shared/domain";
+import type { AgentRecord, TaskRecord } from "../../../../shared/domain";
 import { TASK_STATUS } from "../../../../shared/domain";
 import { t } from "../../i18n/i18n";
 
@@ -60,13 +61,13 @@ export function AgentWorkloadChart({ agents, tasks }: { agents: AgentRecord[]; t
   );
 }
 
-export function RunActivityChart({ taskRuns }: { taskRuns: TaskRunRecord[] }) {
-  const buckets = last7DayBuckets(taskRuns.map((r) => r.createdAt));
+export function RunActivityChart({ days }: { days: UsageDays }) {
+  const buckets = days.map((day) => ({ label: weekdayFormat.format(new Date(day.dayStart)), count: day.runs }));
   const total = buckets.reduce((s, b) => s + b.count, 0);
   const max = Math.max(1, ...buckets.map((b) => b.count));
   const barW = (CHART_W - 6 * BAR_GAP) / 7;
   const [hover, setHover] = useState<number | null>(null);
-  const readout = hover !== null && buckets[hover] ? `${buckets[hover]!.label} · ${buckets[hover]!.count}` : t("{n} this week", { n: total });
+  const readout = hover !== null && buckets[hover] ? `${buckets[hover]!.label} · ${buckets[hover]!.count}` : t("{n} in the last 7 days", { n: total });
 
   return (
     <ChartCard title={t("Run activity")} readout={readout}>
@@ -96,16 +97,16 @@ export function RunActivityChart({ taskRuns }: { taskRuns: TaskRunRecord[] }) {
   );
 }
 
-export function SuccessRateChart({ taskRuns }: { taskRuns: TaskRunRecord[] }) {
-  const completed = taskRuns.filter((r) => r.state === "completed").length;
-  const failed = taskRuns.filter((r) => r.state === "failed").length;
+export function SuccessRateChart({ days }: { days: UsageDays }) {
+  const completed = days.reduce((sum, day) => sum + day.completedRuns, 0);
+  const failed = days.reduce((sum, day) => sum + day.failedRuns, 0);
   const total = completed + failed;
   const rate = total > 0 ? Math.round((completed / total) * 100) : 0;
   const circumference = 2 * Math.PI * 42;
   const offset = circumference - (rate / 100) * circumference;
 
   return (
-    <ChartCard title={t("Success rate")} readout={t("{ok} ok · {failed} failed", { ok: completed, failed })}>
+    <ChartCard title={t("Success rate (7 days)")} readout={t("{ok} ok · {failed} failed", { ok: completed, failed })}>
       <svg viewBox="0 0 100 100" style={{ width: 96, height: 96, margin: "4px auto", display: "block" }}>
         <circle cx="50" cy="50" r="42" fill="none" stroke="var(--panel-3)" strokeWidth="8" />
         <circle
@@ -121,19 +122,10 @@ export function SuccessRateChart({ taskRuns }: { taskRuns: TaskRunRecord[] }) {
 }
 
 /** Daily model tokens as the providers reported them; calls without reported usage are counted, not guessed. */
-export function CostTrendChart({ providerRequests }: { providerRequests: Array<{ createdAt: string; inputTokens: number | null; outputTokens: number | null }> }) {
-  const buckets = last7DayBuckets(providerRequests.map((r) => r.createdAt));
-  const tokenBuckets = buckets.map((b, i) => {
-    const dayStart = dayStartMs(i);
-    const dayEnd = dayStart + 86400000;
-    const tokens = providerRequests
-      .filter((r) => { const t = new Date(r.createdAt).getTime(); return t >= dayStart && t < dayEnd; })
-      .reduce((s, r) => s + (r.inputTokens ?? 0) + (r.outputTokens ?? 0), 0);
-    return { ...b, tokens };
-  });
+export function CostTrendChart({ days }: { days: UsageDays }) {
+  const tokenBuckets = days.map((day) => ({ label: weekdayFormat.format(new Date(day.dayStart)), tokens: day.tokens }));
   const totalTokens = tokenBuckets.reduce((s, b) => s + b.tokens, 0);
-  // Same seven calendar days as the chart.
-  const unreported = providerRequests.filter((r) => r.inputTokens === null && new Date(r.createdAt).getTime() >= dayStartMs(0)).length;
+  const unreported = days.reduce((sum, day) => sum + day.callsWithoutUsage, 0);
   const max = Math.max(1, ...tokenBuckets.map((b) => b.tokens));
   const coords = tokenBuckets.map((b, i) => ({
     x: (i / 6) * (CHART_W - 10) + 5,
@@ -143,8 +135,8 @@ export function CostTrendChart({ providerRequests }: { providerRequests: Array<{
   const points = coords.map((c) => `${c.x},${c.y}`).join(" ");
   const [hover, setHover] = useState<number | null>(null);
   const week = unreported > 0
-    ? t("{n} tokens this week · {count} calls without usage", { n: compact(totalTokens), count: unreported })
-    : t("{n} tokens this week", { n: compact(totalTokens) });
+    ? t("{n} tokens in the last 7 days · {count} calls without usage", { n: compact(totalTokens), count: unreported })
+    : t("{n} tokens in the last 7 days", { n: compact(totalTokens) });
   const readout = hover !== null && tokenBuckets[hover]
     ? `${tokenBuckets[hover]!.label} · ${compact(tokenBuckets[hover]!.tokens)}`
     : week;
@@ -173,21 +165,4 @@ function compact(count: number): string {
 
 const weekdayFormat = new Intl.DateTimeFormat(undefined, { weekday: "short" });
 
-function last7DayBuckets(dates: string[]): Array<{ label: string; count: number }> {
-  const now = Date.now();
-  return Array.from({ length: 7 }, (_, i) => {
-    const offset = 6 - i;
-    const start = new Date(now - offset * 86400000);
-    start.setHours(0, 0, 0, 0);
-    const end = new Date(start.getTime() + 86400000);
-    const count = dates.filter((d) => { const t = new Date(d).getTime(); return t >= start.getTime() && t < end.getTime(); }).length;
-    return { label: weekdayFormat.format(start), count };
-  });
-}
-
-function dayStartMs(bucketIndex: number): number {
-  const offset = 6 - bucketIndex;
-  const start = new Date(Date.now() - offset * 86400000);
-  start.setHours(0, 0, 0, 0);
-  return start.getTime();
-}
+type UsageDays = UsageStatsRecord["days"];

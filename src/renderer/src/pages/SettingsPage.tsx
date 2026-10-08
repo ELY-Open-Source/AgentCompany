@@ -5,7 +5,7 @@ import { AdvancedPanel } from "./settings/AdvancedPanel";
 import { IntegrationKeysPanel } from "./settings/IntegrationKeysPanel";
 import { t } from "../i18n/i18n";
 import type { PageProps } from "./types";
-import { activeOrgId, requireActiveEmployee, requireActiveOrganization } from "./types";
+import { activeOrgId, requireActiveEmployee, requireActiveOrganization, requireUsageStats } from "./types";
 
 type SettingsTab = "general" | "providers" | "integrations" | "advanced";
 
@@ -30,6 +30,7 @@ export function SettingsPage({ snapshot, actions }: PageProps) {
   const agents = useMemo(() => snapshot.agents.filter((item) => item.orgId === orgId), [snapshot.agents, orgId]);
   const providers = useMemo(() => snapshot.providers.filter((item) => item.orgId === orgId), [snapshot.providers, orgId]);
   const providerAuthProfiles = useMemo(() => snapshot.providerAuthProfiles.filter((item) => item.orgId === orgId), [snapshot.providerAuthProfiles, orgId]);
+  const usage = requireUsageStats(snapshot.usageStats, orgId);
   const providerRateLimits = useMemo(() => snapshot.providerRateLimits.filter((item) => item.orgId === orgId), [snapshot.providerRateLimits, orgId]);
   const workspaces = useMemo(() => snapshot.workspaces.filter((item) => item.orgId === orgId), [snapshot.workspaces, orgId]);
   const providerRequests = useMemo(() => snapshot.providerRequests.filter((item) => item.orgId === orgId), [snapshot.providerRequests, orgId]);
@@ -68,6 +69,7 @@ export function SettingsPage({ snapshot, actions }: PageProps) {
               workspaces={workspaces}
               providerRequests={providerRequests}
               providerRateLimits={providerRateLimits}
+              usage={usage}
               hiringPolicies={hiringPolicies}
               actions={actions}
             />

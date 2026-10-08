@@ -3,6 +3,7 @@ import type { AppSnapshot } from "../../shared/domain";
 import { PROVIDER_CATALOG } from "../../shared/provider-catalog";
 import { IntegrationKeyStore } from "./integration-key-store";
 import { currentProviderUsageWindow } from "../../shared/provider-runtime-domain";
+import { buildUsageStats } from "./usage-stats";
 
 type Row = Record<string, unknown>;
 type ProviderUsageWindowRow = Pick<
@@ -128,6 +129,7 @@ export class SnapshotService {
         from provider_requests order by created_at desc limit 100
       `)).map((row) => camel(row) as unknown as AppSnapshot["providerRequests"][number]),
       providerRateLimits,
+      usageStats: buildUsageStats(this.db, new Date()),
       providerRateLimitObservations,
       skillDefinitions: list(this.db, "skill_definitions", "created_at asc"),
       socialAccounts: list(this.db, "social_accounts", "created_at asc"),

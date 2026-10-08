@@ -1,3 +1,4 @@
+import type { UsageStatsRecord } from "./usage-stats";
 import type { AuditReplayRunRecord } from "./audit-domain";
 import type { IntegrationKeyStatus } from "./commands/integration-keys";
 import type { BoardInterventionRecord as BoardInterventionRecordModel } from "./board-domain";
@@ -102,6 +103,8 @@ export interface AppSnapshot {
   providerCatalog: ProviderCatalogEntry[];
   providerRequests: ProviderRequestRecord[];
   providerRateLimits: ProviderRateLimitStateRecord[];
+  /** Period statistics per org over all records, for charts and billing. */
+  usageStats: UsageStatsRecord[];
   providerRateLimitObservations: ProviderRateLimitObservationRecord[];
   // The snapshot is the renderer's working set and rides IPC on every
   // refresh. Skill internals (revisions, bindings, per-run runtime
