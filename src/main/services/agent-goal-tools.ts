@@ -11,7 +11,7 @@ import type { ProviderService } from "./provider-service";
 import { unreadableArguments, type AgentTurnMessage, type ToolCall, type ToolDefinition } from "./provider-tool-turn";
 import { MAX_TOOL_CALLS_PER_TURN, throwIfRunStopped, untilStopped } from "./run-control";
 import { heldWorkTitles } from "./held-deliverables";
-import { goalAuditor, resultPointers, type GoalAuditor, type ResultPointers } from "./goal-audit-inputs";
+import { AuditBasis, goalAuditor, resultPointers, unfinishedGoalTasks, type GoalAuditor, type ResultPointers } from "./goal-audit-inputs";
 import { DOCUMENT_TOOLS, listDocumentsTool, readDocumentTool } from "./agent-document-tools";
 
 const AUDIT_MAX_ITERATIONS = 6;
@@ -84,16 +84,28 @@ export async function completeGoalTool(args: GoalCompletionArgs): Promise<string
     }
     if (goal.status !== "active") return `Goal "${goal.title}" is already ${goal.status}.`;
     if (heldWorkTitles(deps.db, { goalId: goal.id }).length > 0) return heldGoalRefusal(deps, goal);
+    const unfinished = unfinishedGoalTasks(deps.db, goal.id, ctx.taskId);
+    if (unfinished.length > 0) return unfinishedRefusal(goal, unfinished);
     const pointers = resultPointers(deps.db, ctx, call.arguments);
     const auditor = goalAuditor(deps.db, ctx, args.providerId);
+    const basis = new AuditBasis(deps.db, goal.id, ctx.workspace?.localPath ?? null, pointers);
 
-    const verdict = await auditGoalCompletion(args, goal, pointers, auditor);
+    const verdict = await auditGoalCompletion(args, goal, pointers, auditor, basis);
     if (!verdict.approved) {
       return `The independent audit rejected closing the goal: ${verdict.reason} The goal stays active — close that gap or create the tasks that will.`;
     }
     throwIfRunStopped();
-    // Work held for review while the audit ran keeps the goal open too.
+    // Work held for review, tasks opened, or the goal or result changed while the audit ran: the verdict no longer covers what exists.
     if (heldWorkTitles(deps.db, { goalId: goal.id }).length > 0) return heldGoalRefusal(deps, goal);
+    const openedMeanwhile = unfinishedGoalTasks(deps.db, goal.id, ctx.taskId);
+    if (openedMeanwhile.length > 0) return unfinishedRefusal(goal, openedMeanwhile);
+    const edited = basis.editedInCopy();
+    if (edited.length > 0) {
+      return `ERROR: The auditor's commands changed ${edited.slice(0, 5).join(", ")} in its copy of the workspace, so its verdict is not about the real work; call complete_goal again.`;
+    }
+    if (basis.changed()) {
+      return "ERROR: The goal or the result it points to changed during the audit; call complete_goal again so the audit judges what exists now.";
+    }
     deps.db.prepare("update goals set status = 'achieved', stalled_reason = null, updated_at = ? where id = ? and org_id = ?")
       .run(new Date().toISOString(), goal.id, ctx.orgId);
     new AuditService(deps.db).record({
@@ -111,6 +123,10 @@ export async function completeGoalTool(args: GoalCompletionArgs): Promise<string
   }
 }
 
+function unfinishedRefusal(goal: { title: string }, titles: string[]): string {
+  return `ERROR: Goal "${goal.title}" still has unfinished tasks (${titles.join(", ")}); finish or close them first.`;
+}
+
 function heldGoalRefusal(deps: GoalCompletionArgs["deps"], goal: { id: string; title: string }): string {
   const held = heldWorkTitles(deps.db, { goalId: goal.id });
   return `ERROR: Goal "${goal.title}" has work awaiting board review (${held.join(", ")}); it is not written yet, so the goal cannot be achieved.`;
@@ -126,15 +142,20 @@ async function auditGoalCompletion(
   goal: { title: string; description: string },
   pointers: ResultPointers,
   auditor: GoalAuditor,
+  basis: AuditBasis,
 ): Promise<AuditVerdict> {
   const workspace = args.ctx.workspace;
   // With the operator's file-access approval the auditor may build and test, but only in a throwaway copy.
   const scratch = workspace?.writeAccess ? copyWorkspace(workspace.localPath) : null;
   try {
+    if (scratch) basis.auditInCopy(scratch);
     const auditWorkspace = workspace ? { ...workspace, localPath: scratch ?? workspace.localPath, writeAccess: scratch !== null } : null;
-    return await runAudit(args, goal, pointers, auditor, auditWorkspace);
+    return await runAudit(args, goal, pointers, auditor, basis, auditWorkspace);
   } finally {
-    if (scratch) rmSync(scratch, { recursive: true, force: true });
+    if (scratch) {
+      basis.closeCopy();
+      rmSync(scratch, { recursive: true, force: true });
+    }
   }
 }
 
@@ -155,6 +176,7 @@ async function runAudit(
   goal: { title: string; description: string },
   pointers: ResultPointers,
   auditor: GoalAuditor,
+  basis: AuditBasis,
   workspace: AgentToolContext["workspace"],
 ): Promise<AuditVerdict> {
   const canRun = workspace?.writeAccess === true;
@@ -175,7 +197,7 @@ async function runAudit(
       "The executor points to these as the result. Verify them yourself:",
       `Files: ${pointers.files.length > 0 ? pointers.files.join(", ") : "none"}`,
       `Documents: ${pointers.documents.length > 0 ? pointers.documents.map((doc) => `${doc.title} (doc_id=${doc.id})`).join(", ") : "none"}`,
-      `Inspect the work before deciding: list_files and read_file for the workspace, list_documents and read_document for the library. An approval counts only after you have read some of it. ${canRun ? "run_command runs in a throwaway copy of the workspace: build and run the tests yourself instead of trusting claims that they pass; nothing you do there reaches the real workspace." : "You cannot run commands here, so a claim that something was run or passes is unverified unless the workspace holds its results."} Judge outcomes, not artifacts about outcomes: plans, specs, status reports, and skeletons do not make a goal achieved; working deliverables do. If the goal promises software, look for the actual implementation, not documents describing it.`,
+      `Inspect the work before deciding: list_files and read_file for the workspace, list_documents and read_document for the library. An approval counts only after you have read some of it. ${canRun ? "run_command runs in a throwaway copy of the workspace: build and run the tests yourself instead of trusting claims that they pass; nothing you do there reaches the real workspace. Never edit the work there: if your commands change any file that was already in the workspace, the verdict is void." : "You cannot run commands here, so a claim that something was run or passes is unverified unless the workspace holds its results."} Judge outcomes, not artifacts about outcomes: plans, specs, status reports, and skeletons do not make a goal achieved; working deliverables do. If the goal promises software, look for the actual implementation, not documents describing it.`,
       "Keep your reasoning apart from your decision. End your final message with the decision alone on its last line: <approved/> by itself if the goal is genuinely achieved, or <disapproved/> followed by one short sentence naming the decisive gap. Use no marker anywhere else.",
     ].join("\n\n"),
   }];
@@ -207,7 +229,11 @@ async function runAudit(
       const output = index >= MAX_TOOL_CALLS_PER_TURN
         ? `ERROR: not run: this turn asked for ${turn.toolCalls.length} tool calls; the limit is ${MAX_TOOL_CALLS_PER_TURN}.`
         : toolCall.argumentsError ? unreadableArguments(toolCall) : await runAuditTool(args.deps, auditCtx, toolCall);
-      if (readsEvidence(toolCall) && !output.startsWith("ERROR")) evidenceRead = true;
+      if (readsEvidence(toolCall) && !output.startsWith("ERROR")) {
+        evidenceRead = true;
+        if (toolCall.name === "read_file") basis.noteFile(String(toolCall.arguments.path));
+        else basis.noteDocument(String(toolCall.arguments.doc_id));
+      }
       results.push({ toolCallId: toolCall.id, toolName: toolCall.name, output });
     }
     messages.push({ role: "tool", results });

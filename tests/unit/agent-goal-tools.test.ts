@@ -61,6 +61,8 @@ function createHarness(): Harness {
     });
     goalId = organization.createGoal({ orgId, title: "Ship it", description: "For real.", ownerAgentId: ceoId });
     connection.db.prepare("update organizations set audit_provider_id = ?, audit_model_id = 'gpt-5.4-mini' where id = ?").run(providerId, orgId);
+    // The goal's kickoff work is finished, so only what a test adds can hold the goal open.
+    connection.db.prepare("update tasks set status = 'done' where goal_id = ?").run(goalId);
   });
   return { connection, deps: { db: connection.db, organization, chat: new ChatService(connection.db) }, orgId, ceoId, staffId, goalId, providerId };
 }
@@ -313,6 +315,96 @@ describe("complete_goal with independent audit", () => {
     h.connection.close();
   });
 
+  test("a verdict after the auditor's commands changed the work voids itself; a differently cased read is the same file", async () => {
+    for (const scenario of ["repaired in the copy", "read in other case"] as const) {
+      const h = createHarness();
+      writeFileSync(join(workspaceRoot, "src", "index.ts"), "export const app = () => 'running';\n");
+      writeFileSync(join(workspaceRoot, "Case-Fixture.txt"), "same");
+      let calls = 0;
+      const auditor = async (): Promise<AuditorTurn> => {
+        calls += 1;
+        if (calls === 1) {
+          const path = scenario === "repaired in the copy" ? "src/index.ts" : "case-fixture.txt";
+          return turnOf("Reading.", [{ id: "c1", name: "read_file", arguments: { path } }]);
+        }
+        // Read first, then "repair" and test in the copy without reading again.
+        if (calls === 2 && scenario === "repaired in the copy") {
+          return turnOf("Fixing.", [{ id: "c2", name: "run_command", arguments: { command: "node -e \"require('fs').writeFileSync('src/index.ts', 'fixed')\"" } }]);
+        }
+        return turnOf("<approved/>");
+      };
+      const files = scenario === "repaired in the copy" ? ["src/index.ts"] : ["Case-Fixture.txt"];
+      const output = await completeGoalTool(argsFor(h, h.ceoId, auditor, call({ files })));
+      const caseInsensitive = existsSync(join(workspaceRoot, "CASE-FIXTURE.TXT"));
+      const expected = scenario === "repaired in the copy"
+        ? "ERROR: The auditor's commands changed src/index.ts in its copy of the workspace, so its verdict is not about the real work; call complete_goal again."
+        : expect.stringContaining(caseInsensitive ? "achieved" : "audit rejected");
+      expect([scenario, output]).toEqual([scenario, expected]);
+      h.connection.close();
+    }
+  });
+
+  test("a goal closes only when its other tasks are done", async () => {
+    const h = createHarness();
+    const task = (title: string) => h.connection.transaction(() => h.deps.organization.createTask({
+      orgId: h.orgId, title, description: "d", status: "in_progress", assigneeAgentId: h.staffId, risk: "low",
+      projectId: null, goalId: h.goalId, workspaceId: null, priority: "normal", requiresFilesystem: false,
+    }));
+    const calling = task("Close the goal");
+    task("Write the docs");
+    let calls = 0;
+    const auditor = async (): Promise<AuditorTurn> => {
+      calls += 1;
+      return calls === 1 ? turnOf("Reading.", [{ id: "c1", name: "read_file", arguments: { path: "src/index.ts" } }]) : turnOf("<approved/>");
+    };
+    const args = argsFor(h, h.ceoId, auditor, call({ files: ["src/index.ts"] }));
+    args.ctx.taskId = calling;
+    expect(await completeGoalTool(args)).toBe('ERROR: Goal "Ship it" still has unfinished tasks (Write the docs); finish or close them first.');
+    expect(calls).toBe(0);
+    h.connection.db.prepare("update tasks set status = 'done' where title = 'Write the docs'").run();
+    expect(await completeGoalTool(args)).toContain("achieved");
+    h.connection.close();
+  });
+
+  test("a goal or result that changes during the audit is judged again, not closed on the old verdict", async () => {
+    for (const change of ["file", "goal", "task", "read file", "read document", "before read"] as const) {
+      const h = createHarness();
+      writeFileSync(join(workspaceRoot, "result.md"), "v1");
+      writeFileSync(join(workspaceRoot, "src", "index.ts"), "export const app = () => 'running';\n");
+      const notesId = h.connection.transaction(() => new DocumentService(h.connection.db).create({ orgId: h.orgId, title: "Notes", docType: "report", content: "n", authorAgentId: h.ceoId, reviewerAgentId: null, projectId: null, goalId: h.goalId, taskId: null }));
+      let calls = 0;
+      const auditor = async (): Promise<AuditorTurn> => {
+        calls += 1;
+        if (calls === 1) {
+          // The audit's copy was taken before this turn; a change now is one the auditor never sees.
+          if (change === "before read") writeFileSync(join(workspaceRoot, "src", "index.ts"), "export const app = () => 'changed';\n");
+          return turnOf("Reading.", [
+            { id: "c1", name: "read_file", arguments: { path: "result.md" } },
+            { id: "c2", name: "read_file", arguments: { path: "./src/index.ts" } },
+            { id: "c3", name: "read_document", arguments: { doc_id: ` ${notesId} ` } },
+          ]);
+        }
+        if (change === "file") writeFileSync(join(workspaceRoot, "result.md"), "v2");
+        if (change === "read file") writeFileSync(join(workspaceRoot, "src", "index.ts"), "export const app = () => 'changed';\n");
+        if (change === "read document") h.connection.db.prepare("update documents set version = version + 1 where id = ?").run(notesId);
+        if (change === "goal") h.connection.db.prepare("update goals set description = 'Bigger now.' where id = ?").run(h.goalId);
+        if (change === "task") {
+          h.connection.transaction(() => h.deps.organization.createTask({
+            orgId: h.orgId, title: "Late addition", description: "d", status: "backlog", assigneeAgentId: h.staffId, risk: "low",
+            projectId: null, goalId: h.goalId, workspaceId: null, priority: "normal", requiresFilesystem: false,
+          }));
+        }
+        return turnOf("<approved/>");
+      };
+      const output = await completeGoalTool(argsFor(h, h.ceoId, auditor, call({ files: ["result.md"] })));
+      expect([change, output]).toEqual([change, change === "task"
+        ? 'ERROR: Goal "Ship it" still has unfinished tasks (Late addition); finish or close them first.'
+        : "ERROR: The goal or the result it points to changed during the audit; call complete_goal again so the audit judges what exists now."]);
+      expect(goalStatus(h)).toBe("active");
+      h.connection.close();
+    }
+  });
+
   test("no explicit approval means not achieved", async () => {
     const h = createHarness();
     const auditor = async (): Promise<AuditorTurn> => turnOf("Looks plausible I guess.");
@@ -449,8 +541,9 @@ describe("company_status", () => {
     // createGoal materializes a kickoff task, so the goal starts with one
     // backlog item of real work before the two tasks this test adds.
     const output = dispatch(h, h.ceoId, "company_status", {});
-    expect(output).toContain(`[active] "Ship it" (goal_id=${h.goalId}, owner: CEO) — 1 backlog, 1 in flight, 1 done`);
-    expect(output).toContain("Real work tasks: 3 total — 1 backlog, 1 in progress, 0 in review, 1 done");
+    // The harness finished the goal's kickoff task, so it counts as done.
+    expect(output).toContain(`[active] "Ship it" (goal_id=${h.goalId}, owner: CEO) — 0 backlog, 1 in flight, 2 done`);
+    expect(output).toContain("Real work tasks: 3 total — 0 backlog, 1 in progress, 0 in review, 2 done");
     expect(output).toContain(`"Build the ingestion pipeline" — in_progress, Dev`);
     expect(output).toContain(`"Write the launch post"`);
     expect(output).not.toContain("Reply to CEO");
