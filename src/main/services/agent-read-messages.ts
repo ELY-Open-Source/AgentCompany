@@ -15,6 +15,13 @@ interface MessageFilter {
   limit: number;
 }
 
+/** Workspace-wide channels are open to every agent; restricted channels and direct conversations only to their members. */
+function mayRead(deps: AgentToolDeps, ctx: AgentToolContext, spaceId: string): boolean {
+  const space = deps.db.prepare("select visibility, space_type from chat_spaces where id = ?").get(spaceId) as { visibility: string; space_type: string };
+  if (space.visibility === "workspace" && space.space_type !== "direct") return true;
+  return Boolean(deps.db.prepare("select 1 from chat_memberships where space_id = ? and principal_type = 'agent' and principal_id = ?").get(spaceId, ctx.agent.id));
+}
+
 export function readMessagesTool(deps: AgentToolDeps, ctx: AgentToolContext, args: JsonRecord): string {
   const channel = optionalString(args.channel);
   const withTeammate = optionalString(args.with);
@@ -47,11 +54,13 @@ export function readMessagesTool(deps: AgentToolDeps, ctx: AgentToolContext, arg
       "select id from chat_spaces where org_id = ? and lower(name) = lower(?) and space_type <> 'direct' limit 1",
     ).get(ctx.orgId, channel) as { id: string } | undefined;
     if (!space) throw new Error(`No channel named "${channel}".`);
+    if (!mayRead(deps, ctx, space.id)) throw new Error(`You are not a member of #${channel}, so you cannot read it.`);
     return messagePage(deps, ctx.orgId, { column: "space_id", id: space.id }, filter, `#${channel}`);
   }
   if (threadId) {
-    const thread = deps.db.prepare("select id from chat_threads where id = ? and org_id = ?").get(threadId, ctx.orgId);
+    const thread = deps.db.prepare("select space_id from chat_threads where id = ? and org_id = ?").get(threadId, ctx.orgId) as { space_id: string } | undefined;
     if (!thread) throw new Error(`No thread with thread_id "${threadId}".`);
+    if (!mayRead(deps, ctx, thread.space_id)) throw new Error(`You are not a member of the conversation thread ${threadId} belongs to, so you cannot read it.`);
     return messagePage(deps, ctx.orgId, { column: "thread_id", id: threadId }, filter, `thread ${threadId}`);
   }
   return unansweredMentions(deps, ctx, filter.limit);

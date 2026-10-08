@@ -155,4 +155,23 @@ describe("agent direct messages", () => {
     expect(readBack).toContain("priorities for today");
     expect(readBack).toMatch(/\] CEO \(agent, [^)]+\) \(thread=/);
   });
+
+  test("read_messages reads only where the agent may: restricted channels and others' direct messages need membership", () => {
+    const h = harness({ enableProvider: false });
+    const deps = { db: h.connection.db, organization: h.organization, chat: h.chat };
+    const dana = { ...h.ctx, agent: { id: h.danaId, modelProviderId: null, modelId: null } };
+    h.connection.transaction(() => h.chat.createSpace({ orgId: h.orgId, spaceType: "project", name: "board-room", topic: "t", visibility: "restricted", memberAgentIds: [h.ceoId] }));
+    dispatchAgentTool(deps, h.ctx, call("send_message", { channel: "board-room", body: "Acquisition terms are 4x revenue." }));
+    expect(dispatchAgentTool(deps, h.ctx, call("read_messages", { channel: "board-room" }))).toContain("Acquisition terms");
+    expect(dispatchAgentTool(deps, dana, call("read_messages", { channel: "board-room" }))).toBe("ERROR: You are not a member of #board-room, so you cannot read it.");
+
+    const eveId = h.connection.transaction(() => h.organization.createAgent({
+      orgId: h.orgId, name: "Eve", role: "Engineer", department: "Engineering", modelProviderId: null, modelId: null, budgetCents: 1000, managerAgentId: h.ceoId,
+    }));
+    const sent = dispatchAgentTool(deps, h.ctx, call("send_message", { to: "Dana", body: "Your raise is approved." }));
+    const threadId = /thread_id="([^"]+)"/.exec(sent)![1];
+    expect(dispatchAgentTool(deps, dana, call("read_messages", { thread_id: threadId }))).toContain("Your raise is approved.");
+    const eve = { ...h.ctx, agent: { id: eveId, modelProviderId: null, modelId: null } };
+    expect(dispatchAgentTool(deps, eve, call("read_messages", { thread_id: threadId }))).toBe(`ERROR: You are not a member of the conversation thread ${threadId} belongs to, so you cannot read it.`);
+  });
 });
