@@ -1,5 +1,5 @@
 import { DocumentService } from "../../src/main/services/document-service";
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -23,6 +23,7 @@ function turnOf(text: string, toolCalls: ToolCall[] = []): AuditorTurn {
 const workspaceRoot = join(tmpdir(), `ac-goal-audit-${randomUUID()}`);
 mkdirSync(join(workspaceRoot, "src"), { recursive: true });
 writeFileSync(join(workspaceRoot, "src", "index.ts"), "export const app = () => 'running';\n");
+writeFileSync(join(workspaceRoot, "check.js"), "require('fs').writeFileSync('built.txt', 'x'); console.log('all 3 tests passed'); console.log('cwd=' + process.cwd());\n");
 
 afterAll(() => {
   rmSync(workspaceRoot, { recursive: true, force: true });
@@ -82,7 +83,7 @@ function goalStatus(h: Harness): string {
 }
 
 describe("complete_goal with independent audit", () => {
-  test("an approving auditor closes the goal; the auditor gets read-only workspace access", async () => {
+  test("an approving auditor closes the goal; without approved file access the auditor only reads", async () => {
     const h = createHarness();
     const seenTools: string[][] = [];
     const replay = { format: "anthropic" as const, content: [{ type: "thinking", thinking: "check", signature: "SIG" }] };
@@ -99,12 +100,67 @@ describe("complete_goal with independent audit", () => {
       return turnOf("The implementation exists and runs. <approved/>");
     };
 
-    const output = await completeGoalTool(argsFor(h, h.ceoId, auditor, call({ evidence: "src/index.ts implements the app and runs." })));
+    const readOnly = argsFor(h, h.ceoId, auditor, call({ evidence: "src/index.ts implements the app and runs." }));
+    readOnly.ctx.workspace = { ...readOnly.ctx.workspace!, writeAccess: false };
+    const output = await completeGoalTool(readOnly);
     expect(output).toContain("achieved");
     expect(goalStatus(h)).toBe("achieved");
-    // The auditor never receives run_command — inspection is read-only.
+    // Without the operator's file-access approval the auditor gets no run_command.
     expect(seenTools.every((tools) => !tools.includes("run_command"))).toBe(true);
     expect(seenTools[0]).toContain("read_file");
+    h.connection.close();
+  });
+
+  test("with approved file access the auditor builds and tests in a throwaway copy of the workspace", async () => {
+    const h = createHarness();
+    let turns = 0;
+    let commandOutput = "";
+    let ranIn = "";
+    const auditor = async (input: AuditorInput): Promise<AuditorTurn> => {
+      turns += 1;
+      if (turns === 1) {
+        expect(input.tools.map((tool) => tool.name)).toContain("run_command");
+        return turnOf("Running the tests.", [{ id: "c1", name: "run_command", arguments: { command: "node check.js" } }, { id: "c2", name: "list_files", arguments: {} }]);
+      }
+      if (turns === 2) {
+        const results = (input.messages.at(-1) as { results: Array<{ output: string }> }).results;
+        commandOutput = results[0].output;
+        ranIn = results[1].output;
+        return turnOf("Reading.", [{ id: "c3", name: "read_file", arguments: { path: "built.txt" } }]);
+      }
+      return turnOf("Tests pass when run. <approved/>");
+    };
+    const output = await completeGoalTool(argsFor(h, h.ceoId, auditor, call({ evidence: "All tests pass." })));
+    expect(output).toContain("achieved");
+    expect(commandOutput).toContain("all 3 tests passed");
+    expect(ranIn).toContain("built.txt");
+    // The real workspace is untouched, and no copy is left behind.
+    expect(existsSync(join(workspaceRoot, "built.txt"))).toBe(false);
+    const copy = /cwd=(.+)/.exec(commandOutput)![1].trim();
+    expect(copy).not.toBe(workspaceRoot);
+    expect(existsSync(copy)).toBe(false);
+    h.connection.close();
+  });
+
+  test("a workspace that cannot be copied fails the audit and leaves no copy behind", async () => {
+    const h = createHarness();
+    const args = argsFor(h, h.ceoId, async () => turnOf("<approved/>"), call({ evidence: "done" }));
+    args.ctx.workspace = { ...args.ctx.workspace!, localPath: join(tmpdir(), `ac-gone-${randomUUID()}`) };
+    // A private temp folder for this audit, so the check sees only its own copies.
+    const base = mkdtempSync(join(tmpdir(), "ac-tmpbase-"));
+    const saved = { TMP: process.env.TMP, TEMP: process.env.TEMP, TMPDIR: process.env.TMPDIR };
+    process.env.TMP = process.env.TEMP = process.env.TMPDIR = base;
+    try {
+      expect(await completeGoalTool(args)).toMatch(/^ERROR: /);
+    } finally {
+      for (const [name, value] of Object.entries(saved)) {
+        if (value === undefined) delete process.env[name];
+        else process.env[name] = value;
+      }
+    }
+    expect(goalStatus(h)).toBe("active");
+    expect(readdirSync(base)).toEqual([]);
+    rmSync(base, { recursive: true, force: true });
     h.connection.close();
   });
 

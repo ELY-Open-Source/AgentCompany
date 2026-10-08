@@ -1,3 +1,6 @@
+import { cpSync, mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { fitContextBudget } from "./context-budget";
 import { AuditService } from "./audit-service";
 import { executeWorkspaceTool, WORKSPACE_TOOLS } from "./agent-workspace-tools";
@@ -124,16 +127,43 @@ async function auditGoalCompletion(
   goal: { title: string; description: string },
   evidence: string,
 ): Promise<AuditVerdict> {
-  // Read-only inspection of the workspace and the library: the auditor may look at anything but change nothing.
+  const workspace = args.ctx.workspace;
+  // With the operator's file-access approval the auditor may build and test, but only in a throwaway copy.
+  const scratch = workspace?.writeAccess ? copyWorkspace(workspace.localPath) : null;
+  try {
+    const auditWorkspace = workspace ? { ...workspace, localPath: scratch ?? workspace.localPath, writeAccess: scratch !== null } : null;
+    return await runAudit(args, goal, evidence, auditWorkspace);
+  } finally {
+    if (scratch) rmSync(scratch, { recursive: true, force: true });
+  }
+}
+
+function copyWorkspace(root: string): string {
+  const scratch = mkdtempSync(join(tmpdir(), "ac-audit-"));
+  try {
+    cpSync(root, scratch, { recursive: true });
+  } catch (error) {
+    rmSync(scratch, { recursive: true, force: true });
+    throw error;
+  }
+  console.info(`[goal-audit] auditing in a copy of ${root} at ${scratch}`);
+  return scratch;
+}
+
+async function runAudit(
+  args: GoalCompletionArgs,
+  goal: { title: string; description: string },
+  evidence: string,
+  workspace: AgentToolContext["workspace"],
+): Promise<AuditVerdict> {
+  const canRun = workspace?.writeAccess === true;
+  // The workspace (or its throwaway copy) and the library; nothing the auditor does reaches the real work.
   const auditTools = [
-    ...WORKSPACE_TOOLS.filter((tool) => tool.name !== "run_command"),
+    ...WORKSPACE_TOOLS.filter((tool) => canRun || tool.name !== "run_command"),
     ...DOCUMENT_TOOLS.filter((tool) => AUDIT_DOCUMENT_TOOLS.has(tool.name)),
   ];
   let evidenceRead = false;
-  const auditCtx: AgentToolContext = {
-    ...args.ctx,
-    workspace: args.ctx.workspace ? { ...args.ctx.workspace, writeAccess: false } : null,
-  };
+  const auditCtx: AgentToolContext = { ...args.ctx, workspace };
   const messages: AgentTurnMessage[] = [{
     role: "user",
     text: [
@@ -142,7 +172,7 @@ async function auditGoalCompletion(
       `Goal detail: ${goal.description}`,
       "The executor's claim:",
       evidence,
-      "Inspect the work before deciding: list_files and read_file for the workspace, list_documents and read_document for the library. An approval counts only after you have read some of it. Judge outcomes, not artifacts about outcomes: plans, specs, status reports, and skeletons do not make a goal achieved; working deliverables do. If the goal promises software, look for the actual implementation, not documents describing it.",
+      `Inspect the work before deciding: list_files and read_file for the workspace, list_documents and read_document for the library. An approval counts only after you have read some of it. ${canRun ? "run_command runs in a throwaway copy of the workspace: build and run the tests yourself instead of trusting claims that they pass; nothing you do there reaches the real workspace." : "You cannot run commands here, so a claim that something was run or passes is unverified unless the workspace holds its results."} Judge outcomes, not artifacts about outcomes: plans, specs, status reports, and skeletons do not make a goal achieved; working deliverables do. If the goal promises software, look for the actual implementation, not documents describing it.`,
       "End your final message with exactly one marker: <approved/> if the goal is genuinely achieved, or <disapproved/> followed by one short sentence naming the decisive gap.",
     ].join("\n\n"),
   }];
