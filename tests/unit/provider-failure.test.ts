@@ -14,7 +14,9 @@ describe("provider failure classification", () => {
     expect(classifyProviderFailure(new ProviderHttpError("{\"type\":\"overloaded_error\"}", null, 529), NOW)).toEqual({ transient: true, retryAfterMs: null });
     expect(classifyProviderFailure(new ProviderHttpError("Provider request timed out.", null, null, true), NOW)).toEqual({ transient: true, retryAfterMs: null });
     expect(classifyProviderFailure(new ProviderHttpError("invalid api key", null, 401), NOW)).toEqual({ transient: false, retryAfterMs: null });
-    expect(classifyProviderFailure(new ProviderHttpError("The usage limit has been reached", null, 400), NOW)).toEqual({ transient: true, retryAfterMs: null });
+    expect(classifyProviderFailure(new ProviderHttpError("The usage limit has been reached", null, 400, false, "usage_limit_reached"), NOW)).toEqual({ transient: true, retryAfterMs: null });
+    expect(classifyProviderFailure(new ProviderHttpError("Please do not rate limit me", null, 400, false, "invalid_request_error"), NOW)).toEqual({ transient: false, retryAfterMs: null });
+    expect(classifyProviderFailure(new Error("rate limit reached, too many requests"), NOW)).toEqual({ transient: false, retryAfterMs: null });
     const reset = Object.assign(new Error("read ECONNRESET"), { code: "ECONNRESET" });
     expect(classifyProviderFailure(new TypeError("fetch failed", { cause: reset }), NOW)).toEqual({ transient: true, retryAfterMs: null });
     expect(classifyProviderFailure(new ProviderHttpError("", null, 522), NOW)).toEqual({ transient: true, retryAfterMs: null });

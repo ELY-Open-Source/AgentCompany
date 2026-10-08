@@ -13,6 +13,7 @@ import { dispatchAgentTool } from "../../src/main/services/agent-tools";
 import { claimNextQueuedRun, startTaskQueueWorker } from "../../src/main/app/task-queue-worker";
 import type { AgentTurnResult, ProviderToolTurnInput, ToolCall } from "../../src/main/services/provider-tool-turn";
 import { answeringModelCheck } from "../helpers/model-check";
+import { ProviderHttpError } from "../../src/main/services/provider-http";
 
 const testVault = {
   encryptSecret: (secret: string) => Buffer.from(secret, "utf8"),
@@ -154,7 +155,7 @@ describe("interactive execution lane", () => {
     const script = async (input: ProviderToolTurnInput): Promise<AgentTurnResult> => {
       const prompt = input.messages.find((message) => message.role === "user")?.text ?? "";
       if (prompt.includes("Grind through the migration backlog")) {
-        throw new Error("The engine is currently overloaded, please try again later");
+        throw new ProviderHttpError("The engine is currently overloaded, please try again later", null, 529, false, "overloaded_error");
       }
       const threadId = /thread_id="([^"]+)"/.exec(prompt)?.[1];
       if (prompt.includes("Are we blocked") && threadId && !ceoReplied) {
@@ -226,7 +227,7 @@ describe("interactive execution lane", () => {
     });
     const chat = new ChatService(connection.db);
     const alwaysOverloaded = async (): Promise<AgentTurnResult> => {
-      throw new Error("The engine is currently overloaded, please try again later");
+      throw new ProviderHttpError("The engine is currently overloaded, please try again later", null, 529, false, "overloaded_error");
     };
     const providers = new ProviderService(connection.db, providerAdapters, testVault, undefined, answeringModelCheck(alwaysOverloaded));
     providers.saveCredential({ orgId, providerId, secret: "sk-test-key", model: "gpt-5.4" });

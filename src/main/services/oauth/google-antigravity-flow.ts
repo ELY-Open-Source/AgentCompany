@@ -7,6 +7,7 @@
 import { startOAuthCallbackServer } from "./oauth-callback-server";
 import { generatePkce } from "./pkce";
 import type { OAuthCredentials, OAuthFlow, OAuthLoginCallbacks } from "./oauth-types";
+import { httpFailure } from "../provider-http";
 
 const CLIENT_ID = "1071006060591-tmhssin2h21lcre235vtolojh4g403ep.apps.googleusercontent.com";
 const CALLBACK_PORT = 51121;
@@ -115,7 +116,7 @@ export async function refreshAntigravity(refreshToken: string, projectId: string
     }),
   });
   const text = await response.text();
-  if (!response.ok) throw new Error(`Antigravity token refresh failed: ${response.status} ${text}`);
+  if (!response.ok) throw httpFailure(`Antigravity token refresh failed: ${response.status} ${text}`, response, text);
   const json = JSON.parse(text) as { access_token?: unknown; refresh_token?: unknown; expires_in?: unknown };
   if (typeof json.access_token !== "string" || typeof json.expires_in !== "number") {
     throw new Error("Antigravity token refresh response was missing required fields.");

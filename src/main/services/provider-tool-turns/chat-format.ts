@@ -1,5 +1,5 @@
 /** OpenAI Chat Completions encoding/decoding (xAI, Groq, Mistral, Cerebras, OpenRouter, Kimi family). */
-import { isRecord, ProviderHttpError, type JsonRecord, type ProviderEventStreamMessage } from "../provider-http";
+import { isRecord, ProviderHttpError, readProviderErrorCode, type JsonRecord, type ProviderEventStreamMessage } from "../provider-http";
 import { FINISHED_STOP_REASONS, replayIn, requireFinished, type AgentTurnMessage, type AgentTurnResult, type AssistantReplay, toolCallFromJson, type ToolCall, type ToolDefinition } from "../provider-tool-turn";
 
 /** How each Chat Completions provider names the output cap: OpenAI's current field, or the older one the others document. */
@@ -94,7 +94,7 @@ export async function accumulateChatStream(messages: AsyncIterable<ProviderEvent
   let finishReason: unknown = null;
   for await (const message of messages) {
     raw.push(message.rawData);
-    if (message.data.error !== undefined) throw new ProviderHttpError(streamErrorText(message.data.error), null, streamErrorStatus(message.data.error));
+    if (message.data.error !== undefined) throw new ProviderHttpError(streamErrorText(message.data.error), null, streamErrorStatus(message.data.error), false, isRecord(message.data.error) ? readProviderErrorCode({ error: message.data.error }) : null);
     const choices = Array.isArray(message.data.choices) ? message.data.choices : [];
     const first = choices.length > 0 && isRecord(choices[0]) ? choices[0] : null;
     if (first && typeof first.finish_reason === "string") finishReason = first.finish_reason;

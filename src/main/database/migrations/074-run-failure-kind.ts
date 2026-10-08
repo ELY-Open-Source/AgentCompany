@@ -1,4 +1,5 @@
-import { TRANSIENT_PROVIDER_FAILURE_SIGNATURES } from "../../../shared/provider-runtime-domain";
+/** The message signatures earlier builds classified transient failures by; frozen here to heal their rows. */
+const TRANSIENT_PROVIDER_FAILURE_SIGNATURES = ["provider monthly request limit has been reached.", "usage limit", "rate limit", "too many requests", "overloaded"];
 
 /** Runs record whether they failed for a passing provider reason; older rows are classified from their message once, here. */
 export const runFailureKindSchema = `

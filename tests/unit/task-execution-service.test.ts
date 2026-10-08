@@ -15,6 +15,7 @@ import { TaskExecutionService } from "../../src/main/services/task-execution-ser
 import { APPROVAL_STATE, PROVIDER_DATA_POLICY, RISK_LEVEL, TASK_PRIORITY, TASK_STATUS } from "../../src/shared/domain";
 import { currentProviderUsageWindow, PROVIDER_MONTHLY_LIMIT_MESSAGE } from "../../src/shared/provider-runtime-domain";
 import { answeringModelCheck } from "../helpers/model-check";
+import { ProviderHttpError } from "../../src/main/services/provider-http";
 
 function createConnection(): DatabaseConnection {
   return new DatabaseConnection(join(tmpdir(), `agentcompany-new-task-execution-${randomUUID()}.db`));
@@ -847,7 +848,7 @@ describe("task execution service", () => {
     const connection = createConnection();
     const organization = new OrganizationService(connection.db);
     const fakeToolTurn = async (): Promise<AgentTurnResult> => {
-      throw new Error("The usage limit has been reached");
+      throw new ProviderHttpError("The usage limit has been reached", null, 429, false, "usage_limit_reached");
     };
     const providers = new ProviderService(connection.db, providerAdapters, testVault, undefined, answeringModelCheck(fakeToolTurn));
     let nowMs = Date.now();

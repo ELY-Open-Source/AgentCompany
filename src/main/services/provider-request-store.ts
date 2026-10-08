@@ -6,6 +6,7 @@ import { providerPrices, readTokenUsage, requestCostCents, type TokenUsage } fro
 /** Providers already logged as not reporting token usage. */
 const providersWithoutUsage = new Set<string>();
 import { currentProviderUsageWindow, PROVIDER_MONTHLY_LIMIT_MESSAGE } from "../../shared/provider-runtime-domain";
+import { ProviderLimitError } from "./provider-failure";
 
 export interface ProviderRequestOwner {
   id: string;
@@ -69,6 +70,8 @@ export interface ProviderRequestFailureInput {
   orgId: string;
   requestId: string;
   errorMessage: string;
+  errorStatus: number | null;
+  errorCode: string | null;
   completedAt: string;
   rawResponseJson?: string | null;
 }
@@ -216,9 +219,9 @@ export class ProviderRequestStore {
   markFailed(input: ProviderRequestFailureInput): boolean {
     return this.db.prepare(`
       update provider_requests
-      set state = ?, error_message = ?, raw_response_json = coalesce(?, raw_response_json), completed_at = ?
+      set state = ?, error_message = ?, error_status = ?, error_code = ?, raw_response_json = coalesce(?, raw_response_json), completed_at = ?
       where id = ? and org_id = ? and state not in ('succeeded', 'failed', 'cancelled')
-    `).run(PROVIDER_REQUEST_STATE.FAILED, input.errorMessage, input.rawResponseJson ?? null, input.completedAt, input.requestId, input.orgId).changes === 1;
+    `).run(PROVIDER_REQUEST_STATE.FAILED, input.errorMessage, input.errorStatus, input.errorCode, input.rawResponseJson ?? null, input.completedAt, input.requestId, input.orgId).changes === 1;
   }
 
   markCancelled(input: ProviderRequestCancellationInput): void {
@@ -282,7 +285,7 @@ export class ProviderRequestStore {
       select count(*) as n from provider_requests
       where org_id = ? and provider_id = ? and state in (?, ?) and created_at >= ?
     `).get(orgId, provider.id, PROVIDER_REQUEST_STATE.PENDING, PROVIDER_REQUEST_STATE.STREAMING, window.start) as { n: number };
-    if ((finished?.request_count ?? 0) + inFlight.n >= provider.monthly_request_limit) throw new Error(PROVIDER_MONTHLY_LIMIT_MESSAGE);
+    if ((finished?.request_count ?? 0) + inFlight.n >= provider.monthly_request_limit) throw new ProviderLimitError(PROVIDER_MONTHLY_LIMIT_MESSAGE);
   }
 
   /** Settles a successful call: reads the provider's token usage, prices it, and adds it to the request and the month's totals. */

@@ -40,6 +40,8 @@ export class ProviderHttpError extends Error {
     /** HTTP status of the failed response; null when no response arrived. */
     readonly status: number | null = null,
     readonly timedOut = false,
+    /** The provider's machine-readable error code (OpenAI code/type, Anthropic type, Google status, AWS error type). */
+    readonly code: string | null = null,
   ) {
     super(message);
     this.name = "ProviderHttpError";
@@ -92,7 +94,7 @@ export async function postEventStream(
     const raw = await withDeadline(controller, timeouts.bodyTimeoutMs ?? BODY_TIMEOUT_MS, () => response.text());
     const data = parseProviderJson(raw, false);
     const message = readProviderError(data) ?? (raw.trim() || `Provider request failed with HTTP ${response.status}.`);
-    throw new ProviderHttpError(message, rateLimitState, response.status);
+    throw new ProviderHttpError(message, rateLimitState, response.status, false, readProviderErrorCode(data, response.headers));
   }
   if (!response.body) throw new ProviderHttpError("Provider returned an empty event stream.", rateLimitState);
   return { messages: readServerSentEvents(response.body, timeouts.idleTimeoutMs ?? STREAM_IDLE_TIMEOUT_MS), rateLimitState };
@@ -106,7 +108,7 @@ async function requestJson(endpoint: string, init: RequestInit, timeouts: Provid
   const data = parseProviderJson(raw, response.ok);
   if (!response.ok) {
     const message = readProviderError(data) ?? (raw.trim() || `Provider request failed with HTTP ${response.status}.`);
-    throw new ProviderHttpError(message, rateLimitState, response.status);
+    throw new ProviderHttpError(message, rateLimitState, response.status, false, readProviderErrorCode(data, response.headers));
   }
   return { data, rateLimitState };
 }
@@ -234,6 +236,33 @@ function readProviderError(data: JsonRecord): string | null {
   if (typeof error === "string") return error;
   if (isRecord(error) && typeof error.message === "string") return error.message;
   return null;
+}
+
+/** A failed HTTP exchange outside the request helpers (OAuth refresh, token minting), with its status and provider code. */
+export function httpFailure(message: string, response: { status: number; headers: Headers }, text: string): ProviderHttpError {
+  let data: JsonRecord = {};
+  try {
+    const parsed = JSON.parse(text) as unknown;
+    if (isRecord(parsed)) data = parsed;
+  } catch {
+    data = {};
+  }
+  return new ProviderHttpError(message, parseProviderRateLimitHeaders(response.headers), response.status, false, readProviderErrorCode(data, response.headers));
+}
+
+/** The provider's error code: an error object's code, type or status, OAuth's error token, or AWS's error type. */
+export function readProviderErrorCode(data: JsonRecord, headers?: Headers): string | null {
+  const error = data.error;
+  // OAuth (RFC 6749 5.2) puts the code itself in `error`; a sentence there is a message, not a code.
+  if (typeof error === "string" && /^[A-Za-z0-9_.-]+$/.test(error)) return error;
+  if (isRecord(error)) {
+    for (const key of ["code", "type", "status"]) {
+      const value = error[key];
+      if (typeof value === "string" && value) return value;
+    }
+  }
+  const awsType = headers?.get("x-amzn-errortype") ?? (typeof data.__type === "string" ? data.__type : null);
+  return awsType ? awsType.split(":")[0].split("#").pop() ?? null : null;
 }
 
 export function isRecord(value: unknown): value is JsonRecord {

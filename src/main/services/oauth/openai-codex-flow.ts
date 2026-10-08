@@ -7,6 +7,7 @@
 import { startOAuthCallbackServer } from "./oauth-callback-server";
 import { generatePkce } from "./pkce";
 import type { OAuthCredentials, OAuthFlow, OAuthLoginCallbacks } from "./oauth-types";
+import { httpFailure } from "../provider-http";
 
 const CLIENT_ID = "app_EMoamEEZ73f0CkXaXp7hrann";
 const AUTHORIZE_URL = "https://auth.openai.com/oauth/authorize";
@@ -84,7 +85,7 @@ export async function refreshCodex(refreshToken: string): Promise<OAuthCredentia
     body: new URLSearchParams({ grant_type: "refresh_token", refresh_token: refreshToken, client_id: CLIENT_ID }),
   });
   const text = await response.text();
-  if (!response.ok) throw new Error(`Codex token refresh failed: ${response.status} ${text}`);
+  if (!response.ok) throw httpFailure(`Codex token refresh failed: ${response.status} ${text}`, response, text);
   const json = JSON.parse(text) as { access_token?: unknown; refresh_token?: unknown; expires_in?: unknown };
   if (typeof json.access_token !== "string" || typeof json.refresh_token !== "string" || typeof json.expires_in !== "number") {
     throw new Error("Codex token refresh response was missing required fields.");

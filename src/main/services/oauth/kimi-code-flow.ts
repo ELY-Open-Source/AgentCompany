@@ -8,6 +8,7 @@
 import { createHash } from "node:crypto";
 import { hostname, platform as osPlatform, release as osRelease, userInfo } from "node:os";
 import type { OAuthCredentials, OAuthFlow, OAuthLoginCallbacks } from "./oauth-types";
+import { httpFailure } from "../provider-http";
 
 // Published public client id of the official Kimi CLI; reused by third-party
 // coding agents per Kimi's device-flow integration guidance.
@@ -47,7 +48,7 @@ function deviceHeaders(): Record<string, string> {
   };
 }
 
-async function postForm(path: string, form: Record<string, string>): Promise<{ status: number; data: Record<string, unknown> }> {
+async function postForm(path: string, form: Record<string, string>): Promise<{ status: number; data: Record<string, unknown>; response: Response; text: string }> {
   const response = await fetch(`${OAUTH_HOST}${path}`, {
     method: "POST",
     headers: {
@@ -62,12 +63,12 @@ async function postForm(path: string, form: Record<string, string>): Promise<{ s
   try {
     data = JSON.parse(text);
   } catch {
-    throw new Error(`Kimi OAuth endpoint returned a non-JSON response: ${response.status} ${text.slice(0, 200)}`);
+    throw httpFailure(`Kimi OAuth endpoint returned a non-JSON response: ${response.status} ${text.slice(0, 200)}`, response, text);
   }
   if (typeof data !== "object" || data === null || Array.isArray(data)) {
-    throw new Error(`Kimi OAuth endpoint returned an unexpected payload: ${response.status}`);
+    throw httpFailure(`Kimi OAuth endpoint returned an unexpected payload: ${response.status}`, response, text);
   }
-  return { status: response.status, data: data as Record<string, unknown> };
+  return { status: response.status, data: data as Record<string, unknown>, response, text };
 }
 
 interface DeviceAuthorization {
@@ -167,12 +168,12 @@ async function pollForToken(device: DeviceAuthorization, signal?: AbortSignal): 
 
 /** Refresh an expired Kimi Code access token (they live ~15 minutes). */
 export async function refreshKimiCode(refreshToken: string): Promise<OAuthCredentials> {
-  const { status, data } = await postForm("/api/oauth/token", {
+  const { status, data, response, text } = await postForm("/api/oauth/token", {
     client_id: CLIENT_ID,
     grant_type: "refresh_token",
     refresh_token: refreshToken,
   });
-  if (status !== 200) throw new Error(`Kimi token refresh failed: ${status} ${JSON.stringify(data)}`);
+  if (status !== 200) throw httpFailure(`Kimi token refresh failed: ${status} ${JSON.stringify(data)}`, response, text);
   return credentialsFromToken(data);
 }
 

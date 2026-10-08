@@ -4,7 +4,7 @@
  * Antigravity request wrapper in google-gemini-cli.
  */
 import { OUTPUT_RESERVE_TOKENS } from "../context-budget";
-import { isRecord, ProviderHttpError, type JsonRecord, type ProviderEventStreamMessage } from "../provider-http";
+import { isRecord, ProviderHttpError, readProviderErrorCode, type JsonRecord, type ProviderEventStreamMessage } from "../provider-http";
 import { FINISHED_STOP_REASONS, replayIn, requireFinished, toolCallFromObject, type AgentTurnMessage, type AgentTurnResult, type AssistantReplay, type ToolCall, type ToolDefinition } from "../provider-tool-turn";
 
 const ANTIGRAVITY_SYSTEM_INSTRUCTION =
@@ -147,7 +147,7 @@ export async function accumulateGeminiStream(messages: AsyncIterable<ProviderEve
     raw.push(message.rawData);
     if (isRecord(message.data.error)) {
       const error = message.data.error;
-      throw new ProviderHttpError(typeof error.message === "string" ? error.message : "Antigravity stream failed.", null, typeof error.code === "number" ? error.code : null);
+      throw new ProviderHttpError(typeof error.message === "string" ? error.message : "Antigravity stream failed.", null, typeof error.code === "number" ? error.code : null, false, readProviderErrorCode({ error }));
     }
     const response = isRecord(message.data.response) ? message.data.response : null;
     if (!response) continue;

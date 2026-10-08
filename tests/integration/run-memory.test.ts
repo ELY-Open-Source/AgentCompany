@@ -12,6 +12,7 @@ import { ensureCeoDirectSpace } from "../../src/main/services/ceo-direct-space";
 import { claimNextQueuedRun } from "../../src/main/app/task-queue-worker";
 import type { AgentTurnResult, ProviderToolTurnInput } from "../../src/main/services/provider-tool-turn";
 import { answeringModelCheck } from "../helpers/model-check";
+import { ProviderHttpError } from "../../src/main/services/provider-http";
 
 const testVault = {
   encryptSecret: (secret: string) => Buffer.from(secret, "utf8"),
@@ -64,16 +65,16 @@ describe("run memory", () => {
   });
 
   test("a real failure is remembered; a transient provider failure is not", async () => {
-    let failure = "Workspace build failed: missing package.json";
-    const h = await company(() => { throw new Error(failure); });
+    let failure: Error = new Error("Workspace build failed: missing package.json");
+    const h = await company(() => { throw failure; });
     const first = claimNextQueuedRun(h.connection)!;
-    await expect(h.execution.executeRun(h.orgId, first.id)).rejects.toThrow(failure);
-    expect(h.memories().map((entry) => [entry.category, entry.content])).toEqual([["failure_cause", failure]]);
+    await expect(h.execution.executeRun(h.orgId, first.id)).rejects.toThrow(failure.message);
+    expect(h.memories().map((entry) => [entry.category, entry.content])).toEqual([["failure_cause", failure.message]]);
 
-    failure = "429 rate limit exceeded";
+    failure = new ProviderHttpError("429 rate limit exceeded", null, 429, false, "rate_limit_exceeded");
     h.connection.db.prepare("update task_runs set state = 'queued' where id = ?").run(first.id);
     const second = claimNextQueuedRun(h.connection)!;
-    await expect(h.execution.executeRun(h.orgId, second.id)).rejects.toThrow(failure);
+    await expect(h.execution.executeRun(h.orgId, second.id)).rejects.toThrow(failure.message);
     expect(h.memories()).toHaveLength(1);
     h.connection.close();
   });

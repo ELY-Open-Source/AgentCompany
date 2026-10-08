@@ -6,6 +6,7 @@ import { OperationsService } from "./operations-service";
 import { providerRateLimitStateFromError } from "./provider-adapters";
 import { ProviderRateLimitRegistry } from "./provider-rate-limit-registry";
 import { ProviderRequestStore } from "./provider-request-store";
+import { ProviderHttpError } from "./provider-http";
 
 const HEALTH_STATE_HEALTHY = "healthy";
 const HEALTH_STATE_FAILED = "failed";
@@ -73,6 +74,8 @@ export class ProviderResponseObserver {
       orgId: input.orgId,
       requestId: input.requestId,
       errorMessage: message,
+      errorStatus: input.error instanceof ProviderHttpError ? input.error.status : null,
+      errorCode: input.error instanceof ProviderHttpError ? input.error.code : null,
       completedAt: new Date().toISOString(),
       rawResponseJson: input.rawResponseJson,
     });

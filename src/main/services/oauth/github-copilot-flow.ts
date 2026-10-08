@@ -6,6 +6,7 @@
  */
 import { listProviderModels } from "../../../shared/provider-models";
 import type { OAuthCredentials, OAuthFlow, OAuthLoginCallbacks } from "./oauth-types";
+import { httpFailure } from "../provider-http";
 
 // Decoded from the published GitHub Copilot client id used by the official CLI.
 const CLIENT_ID = "Iv1.b507a08c87ecfe98";
@@ -47,7 +48,7 @@ async function fetchJson(url: string, init: RequestInit): Promise<Record<string,
   const response = await fetch(url, init);
   if (!response.ok) {
     const text = await response.text().catch(() => "");
-    throw new Error(`${response.status} ${response.statusText}: ${text}`);
+    throw httpFailure(`${response.status} ${response.statusText}: ${text}`, response, text);
   }
   return (await response.json()) as Record<string, unknown>;
 }

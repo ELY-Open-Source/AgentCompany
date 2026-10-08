@@ -1,4 +1,3 @@
-import { isTransientProviderFailure } from "../../shared/provider-runtime-domain";
 import { ProviderHttpError } from "./provider-http";
 
 /** Whether a failed call is the provider's passing trouble, and how long it asked us to wait. */
@@ -15,17 +14,29 @@ const TRANSIENT_CODES = new Set([
   "UND_ERR_SOCKET", "UND_ERR_CONNECT_TIMEOUT", "UND_ERR_HEADERS_TIMEOUT", "UND_ERR_BODY_TIMEOUT",
 ]);
 
-/** Classifies by status, timeout and network error code first; the message text is the last resort. */
+/** Provider error codes for rate limits, used-up usage windows, overload and server trouble. */
+const TRANSIENT_PROVIDER_CODES = new Set([
+  "rate_limit_exceeded", "rate_limit_error", "usage_limit_reached", "server_error", "api_error", "overloaded_error",
+  "RESOURCE_EXHAUSTED", "UNAVAILABLE", "INTERNAL", "DEADLINE_EXCEEDED",
+  "ThrottlingException", "ServiceUnavailableException", "InternalServerException", "ModelNotReadyException",
+]);
+
+/** Our own refusal when a provider's monthly request allowance is used up; it lifts when the month turns. */
+export class ProviderLimitError extends Error {
+  readonly name = "ProviderLimitError";
+}
+
+/** Classifies by status, provider code, timeout and network code; the message text never decides. */
 export function classifyProviderFailure(error: unknown, now: number): ProviderFailure {
+  if (error instanceof ProviderLimitError) return { transient: true, retryAfterMs: null };
   if (error instanceof ProviderHttpError) {
     const state = error.rateLimitState;
     const resetIn = state?.resetAt ? Date.parse(state.resetAt) - now : null;
     const retryAfterMs = state?.retryAfterMs ?? (resetIn !== null && resetIn > 0 ? resetIn : null);
-    if (error.timedOut || (error.status !== null && (TRANSIENT_STATUSES.has(error.status) || (error.status >= 500 && error.status < 600)))) return { transient: true, retryAfterMs };
-    if (error.status !== null) return { transient: isTransientProviderFailure(error.message), retryAfterMs };
+    const transientStatus = error.status !== null && (TRANSIENT_STATUSES.has(error.status) || (error.status >= 500 && error.status < 600));
+    return { transient: error.timedOut || transientStatus || TRANSIENT_PROVIDER_CODES.has(error.code ?? ""), retryAfterMs };
   }
-  if (TRANSIENT_CODES.has(errorCode(error) ?? "")) return { transient: true, retryAfterMs: null };
-  return { transient: isTransientProviderFailure(error instanceof Error ? error.message : String(error)), retryAfterMs: null };
+  return { transient: TRANSIENT_CODES.has(errorCode(error) ?? ""), retryAfterMs: null };
 }
 
 function errorCode(error: unknown): string | null {

@@ -4,6 +4,7 @@
  * per service account until shortly before expiry.
  */
 import { createSign } from "node:crypto";
+import { httpFailure } from "../provider-http";
 
 interface ServiceAccount {
   client_email: string;
@@ -48,7 +49,7 @@ export async function getGcpAccessToken(serviceAccountJson: string): Promise<str
     body: new URLSearchParams({ grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer", assertion }),
   });
   const text = await response.text();
-  if (!response.ok) throw new Error(`Vertex authentication failed: ${response.status} ${text}`);
+  if (!response.ok) throw httpFailure(`Vertex authentication failed: ${response.status} ${text}`, response, text);
   const json = JSON.parse(text) as { access_token?: unknown; expires_in?: unknown };
   if (typeof json.access_token !== "string" || typeof json.expires_in !== "number") {
     throw new Error("Vertex authentication response was missing an access token.");

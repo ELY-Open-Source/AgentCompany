@@ -65,6 +65,11 @@ export async function* mapOpenAiResponseStream(messages: AsyncIterable<ProviderE
 export async function* mapOpenAiChatCompletionStream(messages: AsyncIterable<ProviderEventStreamMessage>): AsyncIterable<ProviderStreamEvent> {
   let started = false;
   for await (const message of messages) {
+    // A mid-stream failure (OpenRouter) arrives as an error object; it ends the stream with the provider's own words.
+    if (message.data.error !== undefined) {
+      yield streamEvent("error", readErrorText(message.data) ?? "Provider stream failed.", message);
+      return;
+    }
     const delta = readChatDeltaContent(message.data);
     if (delta) {
       if (!started) {

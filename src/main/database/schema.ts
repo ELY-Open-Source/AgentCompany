@@ -76,6 +76,7 @@ import { runFailureKindSchema } from "./migrations/074-run-failure-kind";
 import { providerCooldownsSchema } from "./migrations/075-provider-cooldowns";
 import { runPinsSchema } from "./migrations/076-run-pins";
 import { modelChecksSchema } from "./migrations/077-model-checks";
+import { requestErrorCodesSchema } from "./migrations/078-request-error-codes";
 
 interface Migration {
   version: number;
@@ -161,6 +162,7 @@ const MIGRATIONS: Migration[] = [
   { version: 75, name: "provider_cooldowns", sql: providerCooldownsSchema },
   { version: 76, name: "run_pins", sql: runPinsSchema },
   { version: 77, name: "model_checks", sql: modelChecksSchema },
+  { version: 78, name: "request_error_codes", sql: requestErrorCodesSchema },
 ];
 
 const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;

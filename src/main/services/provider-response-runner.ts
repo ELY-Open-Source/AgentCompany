@@ -20,6 +20,7 @@ import { budgetBlock, isPriced, promptChars, providerPrices } from "./spend";
 import { assertModelSelectable, effectiveModel } from "./task-run-preparation";
 import { modelCheckFailure, modelCheckProblem, modelCheckTurn, readModelCheck, recordModelCheck } from "./model-check";
 import type { ModelCheckResult } from "../../shared/desktop-api";
+import { isRecord, ProviderHttpError, readProviderErrorCode } from "./provider-http";
 import {
   HEALTH_STATE_HEALTHY,
   WORKSPACE_SCOPES,
@@ -248,7 +249,10 @@ export class ProviderResponseRunner {
       });
       recordObservedRateLimit(this.deps.rateLimitRegistry, input.orgId, execution.provider, execution.provider.model, result.rateLimitState);
       for await (const event of result.events) {
-        if (event.type === "error") throw new Error(event.textDelta ?? "Provider stream failed.");
+        if (event.type === "error") {
+          const failure = streamErrorFields(event.rawEventJson);
+          throw new ProviderHttpError(event.textDelta ?? "Provider stream failed.", null, failure.status, false, failure.code);
+        }
         rawEvents.push(event.rawEventJson);
         if (event.type === "usage") continue;
         if (event.type === "message_stop") finished = true;
@@ -440,4 +444,13 @@ interface TurnCaller {
 function requireCredentialId(provider: ProviderRow): string {
   if (!provider.credential_id) throw new Error("Provider credential is required.");
   return provider.credential_id;
+}
+
+/** A stream error event's status (a numeric error code, as OpenRouter and Google send) and provider code. */
+function streamErrorFields(rawEventJson: string): { status: number | null; code: string | null } {
+  const data = JSON.parse(rawEventJson) as unknown;
+  if (!isRecord(data)) return { status: null, code: null };
+  const error = data.error ?? (isRecord(data.response) ? data.response.error : undefined);
+  const status = isRecord(error) && typeof error.code === "number" ? error.code : null;
+  return { status, code: readProviderErrorCode({ error }) ?? (typeof data.code === "string" ? data.code : null) };
 }

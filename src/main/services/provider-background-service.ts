@@ -20,6 +20,7 @@ import { ProviderRequestStore, type ProviderBackgroundRequestRow } from "./provi
 import { ProviderResponseObserver } from "./provider-response-observer";
 import { hashPrompt, readProviderFailureMessage, requireBackgroundText } from "./provider-response-utils";
 import { promptChars } from "./spend";
+import { isRecord, ProviderHttpError, readProviderErrorCode } from "./provider-http";
 
 const AUTH_STATE_CONFIGURED = "configured";
 const HEALTH_STATE_HEALTHY = "healthy";
@@ -190,7 +191,7 @@ export class ProviderBackgroundService {
         return;
       }
       if (FAILED_BACKGROUND_STATUSES.has(result.status)) {
-        throw new ProviderBackgroundStatusError(readProviderFailureMessage(result.rawResponseJson, result.status), result.rawResponseJson);
+        throw new ProviderBackgroundStatusError(readProviderFailureMessage(result.rawResponseJson, result.status), result.rawResponseJson, readBackgroundFailureCode(result.rawResponseJson));
       }
       throw new Error(`Provider background response returned unsupported status ${result.status}.`);
     } catch (error) {
@@ -201,7 +202,8 @@ export class ProviderBackgroundService {
         const failures = this.requestStore.recordPollFailure(request.id, message);
         console.warn(`[provider-background] status check ${failures}/${MAX_POLL_FAILURES} for request ${request.id} failed: ${message}`);
         if (failures < MAX_POLL_FAILURES) return;
-        finalError = new Error(`Gave up after ${MAX_POLL_FAILURES} failed status checks: ${message}`);
+        const gaveUp = `Gave up after ${MAX_POLL_FAILURES} failed status checks: ${message}`;
+        finalError = error instanceof ProviderHttpError ? new ProviderHttpError(gaveUp, error.rateLimitState, error.status, error.timedOut, error.code) : new Error(gaveUp);
       }
       this.responseObserver.recordFailure({
         orgId: request.org_id,
@@ -347,9 +349,17 @@ interface ProviderBackgroundRequestProvider {
   model: string;
 }
 
-class ProviderBackgroundStatusError extends Error {
-  constructor(message: string, readonly rawResponseJson: string) {
-    super(message);
+/** The provider reported the background job failed or incomplete; its code is the error's code or the incomplete reason. */
+class ProviderBackgroundStatusError extends ProviderHttpError {
+  constructor(message: string, readonly rawResponseJson: string, code: string | null) {
+    super(message, null, null, false, code);
     this.name = "ProviderBackgroundStatusError";
   }
+}
+
+function readBackgroundFailureCode(rawResponseJson: string): string | null {
+  const parsed = JSON.parse(rawResponseJson) as unknown;
+  if (!isRecord(parsed)) return null;
+  const incomplete = parsed.incomplete_details;
+  return readProviderErrorCode(parsed) ?? (isRecord(incomplete) && typeof incomplete.reason === "string" ? incomplete.reason : null);
 }

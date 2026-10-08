@@ -8,6 +8,7 @@ import { providerAdapters, type ProviderAdapterRegistry } from "../../src/main/s
 import { ProviderBackgroundService } from "../../src/main/services/provider-background-service";
 import { ProviderService } from "../../src/main/services/provider-service";
 import { PROVIDER_DATA_POLICY, PROVIDER_EXECUTION_MODE, PROVIDER_REQUEST_STATE } from "../../src/shared/domain";
+import { ProviderHttpError } from "../../src/main/services/provider-http";
 
 function createConnection(): DatabaseConnection {
   return new DatabaseConnection(join(tmpdir(), `agentcompany-new-provider-background-${randomUUID()}.db`));
@@ -166,13 +167,14 @@ describe("provider background service", () => {
     await background.poll({ orgId, requestId });
 
     const request = connection.db.prepare(`
-      select state, error_message, raw_response_json
+      select state, error_message, error_code, raw_response_json
       from provider_requests
       where id = ?
-    `).get(requestId) as { state: string; error_message: string; raw_response_json: string };
+    `).get(requestId) as { state: string; error_message: string; error_code: string | null; raw_response_json: string };
 
     expect(request.state).toBe(PROVIDER_REQUEST_STATE.FAILED);
     expect(request.error_message).toBe("provider worker failed");
+    expect(request.error_code).toBe("server_error");
     expect(JSON.parse(request.raw_response_json)).toMatchObject({ id: "resp_bg_1", status: "failed" });
     connection.close();
   });
@@ -192,7 +194,7 @@ describe("background polling failures", () => {
         retrieveResponse: async (input) => {
           if (pollFailures > 0) {
             pollFailures -= 1;
-            throw new Error("fetch failed: ECONNRESET");
+            throw new ProviderHttpError("fetch failed: ECONNRESET", null, 503, false, "UNAVAILABLE");
           }
           const result = await base.openai.retrieveResponse(input);
           return { ...result, status };
@@ -224,8 +226,8 @@ describe("background polling failures", () => {
     pollFailures = 100;
     const doomed = await background.create({ orgId, providerId: openAiProviderId, prompt: "Research again", instructions: null, executionMode: PROVIDER_EXECUTION_MODE.BACKGROUND });
     for (let attempt = 0; attempt < 10; attempt += 1) await background.poll({ orgId, requestId: doomed });
-    expect(connection.db.prepare("select state, error_message from provider_requests where id = ?").get(doomed))
-      .toEqual({ state: PROVIDER_REQUEST_STATE.FAILED, error_message: "Gave up after 10 failed status checks: fetch failed: ECONNRESET" });
+    expect(connection.db.prepare("select state, error_message, error_status, error_code from provider_requests where id = ?").get(doomed))
+      .toEqual({ state: PROVIDER_REQUEST_STATE.FAILED, error_message: "Gave up after 10 failed status checks: fetch failed: ECONNRESET", error_status: 503, error_code: "UNAVAILABLE" });
 
     // An answer that is not a valid result (unknown status) also counts, so it cannot stay pending forever.
     pollFailures = 0;
@@ -256,7 +258,7 @@ function backgroundAdapters(status: string, text: string | null): ProviderAdapte
         rawResponseJson: JSON.stringify({
           id: "resp_bg_1",
           status,
-          error: status === "failed" ? { message: "provider worker failed" } : null,
+          error: status === "failed" ? { message: "provider worker failed", code: "server_error" } : null,
           output_text: text,
         }),
         rateLimitState: null,

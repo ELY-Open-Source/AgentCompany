@@ -8,6 +8,7 @@
 import { startOAuthCallbackServer } from "./oauth-callback-server";
 import { generatePkce } from "./pkce";
 import type { OAuthCredentials, OAuthFlow, OAuthLoginCallbacks } from "./oauth-types";
+import { httpFailure } from "../provider-http";
 
 const CLIENT_ID = "9d1c250a-e61b-44d9-88ed-5944d1962f5e";
 const AUTHORIZE_URL = "https://claude.ai/oauth/authorize";
@@ -61,7 +62,7 @@ export async function refreshClaudePro(refreshToken: string): Promise<OAuthCrede
     body: JSON.stringify({ grant_type: "refresh_token", client_id: CLIENT_ID, refresh_token: refreshToken }),
   });
   const text = await response.text();
-  if (!response.ok) throw new Error(`Claude token refresh failed: ${response.status} ${text}`);
+  if (!response.ok) throw httpFailure(`Claude token refresh failed: ${response.status} ${text}`, response, text);
   const json = JSON.parse(text) as { access_token?: unknown; refresh_token?: unknown; expires_in?: unknown };
   if (typeof json.access_token !== "string" || typeof json.refresh_token !== "string" || typeof json.expires_in !== "number") {
     throw new Error("Claude token refresh response was missing required fields.");
