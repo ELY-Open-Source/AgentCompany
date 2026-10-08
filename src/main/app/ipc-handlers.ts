@@ -397,7 +397,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
   });
   ipcMain.handle(IPC_CHANNELS.connectComposioToolkit, async (_event, input) => {
     try {
-      const result = await composioConnections.connectToolkit(input.orgId, input.toolkitSlug);
+      const result = await composioConnections.connectToolkit(input.orgId, input.toolkitSlug, input.label);
       notifyDataChanged();
       return ok(result);
     } catch (error) {
@@ -406,7 +406,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
   });
   ipcMain.handle(IPC_CHANNELS.disconnectComposioToolkit, async (_event, input) => {
     try {
-      await composioConnections.disconnectToolkit(input.orgId, input.toolkitSlug);
+      await composioConnections.disconnectToolkit(input.orgId, input.toolkitSlug, input.label);
       notifyDataChanged();
       return ok(snapshot.load());
     } catch (error) {

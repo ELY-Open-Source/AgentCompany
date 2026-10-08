@@ -22,8 +22,8 @@ export function useConnectorCatalog(orgId: string, actions: SnapshotActions): {
   busySlug: string | null;
   busyAction: "connect" | "disconnect" | null;
   connectError: string | null;
-  connect: (toolkitSlug: string) => void;
-  disconnect: (toolkitSlug: string) => void;
+  connect: (toolkitSlug: string, label: string) => void;
+  disconnect: (toolkitSlug: string, label: string) => void;
   retry: () => void;
 } {
   const [catalogSlot, setCatalogSlot] = useState<CatalogSlot>(null);
@@ -75,13 +75,13 @@ export function useConnectorCatalog(orgId: string, actions: SnapshotActions): {
     [actions, orgId],
   );
 
-  const pollUntilActive = useCallback((toolkitSlug: string) => {
+  const pollUntilActive = useCallback((toolkitSlug: string, label: string) => {
     const poll = (attempt: number) => {
       if (attempt >= CONNECT_POLL_ATTEMPTS) return;
       pollTimer.current = setTimeout(() => {
         void refreshAccounts().then((data) => {
           const account = data?.connectorAccounts.find(
-            (item) => item.orgId === orgId && item.toolkitSlug === toolkitSlug,
+            (item) => item.orgId === orgId && item.toolkitSlug === toolkitSlug && item.label === label,
           );
           if (account?.status === "ACTIVE" && !account.pendingAccountId) return;
           poll(attempt + 1);
@@ -91,17 +91,17 @@ export function useConnectorCatalog(orgId: string, actions: SnapshotActions): {
     poll(0);
   }, [refreshAccounts, orgId]);
 
-  const connect = useCallback((toolkitSlug: string) => {
+  const connect = useCallback((toolkitSlug: string, label: string) => {
     setBusy({ slug: toolkitSlug, action: "connect" });
     setConnectError(null);
     void window.agentCompany
-      .connectComposioToolkit({ orgId, toolkitSlug })
+      .connectComposioToolkit({ orgId, toolkitSlug, label })
       .then(async (result) => {
         if (!result.ok) {
           setConnectError(result.error.message);
           return;
         }
-        pollUntilActive(toolkitSlug);
+        pollUntilActive(toolkitSlug, label.trim().toLowerCase());
         if (result.data.redirectUrl) {
           const opened = await window.agentCompany.openExternalUrl(result.data.redirectUrl);
           if (!opened.ok) setConnectError(opened.error.message);
@@ -110,10 +110,10 @@ export function useConnectorCatalog(orgId: string, actions: SnapshotActions): {
       .finally(() => setBusy(null));
   }, [orgId, pollUntilActive]);
 
-  const disconnect = useCallback((toolkitSlug: string) => {
+  const disconnect = useCallback((toolkitSlug: string, label: string) => {
     setBusy({ slug: toolkitSlug, action: "disconnect" });
     setConnectError(null);
-    void actions.run(() => window.agentCompany.disconnectComposioToolkit({ orgId, toolkitSlug }))
+    void actions.run(() => window.agentCompany.disconnectComposioToolkit({ orgId, toolkitSlug, label }))
       .catch((error: unknown) => setConnectError(error instanceof Error ? error.message : String(error)))
       .finally(() => setBusy(null));
   }, [actions, orgId]);

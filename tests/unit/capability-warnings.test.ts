@@ -49,7 +49,7 @@ describe("a run tells the user which capabilities it lacked", () => {
       orgId = summary.orgId;
       ceoId = summary.ceoAgentId;
       const now = new Date().toISOString();
-      connection.db.prepare("insert into connector_accounts(id, org_id, toolkit_slug, toolkit_name, auth_config_id, status, created_at, updated_at) values ('ca_gh', ?, 'github', 'GitHub', 'ac_gh', 'ACTIVE', ?, ?)").run(orgId, now, now);
+      connection.db.prepare("insert into connector_accounts(id, org_id, toolkit_slug, toolkit_name, label, auth_config_id, status, created_at, updated_at) values ('ca_gh', ?, 'github', 'GitHub', 'main', 'ac_gh', 'ACTIVE', ?, ?)").run(orgId, now, now);
     });
     const keys = new IntegrationKeyStore(connection.db, vault);
     keys.write("composio", "ak_capability");

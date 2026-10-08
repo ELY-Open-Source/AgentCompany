@@ -3,6 +3,7 @@ import type { AppSnapshot } from "../../../shared/domain";
 import { Button } from "../shared/ui";
 import { ToolkitCatalog } from "../pages/connectors/ToolkitCatalog";
 import { useConnectorCatalog } from "../pages/connectors/useConnectorCatalog";
+import { DEFAULT_CONNECTOR_ACCOUNT_LABEL } from "../../../shared/commands";
 import type { SnapshotActions } from "./useSnapshot";
 import { t } from "../i18n/i18n";
 
@@ -60,7 +61,7 @@ export function ConnectorsStep({
             entries={catalog.entries}
             connectedSlugs={connectedSlugs}
             busySlug={busySlug}
-            onConnect={connect}
+            onConnect={(slug) => connect(slug, DEFAULT_CONNECTOR_ACCOUNT_LABEL)}
           />
         </div>
       )}

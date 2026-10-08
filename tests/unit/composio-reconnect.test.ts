@@ -55,10 +55,10 @@ async function connectedCompany() {
   const keys = new IntegrationKeyStore(connection.db, vault);
   keys.write("composio", `ak_${randomUUID()}`);
   const service = new ComposioConnectionService(connection.db, keys);
-  const first = await service.connectToolkit(orgId, "github");
+  const first = await service.connectToolkit(orgId, "github", "main");
   remote.get(first.accountId)!.status = "ACTIVE";
   await service.refreshAccounts(orgId);
-  new ConnectorGrantsService(connection.db).grant({ orgId, agentId: ceoId, toolkitSlug: "github", grantedByType: "agent", grantedById: ceoId });
+  new ConnectorGrantsService(connection.db).grant({ orgId, agentId: ceoId, toolkitSlug: "github", accountLabel: null, grantedByType: "agent", grantedById: ceoId });
   const account = () => connection.db.prepare("select id, status, pending_account_id as pending from connector_accounts where org_id = ?").get(orgId) as { id: string; status: string; pending: string | null };
   const grants = () => (connection.db.prepare("select count(*) as n from agent_connector_grants where org_id = ?").get(orgId) as { n: number }).n;
   return { connection, orgId, service, oldId: first.accountId, account, grants };
@@ -67,7 +67,7 @@ async function connectedCompany() {
 describe("reconnecting a connector keeps the working account until the new one is authorized", () => {
   test("a reconnect the user abandons leaves the old account working", async () => {
     const h = await connectedCompany();
-    const again = await h.service.connectToolkit(h.orgId, "github");
+    const again = await h.service.connectToolkit(h.orgId, "github", "main");
     expect(h.account()).toEqual({ id: h.oldId, status: "ACTIVE", pending: again.accountId });
     expect(remote.has(h.oldId)).toBe(true);
     await h.service.refreshAccounts(h.orgId);
@@ -82,7 +82,7 @@ describe("reconnecting a connector keeps the working account until the new one i
 
   test("an authorized reconnect replaces the old account and keeps the grants", async () => {
     const h = await connectedCompany();
-    const again = await h.service.connectToolkit(h.orgId, "github");
+    const again = await h.service.connectToolkit(h.orgId, "github", "main");
     remote.get(again.accountId)!.status = "ACTIVE";
     await h.service.refreshAccounts(h.orgId);
     expect(h.account()).toEqual({ id: again.accountId, status: "ACTIVE", pending: null });
@@ -93,26 +93,40 @@ describe("reconnecting a connector keeps the working account until the new one i
 
   test("an earlier reconnect that cannot be deleted never replaces the working account", async () => {
     const h = await connectedCompany();
-    const first = await h.service.connectToolkit(h.orgId, "github");
+    const first = await h.service.connectToolkit(h.orgId, "github", "main");
     failDelete.add(first.accountId);
-    await expect(h.service.connectToolkit(h.orgId, "github")).rejects.toThrow(`Composio could not delete ${first.accountId}`);
+    await expect(h.service.connectToolkit(h.orgId, "github", "main")).rejects.toThrow(`Composio could not delete ${first.accountId}`);
     const second = [...remote.keys()].at(-1)!;
     expect(h.account()).toEqual({ id: h.oldId, status: "ACTIVE", pending: second });
     await h.service.refreshAccounts(h.orgId);
     expect(h.account()).toEqual({ id: h.oldId, status: "ACTIVE", pending: second });
     remote.get(first.accountId)!.status = "ACTIVE";
     failDelete.clear();
-    await h.service.disconnectToolkit(h.orgId, "github");
+    await h.service.disconnectToolkit(h.orgId, "github", "main");
     expect(remote.size).toBe(0);
     await h.service.refreshAccounts(h.orgId);
     expect(h.account()).toBeUndefined();
     h.connection.close();
   });
 
+  test("a second account of a toolkit lives beside the first, and removing it leaves the first", async () => {
+    const h = await connectedCompany();
+    const sales = await h.service.connectToolkit(h.orgId, "github", "Sales");
+    remote.get(sales.accountId)!.status = "ACTIVE";
+    await h.service.refreshAccounts(h.orgId);
+    const rows = () => h.connection.db.prepare("select id, label, status from connector_accounts where org_id = ? order by label").all(h.orgId);
+    expect(rows()).toEqual([{ id: h.oldId, label: "main", status: "ACTIVE" }, { id: sales.accountId, label: "sales", status: "ACTIVE" }]);
+    await h.service.disconnectToolkit(h.orgId, "github", "sales");
+    expect(rows()).toEqual([{ id: h.oldId, label: "main", status: "ACTIVE" }]);
+    expect([...remote.keys()]).toEqual([h.oldId]);
+    expect(h.grants()).toBe(1);
+    h.connection.close();
+  });
+
   test("a reconnect that cannot start touches nothing", async () => {
     const h = await connectedCompany();
     failCreate = true;
-    await expect(h.service.connectToolkit(h.orgId, "github")).rejects.toThrow("Composio is down");
+    await expect(h.service.connectToolkit(h.orgId, "github", "main")).rejects.toThrow("Composio is down");
     expect(h.account()).toEqual({ id: h.oldId, status: "ACTIVE", pending: null });
     expect([...remote.keys()]).toEqual([h.oldId]);
     h.connection.close();

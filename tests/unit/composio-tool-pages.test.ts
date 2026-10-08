@@ -1,5 +1,5 @@
 import { EventEmitter } from "node:events";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, test, vi } from "vitest";
@@ -44,7 +44,7 @@ const { OrganizationService } = await import("../../src/main/services/organizati
 const { IntegrationKeyStore } = await import("../../src/main/services/integration-key-store");
 const { ConnectorGrantsService } = await import("../../src/main/services/composio/connector-grants");
 const { recordRunAction } = await import("../../src/main/services/run-journal");
-const { beginConnectorExecution } = await import("../../src/main/services/composio/connector-executions");
+const { canonicalJson } = await import("../../src/main/services/composio/connector-executions");
 
 const tool = (slug: string) => ({ slug, name: slug, description: "", input_parameters: {}, toolkit: { slug: "github" } });
 
@@ -90,7 +90,7 @@ describe("agents reach every action through search and run", () => {
       const providerId = (connection.db.prepare("select id from providers where org_id = ? and provider_key = 'openai'").get(orgId) as { id: string }).id;
       ceoId = new OrganizationService(connection.db).createAgent({ orgId, name: "CEO", role: "CEO", department: "Executive", modelProviderId: providerId, modelId: "gpt-5.4", budgetCents: 1000, managerAgentId: null, roleLevel: "c_suite" });
       const now = new Date().toISOString();
-      connection.db.prepare("insert into connector_accounts(id, org_id, toolkit_slug, toolkit_name, auth_config_id, status, created_at, updated_at) values ('ca_gh', ?, 'github', 'GitHub', 'ac_gh', 'ACTIVE', ?, ?)").run(orgId, now, now);
+      connection.db.prepare("insert into connector_accounts(id, org_id, toolkit_slug, toolkit_name, label, auth_config_id, status, created_at, updated_at) values ('ca_gh', ?, 'github', 'GitHub', 'main', 'ac_gh', 'ACTIVE', ?, ?)").run(orgId, now, now);
     });
     const keys = new IntegrationKeyStore(connection.db, vault);
     keys.write("composio", apiKey);
@@ -154,8 +154,24 @@ describe("agents reach every action through search and run", () => {
   test("a call left pending by a crash blocks the same call", async () => {
     pages.set("github:", { items: [tool("GITHUB_SEND")], next_cursor: null });
     const h = company("ak_crash");
-    beginConnectorExecution(h.connection.db, { orgId: h.orgId, agentId: h.ceoId, runId: null, action: "GITHUB_SEND", args: { text: "x" }, confirmedNotDone: false });
+    // A row as written before accounts had labels: no account_label, a hash of the arguments alone.
+    const now = new Date().toISOString();
+    h.connection.db.prepare("insert into connector_executions(id, org_id, agent_id, action, arguments_hash, state, created_at, updated_at) values ('cex_old', ?, ?, 'GITHUB_SEND', ?, 'pending', ?, ?)")
+      .run(h.orgId, h.ceoId, createHash("sha256").update(canonicalJson({ text: "x" })).digest("hex"), now, now);
     expect(await h.call("composio_run_action", { action: "GITHUB_SEND", arguments: { text: "x" } })).toMatch(/^ERROR: An identical GITHUB_SEND call at .+ may already have run; its reply was lost\. Check in github/);
+    h.connection.close();
+  });
+
+  test("an agent that reaches several accounts of a service names the one an action runs on", async () => {
+    pages.set("github:", { items: [tool("GITHUB_STAR"), tool("GITHUB_DROP")], next_cursor: null });
+    const h = company("ak_accounts");
+    const now = new Date().toISOString();
+    h.connection.db.prepare("insert into connector_accounts(id, org_id, toolkit_slug, toolkit_name, label, auth_config_id, status, created_at, updated_at) values ('ca_gh_sales', ?, 'github', 'GitHub', 'sales', 'ac_gh', 'ACTIVE', ?, ?)").run(h.orgId, now, now);
+    expect(await h.call("composio_run_action", { action: "GITHUB_STAR", arguments: {} })).toBe('ERROR: "github" has several accounts (main, sales); name one with account.');
+    expect(await h.call("composio_run_action", { action: "GITHUB_STAR", arguments: {}, account: "sales" })).toBe(JSON.stringify({ number: 42 }));
+    expect(written.at(-1)).toContain("\"connected_account_id\":\"ca_gh_sales\"");
+    expect(await h.call("composio_run_action", { action: "GITHUB_DROP", arguments: {}, account: "main" })).toContain("may or may not have run");
+    expect(await h.call("composio_run_action", { action: "GITHUB_DROP", arguments: {}, account: "sales" })).toContain("may or may not have run");
     h.connection.close();
   });
 
@@ -165,7 +181,7 @@ describe("agents reach every action through search and run", () => {
     const staff = h.connection.transaction(() => {
       const providerId = (h.connection.db.prepare("select id from providers where org_id = ? and provider_key = 'openai'").get(h.orgId) as { id: string }).id;
       const id = new OrganizationService(h.connection.db).createAgent({ orgId: h.orgId, name: "Ada", role: "Engineer", department: "Engineering", modelProviderId: providerId, modelId: "gpt-5.4", budgetCents: 1000, managerAgentId: h.ceoId });
-      new ConnectorGrantsService(h.connection.db).grant({ orgId: h.orgId, agentId: id, toolkitSlug: "github", grantedByType: "agent", grantedById: h.ceoId });
+      new ConnectorGrantsService(h.connection.db).grant({ orgId: h.orgId, agentId: id, toolkitSlug: "github", accountLabel: null, grantedByType: "agent", grantedById: h.ceoId });
       return id;
     });
     const running = executeComposioTool(h.connection.db, h.keys, h.orgId, staff, { id: "c2", name: "composio_run_action", arguments: { action: "GITHUB_STAR_A_REPOSITORY", arguments: {} } });

@@ -81,6 +81,7 @@ import { eraseRetiredCredentialsSchema } from "./migrations/079-erase-retired-cr
 import { runCapabilityWarningsSchema } from "./migrations/080-run-capability-warnings";
 import { connectorExecutionsSchema } from "./migrations/081-connector-executions";
 import { connectorPendingAccountSchema } from "./migrations/082-connector-pending-account";
+import { connectorAccountLabelsSchema } from "./migrations/083-connector-account-labels";
 
 interface Migration {
   version: number;
@@ -171,6 +172,7 @@ const MIGRATIONS: Migration[] = [
   { version: 80, name: "run_capability_warnings", sql: runCapabilityWarningsSchema },
   { version: 81, name: "connector_executions", sql: connectorExecutionsSchema },
   { version: 82, name: "connector_pending_account", sql: connectorPendingAccountSchema },
+  { version: 83, name: "connector_account_labels", sql: connectorAccountLabelsSchema },
 ];
 
 const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;

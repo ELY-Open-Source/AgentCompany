@@ -154,11 +154,11 @@ describe("agent instruction wiring", () => {
       });
       const now = new Date().toISOString();
       connection.db.prepare(`
-        insert into connector_accounts(id, org_id, toolkit_slug, toolkit_name, auth_config_id, status, created_at, updated_at)
-        values ('ca_github', ?, 'github', 'GitHub', 'ac_github', 'ACTIVE', ?, ?)
+        insert into connector_accounts(id, org_id, toolkit_slug, toolkit_name, label, auth_config_id, status, created_at, updated_at)
+        values ('ca_github', ?, 'github', 'GitHub', 'main', 'ac_github', 'ACTIVE', ?, ?)
       `).run(orgId, now, now);
       new ConnectorGrantsService(connection.db).grant({
-        orgId, agentId, toolkitSlug: "github", grantedByType: "employee", grantedById: null,
+        orgId, agentId, toolkitSlug: "github", accountLabel: null, grantedByType: "employee", grantedById: null,
       });
       taskId = organization.createTask({
         orgId, title: "Ship it", description: "d", status: TASK_STATUS.IN_PROGRESS,

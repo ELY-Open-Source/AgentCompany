@@ -6,9 +6,14 @@ export interface ConnectorCatalogEntry {
   logoUrl: string | null;
 }
 
+/** The label of a toolkit's first account, and of every account from before labels existed. */
+export const DEFAULT_CONNECTOR_ACCOUNT_LABEL = "main";
+
 export interface ConnectComposioToolkitInput {
   orgId: string;
   toolkitSlug: string;
+  /** The account to connect or reconnect; a new label adds another account of the toolkit. */
+  label: string;
 }
 
 export interface ConnectComposioToolkitResult {
@@ -19,6 +24,7 @@ export interface ConnectComposioToolkitResult {
 export interface DisconnectComposioToolkitInput {
   orgId: string;
   toolkitSlug: string;
+  label: string;
 }
 
 export interface RefreshComposioAccountsInput {

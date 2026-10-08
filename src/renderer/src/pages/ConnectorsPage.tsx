@@ -6,6 +6,7 @@ import { activeOrgId } from "./types";
 import { ConnectedList } from "./connectors/ConnectedList";
 import { ToolkitCatalog } from "./connectors/ToolkitCatalog";
 import { useConnectorCatalog } from "./connectors/useConnectorCatalog";
+import { DEFAULT_CONNECTOR_ACCOUNT_LABEL } from "../../../shared/commands";
 
 /**
  * The company's connector control room: what is connected, who holds it, and
@@ -66,7 +67,7 @@ export function ConnectorsPage({ snapshot, actions }: PageProps) {
         logoBySlug={logoBySlug}
         busySlug={busySlug}
         busyAction={busyAction}
-        onReconnect={connect}
+        onConnect={connect}
         onDelete={disconnect}
       />
 
@@ -93,7 +94,7 @@ export function ConnectorsPage({ snapshot, actions }: PageProps) {
           entries={catalog.entries}
           connectedSlugs={connectedSlugs}
           busySlug={busySlug}
-          onConnect={connect}
+          onConnect={(slug) => connect(slug, DEFAULT_CONNECTOR_ACCOUNT_LABEL)}
         />
       )}
     </div>

@@ -39,8 +39,8 @@ describe("composio tool loading", () => {
     const { connection, orgId, ceoId } = ceoHarness();
     const now = new Date().toISOString();
     connection.db.prepare(`
-      insert into connector_accounts(id, org_id, toolkit_slug, toolkit_name, auth_config_id, status, created_at, updated_at)
-      values ('ca_1', ?, 'gmail', 'Gmail', 'ac_1', 'ACTIVE', ?, ?)
+      insert into connector_accounts(id, org_id, toolkit_slug, toolkit_name, label, auth_config_id, status, created_at, updated_at)
+      values ('ca_1', ?, 'gmail', 'Gmail', 'main', 'ac_1', 'ACTIVE', ?, ?)
     `).run(orgId, now, now);
     expect(() => loadComposioTools(connection.db, new IntegrationKeyStore(connection.db, plainVault), orgId, ceoId)).toThrow("no Composio API key is saved");
     connection.close();

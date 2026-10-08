@@ -49,6 +49,7 @@ export function loadComposioTools(db: DatabaseSync, keys: IntegrationKeyStore, o
         properties: {
           action: { type: "string", description: "The action's name exactly as found, e.g. GITHUB_CREATE_A_PULL_REQUEST." },
           arguments: { type: "object", description: "The action's input, following the schema the search returned." },
+          account: { type: "string", description: "Which account of the service, by label; needed only when you can reach several." },
           confirm_not_done: { type: "boolean", description: "Only after an identical call's reply was lost and you checked in the service that it did not take effect." },
         },
         required: ["action", "arguments"],
@@ -109,14 +110,12 @@ async function runAction(db: DatabaseSync, apiKey: string, orgId: string, agentI
   if (!new ConnectorGrantsService(db).toolkitsForAgent(orgId, agentId).includes(toolkit)) {
     return `ERROR: You have no grant for the "${toolkit}" connector. Ask the CEO to grant it to you (grant_connector).`;
   }
-  const account = db.prepare(
-    "select id from connector_accounts where org_id = ? and toolkit_slug = ? and status = 'ACTIVE'",
-  ).get(orgId, toolkit) as { id: string } | undefined;
-  if (!account) return `ERROR: The "${toolkit}" connector is no longer connected. Ask the board to reconnect it on the Connectors page.`;
+  if (args.account !== undefined && typeof args.account !== "string") return "ERROR: account must be the label of one of the service's accounts.";
+  const account = new ConnectorGrantsService(db).accountForAgent(orgId, agentId, toolkit, args.account ?? null);
   const input = typeof args.arguments === "object" && args.arguments !== null && !Array.isArray(args.arguments) ? args.arguments as Record<string, unknown> : null;
   if (!input) return "ERROR: arguments must be an object matching the action's input.";
   if (args.confirm_not_done !== undefined && typeof args.confirm_not_done !== "boolean") return "ERROR: confirm_not_done must be true or false.";
-  const started = beginConnectorExecution(db, { orgId, agentId, runId: currentRunId(), action: action.name, args: input, confirmedNotDone: args.confirm_not_done === true });
+  const started = beginConnectorExecution(db, { orgId, agentId, runId: currentRunId(), action: action.name, accountLabel: account.label, args: input, confirmedNotDone: args.confirm_not_done === true });
   if ("blockedBy" in started) {
     const lost = started.blockedBy.detail ? `: ${started.blockedBy.detail}` : "";
     return `ERROR: An identical ${action.name} call at ${started.blockedBy.createdAt} may already have run; its reply was lost${lost}. Check in ${toolkit} whether it took effect. If it did not, call again with confirm_not_done: true.`;

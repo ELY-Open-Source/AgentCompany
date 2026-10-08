@@ -188,6 +188,7 @@ export const AGENT_TOOLS: ToolDefinition[] = [
       properties: {
         agent_name: { type: "string", description: "The teammate receiving access." },
         toolkit: { type: "string", description: "Connected toolkit slug, e.g. 'github'." },
+        account: { type: "string", description: "Which of the toolkit's accounts, by label (see list_connectors); required when it has several." },
       },
       required: ["agent_name", "toolkit"],
     },

@@ -17,10 +17,10 @@ export function listConnectorsTool(deps: AgentToolDeps, ctx: AgentToolContext): 
   );
   const lines = accounts.map((account) => {
     const holders = grants
-      .filter((grant) => grant.toolkitSlug === account.toolkitSlug)
+      .filter((grant) => grant.toolkitSlug === account.toolkitSlug && grant.accountLabel === account.label)
       .map((grant) => agentNames.get(grant.agentId))
       .filter(Boolean);
-    return `- ${account.toolkitName} (${account.toolkitSlug}): ${holders.length > 0 ? `granted to ${holders.join(", ")}` : "no grants yet"}`;
+    return `- ${account.toolkitName} (${account.toolkitSlug}), account "${account.label}": ${holders.length > 0 ? `granted to ${holders.join(", ")}` : "no grants yet"}`;
   });
   return ["Connected toolkits:", ...lines].join("\n");
 }
@@ -40,14 +40,15 @@ export function grantConnectorTool(deps: AgentToolDeps, ctx: AgentToolContext, a
   if (!target) return `ERROR: No active agent named "${agentName}".`;
   const grantsService = new ConnectorGrantsService(deps.db);
   if (mode === "grant") {
-    grantsService.grant({
+    const label = grantsService.grant({
       orgId: ctx.orgId,
       agentId: target.id,
       toolkitSlug: toolkit,
+      accountLabel: args.account === undefined ? null : requireString(args.account, "account"),
       grantedByType: "agent",
       grantedById: ctx.agent.id,
     });
-    return `${target.name} now has access to the ${toolkit.toLowerCase()} connector; its tools join their next run.`;
+    return `${target.name} now has access to the ${toolkit.toLowerCase()} connector through its "${label}" account; its tools join their next run.`;
   }
   grantsService.revoke({ orgId: ctx.orgId, agentId: target.id, toolkitSlug: toolkit });
   return `${target.name} no longer has access to the ${toolkit.toLowerCase()} connector.`;

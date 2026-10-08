@@ -61,8 +61,8 @@ function harness(): Harness {
 function connectToolkit(h: Harness, slug: string, name: string): void {
   const now = new Date().toISOString();
   h.connection.db.prepare(`
-    insert into connector_accounts(id, org_id, toolkit_slug, toolkit_name, auth_config_id, status, created_at, updated_at)
-    values (?, ?, ?, ?, ?, 'ACTIVE', ?, ?)
+    insert into connector_accounts(id, org_id, toolkit_slug, toolkit_name, label, auth_config_id, status, created_at, updated_at)
+    values (?, ?, ?, ?, 'main', ?, 'ACTIVE', ?, ?)
   `).run(`ca_${slug}`, h.orgId, slug, name, `ac_${slug}`, now, now);
 }
 
@@ -71,7 +71,7 @@ describe("connector grants", () => {
     const h = harness();
     const grants = new ConnectorGrantsService(h.connection.db);
     expect(() => grants.grant({
-      orgId: h.orgId, agentId: h.danaId, toolkitSlug: "github", grantedByType: "employee", grantedById: null,
+      orgId: h.orgId, agentId: h.danaId, toolkitSlug: "github", accountLabel: null, grantedByType: "employee", grantedById: null,
     })).toThrow(/No active connection/);
   });
 
@@ -87,11 +87,39 @@ describe("connector grants", () => {
     expect(grants.toolkitsForAgent(h.orgId, h.ceoId)).toEqual(["github"]);
 
     const listing = dispatchAgentTool(h.deps, h.danaCtx, call("list_connectors", {}));
-    expect(listing).toContain("GitHub (github): granted to Dana");
+    expect(listing).toContain("GitHub (github), account \"main\": granted to Dana");
 
     const revoked = dispatchAgentTool(h.deps, h.ceoCtx, call("revoke_connector", { agent_name: "Dana", toolkit: "github" }));
     expect(revoked).toContain("no longer has access");
     expect(grants.toolkitsForAgent(h.orgId, h.danaId)).toEqual([]);
+  });
+
+  test("a toolkit with several accounts: grants and actions name the account", () => {
+    const h = harness();
+    const now = new Date().toISOString();
+    for (const label of ["main", "sales"]) {
+      h.connection.db.prepare(`
+        insert into connector_accounts(id, org_id, toolkit_slug, toolkit_name, label, auth_config_id, status, created_at, updated_at)
+        values (?, ?, 'github', 'GitHub', ?, 'ac_github', 'ACTIVE', ?, ?)
+      `).run(`ca_gh_${label}`, h.orgId, label, now, now);
+    }
+    const grants = new ConnectorGrantsService(h.connection.db);
+    expect(dispatchAgentTool(h.deps, h.ceoCtx, call("grant_connector", { agent_name: "Dana", toolkit: "github" })))
+      .toBe('ERROR: "github" has several accounts (main, sales); name one with account.');
+    expect(dispatchAgentTool(h.deps, h.ceoCtx, call("grant_connector", { agent_name: "Dana", toolkit: "github", account: "Sales" })))
+      .toContain('through its "sales" account');
+    expect(dispatchAgentTool(h.deps, h.ceoCtx, call("grant_connector", { agent_name: "Dana", toolkit: "github", account: null })))
+      .toBe('ERROR: "account" is required.');
+    expect(grants.accountForAgent(h.orgId, h.danaId, "github", null).id).toBe("ca_gh_sales");
+    expect(() => grants.accountForAgent(h.orgId, h.danaId, "github", "main")).toThrow('Your grant for "github" is the "sales" account, not "main".');
+    expect(() => grants.accountForAgent(h.orgId, h.ceoId, "github", null)).toThrow('"github" has several accounts (main, sales)');
+    expect(grants.accountForAgent(h.orgId, h.ceoId, "github", "main").id).toBe("ca_gh_main");
+    const listing = dispatchAgentTool(h.deps, h.danaCtx, call("list_connectors", {}));
+    expect(listing).toContain('GitHub (github), account "main": no grants yet');
+    expect(listing).toContain('GitHub (github), account "sales": granted to Dana');
+    h.connection.db.prepare("update connector_accounts set status = 'EXPIRED' where id = 'ca_gh_sales'").run();
+    expect(grants.toolkitsForAgent(h.orgId, h.danaId)).toEqual([]);
+    expect(grants.toolkitsForAgent(h.orgId, h.ceoId)).toEqual(["github"]);
   });
 
   test("staff cannot hand out connector access", () => {
@@ -106,7 +134,7 @@ describe("connector grants", () => {
     const h = harness();
     connectToolkit(h, "slack", "Slack");
     const grants = new ConnectorGrantsService(h.connection.db);
-    grants.grant({ orgId: h.orgId, agentId: h.danaId, toolkitSlug: "slack", grantedByType: "employee", grantedById: null });
+    grants.grant({ orgId: h.orgId, agentId: h.danaId, toolkitSlug: "slack", accountLabel: null, grantedByType: "employee", grantedById: null });
     expect(grants.toolkitsForAgent(h.orgId, h.danaId)).toEqual(["slack"]);
     h.connection.db.prepare("update connector_accounts set status = 'EXPIRED' where org_id = ? and toolkit_slug = 'slack'").run(h.orgId);
     expect(grants.toolkitsForAgent(h.orgId, h.danaId)).toEqual([]);

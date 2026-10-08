@@ -451,6 +451,8 @@ export interface ConnectorAccountRecord {
   orgId: string;
   toolkitSlug: string;
   toolkitName: string;
+  /** Names the account among the toolkit's company accounts, e.g. "main" or "sales". */
+  label: string;
   authConfigId: string;
   status: string;
   /** A reconnect waiting for authorization; the current account keeps working until it is active. */
@@ -464,6 +466,7 @@ export interface ConnectorGrantRecord {
   orgId: string;
   agentId: string;
   toolkitSlug: string;
+  accountLabel: string;
   grantedByType: string;
   grantedById: string | null;
   createdAt: string;
