@@ -23,7 +23,12 @@ interface TaskRow {
 export class TaskMutations {
   private readonly audit: AuditService;
 
-  constructor(private readonly db: DatabaseSync, private readonly createTask: (input: CreateTaskInput) => string) {
+  constructor(
+    private readonly db: DatabaseSync,
+    private readonly createTask: (input: CreateTaskInput) => string,
+    /** Asks for a fresh approval when an edit changed content an approval covered. */
+    private readonly requestApproval: (orgId: string, taskId: string) => void,
+  ) {
     this.audit = new AuditService(db);
   }
 
@@ -48,6 +53,7 @@ export class TaskMutations {
       where id = ? and org_id = ?
     `).run(input.title.trim(), input.description.trim(), input.assigneeAgentId, input.risk, input.priority, input.parentTaskId, now, input.taskId, input.orgId);
     if (result.changes === 0) throw new Error("Task was not found.");
+    this.requestApproval(input.orgId, input.taskId);
     this.audit.record({
       orgId: input.orgId,
       entityType: "task",

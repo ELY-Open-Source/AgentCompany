@@ -8,7 +8,8 @@ import { OrganizationService } from "../../src/main/services/organization-servic
 import { ChatService } from "../../src/main/services/chat-service";
 import { dispatchAgentTool, type AgentToolContext } from "../../src/main/services/agent-tools";
 import { ApprovalService } from "../../src/main/services/approval-service";
-import { requireAssignedAgent } from "../../src/main/services/task-run-preparation";
+import { executionApprovalProblem, requireAssignedAgent } from "../../src/main/services/task-run-preparation";
+import { TASK_PRIORITY } from "../../src/shared/domain";
 import type { TaskExecutionTaskRow } from "../../src/main/services/task-prompts";
 
 function call(name: string, args: Record<string, unknown>) {
@@ -152,5 +153,41 @@ describe("execution modes", () => {
     h.connection.transaction(() => approvals.decide({ orgId: h.orgId, approvalId: approvalOf("Bo"), state: "declined", decidedByEmployeeId: employeeId }));
     expect([lifecycle(bo), identities(bo), memberships(bo)]).toEqual(["declined", 0, 0]);
     expect(() => runAs(bo)).toThrow("Bo's hire was declined; reassign the task.");
+  });
+
+  test("a task approval covers the content it was given; an edit needs a fresh one", () => {
+    const h = harness("ai_cofounder");
+    const db = h.connection.db;
+    const employeeId = (db.prepare("select id from employees where org_id = ?").get(h.orgId) as { id: string }).id;
+    const approvals = new ApprovalService(db);
+    const taskId = h.connection.transaction(() => h.deps.organization.createTask({
+      orgId: h.orgId, title: "Wipe staging", description: "Drop the staging tables.", status: "backlog",
+      assigneeAgentId: h.ceoId, risk: "high", projectId: null, goalId: null, workspaceId: null, priority: TASK_PRIORITY.NORMAL, requiresFilesystem: false,
+    }));
+    const task = () => db.prepare("select * from tasks where id = ?").get(taskId) as unknown as Parameters<typeof executionApprovalProblem>[2];
+    const taskApprovals = () => db.prepare("select id, state, details from approvals where source_entity_id = ? order by rowid").all(taskId) as Array<{ id: string; state: string; details: string }>;
+    const edit = (description: string) => h.connection.transaction(() => h.deps.organization.updateTask({
+      orgId: h.orgId, taskId, title: "Wipe staging", description, assigneeAgentId: h.ceoId, risk: "high", priority: TASK_PRIORITY.NORMAL, parentTaskId: null,
+    }));
+    const decide = (id: string) => h.connection.transaction(() => approvals.decide({ orgId: h.orgId, approvalId: id, state: "approved", decidedByEmployeeId: employeeId }));
+
+    // Editing while the review waits replaces it with one for the new content.
+    edit("Drop the staging tables, then reseed.");
+    expect(taskApprovals().map((row) => [row.state, row.details])).toEqual([
+      ["superseded", "Drop the staging tables."],
+      ["pending", "Drop the staging tables, then reseed."],
+    ]);
+    decide(taskApprovals()[1].id);
+    expect(executionApprovalProblem(db, h.orgId, task())).toBeNull();
+
+    // An approved task edited afterwards is not covered by the old approval.
+    edit("Drop the production tables.");
+    expect(executionApprovalProblem(db, h.orgId, task())).toBe("Approved task execution approval is required.");
+    expect(taskApprovals().map((row) => row.state)).toEqual(["superseded", "approved", "pending"]);
+    // A save that changes nothing approved keeps the approval.
+    decide(taskApprovals()[2].id);
+    edit("Drop the production tables.");
+    expect(taskApprovals()).toHaveLength(3);
+    expect(executionApprovalProblem(db, h.orgId, task())).toBeNull();
   });
 });

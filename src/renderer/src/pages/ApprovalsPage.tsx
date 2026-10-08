@@ -276,7 +276,8 @@ function DecidedRow({
   last: boolean;
 }) {
   const approved = approval.state === APPROVAL_STATE.APPROVED;
-  const decidedLabel = approved ? t("Approved") : t("Declined");
+  const superseded = approval.state === APPROVAL_STATE.SUPERSEDED;
+  const decidedLabel = approved ? t("Approved") : superseded ? t("Replaced by an edit") : t("Declined");
   return (
     <div
       className="row"
@@ -287,11 +288,11 @@ function DecidedRow({
         borderBottom: last ? "none" : "1px solid var(--border-soft)",
       }}
     >
-      <Icon name={approved ? "check" : "x"} size={14} color={approved ? "var(--green)" : "var(--red)"} />
+      <Icon name={approved ? "check" : "x"} size={14} color={approved ? "var(--green)" : superseded ? "var(--text-3)" : "var(--red)"} />
       <div style={{ flex: 1, fontWeight: 480, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{approval.title}</div>
       <Avatar name={requester} size="sm" bot />
       <div style={{ fontSize: 12, color: "var(--text-3)", width: 180, textAlign: "right", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-        {decidedLabel} · {formatRelative(approval.decidedAt ?? approval.createdAt)} · {decider.split(" ")[0]}
+        {decidedLabel} · {formatRelative(approval.decidedAt ?? approval.createdAt)}{superseded ? "" : ` · ${decider.split(" ")[0]}`}
       </div>
     </div>
   );

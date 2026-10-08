@@ -1,3 +1,4 @@
+import { TASK_APPROVAL_KINDS_SQL, TASK_SNAPSHOT_SQL } from "./task-approval";
 import type { DatabaseSync } from "node:sqlite";
 import { APPROVAL_STATE, RISK_LEVEL } from "../../shared/domain";
 import { createId } from "../../shared/ids";
@@ -10,11 +11,6 @@ import type {
   TaskRunIsolation,
   WorkspaceRow,
 } from "./task-prompts";
-
-interface TaskApprovalRow {
-  id: string;
-  state: string;
-}
 
 export function requireTask(db: DatabaseSync, orgId: string, taskId: string): TaskExecutionTaskRow {
   const task = db.prepare("select * from tasks where id = ? and org_id = ?").get(taskId, orgId) as TaskExecutionTaskRow | undefined;
@@ -45,16 +41,14 @@ export function assertExecutionApproval(db: DatabaseSync, orgId: string, task: T
 export function executionApprovalProblem(db: DatabaseSync, orgId: string, task: TaskExecutionTaskRow): string | null {
   if (task.risk !== RISK_LEVEL.HIGH && task.requires_filesystem !== 1) return null;
   const approval = db.prepare(`
-    select id, state
-    from approvals
-    where org_id = ?
-      and source_entity_type = 'task'
-      and source_entity_id = ?
-      and kind in ('task_risk', 'task_execution')
-    order by created_at desc
+    select a.state, a.subject_snapshot = (select ${TASK_SNAPSHOT_SQL} from tasks t where t.id = a.source_entity_id) as covers_current
+    from approvals a
+    where a.org_id = ? and a.source_entity_type = 'task' and a.source_entity_id = ? and a.kind in ${TASK_APPROVAL_KINDS_SQL}
+    order by a.rowid desc
     limit 1
-  `).get(orgId, task.id) as TaskApprovalRow | undefined;
+  `).get(orgId, task.id) as { state: string; covers_current: number | null } | undefined;
   if (!approval || approval.state !== APPROVAL_STATE.APPROVED) return "Approved task execution approval is required.";
+  if (approval.covers_current !== 1) return "The task changed after it was approved; the changed task needs a fresh approval.";
   return null;
 }
 

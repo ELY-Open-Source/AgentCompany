@@ -16,7 +16,8 @@ export { SEARCH_ENTITY_TYPES, type SearchEntityType, type SearchResultRecord } f
 export type { BrowserActionPolicyRecord, BrowserActionRecord, BrowserSessionContainerRecord, SocialAccountGrantRecord, SocialAccountRecord, SocialApprovalRouteRecord, SocialAuditRecord } from "./social-domain";
 export type { AppSnapshot, UiLanguage, UiPreferences, UiTheme } from "./snapshot-domain";
 export const TASK_STATUS = { BACKLOG: "backlog", IN_PROGRESS: "in_progress", REVIEW: "review", DONE: "done" } as const;
-export const APPROVAL_STATE = { PENDING: "pending", APPROVED: "approved", DECLINED: "declined" } as const;
+/** Superseded: a pending review replaced by one for newer content. */
+export const APPROVAL_STATE = { PENDING: "pending", APPROVED: "approved", DECLINED: "declined", SUPERSEDED: "superseded" } as const;
 export const RISK_LEVEL = { LOW: "low", MEDIUM: "medium", HIGH: "high" } as const;
 export const TASK_PRIORITY = { LOW: "low", NORMAL: "normal", HIGH: "high" } as const;
 /** How a task's output should read: conversational prose carries house style; technical and structured do not. */

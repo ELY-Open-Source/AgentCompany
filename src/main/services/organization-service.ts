@@ -1,5 +1,5 @@
 import type { DatabaseSync } from "node:sqlite";
-import { APPROVAL_STATE, RISK_LEVEL, TASK_STATUS, WRITING_MODE } from "../../shared/domain";
+import { APPROVAL_STATE, RISK_LEVEL, TASK_STATUS, WRITING_MODE, type RiskLevel } from "../../shared/domain";
 import { createId } from "../../shared/ids";
 import type { CreateAgentInput, CreateGoalInput, CreateOrganizationInput, CreateProjectInput, CreateTaskInput, CreateWorkspaceInput, DeleteTaskInput, UpdateAgentInput, UpdateEmployeeProfileInput, UpdateTaskInput } from "../../shared/commands";
 import { AuditService } from "./audit-service";
@@ -12,6 +12,7 @@ import { TaskMutations } from "./task-mutations";
 import { normalizeAvatarColor, normalizeAvatarImage } from "./avatar-values";
 import { approvalDecision, autonomy } from "./org-approvals";
 import { admitAgent } from "./agent-admission";
+import { TASK_APPROVAL_KINDS_SQL, TASK_SNAPSHOT_SQL } from "./task-approval";
 
 export class OrganizationService {
   private readonly audit: AuditService;
@@ -23,7 +24,7 @@ export class OrganizationService {
     this.audit = new AuditService(db);
     this.policy = new PolicyService(db);
     this.governance = new OrgGovernanceService(db);
-    this.tasks = new TaskMutations(db, (input) => this.createTask(input));
+    this.tasks = new TaskMutations(db, (input) => this.createTask(input), (orgId, taskId) => this.requestTaskApproval(orgId, taskId));
   }
 
   createOrganization(input: CreateOrganizationInput): string {
@@ -262,35 +263,7 @@ export class OrganizationService {
       now,
     );
     const policy = this.policy.evaluateTaskCreation(input.orgId, input.risk);
-    const approvalRequired = policy.approvalRequired || input.requiresFilesystem;
-    if (approvalRequired) {
-      const approvalId = createId("app");
-      const approvalKind = policy.approvalRequired ? "task_risk" : "task_execution";
-      const autoApprove = autonomy(this.db, input.orgId).executionMode === "ai_ceo";
-      const decision = approvalDecision(this.db, input.orgId, autoApprove, now);
-      this.db.prepare(`
-        insert into approvals(
-          id, org_id, kind, title, details, risk, requested_by_type,
-          requested_by_id, source_entity_type, source_entity_id, state, decided_by_employee_id, created_at, decided_at
-        ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(
-        approvalId,
-        input.orgId,
-        approvalKind,
-        input.title.trim(),
-        input.description.trim(),
-        RISK_LEVEL.HIGH,
-        "system",
-        null,
-        "task",
-        id,
-        decision.state,
-        decision.decidedBy,
-        now,
-        decision.decidedAt,
-      );
-      this.settleApproval(input.orgId, approvalId, approvalKind, RISK_LEVEL.HIGH, autoApprove);
-    }
+    this.requestTaskApproval(input.orgId, id);
     this.audit.record({
       orgId: input.orgId,
       entityType: "task",
@@ -301,6 +274,37 @@ export class OrganizationService {
       payload: { status: TASK_STATUS.BACKLOG, policyRuleId: policy.matchedRuleId },
     });
     return id;
+  }
+
+  /** Asks for approval of a task's current content when policy or file access needs it and no review already covers that content. */
+  requestTaskApproval(orgId: string, taskId: string): void {
+    const task = this.db.prepare(`select t.title, t.description, t.risk, t.requires_filesystem, ${TASK_SNAPSHOT_SQL} as snapshot from tasks t where t.id = ? and t.org_id = ?`)
+      .get(taskId, orgId) as { title: string; description: string; risk: RiskLevel; requires_filesystem: number; snapshot: string };
+    const policy = this.policy.evaluateTaskCreation(orgId, task.risk);
+    if (!policy.approvalRequired && task.requires_filesystem !== 1) return;
+    const latest = this.db.prepare(`
+      select subject_snapshot from approvals
+      where org_id = ? and source_entity_type = 'task' and source_entity_id = ? and kind in ${TASK_APPROVAL_KINDS_SQL}
+      order by rowid desc limit 1
+    `).get(orgId, taskId) as { subject_snapshot: string | null } | undefined;
+    if (latest?.subject_snapshot === task.snapshot) return;
+    const superseded = this.db.prepare(`
+      update approvals set state = ? where org_id = ? and source_entity_type = 'task' and source_entity_id = ? and kind in ${TASK_APPROVAL_KINDS_SQL} and state = ?
+    `).run(APPROVAL_STATE.SUPERSEDED, orgId, taskId, APPROVAL_STATE.PENDING);
+    if (superseded.changes > 0) console.info(`[approvals] task ${taskId} changed; its pending review was superseded`);
+    const now = new Date().toISOString();
+    const approvalId = createId("app");
+    const approvalKind = policy.approvalRequired ? "task_risk" : "task_execution";
+    const autoApprove = autonomy(this.db, orgId).executionMode === "ai_ceo";
+    const decision = approvalDecision(this.db, orgId, autoApprove, now);
+    this.db.prepare(`
+      insert into approvals(
+        id, org_id, kind, title, details, risk, requested_by_type, requested_by_id, source_entity_type, source_entity_id,
+        state, decided_by_employee_id, created_at, decided_at, subject_snapshot
+      ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(approvalId, orgId, approvalKind, task.title, task.description, RISK_LEVEL.HIGH, "system", null, "task", taskId,
+      decision.state, decision.decidedBy, now, decision.decidedAt, task.snapshot);
+    this.settleApproval(orgId, approvalId, approvalKind, RISK_LEVEL.HIGH, autoApprove);
   }
 
   /** Routes a pending approval to its decider, or records the auto-approval in the audit trail. */

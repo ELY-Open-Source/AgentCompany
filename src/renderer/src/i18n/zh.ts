@@ -387,6 +387,7 @@ export const zh: Record<string, string> = {
   "Account label, e.g. sales": "账号标签，例如 sales",
   "Add account": "添加账号",
   "limited": "受限",
+  "Replaced by an edit": "已因编辑被替换",
   "Revoke {name}": "撤销 {name}",
   "Grant {name} to": "把 {name} 授予",
   "Grant to…": "授予给…",

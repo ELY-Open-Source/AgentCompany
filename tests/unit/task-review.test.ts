@@ -67,7 +67,7 @@ describe("task review", () => {
   test("a failed review hand-off leaves the task where it was; deleting reviewed work closes its review", () => {
     const h = setup();
     const taskId = h.task(h.devId, "Login page");
-    const failing = new TaskMutations(h.connection.db, () => { throw new Error("review task could not be created"); });
+    const failing = new TaskMutations(h.connection.db, () => { throw new Error("review task could not be created"); }, () => undefined);
     expect(() => failing.updateStatus(h.orgId, taskId, TASK_STATUS.REVIEW)).toThrow("review task could not be created");
     expect(h.connection.db.prepare("select status from tasks where id = ?").get(taskId)).toEqual({ status: "in_progress" });
 
