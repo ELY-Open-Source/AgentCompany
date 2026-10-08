@@ -203,6 +203,8 @@ export function buildTaskPrompt(input: {
   priorCompletedRuns: number;
   /** Names of the tools the model can call this run. */
   availableToolNames: string[];
+  /** Subtasks this task delegated; autonomously it only runs again once they are all done. */
+  subtasks: Array<{ title: string; done: boolean }>;
 }): string {
   const lines = [
     "Execute this AgentCompany task.",
@@ -266,6 +268,15 @@ export function buildTaskPrompt(input: {
       "This task carries filesystem access: read the existing code with list_files and read_file before changing anything, write changes with write_deliverable, and prove they work with run_command (install, build, test). Real output is code that builds and tests that pass — a document describing the work does not close an engineering task.",
     );
   }
+  const openSubtasks = input.subtasks.filter((subtask) => !subtask.done).map((subtask) => subtask.title);
+  if (openSubtasks.length > 0) {
+    lines.push("", `Subtasks you delegated from this task are still open: ${openSubtasks.join(", ")}. Do not redo them; this task can close only after they are done.`);
+  } else if (input.subtasks.length > 0) {
+    lines.push(
+      "",
+      `The subtasks you delegated from this task are all done: ${input.subtasks.map((subtask) => subtask.title).join(", ")}. Check their results (read_messages, list_files, list_documents) against what this task needs, then close it, or create the follow-up work that is still missing.`,
+    );
+  }
   if (input.priorCompletedRuns > 0) {
     lines.push(
       "",
@@ -273,9 +284,10 @@ export function buildTaskPrompt(input: {
     );
   }
   if (leadsPeople(input.agent.role_level, input.hasReports) && !input.hasReports) {
+    const park = `move it to "in_progress" with update_task_status(task_id="${input.task.id}", status="in_progress"): it waits while the tasks you created are open and comes back to you when they are done, so you can check the results and close it.`;
     const announce = input.isManager
-      ? `Post one company-wide kickoff to the #general channel. Then close this kickoff with update_task_status(task_id="${input.task.id}", status="done") and summarize.`
-      : `Tell your manager the plan in a direct message. Then close this task with update_task_status(task_id="${input.task.id}", status="done") if hiring and delegating was the work, or move it to "in_progress" and say what remains.`;
+      ? `Post one company-wide kickoff to the #general channel. Then ${park}`
+      : `Tell your manager the plan in a direct message. Then ${park}`;
     lines.push(
       "",
       `Your team is currently empty. First ${firstHiresFor(input.agent.role_level)}, create and assign their first tasks (create_task), and write the initial operating plan into the workspace (write_deliverable). Then use send_message with /handoff @Name and attachment_file_ids to pass the operating plan to the relevant report. Brief EACH report in a direct message (send_message with to="Their Name") about the work you assigned them — note the thread_id each returns so you can follow up in the same conversation. ${announce}`,

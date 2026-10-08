@@ -121,6 +121,8 @@ export class TaskExecutionService {
       if (!sameWorkspaceAccess(run.workspace_mount_json, workspaceAccess(task, workspace))) {
         return this.supersedeRun(orgId, runId, run, "the task's workspace access changed after this run was queued.");
       }
+      const openSubtask = this.db.prepare("select title from tasks where parent_task_id = ? and status <> 'done' limit 1").get(task.id) as { title: string } | undefined;
+      if (openSubtask) return this.supersedeRun(orgId, runId, run, `the task has open subtasks ("${openSubtask.title}"); it runs again once they are done.`);
       const approvalProblem = executionApprovalProblem(this.db, orgId, task);
       if (approvalProblem) return this.supersedeRun(orgId, runId, run, approvalProblem);
       const isolation: TaskRunIsolation = {
@@ -213,6 +215,8 @@ export class TaskExecutionService {
             handoffLines: renderTaskHandoff(this.db, orgId, task.handoff_json),
             knowledgeLines: relevantKnowledgeLines(this.db, { orgId, agentId: agent.id, projectId: task.project_id, goalId: task.goal_id, taskId: task.id }, `${task.title}\n${task.description}`),
             priorCompletedRuns: this.completedRunCount(task.id, runId),
+            subtasks: (this.db.prepare("select title, status = 'done' as done from tasks where parent_task_id = ? order by created_at").all(task.id) as Array<{ title: string; done: number }>)
+              .map((row) => ({ title: row.title, done: row.done === 1 })),
             availableToolNames: runTools(externalTools).map((tool) => tool.name),
           }),
           toolContext,

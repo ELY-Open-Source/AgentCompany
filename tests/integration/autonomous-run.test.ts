@@ -22,7 +22,7 @@ function call(name: string, args: Record<string, unknown>): ToolCall {
   return { id: `call_${randomUUID()}`, name, arguments: args };
 }
 
-/** Scripts the CEO: staff two reports, delegate work, hand off the file in chat, close the kickoff, then stop. */
+/** Scripts the CEO: staff two reports, delegate work, hand off the file in chat, park the kickoff on its subtask, then stop. */
 function scriptedCeo(): (input: ProviderToolTurnInput) => Promise<AgentTurnResult> {
   const script: Array<{ text: string; toolCalls: ToolCall[] }> = [
     { text: "Staffing.", toolCalls: [
@@ -36,7 +36,7 @@ function scriptedCeo(): (input: ProviderToolTurnInput) => Promise<AgentTurnResul
       call("write_deliverable", { path: "plan/operating-plan.md", content: "# OrbitOps Operating Plan\n\n- Validate demand\n- Launch booking site\n" }),
     ] },
     { text: "Handing off the plan.", toolCalls: [] },
-    { text: "Closing the kickoff.", toolCalls: [] },
+    { text: "Parking the kickoff.", toolCalls: [] },
     { text: "Team staffed, work delegated, plan written.", toolCalls: [] },
   ];
   let index = 0;
@@ -57,13 +57,13 @@ function scriptedCeo(): (input: ProviderToolTurnInput) => Promise<AgentTurnResul
       };
     }
     if (index === 4) {
-      // The prompt carries the task id so the agent can actually close its task.
+      // The prompt carries the task id so the agent can park its task until the delegated work is done.
       const firstUser = input.messages.find((message) => message.role === "user");
       const taskId = firstUser ? /Task id: (\S+)/.exec(firstUser.text)?.[1] : undefined;
       index += 1;
       return {
-        text: "Closing the kickoff.",
-        toolCalls: taskId ? [call("update_task_status", { task_id: taskId, status: "done" })] : [],
+        text: "Parking the kickoff.",
+        toolCalls: taskId ? [call("update_task_status", { task_id: taskId, status: "in_progress" })] : [],
         rawResponseJson: JSON.stringify({ id: `resp_${index}` }),
       };
     }
@@ -162,13 +162,12 @@ describe("autonomous bootstrap run", () => {
     const run = state.taskRuns.find((r) => r.id === claimed!.id);
     expect(run?.state).toBe("completed");
 
-    // The CEO closed the kickoff task using the task id the prompt carries.
+    // The CEO parked the kickoff using the task id the prompt carries; it waits on its subtask.
     const kickoffTask = connection.db.prepare("select status from tasks where id = (select task_id from task_runs where id = ?)")
       .get(claimed!.id) as { status: string };
-    expect(kickoffTask).toEqual({ status: "done" });
+    expect(kickoffTask).toEqual({ status: "in_progress" });
 
-    // Stage 4 heartbeat: the CEO-delegated task (assigned to a hired, heartbeat-enabled
-    // agent, with no run yet) is enqueued exactly once for autonomous execution.
+    // Stage 4 heartbeat: only the delegated task is enqueued; the kickoff waits for it.
     const enqueued = taskExecution.enqueueHeartbeatRuns();
     expect(enqueued).toHaveLength(1);
     const queued = connection.db.prepare("select task_id, state, trigger from task_runs where id = ?").get(enqueued[0]) as { task_id: string; state: string; trigger: string };

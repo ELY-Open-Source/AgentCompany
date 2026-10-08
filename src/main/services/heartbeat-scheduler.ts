@@ -46,6 +46,7 @@ export class HeartbeatScheduler {
         and p.enabled = 1
         and coalesce(u.request_count, 0) < p.monthly_request_limit
         and not exists (select 1 from task_runs r where r.task_id = t.id and r.state in ('queued', 'running'))
+        and not exists (select 1 from tasks c where c.parent_task_id = t.id and c.status <> 'done')
     `).all(window.start) as Array<{ task_id: string; org_id: string; provider_id: string }>;
     this.observeQuotaBlocks(window.start);
     const cooling = new Set(this.cooldowns.cooledProviderIds());

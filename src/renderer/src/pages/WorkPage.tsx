@@ -49,6 +49,7 @@ export function WorkPage({ snapshot, actions }: PageProps) {
   const [priorityFilter, setPriorityFilter] = useState<TaskPriority | "all">("all");
   const [assigneeFilter, setAssigneeFilter] = useState<string>("all");
   const [detailTaskId, setDetailTaskId] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const allTasks = useMemo(() => snapshot.tasks.filter((task) => task.orgId === orgId), [snapshot.tasks, orgId]);
   const tasks = useMemo(
@@ -75,10 +76,14 @@ export function WorkPage({ snapshot, actions }: PageProps) {
   const advance = (task: TaskRecord) => {
     const next = nextStatus(task.status);
     if (!next) return;
-    void actions.run(() => window.agentCompany.updateTaskStatus({ orgId, taskId: task.id, status: next }));
+    perform(() => actions.run(() => window.agentCompany.updateTaskStatus({ orgId, taskId: task.id, status: next })));
   };
   const runTask = (task: TaskRecord) => {
-    void actions.run(() => window.agentCompany.runTask({ orgId, taskId: task.id }));
+    perform(() => actions.run(() => window.agentCompany.runTask({ orgId, taskId: task.id })));
+  };
+  const perform = (operation: () => Promise<unknown>) => {
+    setActionError(null);
+    operation().catch((error: unknown) => setActionError(error instanceof Error ? error.message : String(error)));
   };
   const detailTask = detailTaskId ? allTasks.find((task) => task.id === detailTaskId) ?? null : null;
 
@@ -102,6 +107,7 @@ export function WorkPage({ snapshot, actions }: PageProps) {
         {tasks.length === 1 ? t("{n} task", { n: tasks.length }) : t("{n} tasks", { n: tasks.length })} · {assigneeCount === 1 ? t("{n} assignee", { n: assigneeCount }) : t("{n} assignees", { n: assigneeCount })}
       </p>
 
+      {actionError && <div className="form-error" role="alert">{actionError}</div>}
       <ProjectOverview projects={projects} tasks={allTasks} agents={agents} workspaces={workspaces} chatSpaces={chatSpaces} />
 
       <div className="work-page-body">

@@ -530,6 +530,7 @@ export class OrganizationService {
   }
 
   updateTaskStatus(orgId: string, taskId: string, status: string): void {
+    if (status === TASK_STATUS.DONE) this.assertNoOpenSubtasks(orgId, taskId);
     const result = this.db.prepare("update tasks set status = ?, updated_at = ? where id = ? and org_id = ?")
       .run(status, new Date().toISOString(), taskId, orgId);
     if (result.changes === 0) throw new Error("Task was not found.");
@@ -542,6 +543,14 @@ export class OrganizationService {
       action: "status_changed",
       payload: { status },
     });
+  }
+
+  private assertNoOpenSubtasks(orgId: string, taskId: string): void {
+    const open = this.db.prepare("select title from tasks where org_id = ? and parent_task_id = ? and status <> 'done' order by created_at")
+      .all(orgId, taskId) as Array<{ title: string }>;
+    if (open.length === 0) return;
+    const parent = this.db.prepare("select title from tasks where id = ? and org_id = ?").get(taskId, orgId) as { title: string };
+    throw new Error(`"${parent.title}" has open subtasks: ${open.map((task) => task.title).join(", ")}. It can close once they are done.`);
   }
 }
 
