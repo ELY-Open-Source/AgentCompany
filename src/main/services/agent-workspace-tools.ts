@@ -5,8 +5,8 @@ import { resolveWorkspacePath } from "./files/workspace-path";
 import { optionalString, requireString } from "./agent-tool-args";
 import type { AgentToolContext } from "./agent-tools";
 import type { ToolCall, ToolDefinition } from "./provider-tool-turn";
+import { PAGE_TOOL_PROPERTIES, pageText, readPageArgs, type PageRequest } from "./text-paging";
 
-const READ_FILE_CHAR_LIMIT = 24_000;
 const LIST_FILES_LIMIT = 400;
 const COMMAND_TIMEOUT_MS = 120_000;
 const COMMAND_OUTPUT_CHAR_LIMIT = 16_000;
@@ -34,12 +34,13 @@ export const WORKSPACE_TOOLS: ToolDefinition[] = [
   },
   {
     name: "read_file",
-    description: "Read a file from the company workspace. Always read existing code or documents before editing them — never guess at their contents.",
+    description: "Read a file from the company workspace — whole, a range of lines, or only the lines matching a search. Always read existing code or documents before editing them — never guess at their contents.",
     parameters: {
       type: "object",
       additionalProperties: false,
       properties: {
         path: { type: "string", description: "File path relative to the workspace root, e.g. 'src/index.ts'." },
+        ...PAGE_TOOL_PROPERTIES,
       },
       required: ["path"],
     },
@@ -71,7 +72,7 @@ export async function executeWorkspaceTool(ctx: AgentToolContext, call: ToolCall
       case "list_files":
         return listFiles(ctx.workspace.localPath, optionalString(call.arguments.path) ?? undefined);
       case "read_file":
-        return readFile(ctx.workspace.localPath, requireString(call.arguments.path, "path"));
+        return readFile(ctx.workspace.localPath, requireString(call.arguments.path, "path"), readPageArgs(call.arguments));
       case "run_command": {
         if (!ctx.workspace.writeAccess) {
           throw new Error("This task does not carry filesystem access. Ask for a task with requires_filesystem, which the operator approves.");
@@ -108,13 +109,11 @@ function listFiles(workspaceRoot: string, subPath: string | undefined): string {
   return entries.join("\n") + truncation;
 }
 
-function readFile(workspaceRoot: string, relativePath: string): string {
+function readFile(workspaceRoot: string, relativePath: string, page: PageRequest): string {
   const { absolute, relativePosix } = resolveWorkspacePath(workspaceRoot, relativePath);
   const stats = statSync(absolute);
   if (!stats.isFile()) throw new Error(`${relativePosix} is not a file.`);
-  const content = readFileSync(absolute, "utf8");
-  if (content.length <= READ_FILE_CHAR_LIMIT) return content;
-  return `${content.slice(0, READ_FILE_CHAR_LIMIT)}\n\n[truncated: showing the first ${READ_FILE_CHAR_LIMIT} of ${content.length} characters]`;
+  return pageText(relativePosix, readFileSync(absolute, "utf8"), page);
 }
 
 function runCommand(workspaceRoot: string, command: string): Promise<string> {

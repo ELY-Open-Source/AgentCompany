@@ -44,7 +44,7 @@ describe("read_attachment", () => {
     const h = harness();
     expect(h.read(h.addFile(h.orgId, "notes.md", "hello attachment"))).toBe("hello attachment");
     const long = h.read(h.addFile(h.orgId, "big.md", "x".repeat(30_000)));
-    expect(long).toContain("[truncated: showing the first 24000 of 30000 characters]");
+    expect(long).toContain("[line 1 continues: pass start_line=1 and start_column=24001]");
     expect(h.read(h.addFile(h.orgId, "logo.png", Buffer.from([137, 80, 78, 71, 0, 1, 2])))).toBe("logo.png is a binary file (7 bytes); it has no text to read.");
     expect(h.read(h.addFile(h.orgId, "blob.bin", Buffer.from([0x80, 0x81, 0xfe, 0xff])))).toBe("blob.bin is a binary file (4 bytes); it has no text to read.");
     expect(h.read(h.addFile(h.orgId, "zh.md", "中文说明"))).toBe("中文说明");

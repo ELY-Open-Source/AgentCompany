@@ -5,17 +5,16 @@ import { requireString } from "./agent-tool-args";
 import type { AgentToolContext, AgentToolDeps } from "./agent-tools";
 import type { JsonRecord } from "./provider-http";
 import type { ToolDefinition } from "./provider-tool-turn";
-
-const ATTACHMENT_CHAR_LIMIT = 24_000;
+import { PAGE_TOOL_PROPERTIES, pageText, readPageArgs } from "./text-paging";
 
 export const ATTACHMENT_TOOLS: ToolDefinition[] = [
   {
     name: "read_attachment",
-    description: "Read a file attached to a message or handed off to you, by the file_id shown next to the message.",
+    description: "Read a file attached to a message or handed off to you, by the file_id shown next to the message — whole, a range of lines, or only the lines matching a search.",
     parameters: {
       type: "object",
       additionalProperties: false,
-      properties: { file_id: { type: "string" } },
+      properties: { file_id: { type: "string" }, ...PAGE_TOOL_PROPERTIES },
       required: ["file_id"],
     },
   },
@@ -40,8 +39,7 @@ export function readAttachmentTool(deps: AgentToolDeps, ctx: AgentToolContext, a
   const bytes = readFileSync(file.storage_path);
   const content = utf8Text(bytes);
   if (content === null) return `${file.name} is a binary file (${bytes.length} bytes); it has no text to read.`;
-  if (content.length <= ATTACHMENT_CHAR_LIMIT) return content;
-  return `${content.slice(0, ATTACHMENT_CHAR_LIMIT)}\n\n[truncated: showing the first ${ATTACHMENT_CHAR_LIMIT} of ${content.length} characters]`;
+  return pageText(file.name, content, readPageArgs(args));
 }
 
 function utf8Text(bytes: Buffer): string | null {
