@@ -77,6 +77,8 @@ export interface FileObjectInput {
   storagePath: string;
   /** The path the file came from; one id per content of it, the newest current and older ones superseded. */
   sourcePath: string;
+  /** Who may read it once it exists: the whole workspace, or only these principals (a private conversation's members). */
+  access: "workspace" | Array<{ type: "employee" | "agent"; id: string }>;
   ownerType: string;
   ownerId: string | null;
   scan: FileScanResult;
@@ -145,7 +147,8 @@ function writeFileObject(db: DatabaseSync, input: FileObjectInput): string {
     input.now,
     input.now,
   );
-  grantWorkspaceAccess(db, input.orgId, id, input.now);
+  if (input.access === "workspace") grantWorkspaceAccess(db, input.orgId, id, input.now);
+  else for (const principal of input.access) grantPrincipalAccess(db, input.orgId, id, principal, input.now);
   return id;
 }
 
@@ -177,6 +180,7 @@ export function recordWorkspaceFile(db: DatabaseSync, input: {
     sha256,
     storagePath: copy,
     sourcePath: absolute,
+    access: "workspace",
     ownerType: input.ownerType,
     ownerId: input.ownerId,
     scan,
@@ -225,6 +229,29 @@ export function preserveRecordedFiles(db: DatabaseSync): void {
 function isInside(root: string, path: string): boolean {
   const rel = relative(root, path);
   return rel !== "" && !rel.startsWith("..") && !isAbsolute(rel);
+}
+
+/** Whether an agent may read a file: it owns it, or holds a grant of its own or the workspace's. */
+export function agentCanReadFile(db: DatabaseSync, orgId: string, fileId: string, agentId: string): boolean {
+  return Boolean(db.prepare(`
+    select 1 from file_objects f where f.id = ? and f.org_id = ? and (
+      (f.owner_type = 'agent' and f.owner_id = ?)
+      or exists (
+        select 1 from file_access_grants g where g.file_id = f.id and g.access_level in ('read', 'manage')
+          and ((g.granted_to_type = 'agent' and g.granted_to_id = ?) or (g.granted_to_type = 'org_group' and g.granted_to_id = ?))
+      )
+    )
+  `).get(fileId, orgId, agentId, agentId, `${orgId}:workspace`));
+}
+
+function grantPrincipalAccess(db: DatabaseSync, orgId: string, fileId: string, principal: { type: string; id: string }, now: string): void {
+  db.prepare(`
+    insert into file_access_grants(
+      id, org_id, file_id, granted_to_type, granted_to_id, granted_by_type, granted_by_id,
+      source_message_id, source_thread_id, access_level, created_at
+    )
+    values (?, ?, ?, ?, ?, 'system', null, null, null, 'read', ?)
+  `).run(createId("fgr"), orgId, fileId, principal.type, principal.id, now);
 }
 
 function grantWorkspaceAccess(db: DatabaseSync, orgId: string, fileId: string, now: string): void {

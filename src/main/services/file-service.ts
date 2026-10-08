@@ -26,10 +26,12 @@ export class FileService {
       securityScopedBookmarks: true,
     });
     if (result.canceled || result.filePaths.length === 0) return null;
-    return this.importPath(input.orgId, result.filePaths[0]);
+    return this.importPath(input.orgId, result.filePaths[0], input.spaceId ?? null);
   }
 
-  importPath(orgId: string, sourcePath: string): string {
+  /** A file imported into a direct conversation or restricted channel is readable by that space's members only. */
+  importPath(orgId: string, sourcePath: string, spaceId: string | null): string {
+    const access = spaceId ? spaceAccess(this.db, orgId, spaceId) : "workspace";
     const id = createId("fil");
     const now = new Date().toISOString();
     const stats = statSync(sourcePath);
@@ -53,6 +55,7 @@ export class FileService {
         sha256: hash,
         storagePath: target,
         sourcePath: target,
+        access,
         ownerType: "system",
         ownerId: null,
         scan,
@@ -103,4 +106,12 @@ export class FileService {
     });
   }
 
+}
+
+function spaceAccess(db: DatabaseSync, orgId: string, spaceId: string): "workspace" | Array<{ type: "employee" | "agent"; id: string }> {
+  const space = db.prepare("select visibility, space_type from chat_spaces where id = ? and org_id = ?").get(spaceId, orgId) as { visibility: string; space_type: string } | undefined;
+  if (!space) throw new Error("The conversation to import into was not found.");
+  if (space.visibility === "workspace" && space.space_type !== "direct") return "workspace";
+  return db.prepare("select principal_type as type, principal_id as id from chat_memberships where space_id = ? and principal_type in ('employee', 'agent')")
+    .all(spaceId) as Array<{ type: "employee" | "agent"; id: string }>;
 }

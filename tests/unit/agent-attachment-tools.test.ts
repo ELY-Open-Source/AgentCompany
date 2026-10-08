@@ -25,6 +25,11 @@ function harness() {
       insert into file_objects(id, org_id, name, kind, size_bytes, sha256, storage_path, owner_type, owner_id, created_at, scan_state)
       values (?, ?, ?, 'md', 1, ?, ?, 'employee', null, ?, ?)
     `).run(fileId, owner, name, createHash("sha256").update(content).digest("hex"), path, new Date().toISOString(), scanState);
+    // As every recorded file is, it is readable across its company's workspace.
+    connection.db.prepare(`
+      insert into file_access_grants(id, org_id, file_id, granted_to_type, granted_to_id, granted_by_type, access_level, created_at)
+      values (?, ?, ?, 'org_group', ?, 'system', 'manage', ?)
+    `).run(`fgr_${randomUUID()}`, owner, fileId, `${owner}:workspace`, new Date().toISOString());
     return fileId;
   };
   const ctx: AgentToolContext = {

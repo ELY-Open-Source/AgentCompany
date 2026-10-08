@@ -347,7 +347,7 @@ function createTask(deps: AgentToolDeps, ctx: AgentToolContext, args: JsonRecord
   const description = requireString(args.description, "description");
   const assigneeName = optionalString(args.assignee_agent_name);
   const assignee = assigneeName ? requireRunnableAgentByName(deps.db, ctx.orgId, assigneeName) : null;
-  const handoff = buildTaskHandoff(deps.db, ctx.orgId, { taskId: ctx.taskId, threadId: ctx.sourceThreadId }, args);
+  const handoff = buildTaskHandoff(deps.db, ctx.orgId, ctx.agent.id, assignee, { taskId: ctx.taskId, threadId: ctx.sourceThreadId }, args);
   const parentTaskId = delegationParent(deps.db, ctx);
   const writingMode = optionalEnum(args.writing_mode, "writing_mode", Object.values(WRITING_MODE), WRITING_MODE.CONVERSATIONAL) as WritingMode;
   const create = () => {

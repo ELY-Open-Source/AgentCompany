@@ -1,4 +1,4 @@
-import { readVerifiedFile } from "./files/file-object-store";
+import { agentCanReadFile, readVerifiedFile } from "./files/file-object-store";
 import type { DatabaseSync } from "node:sqlite";
 import { FILE_SCAN_STATE } from "../../shared/domain";
 import { requireString } from "./agent-tool-args";
@@ -30,11 +30,16 @@ export function attachmentNote(db: DatabaseSync, messageId: string): string {
   return ` [attachments: ${files.map((file) => `${file.name} (file_id=${file.id})`).join(", ")}]`;
 }
 
+export function noAccess(name: string): string {
+  return `You have no access to ${name}; it was shared in a conversation you are not part of.`;
+}
+
 export function readAttachmentTool(deps: AgentToolDeps, ctx: AgentToolContext, args: JsonRecord): string {
   const fileId = requireString(args.file_id, "file_id");
   const file = deps.db.prepare("select name, storage_path, sha256, scan_state from file_objects where id = ? and org_id = ?")
     .get(fileId, ctx.orgId) as { name: string; storage_path: string; sha256: string; scan_state: string } | undefined;
   if (!file) throw new Error(`No file with file_id "${fileId}".`);
+  if (!agentCanReadFile(deps.db, ctx.orgId, fileId, ctx.agent.id)) throw new Error(noAccess(file.name));
   if (file.scan_state !== FILE_SCAN_STATE.APPROVED) throw new Error(`${file.name} was blocked by the file scan and cannot be read.`);
   const bytes = readVerifiedFile({ name: file.name, storagePath: file.storage_path, sha256: file.sha256 });
   const content = utf8Text(bytes);

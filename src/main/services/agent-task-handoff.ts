@@ -1,4 +1,5 @@
-import { readVerifiedFile } from "./files/file-object-store";
+import { agentCanReadFile, readVerifiedFile } from "./files/file-object-store";
+import { noAccess } from "./agent-attachment-tools";
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import type { DatabaseSync } from "node:sqlite";
@@ -24,6 +25,8 @@ export const HANDOFF_TOOL_PROPERTIES = {
 export function buildTaskHandoff(
   db: DatabaseSync,
   orgId: string,
+  agentId: string,
+  assignee: { id: string; name: string } | null,
   source: { taskId: string | null; threadId: string | null },
   args: JsonRecord,
 ): TaskHandoff {
@@ -31,6 +34,11 @@ export function buildTaskHandoff(
     const file = db.prepare("select id, name, storage_path, sha256 from file_objects where id = ? and org_id = ?")
       .get(fileId, orgId) as { id: string; name: string; storage_path: string; sha256: string } | undefined;
     if (!file) throw new Error(`No file with file_id "${fileId}" exists in this company.`);
+    // A task's assignee gets its inputs, so only files the delegating agent may read can be handed on.
+    if (!agentCanReadFile(db, orgId, file.id, agentId)) throw new Error(noAccess(file.name));
+    if (assignee && !agentCanReadFile(db, orgId, file.id, assignee.id)) {
+      throw new Error(`${assignee.name} has no access to ${file.name}; it was shared in a conversation they are not part of. Share it with them or assign someone who has it.`);
+    }
     // The handoff pins the recorded content; bytes that no longer match it are refused, not pinned as if they were.
     readVerifiedFile({ name: file.name, storagePath: file.storage_path, sha256: file.sha256 });
     return { fileId: file.id, name: file.name, sha256: file.sha256 };

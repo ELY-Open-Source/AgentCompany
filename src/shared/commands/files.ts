@@ -1,5 +1,7 @@
 export interface ImportFileInput {
   orgId: string;
+  /** The conversation the file is attached in; a direct or restricted one keeps the file to its members. */
+  spaceId?: string;
 }
 
 export interface OpenFileInput {

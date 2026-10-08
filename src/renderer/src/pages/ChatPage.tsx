@@ -175,7 +175,7 @@ export function ChatPage({ snapshot, actions }: PageProps) {
   };
 
   const importAttachment = (onSelect: (fileId: string) => void) => {
-    void window.agentCompany.importFile({ orgId }).then((result) => {
+    void window.agentCompany.importFile({ orgId, ...(activeSpaceId ? { spaceId: activeSpaceId } : {}) }).then((result) => {
       if (!result.ok) throw new Error(result.error.message);
       if (result.data) onSelect(result.data);
     });

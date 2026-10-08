@@ -483,8 +483,8 @@ describe("domain services", () => {
         goal: "Ship a verified control plane.",
       });
     });
-    const cleanFileId = fileService.importPath(orgId, cleanPath);
-    const blockedFileId = fileService.importPath(orgId, secretPath);
+    const cleanFileId = fileService.importPath(orgId, cleanPath, null);
+    const blockedFileId = fileService.importPath(orgId, secretPath, null);
 
     const state = snapshot.load();
     const cleanFile = state.files.find((file) => file.id === cleanFileId);

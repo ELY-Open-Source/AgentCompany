@@ -49,7 +49,7 @@ export const platformContracts = {
   setScheduledPostState: z.strictObject({
     orgId: id, scheduledPostId: id, state: z.enum(["draft", "scheduled", "published", "cancelled"]), employeeId: id,
   }) satisfies z.ZodType<C.SetScheduledPostStateInput>,
-  importFile: z.strictObject({ orgId: id }) satisfies z.ZodType<C.ImportFileInput>,
+  importFile: z.strictObject({ orgId: id, spaceId: id.optional() }) satisfies z.ZodType<C.ImportFileInput>,
   openFile: z.strictObject({ orgId: id, fileId: id }) satisfies z.ZodType<C.OpenFileInput>,
   setFilePinned: z.strictObject({ orgId: id, fileId: id, pinned: z.boolean() }) satisfies z.ZodType<C.SetFilePinnedInput>,
   createMigrationReport: z.strictObject({ orgId: id, sourceDatabasePath: z.string() }) satisfies z.ZodType<C.CreateMigrationReportInput>,
