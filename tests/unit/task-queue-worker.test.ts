@@ -55,6 +55,34 @@ describe("task queue worker claim", () => {
     connection.close();
   });
 
+  test("within a lane, higher-priority tasks are claimed first, then oldest first", () => {
+    const connection = new DatabaseConnection(join(tmpdir(), `ac-queue-${randomUUID()}.db`));
+    const organization = new OrganizationService(connection.db);
+    let orgId = "";
+    let providerId = "";
+    const tasks: Record<string, { taskId: string; agentId: string }> = {};
+    connection.transaction(() => {
+      orgId = organization.createOrganization({ organizationName: "Acme", employeeName: "Dana", mission: "m", goal: "g" });
+      providerId = (connection.db.prepare("select id from providers where org_id = ? and provider_key = 'openai'").get(orgId) as { id: string }).id;
+      for (const [name, priority] of [["low", TASK_PRIORITY.LOW], ["normal", TASK_PRIORITY.NORMAL], ["high", TASK_PRIORITY.HIGH]] as const) {
+        const agentId = organization.createAgent({ orgId, name: `Agent ${name}`, role: "Staff", department: "Operations", modelProviderId: providerId, modelId: "gpt-5.4", budgetCents: 1000, managerAgentId: null });
+        const taskId = organization.createTask({
+          orgId, title: name, description: "d", status: TASK_STATUS.BACKLOG, assigneeAgentId: agentId,
+          risk: RISK_LEVEL.LOW, projectId: null, goalId: null, workspaceId: null, priority, requiresFilesystem: false,
+        });
+        tasks[name] = { taskId, agentId };
+      }
+    });
+    const runs: Record<string, string> = {};
+    for (const [index, name] of ["low", "normal", "high"].entries()) {
+      runs[name] = seedQueuedRun(connection, orgId, tasks[name].taskId, tasks[name].agentId, providerId);
+      connection.db.prepare("update task_runs set created_at = ? where id = ?").run(`2026-01-0${index + 1}T00:00:00.000Z`, runs[name]);
+    }
+    expect([claimNextQueuedRun(connection)?.id, claimNextQueuedRun(connection)?.id, claimNextQueuedRun(connection)?.id])
+      .toEqual([runs.high, runs.normal, runs.low]);
+    connection.close();
+  });
+
   test("leaves runs of a cooling-down provider queued instead of claiming them", () => {
     const connection = new DatabaseConnection(join(tmpdir(), `ac-queue-${randomUUID()}.db`));
     const organization = new OrganizationService(connection.db);

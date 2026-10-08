@@ -37,35 +37,25 @@ export function isAutonomousPaused(connection: DatabaseConnection): boolean {
   return row?.autorun_paused === 1;
 }
 
-/**
- * Atomically claims the next queued task_run by transitioning it
- * `queued` -> `running` in one transaction; returns the claimed run or null.
- * Runs whose provider sits in a transient-failure cooldown are left queued —
- * they would fail on arrival, and waiting costs nothing.
- *
- * Claim order is interactive-first: a wake triggered by a human message
- * (the founder DMing the CEO, a board member asking in a channel) means a
- * person is waiting at the keyboard, so it outranks any amount of queued
- * autonomous work; within each lane, first come first served. Non-chat runs
- * carry no sourceSenderType and fall into the autonomous lane. An agent
- * runs one session at a time: its queued runs wait while one is running.
- * A workspace takes one writing run at a time: write-granted runs wait.
- */
+/** Claims the next queued run atomically: human wakes first, then task priority, then age; skips cooling providers, busy agents and busy workspace writers. */
 export function claimNextQueuedRun(connection: DatabaseConnection, excludedProviderIds: string[] = [], lane: ClaimLane = "any"): QueuedRun | null {
   return connection.transaction(() => {
     const exclusion = excludedProviderIds.length > 0
-      ? `and provider_id not in (${excludedProviderIds.map(() => "?").join(", ")})`
+      ? `and task_runs.provider_id not in (${excludedProviderIds.map(() => "?").join(", ")})`
       : "";
     const laneFilter = lane === "interactive"
-      ? "and json_extract(secret_scope_json, '$.sourceSenderType') in ('employee', 'board')"
+      ? "and json_extract(task_runs.secret_scope_json, '$.sourceSenderType') in ('employee', 'board')"
       : "";
     const candidates = connection.db
       .prepare(`
-        select id, org_id, provider_id, task_id from task_runs where state = 'queued' ${exclusion} ${laneFilter}
+        select task_runs.id, task_runs.org_id, task_runs.provider_id, task_runs.task_id
+        from task_runs join tasks on tasks.id = task_runs.task_id
+        where task_runs.state = 'queued' ${exclusion} ${laneFilter}
           and not exists (select 1 from task_runs busy where busy.state = 'running' and busy.agent_id = task_runs.agent_id)
         order by
-          case when json_extract(secret_scope_json, '$.sourceSenderType') in ('employee', 'board') then 0 else 1 end asc,
-          created_at asc
+          case when json_extract(task_runs.secret_scope_json, '$.sourceSenderType') in ('employee', 'board') then 0 else 1 end asc,
+          case tasks.priority when 'high' then 0 when 'normal' then 1 else 2 end asc,
+          task_runs.created_at asc
       `)
       .all(...excludedProviderIds) as unknown as Array<QueuedRun & { task_id: string }>;
     const candidate = candidates.find((run) => runningWorkspaceWriter(connection.db, run.task_id) === null);
