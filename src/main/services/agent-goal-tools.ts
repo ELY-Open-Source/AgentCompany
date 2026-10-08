@@ -173,7 +173,7 @@ async function runAudit(
       "The executor's claim:",
       evidence,
       `Inspect the work before deciding: list_files and read_file for the workspace, list_documents and read_document for the library. An approval counts only after you have read some of it. ${canRun ? "run_command runs in a throwaway copy of the workspace: build and run the tests yourself instead of trusting claims that they pass; nothing you do there reaches the real workspace." : "You cannot run commands here, so a claim that something was run or passes is unverified unless the workspace holds its results."} Judge outcomes, not artifacts about outcomes: plans, specs, status reports, and skeletons do not make a goal achieved; working deliverables do. If the goal promises software, look for the actual implementation, not documents describing it.`,
-      "End your final message with exactly one marker: <approved/> if the goal is genuinely achieved, or <disapproved/> followed by one short sentence naming the decisive gap.",
+      "Keep your reasoning apart from your decision. End your final message with the decision alone on its last line: <approved/> by itself if the goal is genuinely achieved, or <disapproved/> followed by one short sentence naming the decisive gap. Use no marker anywhere else.",
     ].join("\n\n"),
   }];
   const instructions = "You are the independent completion auditor. You did not do the work and owe its author nothing; your only loyalty is to what actually exists. Be strict: an unverifiable claim is a false claim.";
@@ -225,10 +225,14 @@ async function runAuditTool(deps: AgentToolDeps, ctx: AgentToolContext, call: To
   }
 }
 
+/** Approved only when the last line is <approved/> alone and no other marker appears; quoted, indented or hedged markers do not count. */
 function parseVerdict(text: string): AuditVerdict {
-  const reason = text.replace(/<\/?(approved|disapproved)\s*\/?>/gi, " ").replace(/\s+/g, " ").trim();
-  if (/<approved\s*\/>/i.test(text)) return { approved: true, reason: reason || "no gaps found" };
-  return { approved: false, reason: reason || "the auditor did not state an explicit approval" };
+  const markers = text.match(/<\/?\s*(approved|disapproved)\s*\/?>/gi) ?? [];
+  const reason = text.replace(/<\/?\s*(approved|disapproved)\s*\/?>/gi, " ").replace(/\s+/g, " ").trim();
+  const lastLine = text.split("\n").map((line) => line.trimEnd()).filter(Boolean).at(-1);
+  if (markers.length === 1 && lastLine === "<approved/>") return { approved: true, reason: reason || "no gaps found" };
+  if (markers.some((marker) => /disapproved/i.test(marker))) return { approved: false, reason: reason || "the auditor disapproved without a reason" };
+  return { approved: false, reason: reason ? `${reason} (no <approved/> alone on the last line)` : "the auditor did not end with <approved/> alone on the last line" };
 }
 
 function actorIsCeoOrGoalOwner(deps: AgentToolDeps, ctx: AgentToolContext, ownerAgentId: string | null): boolean {

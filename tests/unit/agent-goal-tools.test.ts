@@ -97,7 +97,7 @@ describe("complete_goal with independent audit", () => {
       const readResult = input.messages.at(-1);
       expect(readResult?.role).toBe("tool");
       expect(input.messages.at(-2)).toMatchObject({ role: "assistant", replay });
-      return turnOf("The implementation exists and runs. <approved/>");
+      return turnOf("The implementation exists and runs.\n<approved/>");
     };
 
     const readOnly = argsFor(h, h.ceoId, auditor, call({ evidence: "src/index.ts implements the app and runs." }));
@@ -128,7 +128,7 @@ describe("complete_goal with independent audit", () => {
         ranIn = results[1].output;
         return turnOf("Reading.", [{ id: "c3", name: "read_file", arguments: { path: "built.txt" } }]);
       }
-      return turnOf("Tests pass when run. <approved/>");
+      return turnOf("Tests pass when run.\n<approved/>");
     };
     const output = await completeGoalTool(argsFor(h, h.ceoId, auditor, call({ evidence: "All tests pass." })));
     expect(output).toContain("achieved");
@@ -199,7 +199,7 @@ describe("complete_goal with independent audit", () => {
     const auditor = async (input: AuditorInput): Promise<AuditorTurn> => {
       const last = input.messages.at(-1);
       prompts.push(last && "text" in last ? String(last.text) : "");
-      return turnOf("Looks done. <approved/>");
+      return turnOf("Looks done.\n<approved/>");
     };
     const output = await completeGoalTool(argsFor(h, h.ceoId, auditor, call({ evidence: "Trust me." })));
     expect(output).toContain("audit rejected");
@@ -221,7 +221,7 @@ describe("complete_goal with independent audit", () => {
       turnOf("History only.", [{ id: "c3", name: "read_document", arguments: { doc_id: docId, history: true } }]),
       turnOf("<approved/>"),
       turnOf("Reading the report.", [{ id: "c2", name: "read_document", arguments: { doc_id: docId } }]),
-      turnOf("The report shows customers. <approved/>"),
+      turnOf("The report shows customers.\n<approved/>"),
     ];
     const seen: string[][] = [];
     const histories: AuditorInput["messages"][] = [];
@@ -238,6 +238,30 @@ describe("complete_goal with independent audit", () => {
     // The sent-back approval keeps its reasoning for the next turn.
     expect(histories[2].at(-2)).toMatchObject({ role: "assistant", replay });
     h.connection.close();
+  });
+
+  test("only a final message that ends in a single approval marker closes the goal", async () => {
+    const verdicts: Array<[string, string]> = [
+      ["<approved/> on style, but <disapproved/> the tests fail.", "active"],
+      ["I would write <approved/> if the tests passed. They do not.", "active"],
+      ["Everything checks out: `<approved/>`", "active"],
+      ["<approved/> <approved/>", "active"],
+      ["The example approval token is:\n> <approved/>", "active"],
+      ["Verified. <approved/>", "active"],
+      ["Example:\n    <approved/>", "active"],
+      ["The build and tests pass.\n<approved/>\n", "achieved"],
+    ];
+    for (const [verdict, expected] of verdicts) {
+      const h = createHarness();
+      let turns = 0;
+      const auditor = async (): Promise<AuditorTurn> => {
+        turns += 1;
+        return turns === 1 ? turnOf("Reading.", [{ id: "c1", name: "read_file", arguments: { path: "src/index.ts" } }]) : turnOf(verdict);
+      };
+      await completeGoalTool(argsFor(h, h.ceoId, auditor, call({ evidence: "src/index.ts works" })));
+      expect([verdict, goalStatus(h)]).toEqual([verdict, expected]);
+      h.connection.close();
+    }
   });
 
   test("no explicit approval means not achieved", async () => {
