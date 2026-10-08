@@ -3,10 +3,10 @@ import { KnowledgeService } from "./knowledge-service";
 
 const MEMORY_CHARS = 2_000;
 
-/** Keeps what a finished or failed run of real work concluded, so later runs can find it. */
+/** Keeps what a run of real work concluded, for its project or the whole company. */
 export function recordRunMemory(
   db: DatabaseSync,
-  input: { orgId: string; runId: string; taskTitle: string; outcome: "completed" | "failed"; text: string },
+  input: { orgId: string; runId: string; projectId: string | null; taskTitle: string; outcome: "completed" | "failed"; text: string },
 ): void {
   const text = input.text.trim();
   if (!text) return;
@@ -18,5 +18,9 @@ export function recordRunMemory(
     importance: "normal",
     sourceType: "task_run",
     sourceId: input.runId,
+    scopeType: input.projectId ? "project" : "organization",
+    scopeId: input.projectId,
+    validUntil: null,
+    supersedesId: null,
   });
 }

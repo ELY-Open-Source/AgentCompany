@@ -56,6 +56,9 @@ describe("run memory", () => {
       topic: expect.stringMatching(/^Outcome: /), category: "run_outcome",
       content: "Chose Postgres for bookings; MySQL lacked the JSON features we need.", source_type: "task_run",
     }]);
+    const project = (h.connection.db.prepare("select t.project_id from tasks t join task_runs r on r.task_id = t.id where r.id = ?").get(kickoff.id) as { project_id: string | null }).project_id;
+    expect(project).not.toBeNull();
+    expect(h.connection.db.prepare("select scope_type, scope_id from knowledge_entries").get()).toEqual({ scope_type: "project", scope_id: project });
     h.connection.close();
   });
 

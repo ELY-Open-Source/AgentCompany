@@ -419,6 +419,10 @@ export interface KnowledgeEntryRecord {
   importance: string;
   sourceType: string;
   sourceId: string | null;
+  scopeType: string;
+  scopeId: string | null;
+  validUntil: string | null;
+  supersededBy: string | null;
   createdAt: string;
   updatedAt: string;
 }

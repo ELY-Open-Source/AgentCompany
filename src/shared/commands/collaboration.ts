@@ -23,6 +23,8 @@ export interface DeleteDocumentInput {
   documentId: string;
 }
 
+export type KnowledgeScopeType = "organization" | "project" | "goal" | "task" | "agent";
+
 export interface CreateKnowledgeEntryInput {
   orgId: string;
   topic: string;
@@ -31,6 +33,13 @@ export interface CreateKnowledgeEntryInput {
   importance: string;
   sourceType: string;
   sourceId: string | null;
+  scopeType: KnowledgeScopeType;
+  /** Required unless the scope is organization. */
+  scopeId: string | null;
+  /** UTC ISO time the entry stops applying, or null. */
+  validUntil: string | null;
+  /** An older entry this one replaces. */
+  supersedesId: string | null;
 }
 
 export interface DeleteKnowledgeEntryInput {

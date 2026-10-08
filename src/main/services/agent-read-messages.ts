@@ -1,5 +1,5 @@
 import { attachmentNote } from "./agent-attachment-tools";
-import { optionalLimit, optionalString } from "./agent-tool-args";
+import { optionalLimit, optionalString, utcTimestamp } from "./agent-tool-args";
 import type { AgentToolContext, AgentToolDeps } from "./agent-tools";
 import type { JsonRecord } from "./provider-http";
 
@@ -124,10 +124,8 @@ function beforeCursor(deps: AgentToolDeps, orgId: string, text: string | null): 
     if (!row) throw new Error(`No message with id "${text}".`);
     return { createdAt: row.created_at, rowid: row.row_id };
   }
-  const match = /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(\.\d{3})?Z$/.exec(text);
-  const normalized = match ? `${match[1]}${match[2] ?? ".000"}Z` : "";
-  const time = new Date(normalized);
-  if (!match || Number.isNaN(time.getTime()) || time.toISOString() !== normalized) {
+  const normalized = utcTimestamp(text);
+  if (!normalized) {
     throw new Error(`"before" must be a message_id from a previous page or a UTC ISO timestamp like 2026-01-31T09:00:00Z, got "${text}".`);
   }
   return { createdAt: normalized, rowid: -1 };

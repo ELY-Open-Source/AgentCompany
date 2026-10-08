@@ -127,8 +127,8 @@ export class TaskExecutionService {
         action: "failed",
         payload: { taskId: run.task_id, agentId: run.agent_id, providerId: run.provider_id, stage: "preparation", errorMessage: message },
       });
-      const task = this.db.prepare("select title, origin from tasks where id = ?").get(run.task_id) as { title: string; origin: string | null } | undefined;
-      if (task && task.origin === null) recordRunMemory(this.db, { orgId, runId, taskTitle: task.title, outcome: "failed", text: message });
+      const task = this.db.prepare("select title, origin, project_id from tasks where id = ?").get(run.task_id) as { title: string; origin: string | null; project_id: string | null } | undefined;
+      if (task && task.origin === null) recordRunMemory(this.db, { orgId, runId, projectId: task.project_id, taskTitle: task.title, outcome: "failed", text: message });
       throw error;
     }
     return this.executeAgentRun(prepared);
@@ -195,7 +195,7 @@ export class TaskExecutionService {
             managerName: this.agentName(orgId, agent.manager_agent_id),
             chatContext,
             handoffLines: renderTaskHandoff(this.db, orgId, task.handoff_json),
-            knowledgeLines: relevantKnowledgeLines(this.db, orgId, `${task.title}\n${task.description}`),
+            knowledgeLines: relevantKnowledgeLines(this.db, { orgId, agentId: agent.id, projectId: task.project_id, goalId: task.goal_id, taskId: task.id }, `${task.title}\n${task.description}`),
             priorCompletedRuns: this.completedRunCount(task.id, runId),
           }),
           toolContext,
@@ -223,7 +223,7 @@ export class TaskExecutionService {
       }
       this.completeRun(orgId, runId, result.lastRequestId);
       this.cooldowns.clear(provider);
-      if (task.origin === null) recordRunMemory(this.db, { orgId, runId, taskTitle: task.title, outcome: "completed", text: result.finalText });
+      if (task.origin === null) recordRunMemory(this.db, { orgId, runId, projectId: task.project_id, taskTitle: task.title, outcome: "completed", text: result.finalText });
       this.audit.record({
         orgId,
         entityType: "task_run",
@@ -248,7 +248,7 @@ export class TaskExecutionService {
       const message = error instanceof Error ? error.message : String(error);
       this.failRun(orgId, runId, providerRequestId, message);
       if (isTransientProviderFailure(message)) this.cooldowns.park(provider, message);
-      else if (task.origin === null) recordRunMemory(this.db, { orgId, runId, taskTitle: task.title, outcome: "failed", text: message });
+      else if (task.origin === null) recordRunMemory(this.db, { orgId, runId, projectId: task.project_id, taskTitle: task.title, outcome: "failed", text: message });
       this.audit.record({
         orgId,
         entityType: "task_run",

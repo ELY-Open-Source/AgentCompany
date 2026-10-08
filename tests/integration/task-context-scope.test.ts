@@ -65,8 +65,8 @@ describe("task prompt scope", () => {
     await execution.executeRun(kickoff!.org_id, kickoff!.id);
 
     const task = connection.db.prepare("select id from tasks where org_id = ? and title = 'Build the booking API'").get(orgId) as { id: string };
-    new KnowledgeService(connection.db).create({ orgId, topic: "Booking storage", category: "decision", content: "Bookings live in Postgres.", importance: "high", sourceType: "employee", sourceId: null });
-    new KnowledgeService(connection.db).create({ orgId, topic: "Offsite venue", category: "fact", content: "Lisbon in May.", importance: "low", sourceType: "employee", sourceId: null });
+    new KnowledgeService(connection.db).create({ orgId, topic: "Booking storage", category: "decision", content: "Bookings live in Postgres.", importance: "high", sourceType: "employee", sourceId: null, scopeType: "organization", scopeId: null, validUntil: null, supersedesId: null });
+    new KnowledgeService(connection.db).create({ orgId, topic: "Offsite venue", category: "fact", content: "Lisbon in May.", importance: "low", sourceType: "employee", sourceId: null, scopeType: "organization", scopeId: null, validUntil: null, supersedesId: null });
     await execution.runTask({ orgId, taskId: task.id });
 
     const danaId = (connection.db.prepare("select id from agents where org_id = ? and name = 'Dana Lee'").get(orgId) as { id: string }).id;

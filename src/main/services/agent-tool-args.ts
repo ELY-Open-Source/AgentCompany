@@ -30,3 +30,18 @@ export function optionalEnum(value: unknown, field: string, allowed: readonly st
   if (typeof value !== "string" || !allowed.includes(value)) throw new Error(`"${field}" must be one of: ${allowed.join(", ")}.`);
   return value;
 }
+
+/** The text as a normalized UTC ISO timestamp, or undefined when it is not one. */
+export function utcTimestamp(text: string): string | undefined {
+  const match = /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(\.\d{3})?Z$/.exec(text);
+  if (!match) return undefined;
+  const normalized = `${match[1]}${match[2] ?? ".000"}Z`;
+  const time = new Date(normalized);
+  return !Number.isNaN(time.getTime()) && time.toISOString() === normalized ? normalized : undefined;
+}
+
+/** Omitted means null; anything supplied must be a non-blank string. */
+export function optionalText(value: unknown, field: string): string | null {
+  if (value === undefined) return null;
+  return requireString(value, field);
+}
