@@ -6,7 +6,7 @@ import { DatabaseConnection } from "../../src/main/database/connection";
 import { OrganizationService } from "../../src/main/services/organization-service";
 import { ChatService } from "../../src/main/services/chat-service";
 import { SkillService } from "../../src/main/services/skill-service";
-import { dispatchAgentTool, type AgentToolContext } from "../../src/main/services/agent-tools";
+import { AGENT_TOOLS, dispatchAgentTool, type AgentToolContext } from "../../src/main/services/agent-tools";
 
 function call(name: string, args: Record<string, unknown>) {
   return { id: `call_${randomUUID()}`, name, arguments: args };
@@ -75,6 +75,20 @@ function importSkill(h: Harness, name: string, slug: string): void {
 }
 
 describe("skill grants", () => {
+  test("the CEO runs only with granted skills, as the tool text says, and can grant itself", () => {
+    const h = harness();
+    importSkill(h, "Release Gate", "release-gate");
+    const listSkills = AGENT_TOOLS.find((tool) => tool.name === "list_skills");
+    expect(listSkills?.description).not.toContain("every skill automatically");
+    expect(listSkills?.description).toContain("the CEO included");
+    const skills = new SkillService(h.connection.db, "");
+    expect(skills.hasRuntimeSkills(h.orgId, h.ceoId)).toBe(false);
+    expect(dispatchAgentTool(h.deps, h.ceoCtx, call("grant_skill", { agent_name: "CEO", skill: "release-gate" })))
+      .toBe("CEO now has the Release Gate skill; it joins their next run.");
+    expect(skills.hasRuntimeSkills(h.orgId, h.ceoId)).toBe(true);
+    h.connection.close();
+  });
+
   test("the CEO grants and revokes skills for teammates", () => {
     const h = harness();
     importSkill(h, "Release Gate", "release-gate");

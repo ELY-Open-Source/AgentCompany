@@ -200,12 +200,12 @@ export const AGENT_TOOLS: ToolDefinition[] = [
   },
   {
     name: "list_skills",
-    description: "See the company's skill library and who holds each skill. You carry every skill automatically as CEO; teammates only run with skills you grant them.",
+    description: "See the company's skill library and who holds each skill. A skill joins an agent's runs only once granted, the CEO included; house-style skills are carried by everyone.",
     parameters: { type: "object", additionalProperties: false, properties: {}, required: [] },
   },
   {
     name: "grant_skill",
-    description: "CEO only: grant a teammate one of the company's skills so its instructions join their next run. Match the skill to the job.",
+    description: "CEO only: grant a teammate, or yourself, one of the company's skills so its instructions join their next run. Match the skill to the job.",
     parameters: {
       type: "object",
       additionalProperties: false,

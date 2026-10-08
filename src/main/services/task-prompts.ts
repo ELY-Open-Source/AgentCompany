@@ -132,7 +132,7 @@ function capabilityBriefing(input: AgentInstructionContext): string {
   );
   if (input.isCeo) {
     lines.push(
-      "You are the CEO: you automatically carry every connected service, and access for everyone else is yours to manage — when you delegate work that needs an external service, grant it first with grant_connector and take it back with revoke_connector when done. The company also ships a built-in skill library: staff every hire with the skills their role needs by passing skills to hire_agent (several per person is normal), and adjust later with grant_skill / revoke_skill. A teammate without the grant cannot use the tool or skill, so grant before you assign. The humanizer skill is company house style — every agent, you included, carries it automatically and must write like a person, not like an AI.",
+      "You are the CEO: you automatically carry every connected service, and access for everyone else is yours to manage — when you delegate work that needs an external service, grant it first with grant_connector and take it back with revoke_connector when done. The company also ships a built-in skill library: staff every hire with the skills their role needs by passing skills to hire_agent (several per person is normal), and adjust later with grant_skill / revoke_skill. You run only with skills granted to you too: grant yourself a playbook before you rely on it. A teammate without the grant cannot use the tool or skill, so grant before you assign. The humanizer skill is company house style — every agent, you included, carries it automatically and must write like a person, not like an AI.",
     );
   } else if (input.connectorNames.length === 0) {
     lines.push(
