@@ -66,3 +66,32 @@ describe("an expired sign-in is refreshed once, however many runs need it", () =
     h.connection.close();
   });
 });
+
+describe("model lists use the same renewal path as runs", () => {
+  test("listing a signed-in provider's models refreshes an expired sign-in first, as a run would", async () => {
+    const tokenCalls: string[] = [];
+    const modelAuth: string[] = [];
+    vi.stubGlobal("fetch", async (url: string, init: RequestInit) => {
+      if (String(url).includes("/v1/models")) {
+        const auth = new Headers(init.headers).get("authorization") ?? "";
+        modelAuth.push(auth);
+        if (auth !== "Bearer access-1") return new Response(JSON.stringify({ error: { type: "authentication_error", message: "expired" } }), { status: 401, headers: { "content-type": "application/json" } });
+        return new Response(JSON.stringify({ data: [{ id: "claude-sonnet-4-5", display_name: "Sonnet" }], has_more: false }), { status: 200, headers: { "content-type": "application/json" } });
+      }
+      tokenCalls.push((JSON.parse(String(init.body)) as { refresh_token: string }).refresh_token);
+      return new Response(JSON.stringify({ access_token: "access-1", refresh_token: "refresh-1", expires_in: 3600 }), { status: 200, headers: { "content-type": "application/json" } });
+    });
+    const connection = new DatabaseConnection(join(tmpdir(), `ac-list-${randomUUID()}.db`));
+    const providers = new ProviderService(connection.db, providerAdapters, vault);
+    let orgId = "";
+    let providerId = "";
+    connection.transaction(() => {
+      orgId = new OrganizationService(connection.db).createOrganization({ organizationName: "Acme", employeeName: "Dana", mission: "m", goal: "g" });
+      providerId = (connection.db.prepare("select id from providers where org_id = ? and provider_key = 'claude-pro'").get(orgId) as { id: string }).id;
+      providers.saveCredential({ orgId, providerId, secret: JSON.stringify({ access: "access-0", refresh: "refresh-0", expires: 0 }), model: "claude-sonnet-4-5" });
+    });
+    expect((await providers.listModels({ providerKey: "claude-pro", orgId, providerId })).map((model) => model.id)).toEqual(["claude-sonnet-4-5"]);
+    expect([tokenCalls, modelAuth]).toEqual([["refresh-0"], ["Bearer access-1"]]);
+    connection.close();
+  });
+});

@@ -17,6 +17,7 @@ import { ProviderResponseRunner, type ProviderResponseCreateInput } from "./prov
 import type { ToolTurnFn } from "./provider-tool-turn";
 import { stopRun } from "./run-control";
 import type { ModelCheckResult } from "../../shared/desktop-api";
+import { resolveTurnCredential } from "./provider-tool-turns/credential-resolver";
 import {
   AUTH_STATE_CONFIGURED,
   AUTH_STATE_REVOKED,
@@ -177,6 +178,8 @@ export class ProviderService {
     if (!input.orgId || !input.providerId) throw new Error("A credential is required to list provider models.");
     const provider = loadConfiguredProvider(this.db, input.orgId, input.providerId);
     const adapter = requireAdapter(this.adapters, provider.provider_key, provider.auth_type);
+    // Renew an expired sign-in the way a run does, so the list and the runs agree on whether the account works.
+    await resolveTurnCredential({ authBroker: this.authBroker, integrationKeys: this.integrationKeys, orgId: input.orgId, provider });
     const credential = loadCredential(this.authBroker, input.orgId, provider);
     const authProfile = adapter.parseAuthProfile(credential.secret);
     return adapter.listModels({ authProfile, model: provider.model });
