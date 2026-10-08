@@ -3,6 +3,12 @@ import { optionalString } from "./agent-tool-args";
 import type { AgentToolContext, AgentToolDeps } from "./agent-tools";
 import type { JsonRecord } from "./provider-http";
 
+interface Sender {
+  sender_type: string;
+  sender_name: string;
+  sender_role: string | null;
+}
+
 interface MessageFilter {
   before: { createdAt: string; rowid: number } | null;
   query: string | null;
@@ -59,11 +65,12 @@ function messagePage(
   label: string,
 ): string {
   const rows = deps.db.prepare(`
-    select m.id, m.rowid as row_id, m.body_md, m.created_at, m.thread_id,
-           coalesce(a.name, e.display_name, m.sender_type) as sender_name
+    select m.id, m.rowid as row_id, m.body_md, m.created_at, m.thread_id, m.sender_type,
+           coalesce(a.name, e.display_name, m.sender_type) as sender_name,
+           coalesce(a.role, e.role) as sender_role
     from chat_messages m
     left join agents a on a.id = m.sender_id and m.sender_type = 'agent'
-    left join employees e on e.id = m.sender_id and m.sender_type = 'employee'
+    left join employees e on e.id = m.sender_id and m.sender_type in ('employee', 'board')
     where m.${scope.column} = ? and m.org_id = ? and m.deleted_at is null
       and (? is null or m.created_at < ? or (m.created_at = ? and m.rowid < ?))
       and (? is null or instr(lower(m.body_md), lower(?)) > 0)
@@ -73,24 +80,25 @@ function messagePage(
     scope.id, orgId,
     filter.before?.createdAt ?? null, filter.before?.createdAt ?? null, filter.before?.createdAt ?? null, filter.before?.rowid ?? null,
     filter.query, filter.query, filter.limit + 1,
-  ) as Array<{ id: string; row_id: number; body_md: string; created_at: string; thread_id: string; sender_name: string }>;
+  ) as unknown as Array<{ id: string; row_id: number; body_md: string; created_at: string; thread_id: string } & Sender>;
   if (rows.length === 0) return `No messages${filter.query ? ` matching "${filter.query}"` : ""}${filter.before ? " before that point" : ""} in ${label}.`;
   const page = rows.slice(0, filter.limit).reverse();
-  const lines = page.map((m) => `[${m.created_at}] ${m.sender_name} (thread=${m.thread_id}): ${m.body_md}${attachmentNote(deps.db, m.id)}`);
+  const lines = page.map((m) => `[${m.created_at}] ${senderLabel(m)} (thread=${m.thread_id}): ${m.body_md}${attachmentNote(deps.db, m.id)}`);
   if (rows.length > filter.limit) lines.unshift(`(Older messages exist: pass before="${page[0].id}" to read them.)`);
   return lines.join("\n");
 }
 
 function unansweredMentions(deps: AgentToolDeps, ctx: AgentToolContext, limit: number): string {
   const rows = deps.db.prepare(`
-    select m.id, m.body_md,
+    select m.id, m.body_md, m.sender_type,
            coalesce(a.name, e.display_name, m.sender_type) as sender_name,
+           coalesce(a.role, e.role) as sender_role,
            m.thread_id, s.name as channel_name, s.space_type
     from chat_mentions cm
     join chat_messages m on m.id = cm.message_id
     join chat_spaces s on s.id = m.space_id
     left join agents a on a.id = m.sender_id and m.sender_type = 'agent'
-    left join employees e on e.id = m.sender_id and m.sender_type = 'employee'
+    left join employees e on e.id = m.sender_id and m.sender_type in ('employee', 'board')
     where cm.target_type = 'agent' and cm.target_id = ? and m.org_id = ? and m.deleted_at is null
       and not exists (
         select 1 from chat_messages reply
@@ -99,11 +107,11 @@ function unansweredMentions(deps: AgentToolDeps, ctx: AgentToolContext, limit: n
       )
     order by m.created_at desc
     limit ?
-  `).all(ctx.agent.id, ctx.orgId, limit) as Array<{ id: string; body_md: string; sender_name: string; thread_id: string; channel_name: string; space_type: string }>;
+  `).all(ctx.agent.id, ctx.orgId, limit) as unknown as Array<{ id: string; body_md: string; thread_id: string; channel_name: string; space_type: string } & Sender>;
   if (rows.length === 0) return "No unanswered mentions.";
   return rows.reverse().map((m) => {
     const where = m.space_type === "direct" ? "in your direct conversation" : `in #${m.channel_name}`;
-    return `[${m.sender_name} ${where}] (thread=${m.thread_id}): ${m.body_md}${attachmentNote(deps.db, m.id)}`;
+    return `[${senderLabel(m)} ${where}] (thread=${m.thread_id}): ${m.body_md}${attachmentNote(deps.db, m.id)}`;
   }).join("\n");
 }
 
@@ -123,4 +131,8 @@ function beforeCursor(deps: AgentToolDeps, orgId: string, text: string | null): 
     throw new Error(`"before" must be a message_id from a previous page or a UTC ISO timestamp like 2026-01-31T09:00:00Z, got "${text}".`);
   }
   return { createdAt: normalized, rowid: -1 };
+}
+
+function senderLabel(m: Sender): string {
+  return m.sender_role ? `${m.sender_name} (${m.sender_type}, ${m.sender_role})` : `${m.sender_name} (${m.sender_type})`;
 }

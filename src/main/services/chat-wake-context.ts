@@ -10,7 +10,7 @@ const MESSAGE_SELECT = `
          coalesce(a.role, e.role) as sender_role
   from chat_messages m
   left join agents a on a.id = m.sender_id and m.sender_type = 'agent'
-  left join employees e on e.id = m.sender_id and m.sender_type = 'employee'`;
+  left join employees e on e.id = m.sender_id and m.sender_type in ('employee', 'board')`;
 
 interface ThreadMessageRow {
   id: string;

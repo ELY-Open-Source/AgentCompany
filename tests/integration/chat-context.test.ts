@@ -90,7 +90,9 @@ async function founderLine() {
     `).run(fileId, orgId, name, content.length, path, founderId, new Date().toISOString());
     return fileId;
   };
-  return { connection, orgId, ceoId, wakePrompts, wakeInputs, say, runWake, runManually, edit, remove, onWakeTurn, addFile };
+  const sayAs = (senderType: "employee" | "board", senderId: string, bodyMd: string, threadId: string) =>
+    chat.sendMessage({ orgId, spaceId, threadId, senderType, senderId, bodyMd, attachmentFileIds: [] });
+  return { connection, orgId, ceoId, founderId, wakePrompts, wakeInputs, say, sayAs, runWake, runManually, edit, remove, onWakeTurn, addFile };
 }
 
 describe("chat wake context", () => {
@@ -285,6 +287,24 @@ describe("chat wake context", () => {
     };
     expect(dispatchAgentTool(deps, ctx, { id: "c1", name: "read_messages", arguments: { with: "Yang" } })).toContain(`[attachments: spec.md (file_id=${fileId})]`);
     expect(dispatchAgentTool(deps, ctx, { id: "c2", name: "read_attachment", arguments: { file_id: fileId } })).toContain("Ship the booking API by Friday.");
+    h.connection.close();
+  });
+
+  test("each human sender keeps their own kind and role; nobody is labeled founder", async () => {
+    const h = await founderLine();
+    h.connection.db.prepare("insert into employees(id, org_id, display_name, role, created_at) values ('emp_mia', ?, 'Mia', 'Contractor', ?)")
+      .run(h.orgId, new Date().toISOString());
+    h.connection.db.prepare("insert into chat_memberships(space_id, principal_type, principal_id, role, mute_state) select space_id, 'employee', 'emp_mia', 'member', 'none' from chat_memberships where principal_id = ?")
+      .run(h.founderId);
+    const threadId = h.say("Kick off the audit.", null);
+    h.sayAs("employee", "emp_mia", "Can I skip the audit?", threadId);
+    h.sayAs("board", h.founderId, "No skipping.", threadId);
+    await h.runWake();
+    const prompt = h.wakePrompts[0];
+    expect(prompt).toMatch(/Yang \(employee, Board Chair\): Kick off the audit\./);
+    expect(prompt).toMatch(/Mia \(employee, Contractor\): Can I skip the audit\?/);
+    expect(prompt).toMatch(/Yang \(board, Board Chair\): No skipping\./);
+    expect(prompt.toLowerCase()).not.toContain("(founder)");
     h.connection.close();
   });
 });
