@@ -17,6 +17,7 @@ interface Harness {
   orgId: string;
   ceoId: string;
   danaId: string;
+  employeeId: string;
   ceoCtx: AgentToolContext;
   danaCtx: AgentToolContext;
   deps: { db: DatabaseConnection["db"]; organization: OrganizationService; chat: ChatService };
@@ -52,6 +53,7 @@ function harness(): Harness {
     orgId,
     ceoId,
     danaId,
+    employeeId: (connection.db.prepare("select id from employees where org_id = ?").get(orgId) as { id: string }).id,
     ceoCtx: context(ceoId),
     danaCtx: context(danaId),
     deps: { db: connection.db, organization, chat: new ChatService(connection.db) },
@@ -71,7 +73,7 @@ describe("connector grants", () => {
     const h = harness();
     const grants = new ConnectorGrantsService(h.connection.db);
     expect(() => grants.grant({
-      orgId: h.orgId, agentId: h.danaId, toolkitSlug: "github", accountLabel: null, limits: { actions: null, fixedArguments: null }, grantedByType: "employee", grantedById: null,
+      orgId: h.orgId, agentId: h.danaId, toolkitSlug: "github", accountLabel: null, limits: { actions: null, fixedArguments: null }, grantedByType: "employee", grantedById: h.employeeId,
     })).toThrow(/No active connection/);
   });
 
@@ -145,6 +147,27 @@ describe("connector grants", () => {
     expect(new ConnectorGrantsService(h.connection.db).limitsForAgent(h.orgId, h.danaId, "gmail")).toEqual({ actions: null, fixedArguments: null });
   });
 
+  test("the board grants and revokes as a named employee of the company", () => {
+    const h = harness();
+    connectToolkit(h, "github", "GitHub");
+    const grants = new ConnectorGrantsService(h.connection.db);
+    const grant = (grantedById: string | null) => grants.grant({
+      orgId: h.orgId, agentId: h.danaId, toolkitSlug: "github", accountLabel: "main", limits: { actions: null, fixedArguments: null }, grantedByType: "employee", grantedById,
+    });
+    expect(() => grant(null)).toThrow("A grant by an employee must name an employee of this organization.");
+    expect(() => grant("emp_elsewhere")).toThrow("A grant by an employee must name an employee of this organization.");
+    expect(grants.toolkitsForAgent(h.orgId, h.danaId)).toEqual([]);
+    grant(h.employeeId);
+    expect(grants.toolkitsForAgent(h.orgId, h.danaId)).toEqual(["github"]);
+    grants.revoke({ orgId: h.orgId, agentId: h.danaId, toolkitSlug: "github" });
+    expect(grants.toolkitsForAgent(h.orgId, h.danaId)).toEqual([]);
+    // The page never replaces a grant the CEO shaped, even from a stale selection.
+    grants.grant({ orgId: h.orgId, agentId: h.danaId, toolkitSlug: "github", accountLabel: null, limits: { actions: ["GITHUB_LIST_ISSUES"], fixedArguments: null }, grantedByType: "agent", grantedById: h.ceoId });
+    expect(() => grants.grantFromBoard({ orgId: h.orgId, agentId: h.danaId, toolkitSlug: "github", accountLabel: "main", employeeId: h.employeeId }))
+      .toThrow('This agent already holds github through its "main" account; revoke that grant first.');
+    expect(grants.limitsForAgent(h.orgId, h.danaId, "github")).toEqual({ actions: ["GITHUB_LIST_ISSUES"], fixedArguments: null });
+  });
+
   test("staff cannot hand out connector access", () => {
     const h = harness();
     connectToolkit(h, "github", "GitHub");
@@ -157,7 +180,7 @@ describe("connector grants", () => {
     const h = harness();
     connectToolkit(h, "slack", "Slack");
     const grants = new ConnectorGrantsService(h.connection.db);
-    grants.grant({ orgId: h.orgId, agentId: h.danaId, toolkitSlug: "slack", accountLabel: null, limits: { actions: null, fixedArguments: null }, grantedByType: "employee", grantedById: null });
+    grants.grant({ orgId: h.orgId, agentId: h.danaId, toolkitSlug: "slack", accountLabel: null, limits: { actions: null, fixedArguments: null }, grantedByType: "employee", grantedById: h.employeeId });
     expect(grants.toolkitsForAgent(h.orgId, h.danaId)).toEqual(["slack"]);
     h.connection.db.prepare("update connector_accounts set status = 'EXPIRED' where org_id = ? and toolkit_slug = 'slack'").run(h.orgId);
     expect(grants.toolkitsForAgent(h.orgId, h.danaId)).toEqual([]);

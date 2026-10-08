@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ConnectorCatalogEntry } from "../../../../shared/commands";
 import type { SnapshotActions } from "../../app/useSnapshot";
+import type { DesktopResult } from "../../../../shared/result";
+import type { AppSnapshot } from "../../../../shared/domain";
 
 export type CatalogState =
   | { phase: "loading" }
@@ -24,6 +26,8 @@ export function useConnectorCatalog(orgId: string, actions: SnapshotActions): {
   connectError: string | null;
   connect: (toolkitSlug: string, label: string) => void;
   disconnect: (toolkitSlug: string, label: string) => void;
+  grant: (agentId: string, toolkitSlug: string, accountLabel: string, employeeId: string) => void;
+  revoke: (agentId: string, toolkitSlug: string) => void;
   retry: () => void;
 } {
   const [catalogSlot, setCatalogSlot] = useState<CatalogSlot>(null);
@@ -118,6 +122,18 @@ export function useConnectorCatalog(orgId: string, actions: SnapshotActions): {
       .finally(() => setBusy(null));
   }, [actions, orgId]);
 
+  // A refused grant or revoke is shown on the page, not dropped.
+  const runGrantChange = useCallback((change: () => Promise<DesktopResult<AppSnapshot>>) => {
+    setConnectError(null);
+    void actions.run(change).catch((error: unknown) => setConnectError(error instanceof Error ? error.message : String(error)));
+  }, [actions]);
+  const grant = useCallback((agentId: string, toolkitSlug: string, accountLabel: string, employeeId: string) => {
+    runGrantChange(() => window.agentCompany.grantConnector({ orgId, agentId, toolkitSlug, accountLabel, employeeId }));
+  }, [runGrantChange, orgId]);
+  const revoke = useCallback((agentId: string, toolkitSlug: string) => {
+    runGrantChange(() => window.agentCompany.revokeConnector({ orgId, agentId, toolkitSlug }));
+  }, [runGrantChange, orgId]);
+
   return {
     catalog,
     busySlug: busy?.slug ?? null,
@@ -125,6 +141,8 @@ export function useConnectorCatalog(orgId: string, actions: SnapshotActions): {
     connectError,
     connect,
     disconnect,
+    grant,
+    revoke,
     retry: load,
   };
 }

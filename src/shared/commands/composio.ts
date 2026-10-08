@@ -27,6 +27,20 @@ export interface DisconnectComposioToolkitInput {
   label: string;
 }
 
+export interface GrantConnectorInput {
+  orgId: string;
+  agentId: string;
+  toolkitSlug: string;
+  accountLabel: string;
+  employeeId: string;
+}
+
+export interface RevokeConnectorInput {
+  orgId: string;
+  agentId: string;
+  toolkitSlug: string;
+}
+
 export interface RefreshComposioAccountsInput {
   orgId: string;
 }

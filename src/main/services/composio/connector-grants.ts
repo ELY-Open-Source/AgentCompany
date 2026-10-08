@@ -40,6 +40,9 @@ export class ConnectorGrantsService {
     const agent = this.db.prepare("select id from agents where id = ? and org_id = ? and lifecycle = 'active'")
       .get(input.agentId, input.orgId);
     if (!agent) throw new Error("Grant target must be an active agent in this organization.");
+    if (input.grantedByType === "employee" && !this.db.prepare("select id from employees where id = ? and org_id = ?").get(input.grantedById, input.orgId)) {
+      throw new Error("A grant by an employee must name an employee of this organization.");
+    }
     const slug = normalizeSlug(input.toolkitSlug);
     const label = this.chooseAccount(input.orgId, slug, input.accountLabel).label;
     const actions = input.limits.actions === null ? null : JSON.stringify(normalizeActionNames(input.limits.actions));
@@ -54,12 +57,23 @@ export class ConnectorGrantsService {
         granted_by_type = excluded.granted_by_type,
         granted_by_id = excluded.granted_by_id
     `).run(createId("cgr"), input.orgId, input.agentId, slug, label, actions, fixed, input.grantedByType, input.grantedById, new Date().toISOString());
+    console.info(`[connectors] ${input.grantedByType} ${input.grantedById} granted ${slug}/${label} to ${input.agentId}`);
     return label;
+  }
+
+  /** A board grant from the Connectors page: whole access for an agent holding none of the toolkit, never replacing a grant the CEO shaped. */
+  grantFromBoard(input: { orgId: string; agentId: string; toolkitSlug: string; accountLabel: string; employeeId: string }): string {
+    const slug = normalizeSlug(input.toolkitSlug);
+    const held = this.db.prepare("select account_label from agent_connector_grants where org_id = ? and agent_id = ? and toolkit_slug = ?")
+      .get(input.orgId, input.agentId, slug) as { account_label: string } | undefined;
+    if (held) throw new Error(`This agent already holds ${slug} through its "${held.account_label}" account; revoke that grant first.`);
+    return this.grant({ orgId: input.orgId, agentId: input.agentId, toolkitSlug: slug, accountLabel: input.accountLabel, limits: NO_LIMITS, grantedByType: "employee", grantedById: input.employeeId });
   }
 
   revoke(input: { orgId: string; agentId: string; toolkitSlug: string }): void {
     this.db.prepare("delete from agent_connector_grants where org_id = ? and agent_id = ? and toolkit_slug = ?")
       .run(input.orgId, input.agentId, normalizeSlug(input.toolkitSlug));
+    console.info(`[connectors] revoked ${normalizeSlug(input.toolkitSlug)} from ${input.agentId}`);
   }
 
   /** Toolkits this agent may use: every active one for the CEO; for others, those whose granted account is active. */

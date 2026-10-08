@@ -29,6 +29,8 @@ export function ConnectedList({
   busyAction,
   onConnect,
   onDelete,
+  onGrant,
+  onRevoke,
 }: {
   accounts: ConnectorAccountRecord[];
   grants: ConnectorGrantRecord[];
@@ -38,6 +40,8 @@ export function ConnectedList({
   busyAction: "connect" | "disconnect" | null;
   onConnect: (toolkitSlug: string, label: string) => void;
   onDelete: (toolkitSlug: string, label: string) => void;
+  onGrant: (agentId: string, toolkitSlug: string, label: string) => void;
+  onRevoke: (agentId: string, toolkitSlug: string) => void;
 }) {
   const [addSlug, setAddSlug] = useState("");
   const [addLabel, setAddLabel] = useState("");
@@ -58,8 +62,10 @@ export function ConnectedList({
             .filter((grant) => grant.toolkitSlug === account.toolkitSlug && grant.accountLabel === account.label)
             .flatMap((grant) => {
               const name = agentNames.get(grant.agentId);
-              return name ? [grant.allowedActions || grant.fixedArguments ? `${name} · ${t("limited")}` : name] : [];
+              return name ? [{ agentId: grant.agentId, text: grant.allowedActions || grant.fixedArguments ? `${name} · ${t("limited")}` : name }] : [];
             });
+          // One account per toolkit per agent: only agents holding none of this toolkit can be granted here; the CEO holds all by role.
+          const grantable = agents.filter((agent) => agent.roleLevel !== "c_suite" && !grants.some((grant) => grant.agentId === agent.id && grant.toolkitSlug === account.toolkitSlug));
           const busy = busySlug !== null;
           return (
             <div key={account.id} style={{ border: "1px solid var(--border)", borderRadius: 12, padding: 14, background: "var(--panel)" }}>
@@ -86,11 +92,27 @@ export function ConnectedList({
                   />
                 </span>
               </div>
-              {holders.length > 0 && (
-                <div className="row" style={{ gap: 6, marginTop: 12, flexWrap: "wrap" }}>
-                  {holders.map((name) => <Pill key={name}>{name}</Pill>)}
-                </div>
-              )}
+              <div className="row" style={{ gap: 6, marginTop: 12, flexWrap: "wrap" }}>
+                {holders.map((holder) => (
+                  <span key={holder.agentId} className="row" style={{ gap: 2 }}>
+                    <Pill>{holder.text}</Pill>
+                    <IconButton icon="x" size={12} label={t("Revoke {name}", { name: holder.text })} disabled={busy} onClick={() => onRevoke(holder.agentId, account.toolkitSlug)} />
+                  </span>
+                ))}
+                {account.status === "ACTIVE" && grantable.length > 0 && (
+                  <select
+                    className="input"
+                    style={{ width: 160 }}
+                    value=""
+                    disabled={busy}
+                    aria-label={t("Grant {name} to", { name: `${account.toolkitName} ${account.label}` })}
+                    onChange={(event) => onGrant(event.target.value, account.toolkitSlug, account.label)}
+                  >
+                    <option value="" disabled>{t("Grant to…")}</option>
+                    {grantable.map((agent) => <option key={agent.id} value={agent.id}>{agent.name}</option>)}
+                  </select>
+                )}
+              </div>
             </div>
           );
         })}

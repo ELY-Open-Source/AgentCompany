@@ -158,7 +158,7 @@ describe("agent instruction wiring", () => {
         values ('ca_github', ?, 'github', 'GitHub', 'main', 'ac_github', 'ACTIVE', ?, ?)
       `).run(orgId, now, now);
       new ConnectorGrantsService(connection.db).grant({
-        orgId, agentId, toolkitSlug: "github", accountLabel: null, limits: { actions: null, fixedArguments: null }, grantedByType: "employee", grantedById: null,
+        orgId, agentId, toolkitSlug: "github", accountLabel: null, limits: { actions: null, fixedArguments: null }, grantedByType: "employee", grantedById: (connection.db.prepare("select id from employees where org_id = ?").get(orgId) as { id: string }).id,
       });
       taskId = organization.createTask({
         orgId, title: "Ship it", description: "d", status: TASK_STATUS.IN_PROGRESS,

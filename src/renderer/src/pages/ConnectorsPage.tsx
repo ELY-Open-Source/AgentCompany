@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { Button } from "../shared/ui";
 import { t } from "../i18n/i18n";
 import type { PageProps } from "./types";
-import { activeOrgId } from "./types";
+import { activeOrgId, requireActiveEmployee } from "./types";
 import { ConnectedList } from "./connectors/ConnectedList";
 import { ToolkitCatalog } from "./connectors/ToolkitCatalog";
 import { useConnectorCatalog } from "./connectors/useConnectorCatalog";
@@ -15,7 +15,8 @@ import { DEFAULT_CONNECTOR_ACCOUNT_LABEL } from "../../../shared/commands";
  */
 export function ConnectorsPage({ snapshot, actions }: PageProps) {
   const orgId = activeOrgId(snapshot);
-  const { catalog, busySlug, busyAction, connectError, connect, disconnect, retry } = useConnectorCatalog(orgId, actions);
+  const employee = requireActiveEmployee(snapshot);
+  const { catalog, busySlug, busyAction, connectError, connect, disconnect, grant, revoke, retry } = useConnectorCatalog(orgId, actions);
 
   const accounts = useMemo(
     () => snapshot.connectorAccounts.filter((account) => account.orgId === orgId),
@@ -69,6 +70,8 @@ export function ConnectorsPage({ snapshot, actions }: PageProps) {
         busyAction={busyAction}
         onConnect={connect}
         onDelete={disconnect}
+        onGrant={(agentId, toolkitSlug, accountLabel) => grant(agentId, toolkitSlug, accountLabel, employee.id)}
+        onRevoke={revoke}
       />
 
       {catalog.phase === "error" && (

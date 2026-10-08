@@ -28,6 +28,7 @@ import { AutomationService } from "../services/automation-service";
 import { MeetingService } from "../services/meeting-service";
 import { SprintService } from "../services/sprint-service";
 import { ComposioConnectionService } from "../services/composio/composio-connection-service";
+import { ConnectorGrantsService } from "../services/composio/connector-grants";
 import { IntegrationKeyStore } from "../services/integration-key-store";
 import { importStagedSkills, stageBuiltinSkillsLibrary } from "../services/builtin-skills";
 import { coalesce } from "./coalesce";
@@ -415,6 +416,8 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       notifyDataChanged();
     }
   });
+  ipcMain.handle(IPC_CHANNELS.grantConnector, (_event, input) => mutate(() => new ConnectorGrantsService(deps.connection.db).grantFromBoard(input)));
+  ipcMain.handle(IPC_CHANNELS.revokeConnector, (_event, input) => mutate(() => new ConnectorGrantsService(deps.connection.db).revoke(input)));
   ipcMain.handle(IPC_CHANNELS.refreshComposioAccounts, async (_event, input) => {
     try {
       await composioConnections.refreshAccounts(input.orgId);

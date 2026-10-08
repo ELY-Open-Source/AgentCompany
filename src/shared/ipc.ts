@@ -85,6 +85,8 @@ export const IPC_CHANNELS = {
   connectComposioToolkit: "agentcompany:connect-composio-toolkit",
   disconnectComposioToolkit: "agentcompany:disconnect-composio-toolkit",
   refreshComposioAccounts: "agentcompany:refresh-composio-accounts",
+  grantConnector: "agentcompany:grant-connector",
+  revokeConnector: "agentcompany:revoke-connector",
   search: "agentcompany:search",
   rendererEvent: "agentcompany:renderer-event",
   windowMinimize: "agentcompany:window-minimize",

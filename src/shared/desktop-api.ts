@@ -73,6 +73,8 @@ import type {
   ConnectComposioToolkitResult,
   ConnectorCatalogEntry,
   DisconnectComposioToolkitInput,
+  GrantConnectorInput,
+  RevokeConnectorInput,
   RefreshComposioAccountsInput,
   SearchInput,
   SendMessageInput,
@@ -200,6 +202,8 @@ export interface DesktopApi {
   connectComposioToolkit(input: ConnectComposioToolkitInput): Promise<DesktopResult<ConnectComposioToolkitResult>>;
   disconnectComposioToolkit(input: DisconnectComposioToolkitInput): Promise<DesktopResult<AppSnapshot>>;
   refreshComposioAccounts(input: RefreshComposioAccountsInput): Promise<DesktopResult<AppSnapshot>>;
+  grantConnector(input: GrantConnectorInput): Promise<DesktopResult<AppSnapshot>>;
+  revokeConnector(input: RevokeConnectorInput): Promise<DesktopResult<AppSnapshot>>;
   search(input: SearchInput): Promise<DesktopResult<SearchResultRecord[]>>;
   subscribe(callback: (event: RendererEvent) => void): () => void;
   platform: "win32" | "darwin" | "linux";
