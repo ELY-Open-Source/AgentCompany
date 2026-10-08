@@ -154,6 +154,21 @@ describe("built-in skills", () => {
     h.connection.close();
   });
 
+  test("a skill the bundle drops and later ships again comes back active", () => {
+    const h = harness();
+    const sync = () => h.connection.transaction(() => importStagedSkills(h.skills, h.orgId, stageBuiltinSkillsLibrary(h.sourceRoot, h.libraryRoot)));
+    sync();
+    const architectPath = join(h.sourceRoot, "engineering", "engineering-backend-architect.md");
+    rmSync(architectPath);
+    expect(sync()).toMatchObject({ retired: 1 });
+    writeFileSync(architectPath, ARCHITECT_MD, "utf8");
+    expect(sync()).toMatchObject({ imported: 0, restored: 1, upgraded: 0, retired: 0, failures: [] });
+    expect(h.connection.db.prepare("select status from skill_definitions where org_id = ? and slug = 'engineering-backend-architect'").get(h.orgId))
+      .toEqual({ status: "active" });
+    expect(sync()).toMatchObject({ restored: 0, skipped: 3 });
+    h.connection.close();
+  });
+
   test("legacy catalogue entries retire so every install mirrors the bundle, while their bindings keep working", () => {
     const h = harness();
     const staged = stageBuiltinSkillsLibrary(h.sourceRoot, h.libraryRoot);

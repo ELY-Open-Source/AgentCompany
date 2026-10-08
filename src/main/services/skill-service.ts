@@ -83,6 +83,24 @@ export class SkillService {
     return retired;
   }
 
+  /** Reactivates a retired skill; returns whether it was retired. */
+  restoreIfRetired(orgId: string, slug: string): boolean {
+    const skill = this.db.prepare("select id from skill_definitions where org_id = ? and slug = ? and status = 'retired'")
+      .get(orgId, slug) as { id: string } | undefined;
+    if (!skill) return false;
+    this.db.prepare("update skill_definitions set status = 'active' where id = ?").run(skill.id);
+    this.audit.record({
+      orgId,
+      entityType: "skill_definition",
+      entityId: skill.id,
+      actorType: "system",
+      actorId: null,
+      action: "restored",
+      payload: { slug, reason: "back_in_builtin_bundle" },
+    });
+    return true;
+  }
+
   /** Publishes a new revision when the files changed and moves bindings on the latest revision onto it. */
   upgradeIfChanged(orgId: string, directoryPath: string, manifest: SkillManifest, slug: string): boolean {
     const latest = this.db.prepare(`

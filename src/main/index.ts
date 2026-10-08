@@ -102,8 +102,8 @@ function syncAllOrganizationSkills(connection: DatabaseConnection, artifactRoot:
     const orgs = connection.db.prepare("select id from organizations").all() as Array<{ id: string }>;
     for (const org of orgs) {
       const report = connection.transaction(() => importStagedSkills(skills, org.id, staged));
-      if (report.imported > 0 || report.upgraded > 0 || report.retired > 0 || report.failures.length > 0) {
-        console.info(`[skills] org ${org.id}: imported ${report.imported}, upgraded ${report.upgraded}, skipped ${report.skipped}, retired ${report.retired}, failures ${report.failures.length}`);
+      if (report.imported > 0 || report.upgraded > 0 || report.restored > 0 || report.retired > 0 || report.failures.length > 0) {
+        console.info(`[skills] org ${org.id}: imported ${report.imported}, upgraded ${report.upgraded}, restored ${report.restored}, skipped ${report.skipped}, retired ${report.retired}, failures ${report.failures.length}`);
         for (const failure of report.failures.slice(0, 5)) console.warn(`[skills] ${failure}`);
       }
     }

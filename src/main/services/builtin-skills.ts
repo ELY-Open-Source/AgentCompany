@@ -30,6 +30,8 @@ export interface BuiltinSkillSyncReport {
   imported: number;
   /** Existing skills that got a new revision because the bundle changed them. */
   upgraded: number;
+  /** Retired skills reactivated because the bundle ships them again. */
+  restored: number;
   skipped: number;
   /** Active skills retired because the bundle no longer carries their slug. */
   retired: number;
@@ -75,18 +77,21 @@ export function stageBuiltinSkillsLibrary(sourceRoot: string, libraryRoot: strin
 
 /**
  * Makes the org catalogue mirror the bundle: publishes every staged skill
- * the org does not carry yet, upgrades skills whose files changed (moving
- * bindings onto the new revision), then retires active skills whose slug
- * the bundle no longer ships. Retired skills leave list_skills and stop
- * being grantable.
+ * the org does not carry yet, restores retired skills the bundle ships again,
+ * upgrades skills whose files changed (moving bindings onto the new
+ * revision), then retires active skills whose slug the bundle no longer
+ * ships. Retired skills leave list_skills and stop being grantable.
  */
 export function importStagedSkills(skills: SkillService, orgId: string, staged: StagedBuiltinSkill[]): BuiltinSkillSyncReport {
-  const report: BuiltinSkillSyncReport = { imported: 0, upgraded: 0, skipped: 0, retired: 0, failures: [] };
+  const report: BuiltinSkillSyncReport = { imported: 0, upgraded: 0, restored: 0, skipped: 0, retired: 0, failures: [] };
   for (const unit of staged) {
     try {
       if (skills.hasSkill(orgId, unit.slug)) {
-        if (skills.upgradeIfChanged(orgId, unit.directory, unit.manifest, unit.slug)) report.upgraded += 1;
-        else report.skipped += 1;
+        const restored = skills.restoreIfRetired(orgId, unit.slug);
+        if (restored) report.restored += 1;
+        const upgraded = skills.upgradeIfChanged(orgId, unit.directory, unit.manifest, unit.slug);
+        if (upgraded) report.upgraded += 1;
+        if (!restored && !upgraded) report.skipped += 1;
         continue;
       }
       skills.importManifest(orgId, unit.directory, unit.manifest, unit.slug);
