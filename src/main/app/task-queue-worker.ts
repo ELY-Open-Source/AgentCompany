@@ -112,8 +112,9 @@ export function startTaskQueueWorker(input: TaskQueueWorkerInput): () => void {
     inFlight[slot] = true;
     notifyDataChanged();
     void taskExecution.executeRun(claimed.org_id, claimed.id)
-      .catch(() => {
-        // executeRun records the failure on the run row; the UI reflects it.
+      .catch((error: unknown) => {
+        // executeRun already marked the run failed; log so the cause is visible outside the UI.
+        console.error(`[task-queue] run ${claimed.id} failed: ${error instanceof Error ? error.message : String(error)}`);
       })
       .finally(() => {
         inFlight[slot] = false;

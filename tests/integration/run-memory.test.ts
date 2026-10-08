@@ -87,6 +87,19 @@ describe("run memory", () => {
     h.connection.close();
   });
 
+  test("a claimed run whose agent lost its provider fails cleanly and frees the task", async () => {
+    const h = await company(() => ({ text: "unused", toolCalls: [], rawResponseJson: "{}" }));
+    const kickoff = claimNextQueuedRun(h.connection)!;
+    h.connection.db.prepare("update agents set model_provider_id = null where id = ?").run(h.ceoId);
+    await expect(h.execution.executeRun(h.orgId, kickoff.id)).rejects.toThrow("Task assignee requires a model provider.");
+    expect(h.connection.db.prepare("select state, error_message, completed_at is not null as closed from task_runs where id = ?").get(kickoff.id))
+      .toEqual({ state: "failed", error_message: "Task assignee requires a model provider.", closed: 1 });
+    expect(h.connection.db.prepare("select count(*) as n from task_runs where state in ('queued', 'running')").get()).toEqual({ n: 0 });
+    expect(h.connection.db.prepare("select action, json_extract(payload_json, '$.stage') as stage from audit_events where entity_id = ? and action = 'failed'").get(kickoff.id))
+      .toEqual({ action: "failed", stage: "preparation" });
+    h.connection.close();
+  });
+
   test("chat replies are not auto-recorded", async () => {
     const h = await company((prompt) => ({ text: /thread_id="/.test(prompt) ? "Hiring two engineers this week." : "Kickoff noted.", toolCalls: [], rawResponseJson: "{}" }));
     const kickoff = claimNextQueuedRun(h.connection)!;
