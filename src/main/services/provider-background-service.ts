@@ -24,6 +24,7 @@ const AUTH_STATE_CONFIGURED = "configured";
 const HEALTH_STATE_HEALTHY = "healthy";
 const ACTIVE_BACKGROUND_STATUSES = new Set(["queued", "in_progress"]);
 const FAILED_BACKGROUND_STATUSES = new Set(["failed", "incomplete"]);
+const MAX_POLL_FAILURES = 10;
 const CANCELLED_BACKGROUND_STATUSES = new Set(["cancelled"]);
 
 type BackgroundCreateInput = CreateProviderResponseInput & {
@@ -137,6 +138,7 @@ export class ProviderBackgroundService {
       });
       this.recordObservedRateLimit(request.org_id, providerRow, providerRow.model, result.rateLimitState);
       if (ACTIVE_BACKGROUND_STATUSES.has(result.status)) {
+        this.requestStore.clearPollFailures(request.id);
         this.requestStore.markBackgroundProgress({
           orgId: request.org_id,
           requestId: request.id,
@@ -149,6 +151,7 @@ export class ProviderBackgroundService {
       }
       if (result.status === "completed") {
         const responseText = requireBackgroundText(result.text, provider.provider_key);
+        this.requestStore.clearPollFailures(request.id);
         this.requestStore.markSucceeded({
           orgId: request.org_id,
           requestId: request.id,
@@ -170,6 +173,7 @@ export class ProviderBackgroundService {
         return;
       }
       if (CANCELLED_BACKGROUND_STATUSES.has(result.status)) {
+        this.requestStore.clearPollFailures(request.id);
         this.requestStore.markCancelled({
           orgId: request.org_id,
           requestId: request.id,
@@ -185,6 +189,15 @@ export class ProviderBackgroundService {
       }
       throw new Error(`Provider background response returned unsupported status ${result.status}.`);
     } catch (error) {
+      // The provider reporting failure is final; a failed status check is not, since the remote job may still finish.
+      let finalError = error;
+      if (!(error instanceof ProviderBackgroundStatusError)) {
+        const message = error instanceof Error ? error.message : String(error);
+        const failures = this.requestStore.recordPollFailure(request.id, message);
+        console.warn(`[provider-background] status check ${failures}/${MAX_POLL_FAILURES} for request ${request.id} failed: ${message}`);
+        if (failures < MAX_POLL_FAILURES) return;
+        finalError = new Error(`Gave up after ${MAX_POLL_FAILURES} failed status checks: ${message}`);
+      }
       this.responseObserver.recordFailure({
         orgId: request.org_id,
         provider,
@@ -192,7 +205,7 @@ export class ProviderBackgroundService {
         executionMode: PROVIDER_EXECUTION_MODE.BACKGROUND,
         startedAt,
         inputCharCount: request.input_char_count,
-        error,
+        error: finalError,
         rawResponseJson: error instanceof ProviderBackgroundStatusError ? error.rawResponseJson : null,
       });
     }

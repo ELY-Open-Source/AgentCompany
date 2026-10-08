@@ -69,6 +69,7 @@ import { taskRunBudgetSchema } from "./migrations/067-task-run-budget";
 import { taskReviewLinkSchema } from "./migrations/068-task-review-link";
 import { goalStallSchema } from "./migrations/069-goal-stall";
 import { runActionsSchema } from "./migrations/070-run-actions";
+import { backgroundPollFailuresSchema } from "./migrations/071-background-poll-failures";
 
 interface Migration {
   version: number;
@@ -147,6 +148,7 @@ const MIGRATIONS: Migration[] = [
   { version: 68, name: "task_review_link", sql: taskReviewLinkSchema },
   { version: 69, name: "goal_stall", sql: goalStallSchema },
   { version: 70, name: "run_actions", sql: runActionsSchema },
+  { version: 71, name: "background_poll_failures", sql: backgroundPollFailuresSchema },
 ];
 
 const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;

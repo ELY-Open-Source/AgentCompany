@@ -156,6 +156,16 @@ export class ProviderRequestStore {
     );
   }
 
+  /** Counts a failed status check on a background request and returns how many happened in a row. */
+  recordPollFailure(requestId: string, message: string): number {
+    this.db.prepare("update provider_requests set poll_failures = poll_failures + 1, last_poll_error = ? where id = ?").run(message, requestId);
+    return (this.db.prepare("select poll_failures from provider_requests where id = ?").get(requestId) as { poll_failures: number }).poll_failures;
+  }
+
+  clearPollFailures(requestId: string): void {
+    this.db.prepare("update provider_requests set poll_failures = 0, last_poll_error = null where id = ?").run(requestId);
+  }
+
   markBackgroundProgress(input: ProviderBackgroundProgressInput): void {
     this.db.prepare(`
       update provider_requests

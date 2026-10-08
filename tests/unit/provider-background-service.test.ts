@@ -178,6 +178,65 @@ describe("provider background service", () => {
   });
 });
 
+describe("background polling failures", () => {
+  test("a failed status check keeps the request recoverable; only repeated failures give up", async () => {
+    const connection = createConnection();
+    const organization = new OrganizationService(connection.db);
+    let pollFailures = 2;
+    let status = "completed";
+    const base = backgroundAdapters("completed", "Late result.");
+    const adapters: ProviderAdapterRegistry = {
+      ...base,
+      openai: {
+        ...base.openai,
+        retrieveResponse: async (input) => {
+          if (pollFailures > 0) {
+            pollFailures -= 1;
+            throw new Error("fetch failed: ECONNRESET");
+          }
+          const result = await base.openai.retrieveResponse(input);
+          return { ...result, status };
+        },
+      },
+    };
+    const providers = new ProviderService(connection.db, adapters, testVault);
+    const background = new ProviderBackgroundService(connection.db, adapters, testVault);
+    let orgId = "";
+    let openAiProviderId = "";
+    connection.transaction(() => {
+      orgId = createOrganization(organization);
+      openAiProviderId = providerId(connection, orgId, "openai");
+      providers.saveCredential({ orgId, providerId: openAiProviderId, secret: "sk-live-provider", model: "gpt-5.4" });
+      providers.updatePolicy({
+        orgId, providerId: openAiProviderId, dataPolicy: PROVIDER_DATA_POLICY.STANDARD, backgroundEnabled: true,
+        monthlyRequestLimit: 10, workspaceScope: "organization", contextWindowTokens: 128_000,
+      });
+    });
+    const requestId = await background.create({ orgId, providerId: openAiProviderId, prompt: "Research", instructions: null, executionMode: PROVIDER_EXECUTION_MODE.BACKGROUND });
+    const row = () => connection.db.prepare("select state, poll_failures, last_poll_error, response_text from provider_requests where id = ?").get(requestId);
+
+    expect(await background.recoverBackgroundResponses()).toBe(1);
+    expect(row()).toMatchObject({ state: PROVIDER_REQUEST_STATE.PENDING, poll_failures: 1, last_poll_error: "fetch failed: ECONNRESET" });
+    await background.recoverBackgroundResponses();
+    await background.recoverBackgroundResponses();
+    expect(row()).toMatchObject({ state: PROVIDER_REQUEST_STATE.SUCCEEDED, poll_failures: 0, response_text: "Late result." });
+
+    pollFailures = 100;
+    const doomed = await background.create({ orgId, providerId: openAiProviderId, prompt: "Research again", instructions: null, executionMode: PROVIDER_EXECUTION_MODE.BACKGROUND });
+    for (let attempt = 0; attempt < 10; attempt += 1) await background.poll({ orgId, requestId: doomed });
+    expect(connection.db.prepare("select state, error_message from provider_requests where id = ?").get(doomed))
+      .toEqual({ state: PROVIDER_REQUEST_STATE.FAILED, error_message: "Gave up after 10 failed status checks: fetch failed: ECONNRESET" });
+
+    // An answer that is not a valid result (unknown status) also counts, so it cannot stay pending forever.
+    pollFailures = 0;
+    status = "mystery";
+    const odd = await background.create({ orgId, providerId: openAiProviderId, prompt: "Odd", instructions: null, executionMode: PROVIDER_EXECUTION_MODE.BACKGROUND });
+    for (let attempt = 0; attempt < 10; attempt += 1) await background.poll({ orgId, requestId: odd });
+    expect(connection.db.prepare("select state from provider_requests where id = ?").get(odd)).toEqual({ state: PROVIDER_REQUEST_STATE.FAILED });
+    connection.close();
+  });
+});
+
 function backgroundAdapters(status: string, text: string | null): ProviderAdapterRegistry {
   return {
     ...providerAdapters,
