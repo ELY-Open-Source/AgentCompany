@@ -156,7 +156,7 @@ export class TaskExecutionService {
     let providerRequestId: string | null = null;
     let skillRuntimeSnapshot: SkillRuntimeSnapshotRow | null = null;
     try {
-      skillRuntimeSnapshot = this.resolveSkillRuntimeSnapshot(orgId, agent.id, runId, skillBudgetTokens(provider.context_window_tokens));
+      skillRuntimeSnapshot = this.resolveSkillRuntimeSnapshot(orgId, agent.id, runId, skillBudgetTokens(provider.context_window_tokens), `${task.title}\n${task.description}`);
       // Watermark for reply delivery and mid-run message polling.
       const runStartedAt = new Date().toISOString();
       const chatContext = loadChatWakeContext(this.db, orgId, agent.id, isolation.secretScopeJson);
@@ -616,9 +616,9 @@ export class TaskExecutionService {
     `).run(TASK_RUN_STATE.FAILED, providerRequestId, new Date().toISOString(), errorMessage, runId, orgId);
   }
 
-  private resolveSkillRuntimeSnapshot(orgId: string, agentId: string, runId: string, maxTokens: number): SkillRuntimeSnapshotRow | null {
+  private resolveSkillRuntimeSnapshot(orgId: string, agentId: string, runId: string, maxTokens: number, taskText: string): SkillRuntimeSnapshotRow | null {
     if (!this.skills.hasRuntimeSkills(orgId, agentId)) return null;
-    const snapshotId = this.skills.resolveRuntimeSnapshot({ orgId, agentId, runId, maxTokens });
+    const snapshotId = this.skills.resolveRuntimeSnapshot({ orgId, agentId, runId, maxTokens, taskText });
     const snapshot = this.db.prepare(`
       select id, compiled_prompt, tools_manifest, source_revision_ids
       from skill_runtime_snapshots

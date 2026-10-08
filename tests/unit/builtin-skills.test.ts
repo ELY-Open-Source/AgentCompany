@@ -7,11 +7,12 @@ import { DatabaseConnection } from "../../src/main/database/connection";
 import { OrganizationService } from "../../src/main/services/organization-service";
 import { ChatService } from "../../src/main/services/chat-service";
 import { SkillService } from "../../src/main/services/skill-service";
-import { skillBudgetTokens } from "../../src/main/services/context-budget";
+import { estimateTokens, skillBudgetTokens } from "../../src/main/services/context-budget";
 
 const SKILL_TOKENS = skillBudgetTokens(128_000);
 import { importStagedSkills, parseFrontmatter, stageBuiltinSkillsLibrary } from "../../src/main/services/builtin-skills";
 import { dispatchAgentTool, type AgentToolContext } from "../../src/main/services/agent-tools";
+import { bindSkillSlugs } from "../../src/main/services/agent-skill-tools";
 
 const HUMANIZER_MD = `---
 name: humanizer
@@ -178,7 +179,7 @@ describe("built-in skills", () => {
     expect(hired).toContain("Unknown skills skipped: no-such-skill");
 
     const danaId = (h.connection.db.prepare("select id from agents where org_id = ? and name = 'Dana Lee'").get(h.orgId) as { id: string }).id;
-    const danaSnapshot = h.connection.transaction(() => h.skills.resolveRuntimeSnapshot({ orgId: h.orgId, agentId: danaId, runId: "run_dana", maxTokens: SKILL_TOKENS }));
+    const danaSnapshot = h.connection.transaction(() => h.skills.resolveRuntimeSnapshot({ orgId: h.orgId, agentId: danaId, runId: "run_dana", maxTokens: SKILL_TOKENS, taskText: "" }));
     const danaPrompt = (h.connection.db.prepare("select compiled_prompt from skill_runtime_snapshots where id = ?").get(danaSnapshot) as { compiled_prompt: string }).compiled_prompt;
     expect(danaPrompt.indexOf("# Skill: humanizer")).toBe(0);
     expect(danaPrompt).toContain("# Skill: Backend Architect");
@@ -188,7 +189,7 @@ describe("built-in skills", () => {
 
     // The CEO carries humanizer too - forced by resolution, not by binding.
     expect(h.skills.hasRuntimeSkills(h.orgId, ceoId)).toBe(true);
-    const ceoSnapshot = h.connection.transaction(() => h.skills.resolveRuntimeSnapshot({ orgId: h.orgId, agentId: ceoId, runId: "run_ceo", maxTokens: SKILL_TOKENS }));
+    const ceoSnapshot = h.connection.transaction(() => h.skills.resolveRuntimeSnapshot({ orgId: h.orgId, agentId: ceoId, runId: "run_ceo", maxTokens: SKILL_TOKENS, taskText: "" }));
     const ceoPrompt = (h.connection.db.prepare("select compiled_prompt from skill_runtime_snapshots where id = ?").get(ceoSnapshot) as { compiled_prompt: string }).compiled_prompt;
     expect(ceoPrompt).toContain("# Skill: humanizer");
     expect(ceoPrompt).not.toContain("# Skill: Backend Architect");
@@ -213,7 +214,7 @@ describe("built-in skills", () => {
       });
     });
     const promptFor = (runId: string) => {
-      const snapshotId = h.connection.transaction(() => h.skills.resolveRuntimeSnapshot({ orgId: h.orgId, agentId, runId, maxTokens: SKILL_TOKENS }));
+      const snapshotId = h.connection.transaction(() => h.skills.resolveRuntimeSnapshot({ orgId: h.orgId, agentId, runId, maxTokens: SKILL_TOKENS, taskText: "" }));
       return (h.connection.db.prepare("select compiled_prompt from skill_runtime_snapshots where id = ?").get(snapshotId) as { compiled_prompt: string }).compiled_prompt;
     };
 
@@ -259,11 +260,48 @@ describe("built-in skills", () => {
         modelProviderId: null, modelId: null, budgetCents: 1000, managerAgentId: null,
       });
     });
-    const snapshotId = h.connection.transaction(() => h.skills.resolveRuntimeSnapshot({ orgId: h.orgId, agentId, runId: "run_tiny", maxTokens: 10 }));
+    const snapshotId = h.connection.transaction(() => h.skills.resolveRuntimeSnapshot({ orgId: h.orgId, agentId, runId: "run_tiny", maxTokens: 10, taskText: "" }));
     const prompt = (h.connection.db.prepare("select compiled_prompt from skill_runtime_snapshots where id = ?").get(snapshotId) as { compiled_prompt: string }).compiled_prompt;
     expect(prompt).not.toContain("# Skill:");
     expect(prompt).toContain("# Skills omitted for size");
     expect(prompt).toContain("humanizer");
+    h.connection.close();
+  });
+
+  test("under a tight budget the skills relevant to the task win over binding order", () => {
+    const h = harness();
+    mkdirSync(join(h.sourceRoot, "marketing"), { recursive: true });
+    writeFileSync(
+      join(h.sourceRoot, "marketing", "marketing-growth-hacker.md"),
+      `---\nname: Growth Hacker\ndescription: Viral loops and paid acquisition campaigns.\n---\n\n${"Run growth experiments. ".repeat(40)}\n`,
+      "utf8",
+    );
+    const staged = stageBuiltinSkillsLibrary(h.sourceRoot, h.libraryRoot);
+    h.connection.transaction(() => importStagedSkills(h.skills, h.orgId, staged));
+    let agentId = "";
+    h.connection.transaction(() => {
+      agentId = h.organization.createAgent({
+        orgId: h.orgId, name: "Ada", role: "Engineer", department: "Engineering",
+        modelProviderId: null, modelId: null, budgetCents: 1000, managerAgentId: null,
+      });
+      bindSkillSlugs({ db: h.connection.db, organization: h.organization, chat: new ChatService(h.connection.db) }, h.orgId, agentId, ["marketing-growth-hacker", "engineering-backend-architect"]);
+    });
+    const compile = (runId: string, maxTokens: number, taskText: string) => {
+      const snapshotId = h.connection.transaction(() => h.skills.resolveRuntimeSnapshot({ orgId: h.orgId, agentId, runId, maxTokens, taskText }));
+      return (h.connection.db.prepare("select compiled_prompt from skill_runtime_snapshots where id = ?").get(snapshotId) as { compiled_prompt: string }).compiled_prompt;
+    };
+    const parts = compile("run_full", 1_000_000, "").split("\n\n---\n\n");
+    expect(parts.map((part) => part.split("\n")[0])).toEqual(["# Skill: humanizer", "# Skill: Backend Architect", "# Skill: Growth Hacker"]);
+    const tight = estimateTokens(parts[0]) + Math.max(estimateTokens(parts[1]), estimateTokens(parts[2])) + 2;
+
+    const backendTask = compile("run_backend", tight, "Design the scalable backend system for orders");
+    expect(backendTask).toContain("# Skill: Backend Architect");
+    expect(backendTask).not.toContain("# Skill: Growth Hacker");
+    expect(backendTask).toContain("did not fit this run's prompt budget: Growth Hacker");
+
+    const growthTask = compile("run_growth", tight, "Plan paid acquisition campaigns");
+    expect(growthTask).toContain("# Skill: Growth Hacker");
+    expect(growthTask).not.toContain("# Skill: Backend Architect");
     h.connection.close();
   });
 });

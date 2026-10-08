@@ -21,6 +21,8 @@ export interface ResolveAgentSkillsInput {
   runId: string;
   /** Token budget for the compiled skills. */
   maxTokens: number;
+  /** Task title and description, to rank bound skills by relevance. */
+  taskText: string;
 }
 
 export interface RunSkillTestsInput {
