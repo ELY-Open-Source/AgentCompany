@@ -3,7 +3,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { DatabaseSync } from "node:sqlite";
 import { DatabaseConnection } from "./database/connection";
-import { createMainWindow } from "./app/create-window";
+import { appPageUrl, createMainWindow } from "./app/create-window";
 import { registerIpcHandlers } from "./app/ipc-handlers";
 import { builtinSkillsSourceOverride, importStagedSkills, stageBuiltinSkillsLibrary } from "./services/builtin-skills";
 import { ensureCeoDirectSpace } from "./services/ceo-direct-space";
@@ -44,6 +44,7 @@ if (!app.requestSingleInstanceLock()) {
     registerIpcHandlers({
       connection,
       mainWindow: win,
+      appPage: appPageUrl({ devServerUrl: process.env.ELECTRON_RENDERER_URL, rendererDist: join(__dirname, "../renderer") }),
       artifactRoot: join(profileDir, "artifacts"),
       builtinSkillsSource,
       builtinSkillsLibrary,

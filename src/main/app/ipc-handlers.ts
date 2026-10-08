@@ -1,4 +1,5 @@
-import { app, dialog, ipcMain, shell, type BrowserWindow } from "electron";
+import { createIpcGate } from "./ipc-gate";
+import { app, dialog, shell, type BrowserWindow } from "electron";
 import type { DatabaseConnection } from "../database/connection";
 import { IPC_CHANNELS } from "../../shared/ipc";
 import { fail, ok, type DesktopResult } from "../../shared/result";
@@ -41,6 +42,8 @@ import { stopAllRuns, stopRun } from "../services/run-control";
 export interface IpcDeps {
   connection: DatabaseConnection;
   mainWindow: BrowserWindow;
+  /** The app's own page (dev server URL or built index.html); calls from any other page are refused. */
+  appPage: string;
   artifactRoot: string;
   /** Bundled built-in skills source (repo folder in dev, resources when packaged). */
   builtinSkillsSource: string;
@@ -49,6 +52,8 @@ export interface IpcDeps {
 }
 
 export function registerIpcHandlers(deps: IpcDeps): void {
+  // Every call passes one gate: the caller must be the app's own page, and the input must match its contract.
+  const handle = createIpcGate(deps.mainWindow, deps.appPage);
   const snapshot = new SnapshotService(deps.connection.db);
   const organization = new OrganizationService(deps.connection.db);
   const approvals = new ApprovalService(deps.connection.db);
@@ -103,7 +108,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     }
   };
 
-  ipcMain.handle(IPC_CHANNELS.loadSnapshot, () => {
+  handle("loadSnapshot", () => {
     try {
       return ok(snapshot.load());
     } catch (error) {
@@ -111,7 +116,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     }
   });
 
-  ipcMain.handle(IPC_CHANNELS.bootstrapOnboarding, (_event, input) => {
+  handle("bootstrapOnboarding", (input) => {
     try {
       let summary: { orgId: string } | undefined;
       // Staging happens before the transaction (file mirroring), the import
@@ -132,9 +137,9 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     }
   });
 
-  ipcMain.handle(IPC_CHANNELS.createOrganization, (_event, input) => mutate(() => organization.createOrganization(input)));
-  ipcMain.handle(IPC_CHANNELS.setActiveOrganization, (_event, input) => mutate(() => organization.setActiveOrganization(input.orgId)));
-  ipcMain.handle(IPC_CHANNELS.setUiPreferences, (_event, input) => {
+  handle("createOrganization", (input) => mutate(() => organization.createOrganization(input)));
+  handle("setActiveOrganization", (input) => mutate(() => organization.setActiveOrganization(input.orgId)));
+  handle("setUiPreferences", (input) => {
     const before = snapshot.load().uiPreferences.language;
     const result = mutate(() => organization.updateUiPreferences(input));
     if (result.ok && result.data.uiPreferences.language !== before) {
@@ -147,25 +152,25 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     }
     return result;
   });
-  ipcMain.handle(IPC_CHANNELS.deleteOrganization, (_event, input) => mutate(() => organization.deleteOrganization(input.orgId)));
-  ipcMain.handle(IPC_CHANNELS.createAgent, (_event, input) => mutate(() => organization.createAgent(input)));
-  ipcMain.handle(IPC_CHANNELS.updateAgent, (_event, input) => mutate(() => organization.updateAgent(input)));
-  ipcMain.handle(IPC_CHANNELS.updateEmployeeProfile, (_event, input) => mutate(() => organization.updateEmployeeProfile(input)));
-  ipcMain.handle(IPC_CHANNELS.setAutonomousPaused, (_event, input) => mutate(() => {
+  handle("deleteOrganization", (input) => mutate(() => organization.deleteOrganization(input.orgId)));
+  handle("createAgent", (input) => mutate(() => organization.createAgent(input)));
+  handle("updateAgent", (input) => mutate(() => organization.updateAgent(input)));
+  handle("updateEmployeeProfile", (input) => mutate(() => organization.updateEmployeeProfile(input)));
+  handle("setAutonomousPaused", (input) => mutate(() => {
     organization.setAutonomousPaused(Boolean(input.paused));
     // Pausing also stops the sessions already running, not just future scheduling.
     if (input.paused) stopAllRuns();
   }));
-  ipcMain.handle(IPC_CHANNELS.stopRun, (_event, input) => mutate(() => {
+  handle("stopRun", (input) => mutate(() => {
     if (!stopRun(input.runId)) throw new Error("That run is not running anymore.");
   }));
-  ipcMain.handle(IPC_CHANNELS.setIntegrationKey, (_event, input) => mutate(() => integrationKeys.write(input.name, input.value)));
-  ipcMain.handle(IPC_CHANNELS.clearIntegrationKey, (_event, input) => mutate(() => integrationKeys.clear(input.name)));
-  ipcMain.handle(IPC_CHANNELS.createTask, (_event, input) => mutate(() => organization.createTask(input)));
-  ipcMain.handle(IPC_CHANNELS.updateTask, (_event, input) => mutate(() => organization.updateTask(input)));
-  ipcMain.handle(IPC_CHANNELS.deleteTask, (_event, input) => mutate(() => organization.deleteTask(input)));
-  ipcMain.handle(IPC_CHANNELS.updateTaskStatus, (_event, input) => mutate(() => organization.updateTaskStatus(input.orgId, input.taskId, input.status)));
-  ipcMain.handle(IPC_CHANNELS.runTask, async (_event, input) => {
+  handle("setIntegrationKey", (input) => mutate(() => integrationKeys.write(input.name, input.value)));
+  handle("clearIntegrationKey", (input) => mutate(() => integrationKeys.clear(input.name)));
+  handle("createTask", (input) => mutate(() => organization.createTask(input)));
+  handle("updateTask", (input) => mutate(() => organization.updateTask(input)));
+  handle("deleteTask", (input) => mutate(() => organization.deleteTask(input)));
+  handle("updateTaskStatus", (input) => mutate(() => organization.updateTaskStatus(input.orgId, input.taskId, input.status)));
+  handle("runTask", async (input) => {
     try {
       await taskExecution.runTask(input);
       notifyDataChanged();
@@ -175,44 +180,44 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       return fail("task_run_failed", error instanceof Error ? error.message : String(error));
     }
   });
-  ipcMain.handle(IPC_CHANNELS.createGoal, (_event, input) => mutate(() => organization.createGoal(input)));
-  ipcMain.handle(IPC_CHANNELS.createProject, (_event, input) => mutate(() => organization.createProject(input)));
-  ipcMain.handle(IPC_CHANNELS.createWorkspace, (_event, input) => mutate(() => organization.createWorkspace(input)));
-  ipcMain.handle(IPC_CHANNELS.createDocument, (_event, input) => mutate(() => documents.create(input)));
-  ipcMain.handle(IPC_CHANNELS.updateDocument, (_event, input) => mutate(() => documents.update(input)));
-  ipcMain.handle(IPC_CHANNELS.deleteDocument, (_event, input) => mutate(() => documents.delete(input)));
-  ipcMain.handle(IPC_CHANNELS.createKnowledgeEntry, (_event, input) => mutate(() => knowledge.create(input)));
-  ipcMain.handle(IPC_CHANNELS.deleteKnowledgeEntry, (_event, input) => mutate(() => knowledge.delete(input)));
-  ipcMain.handle(IPC_CHANNELS.resumeGoal, (_event, input) => mutate(() => resumeGoal(deps.connection.db, organization, input.orgId, input.goalId)));
-  ipcMain.handle(IPC_CHANNELS.updateKnowledgeEntry, (_event, input) => mutate(() => knowledge.update(input)));
-  ipcMain.handle(IPC_CHANNELS.listDocumentVersions, (_event, input) => query("document_versions_failed", () =>
+  handle("createGoal", (input) => mutate(() => organization.createGoal(input)));
+  handle("createProject", (input) => mutate(() => organization.createProject(input)));
+  handle("createWorkspace", (input) => mutate(() => organization.createWorkspace(input)));
+  handle("createDocument", (input) => mutate(() => documents.create(input)));
+  handle("updateDocument", (input) => mutate(() => documents.update(input)));
+  handle("deleteDocument", (input) => mutate(() => documents.delete(input)));
+  handle("createKnowledgeEntry", (input) => mutate(() => knowledge.create(input)));
+  handle("deleteKnowledgeEntry", (input) => mutate(() => knowledge.delete(input)));
+  handle("resumeGoal", (input) => mutate(() => resumeGoal(deps.connection.db, organization, input.orgId, input.goalId)));
+  handle("updateKnowledgeEntry", (input) => mutate(() => knowledge.update(input)));
+  handle("listDocumentVersions", (input) => query("document_versions_failed", () =>
     documents.versions(input.orgId, input.documentId).map((v) => ({
       version: v.version, title: v.title, content: v.content, status: v.status,
       changedByType: v.changed_by_type, changedById: v.changed_by_id, reason: v.reason, createdAt: v.created_at,
     }))));
-  ipcMain.handle(IPC_CHANNELS.listKnowledgeRevisions, (_event, input) => query("knowledge_revisions_failed", () =>
+  handle("listKnowledgeRevisions", (input) => query("knowledge_revisions_failed", () =>
     knowledge.revisions(input.orgId, input.entryId).map((r) => ({
       revision: r.revision, topic: r.topic, category: r.category, content: r.content, importance: r.importance,
       changedByType: r.changed_by_type, changedById: r.changed_by_id, reason: r.reason, createdAt: r.created_at,
     }))));
-  ipcMain.handle(IPC_CHANNELS.createAutomationRule, (_event, input) => mutate(() => automation.create(input)));
-  ipcMain.handle(IPC_CHANNELS.updateAutomationRule, (_event, input) => mutate(() => automation.update(input)));
-  ipcMain.handle(IPC_CHANNELS.deleteAutomationRule, (_event, input) => mutate(() => automation.delete(input)));
-  ipcMain.handle(IPC_CHANNELS.createMeeting, (_event, input) => mutate(() => meetingService.create(input)));
-  ipcMain.handle(IPC_CHANNELS.deleteMeeting, (_event, input) => mutate(() => meetingService.delete(input)));
-  ipcMain.handle(IPC_CHANNELS.createSprint, (_event, input) => mutate(() => sprintService.create(input)));
-  ipcMain.handle(IPC_CHANNELS.deleteSprint, (_event, input) => mutate(() => sprintService.delete(input)));
-  ipcMain.handle(IPC_CHANNELS.createApproval, (_event, input) => mutate(() => approvals.create(input)));
-  ipcMain.handle(IPC_CHANNELS.decideApproval, (_event, input) => mutate(() => approvals.decide(input)));
-  ipcMain.handle(IPC_CHANNELS.syncEmployeeIdentity, (_event, input) => mutate(() => identityAccess.syncEmployeeIdentity(input)));
-  ipcMain.handle(IPC_CHANNELS.grantRole, (_event, input) => mutate(() => identityAccess.grantRole(input)));
-  ipcMain.handle(IPC_CHANNELS.createChatSpace, (_event, input) => mutate(() => chat.createSpace(input)));
-  ipcMain.handle(IPC_CHANNELS.sendMessage, (_event, input) => mutate(() => chat.sendMessage(input)));
-  ipcMain.handle(IPC_CHANNELS.editMessage, (_event, input) => mutate(() => chat.editMessage(input)));
-  ipcMain.handle(IPC_CHANNELS.deleteMessage, (_event, input) => mutate(() => chat.deleteMessage(input)));
-  ipcMain.handle(IPC_CHANNELS.markChatSpaceRead, (_event, input) => mutate(() => chat.markSpaceRead(input)));
-  ipcMain.handle(IPC_CHANNELS.saveProviderCredential, (_event, input) => mutate(() => providers.saveCredential(input)));
-  ipcMain.handle(IPC_CHANNELS.revokeProviderCredential, async (_event, input) => {
+  handle("createAutomationRule", (input) => mutate(() => automation.create(input)));
+  handle("updateAutomationRule", (input) => mutate(() => automation.update(input)));
+  handle("deleteAutomationRule", (input) => mutate(() => automation.delete(input)));
+  handle("createMeeting", (input) => mutate(() => meetingService.create(input)));
+  handle("deleteMeeting", (input) => mutate(() => meetingService.delete(input)));
+  handle("createSprint", (input) => mutate(() => sprintService.create(input)));
+  handle("deleteSprint", (input) => mutate(() => sprintService.delete(input)));
+  handle("createApproval", (input) => mutate(() => approvals.create(input)));
+  handle("decideApproval", (input) => mutate(() => approvals.decide(input)));
+  handle("syncEmployeeIdentity", (input) => mutate(() => identityAccess.syncEmployeeIdentity(input)));
+  handle("grantRole", (input) => mutate(() => identityAccess.grantRole(input)));
+  handle("createChatSpace", (input) => mutate(() => chat.createSpace(input)));
+  handle("sendMessage", (input) => mutate(() => chat.sendMessage(input)));
+  handle("editMessage", (input) => mutate(() => chat.editMessage(input)));
+  handle("deleteMessage", (input) => mutate(() => chat.deleteMessage(input)));
+  handle("markChatSpaceRead", (input) => mutate(() => chat.markSpaceRead(input)));
+  handle("saveProviderCredential", (input) => mutate(() => providers.saveCredential(input)));
+  handle("revokeProviderCredential", async (input) => {
     try {
       await providers.revokeCredential(input);
       notifyDataChanged();
@@ -223,10 +228,10 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       return fail("provider_revoke_failed", error instanceof Error ? error.message : String(error));
     }
   });
-  ipcMain.handle(IPC_CHANNELS.updateProviderPolicy, (_event, input) => mutate(() => providers.updatePolicy(input)));
-  ipcMain.handle(IPC_CHANNELS.setProviderPrices, (_event, input) => mutate(() => providers.setPrices(input)));
-  ipcMain.handle(IPC_CHANNELS.setGoalAuditor, (_event, input) => mutate(() => setGoalAuditor(deps.connection.db, input)));
-  ipcMain.handle(IPC_CHANNELS.checkProviderHealth, async (_event, input) => {
+  handle("updateProviderPolicy", (input) => mutate(() => providers.updatePolicy(input)));
+  handle("setProviderPrices", (input) => mutate(() => providers.setPrices(input)));
+  handle("setGoalAuditor", (input) => mutate(() => setGoalAuditor(deps.connection.db, input)));
+  handle("checkProviderHealth", async (input) => {
     try {
       await providers.checkHealth(input.orgId, input.providerId);
       notifyDataChanged();
@@ -235,21 +240,21 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       return fail("provider_health_failed", error instanceof Error ? error.message : String(error));
     }
   });
-  ipcMain.handle(IPC_CHANNELS.listProviderModels, async (_event, input) => {
+  handle("listProviderModels", async (input) => {
     try {
       return ok(await providers.listModels(input));
     } catch (error) {
       return fail("provider_models_failed", error instanceof Error ? error.message : String(error));
     }
   });
-  ipcMain.handle(IPC_CHANNELS.checkProviderModel, async (_event, input) => {
+  handle("checkProviderModel", async (input) => {
     try {
       return ok(await providers.checkModel(input));
     } catch (error) {
       return fail("provider_model_check_failed", error instanceof Error ? error.message : String(error));
     }
   });
-  ipcMain.handle(IPC_CHANNELS.startProviderOAuth, async (_event, input) => {
+  handle("startProviderOAuth", async (input) => {
     const emit = (event: Record<string, unknown>) =>
       deps.mainWindow.webContents.send(IPC_CHANNELS.rendererEvent, { type: "provider-oauth", providerKey: input.providerKey, ...event });
     try {
@@ -283,11 +288,11 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       return fail("provider_oauth_failed", message);
     }
   });
-  ipcMain.handle(IPC_CHANNELS.cancelProviderOAuth, (_event, input) => {
+  handle("cancelProviderOAuth", (input) => {
     providerOAuth.cancel(input.providerKey);
     return ok(null);
   });
-  ipcMain.handle(IPC_CHANNELS.openExternalUrl, async (_event, url: string) => {
+  handle("openExternalUrl", async (url) => {
     try {
       await shell.openExternal(normalizeExternalBrowserUrl(url));
       return ok(null);
@@ -295,7 +300,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       return fail("external_url_failed", error instanceof Error ? error.message : String(error));
     }
   });
-  ipcMain.handle(IPC_CHANNELS.createProviderResponse, async (_event, input) => {
+  handle("createProviderResponse", async (input) => {
     try {
       await providers.createResponse(input);
       notifyDataChanged();
@@ -304,7 +309,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       return fail("provider_response_failed", error instanceof Error ? error.message : String(error));
     }
   });
-  ipcMain.handle(IPC_CHANNELS.streamProviderResponse, async (_event, input) => {
+  handle("streamProviderResponse", async (input) => {
     try {
       await providers.streamResponse(input, (streamEvent) => {
         deps.mainWindow.webContents.send(IPC_CHANNELS.rendererEvent, { type: "provider-response-stream", event: streamEvent });
@@ -315,7 +320,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       return fail("provider_stream_failed", error instanceof Error ? error.message : String(error));
     }
   });
-  ipcMain.handle(IPC_CHANNELS.cancelProviderResponse, async (_event, input) => {
+  handle("cancelProviderResponse", async (input) => {
     try {
       await providers.cancelResponse(input);
       notifyDataChanged();
@@ -324,12 +329,12 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       return fail("provider_cancel_failed", error instanceof Error ? error.message : String(error));
     }
   });
-  ipcMain.handle(IPC_CHANNELS.createSocialAccount, (_event, input) => mutate(() => social.createAccount(input)));
-  ipcMain.handle(IPC_CHANNELS.createScheduledPost, (_event, input) => mutate(() => social.createScheduledPost(input)));
-  ipcMain.handle(IPC_CHANNELS.setScheduledPostState, (_event, input) => mutate(() => social.setScheduledPostState(input)));
-  ipcMain.handle(IPC_CHANNELS.setFilePinned, (_event, input) => mutate(() => files.setPinned(input.orgId, input.fileId, input.pinned)));
+  handle("createSocialAccount", (input) => mutate(() => social.createAccount(input)));
+  handle("createScheduledPost", (input) => mutate(() => social.createScheduledPost(input)));
+  handle("setScheduledPostState", (input) => mutate(() => social.setScheduledPostState(input)));
+  handle("setFilePinned", (input) => mutate(() => files.setPinned(input.orgId, input.fileId, input.pinned)));
 
-  ipcMain.handle(IPC_CHANNELS.launchSocialLogin, (_event, input) => {
+  handle("launchSocialLogin", (input) => {
     try {
       social.launchLoginWindow(input);
       return ok(null);
@@ -338,7 +343,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     }
   });
 
-  ipcMain.handle(IPC_CHANNELS.importFile, async (_event, input) => {
+  handle("importFile", async (input) => {
     try {
       const fileId = await files.importFile(input);
       if (fileId) notifyDataChanged();
@@ -348,7 +353,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     }
   });
 
-  ipcMain.handle(IPC_CHANNELS.openFile, async (_event, input) => {
+  handle("openFile", async (input) => {
     try {
       await files.openFile(input);
       return ok(null);
@@ -357,7 +362,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     }
   });
 
-  ipcMain.handle(IPC_CHANNELS.pickDirectory, async () => {
+  handle("pickDirectory", async () => {
     try {
       const result = await dialog.showOpenDialog(deps.mainWindow, { properties: ["openDirectory", "createDirectory"] });
       if (result.canceled || result.filePaths.length === 0) return ok(null);
@@ -367,22 +372,22 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     }
   });
 
-  ipcMain.handle(IPC_CHANNELS.createMigrationReport, (_event, input) => mutate(() => migrations.createReport(input)));
-  ipcMain.handle(IPC_CHANNELS.createRollbackSnapshot, (_event, input) => mutate(() => rollback.createSnapshot(input)));
-  ipcMain.handle(IPC_CHANNELS.setRollbackSnapshotActive, (_event, input) => mutate(() => rollback.setActive(input)));
-  ipcMain.handle(IPC_CHANNELS.resolveMigrationReconciliation, (_event, input) => mutate(() => rollback.resolveReconciliationItem(input)));
-  ipcMain.handle(IPC_CHANNELS.setFeatureFlag, (_event, input) => mutate(() => operations.setFeatureFlag(input)));
-  ipcMain.handle(IPC_CHANNELS.runChaosDrill, (_event, input) => mutate(() => operations.runChaosDrill(input)));
-  ipcMain.handle(IPC_CHANNELS.runSdlcReview, (_event, input) => mutate(() => sdlc.runReview(input)));
-  ipcMain.handle(IPC_CHANNELS.runEvalSuite, (_event, input) => mutate(() => sdlc.runEvalSuite(input)));
-  ipcMain.handle(IPC_CHANNELS.setPrBotGate, (_event, input) => mutate(() => sdlc.setPrBotGate(input)));
-  ipcMain.handle(IPC_CHANNELS.createComplianceExport, (_event, input) => mutate(() => compliance.createExport(input)));
-  ipcMain.handle(IPC_CHANNELS.createAuditReplay, (_event, input) => mutate(() => audit.createThreadReplay(input)));
-  ipcMain.handle(IPC_CHANNELS.createLegalHold, (_event, input) => mutate(() => compliance.createLegalHold(input)));
-  ipcMain.handle(IPC_CHANNELS.setLegalHoldState, (_event, input) => mutate(() => compliance.setLegalHoldState(input)));
-  ipcMain.handle(IPC_CHANNELS.createRetentionFreeze, (_event, input) => mutate(() => compliance.createRetentionFreeze(input)));
-  ipcMain.handle(IPC_CHANNELS.setRetentionFreezeState, (_event, input) => mutate(() => compliance.setRetentionFreezeState(input)));
-  ipcMain.handle(IPC_CHANNELS.search, (_event, input) => {
+  handle("createMigrationReport", (input) => mutate(() => migrations.createReport(input)));
+  handle("createRollbackSnapshot", (input) => mutate(() => rollback.createSnapshot(input)));
+  handle("setRollbackSnapshotActive", (input) => mutate(() => rollback.setActive(input)));
+  handle("resolveMigrationReconciliation", (input) => mutate(() => rollback.resolveReconciliationItem(input)));
+  handle("setFeatureFlag", (input) => mutate(() => operations.setFeatureFlag(input)));
+  handle("runChaosDrill", (input) => mutate(() => operations.runChaosDrill(input)));
+  handle("runSdlcReview", (input) => mutate(() => sdlc.runReview(input)));
+  handle("runEvalSuite", (input) => mutate(() => sdlc.runEvalSuite(input)));
+  handle("setPrBotGate", (input) => mutate(() => sdlc.setPrBotGate(input)));
+  handle("createComplianceExport", (input) => mutate(() => compliance.createExport(input)));
+  handle("createAuditReplay", (input) => mutate(() => audit.createThreadReplay(input)));
+  handle("createLegalHold", (input) => mutate(() => compliance.createLegalHold(input)));
+  handle("setLegalHoldState", (input) => mutate(() => compliance.setLegalHoldState(input)));
+  handle("createRetentionFreeze", (input) => mutate(() => compliance.createRetentionFreeze(input)));
+  handle("setRetentionFreezeState", (input) => mutate(() => compliance.setRetentionFreezeState(input)));
+  handle("search", (input) => {
     try {
       return ok(search.search(input));
     } catch (error) {
@@ -392,14 +397,14 @@ export function registerIpcHandlers(deps: IpcDeps): void {
 
   const composioConnections = new ComposioConnectionService(deps.connection.db, integrationKeys);
 
-  ipcMain.handle(IPC_CHANNELS.listConnectorCatalog, async () => {
+  handle("listConnectorCatalog", async () => {
     try {
       return ok(await composioConnections.listCatalog());
     } catch (error) {
       return fail("composio_catalog_failed", error instanceof Error ? error.message : String(error));
     }
   });
-  ipcMain.handle(IPC_CHANNELS.connectComposioToolkit, async (_event, input) => {
+  handle("connectComposioToolkit", async (input) => {
     try {
       return ok(await composioConnections.connectToolkit(input.orgId, input.toolkitSlug, input.label));
     } catch (error) {
@@ -409,7 +414,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       notifyDataChanged();
     }
   });
-  ipcMain.handle(IPC_CHANNELS.disconnectComposioToolkit, async (_event, input) => {
+  handle("disconnectComposioToolkit", async (input) => {
     try {
       await composioConnections.disconnectToolkit(input.orgId, input.toolkitSlug, input.label);
       return ok(snapshot.load());
@@ -419,16 +424,16 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       notifyDataChanged();
     }
   });
-  ipcMain.handle(IPC_CHANNELS.grantConnector, (_event, input) => mutate(() => new ConnectorGrantsService(deps.connection.db).grantFromBoard(input)));
-  ipcMain.handle(IPC_CHANNELS.approvalDrifts, (_event, input) => {
+  handle("grantConnector", (input) => mutate(() => new ConnectorGrantsService(deps.connection.db).grantFromBoard(input)));
+  handle("approvalDrifts", (input) => {
     try {
       return ok(approvalDrifts(deps.connection.db, input.orgId));
     } catch (error) {
       return fail("approval_drift_failed", error instanceof Error ? error.message : String(error));
     }
   });
-  ipcMain.handle(IPC_CHANNELS.revokeConnector, (_event, input) => mutate(() => new ConnectorGrantsService(deps.connection.db).revoke(input)));
-  ipcMain.handle(IPC_CHANNELS.refreshComposioAccounts, async (_event, input) => {
+  handle("revokeConnector", (input) => mutate(() => new ConnectorGrantsService(deps.connection.db).revoke(input)));
+  handle("refreshComposioAccounts", async (input) => {
     try {
       await composioConnections.refreshAccounts(input.orgId);
       return ok(snapshot.load());
@@ -438,7 +443,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       notifyDataChanged();
     }
   });
-  ipcMain.handle(IPC_CHANNELS.windowMinimize, () => deps.mainWindow.minimize());
-  ipcMain.handle(IPC_CHANNELS.windowMaximize, () => deps.mainWindow.isMaximized() ? deps.mainWindow.unmaximize() : deps.mainWindow.maximize());
-  ipcMain.handle(IPC_CHANNELS.windowClose, () => deps.mainWindow.close());
+  handle("windowMinimize", () => deps.mainWindow.minimize());
+  handle("windowMaximize", () => deps.mainWindow.isMaximized() ? deps.mainWindow.unmaximize() : deps.mainWindow.maximize());
+  handle("windowClose", () => deps.mainWindow.close());
 }

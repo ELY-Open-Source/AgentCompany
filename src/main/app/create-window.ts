@@ -1,5 +1,6 @@
 import { BrowserWindow } from "electron";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { attachMainWindowSecurity } from "./window-security";
 
 export interface CreateWindowOptions {
@@ -8,6 +9,11 @@ export interface CreateWindowOptions {
   devServerUrl?: string;
   /** UI language for renderer strings; injected synchronously via argv. */
   language: string;
+}
+
+/** The one page the main window may show and the IPC gate trusts: the dev server in development, the built index.html otherwise. */
+export function appPageUrl(options: Pick<CreateWindowOptions, "devServerUrl" | "rendererDist">): string {
+  return options.devServerUrl ?? pathToFileURL(join(options.rendererDist, "index.html")).href;
 }
 
 export function createMainWindow(options: CreateWindowOptions): BrowserWindow {
@@ -33,10 +39,7 @@ export function createMainWindow(options: CreateWindowOptions): BrowserWindow {
     },
   });
 
-  attachMainWindowSecurity(
-    win,
-    options.devServerUrl ? new URL(options.devServerUrl).origin : null,
-  );
+  attachMainWindowSecurity(win, appPageUrl(options));
   win.once("ready-to-show", () => win.show());
 
   if (options.devServerUrl) {
