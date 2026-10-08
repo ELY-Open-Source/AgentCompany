@@ -62,6 +62,28 @@ export class OrgGovernanceService {
     return { reviewRequired: input.budgetCents > policy.require_approval_above_cents, departmentName };
   }
 
+  /** An existing agent moving department or changing budget meets the same limits a hire does. */
+  enforceStaffingChange(input: { orgId: string; agentId: string; departmentName: string; budgetCents: number }): void {
+    const policy = this.db.prepare("select max_headcount, monthly_budget_limit_cents from hiring_policies where org_id = ? and department_name = ?")
+      .get(input.orgId, input.departmentName) as { max_headcount: number; monthly_budget_limit_cents: number } | undefined;
+    if (!policy) throw new Error("Hiring policy is required for department.");
+    const others = this.db.prepare(`
+      select count(*) as headcount, coalesce(sum(budget_cents), 0) as budget_cents
+      from agents where org_id = ? and department = ? and lifecycle = 'active' and id <> ?
+    `).get(input.orgId, input.departmentName, input.agentId) as { headcount: number; budget_cents: number };
+    const current = this.db.prepare("select department, budget_cents from agents where id = ? and org_id = ?").get(input.agentId, input.orgId) as { department: string; budget_cents: number };
+    const moving = current.department !== input.departmentName;
+    // Edits that neither move the agent nor raise its budget never trip a limit, even in a department already over it.
+    if (!moving && input.budgetCents <= current.budget_cents) return;
+    if (moving && others.headcount >= policy.max_headcount) {
+      throw new Error(`${input.departmentName} is at its headcount limit (${policy.max_headcount}).`);
+    }
+    const total = others.budget_cents + input.budgetCents;
+    if (total > policy.monthly_budget_limit_cents) {
+      throw new Error(`${input.departmentName} would budget $${(total / 100).toFixed(2)} a month, over its $${(policy.monthly_budget_limit_cents / 100).toFixed(2)} limit.`);
+    }
+  }
+
   routeApproval(input: { orgId: string; approvalId: string; kind: string; risk: RiskLevel }): void {
     const rule = this.resolveRoutingRule(input.orgId, input.kind, input.risk);
     this.assertRouteTarget(input.orgId, rule.route_to_type, rule.route_to_id);

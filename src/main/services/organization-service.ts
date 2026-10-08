@@ -185,6 +185,7 @@ export class OrganizationService {
     }
     const department = this.governance.requireCanonicalDepartment(input.orgId, input.department);
     const budgetCents = Math.max(0, Math.round(input.budgetCents));
+    this.governance.enforceStaffingChange({ orgId: input.orgId, agentId: input.agentId, departmentName: department, budgetCents });
     const avatarEmoji = input.avatarEmoji === undefined ? agent.avatar_emoji : (input.avatarEmoji.trim() || null);
     const avatarColor = input.avatarColor === undefined ? agent.avatar_color : normalizeAvatarColor(input.avatarColor);
     const avatarImage = input.avatarImage === undefined ? agent.avatar_image : normalizeAvatarImage(input.avatarImage);
