@@ -3,7 +3,7 @@
  * (Codex) and github-copilot turns. Matches Pi's `convertResponsesMessages` /
  * `convertResponsesTools` and the Responses streaming event shapes.
  */
-import { isRecord, type JsonRecord, type ProviderEventStreamMessage } from "../provider-http";
+import { isRecord, ProviderHttpError, type JsonRecord, type ProviderEventStreamMessage } from "../provider-http";
 import { parseArguments, type AgentTurnMessage, type AgentTurnResult, type ToolCall, type ToolDefinition } from "../provider-tool-turn";
 
 export function responsesToolDefs(tools: ToolDefinition[], strict: boolean | null = false): unknown[] {
@@ -66,12 +66,26 @@ function eventType(message: ProviderEventStreamMessage): string | null {
   return typeof type === "string" ? type : message.eventName;
 }
 
+/** Responses error codes that name passing provider trouble, as HTTP statuses for failure classification. */
+const RESPONSES_ERROR_STATUS: Record<string, number> = { server_error: 500, rate_limit_exceeded: 429 };
+
+/** The error of an `error` event, or of a `response.failed` event's response. */
+function streamError(data: JsonRecord): unknown {
+  return data.error ?? (isRecord(data.response) ? data.response.error : undefined);
+}
+
 function errorText(data: JsonRecord): string {
-  const error = data.error;
+  const error = streamError(data);
   if (typeof error === "string") return error;
   if (isRecord(error) && typeof error.message === "string") return error.message;
   if (typeof data.message === "string") return data.message;
   return "Provider stream failed.";
+}
+
+function errorStatus(data: JsonRecord): number | null {
+  const error = streamError(data);
+  const code = isRecord(error) ? error.code : data.code;
+  return typeof code === "string" ? RESPONSES_ERROR_STATUS[code] ?? null : null;
 }
 
 /**
@@ -91,7 +105,7 @@ export async function accumulateResponsesStream(messages: AsyncIterable<Provider
     raw.push(message.rawData);
     const type = eventType(message);
     if (!type) continue;
-    if (type === "error" || type === "response.failed") throw new Error(errorText(message.data));
+    if (type === "error" || type === "response.failed") throw new ProviderHttpError(errorText(message.data), null, errorStatus(message.data));
     if (type === "response.output_item.done" && isRecord(message.data.item)) {
       streamed.push(message.data.item);
     }

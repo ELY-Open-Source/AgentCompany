@@ -1,13 +1,15 @@
-/**
- * How long a provider's tasks stay parked after it reports a transient
- * failure (usage limit, rate limit, overload). Long enough not to hammer a
- * closed door every 5s tick, short enough to probe again the same hour.
- */
-const PROVIDER_TRANSIENT_FAILURE_COOLDOWN_MS = 10 * 60_000;
+/** Without a provider-given wait, parks double from this base with each failure in a row, up to the cap. */
+const BACKOFF_BASE_MS = 2 * 60_000;
+const BACKOFF_CAP_MS = 30 * 60_000;
+/** A provider-given wait is honored within these bounds. */
+const RETRY_AFTER_MIN_MS = 30_000;
+const RETRY_AFTER_MAX_MS = 60 * 60_000;
 
 /** In-memory parks for providers that reported a transient failure. */
 export class ProviderCooldowns {
   private readonly parks = new Map<string, { until: number; label: string; interactiveProbedAt?: number }>();
+  /** Transient failures in a row per provider, reset by a served request. */
+  private readonly strikes = new Map<string, number>();
 
   constructor(private readonly now: () => number) {}
 
@@ -17,20 +19,22 @@ export class ProviderCooldowns {
    * The park is in-memory by design: after a restart the first probe run
    * either succeeds or re-arms the cooldown at the cost of one request.
    */
-  park(provider: { id: string; label: string }, message: string): void {
+  park(provider: { id: string; label: string }, message: string, retryAfterMs: number | null): void {
     const active = this.parks.get(provider.id);
     const wasParked = active !== undefined && active.until > this.now();
+    const strikes = (this.strikes.get(provider.id) ?? 0) + 1;
+    this.strikes.set(provider.id, strikes);
+    const waitMs = retryAfterMs !== null
+      ? Math.min(Math.max(retryAfterMs, RETRY_AFTER_MIN_MS), RETRY_AFTER_MAX_MS)
+      : Math.min(BACKOFF_BASE_MS * 2 ** (strikes - 1), BACKOFF_CAP_MS);
     this.parks.set(provider.id, {
-      until: this.now() + PROVIDER_TRANSIENT_FAILURE_COOLDOWN_MS,
+      until: this.now() + waitMs,
       label: provider.label,
       // A failed probe must not unlock endless probes: re-arming the park
       // keeps the spent-probe mark until the window expires naturally.
       interactiveProbedAt: wasParked ? active?.interactiveProbedAt : undefined,
     });
-    if (!wasParked) {
-      const minutes = Math.round(PROVIDER_TRANSIENT_FAILURE_COOLDOWN_MS / 60_000);
-      console.warn(`[task-queue] provider "${provider.label}" reported a transient failure ("${message}"); its tasks are parked for ${minutes} minutes.`);
-    }
+    console.warn(`[task-queue] provider "${provider.label}" reported a transient failure ("${message}"); its tasks are parked for ${Math.round(waitMs / 1000)}s (failure ${strikes} in a row).`);
   }
 
   /**
@@ -70,6 +74,7 @@ export class ProviderCooldowns {
 
   /** A served request is proof of health: the park ends for everyone at once. */
   clear(provider: { id: string; label: string }): void {
+    this.strikes.delete(provider.id);
     if (this.parks.delete(provider.id)) {
       console.info(`[task-queue] provider "${provider.label}" served a request; cooldown lifted early.`);
     }

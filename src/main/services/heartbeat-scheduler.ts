@@ -1,5 +1,5 @@
 import type { DatabaseSync } from "node:sqlite";
-import { currentProviderUsageWindow, isTransientProviderFailure } from "../../shared/provider-runtime-domain";
+import { currentProviderUsageWindow } from "../../shared/provider-runtime-domain";
 import { createId } from "../../shared/ids";
 import type { ProviderCooldowns } from "./provider-cooldowns";
 import { assertExecutionApproval, createIsolationContext, loadWorkspace, requireAgentProvider, requireAssignedAgent, requireTask } from "./task-run-preparation";
@@ -54,7 +54,7 @@ export class HeartbeatScheduler {
     this.observeQuotaBlocks(window.start);
     const cooling = new Set(this.cooldowns.cooledProviderIds());
     const sessionsOf = this.db.prepare(`
-      select r.error_message,
+      select r.failure_kind,
         exists (select 1 from run_actions a where a.run_id = r.id and a.result_excerpt not like 'ERROR%') as progressed
       from task_runs r join tasks t on t.id = r.task_id
       where r.task_id = ? and r.state not in ('superseded', 'stopped', 'queued', 'running') and r.rowid > t.run_budget_floor
@@ -71,8 +71,8 @@ export class HeartbeatScheduler {
         continue;
       }
       this.budgetParkedAgents.delete(row.agent_id);
-      const sessions = (sessionsOf.all(row.task_id) as Array<{ error_message: string | null; progressed: number }>)
-        .filter((run) => !isTransientProviderFailure(run.error_message));
+      const sessions = (sessionsOf.all(row.task_id) as Array<{ failure_kind: string | null; progressed: number }>)
+        .filter((run) => run.failure_kind !== "transient");
       const stuck = sessions.filter((run) => run.progressed === 0).length;
       if (stuck >= TASK_RETRY_BUDGET) {
         this.markStalled(row.org_id, row.task_id, `${TASK_RETRY_BUDGET} sessions made no progress`);

@@ -553,8 +553,8 @@ describe("task execution service", () => {
         insert into task_runs(
           id, org_id, task_id, agent_id, provider_id, provider_request_id,
           execution_context_id, service_identity_id, workspace_mount_json, secret_scope_json,
-          trigger, state, created_at, started_at, completed_at, error_message
-        ) values (?, ?, ?, ?, ?, null, ?, ?, '[]', '{}', 'heartbeat', 'failed', ?, ?, ?, ?)
+          trigger, state, created_at, started_at, completed_at, error_message, failure_kind
+        ) values (?, ?, ?, ?, ?, null, ?, ?, '[]', '{}', 'heartbeat', 'failed', ?, ?, ?, ?, 'transient')
       `);
       const now = new Date().toISOString();
       for (const index of [1, 2, 3]) {
@@ -638,8 +638,8 @@ describe("task execution service", () => {
         insert into task_runs(
           id, org_id, task_id, agent_id, provider_id, provider_request_id,
           execution_context_id, service_identity_id, workspace_mount_json, secret_scope_json,
-          trigger, state, created_at, started_at, completed_at, error_message
-        ) values (?, ?, ?, ?, ?, null, ?, ?, '[]', '{}', 'heartbeat', 'failed', ?, ?, ?, ?)
+          trigger, state, created_at, started_at, completed_at, error_message, failure_kind
+        ) values (?, ?, ?, ?, ?, null, ?, ?, '[]', '{}', 'heartbeat', 'failed', ?, ?, ?, ?, 'transient')
       `);
       const now = new Date().toISOString();
       for (const index of [1, 2, 3]) {

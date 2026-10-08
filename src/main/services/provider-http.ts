@@ -34,6 +34,9 @@ export class ProviderHttpError extends Error {
   constructor(
     message: string,
     readonly rateLimitState: ProviderObservedRateLimitState | null,
+    /** HTTP status of the failed response; null when no response arrived. */
+    readonly status: number | null = null,
+    readonly timedOut = false,
   ) {
     super(message);
     this.name = "ProviderHttpError";
@@ -86,7 +89,7 @@ export async function postEventStream(
     const raw = await withDeadline(controller, timeouts.bodyTimeoutMs ?? BODY_TIMEOUT_MS, () => response.text());
     const data = parseProviderJson(raw, false);
     const message = readProviderError(data) ?? (raw.trim() || `Provider request failed with HTTP ${response.status}.`);
-    throw new ProviderHttpError(message, rateLimitState);
+    throw new ProviderHttpError(message, rateLimitState, response.status);
   }
   if (!response.body) throw new ProviderHttpError("Provider returned an empty event stream.", rateLimitState);
   return { messages: readServerSentEvents(response.body, timeouts.idleTimeoutMs ?? STREAM_IDLE_TIMEOUT_MS), rateLimitState };
@@ -100,7 +103,7 @@ async function requestJson(endpoint: string, init: RequestInit, timeouts: Provid
   const data = parseProviderJson(raw, response.ok);
   if (!response.ok) {
     const message = readProviderError(data) ?? (raw.trim() || `Provider request failed with HTTP ${response.status}.`);
-    throw new ProviderHttpError(message, rateLimitState);
+    throw new ProviderHttpError(message, rateLimitState, response.status);
   }
   return { data, rateLimitState };
 }
@@ -126,7 +129,7 @@ async function withDeadline<T>(controller: AbortController, timeoutMs: number, o
     return await operation();
   } catch (error) {
     throwIfRunStopped();
-    if (controller.signal.aborted) throw new ProviderHttpError("Provider request timed out.", null);
+    if (controller.signal.aborted) throw new ProviderHttpError("Provider request timed out.", null, null, true);
     throw error;
   } finally {
     clearTimeout(timer);
@@ -175,7 +178,7 @@ async function readWithIdleDeadline(
 ): Promise<ReadableStreamReadResult<Uint8Array>> {
   let timer: NodeJS.Timeout | undefined;
   const idle = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => reject(new ProviderHttpError("Provider stream timed out.", null)), idleTimeoutMs);
+    timer = setTimeout(() => reject(new ProviderHttpError("Provider stream timed out.", null, null, true)), idleTimeoutMs);
   });
   try {
     return await Promise.race([reader.read(), idle]);

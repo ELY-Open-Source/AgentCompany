@@ -3,7 +3,7 @@
  * Ported from Pi's google-shared `convertMessages` / `convertTools` and the
  * Antigravity request wrapper in google-gemini-cli.
  */
-import { isRecord, type JsonRecord, type ProviderEventStreamMessage } from "../provider-http";
+import { isRecord, ProviderHttpError, type JsonRecord, type ProviderEventStreamMessage } from "../provider-http";
 import { type AgentTurnMessage, type AgentTurnResult, type ToolCall, type ToolDefinition } from "../provider-tool-turn";
 
 const ANTIGRAVITY_SYSTEM_INSTRUCTION =
@@ -137,7 +137,7 @@ export async function accumulateGeminiStream(messages: AsyncIterable<ProviderEve
     raw.push(message.rawData);
     if (isRecord(message.data.error)) {
       const error = message.data.error;
-      throw new Error(typeof error.message === "string" ? error.message : "Antigravity stream failed.");
+      throw new ProviderHttpError(typeof error.message === "string" ? error.message : "Antigravity stream failed.", null, typeof error.code === "number" ? error.code : null);
     }
     const response = isRecord(message.data.response) ? message.data.response : null;
     if (!response) continue;

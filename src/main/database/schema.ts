@@ -72,6 +72,7 @@ import { runActionsSchema } from "./migrations/070-run-actions";
 import { backgroundPollFailuresSchema } from "./migrations/071-background-poll-failures";
 import { spendSchema } from "./migrations/072-spend";
 import { usageWindowTokensSchema } from "./migrations/073-usage-window-tokens";
+import { runFailureKindSchema } from "./migrations/074-run-failure-kind";
 
 interface Migration {
   version: number;
@@ -153,6 +154,7 @@ const MIGRATIONS: Migration[] = [
   { version: 71, name: "background_poll_failures", sql: backgroundPollFailuresSchema },
   { version: 72, name: "spend", sql: spendSchema },
   { version: 73, name: "usage_window_tokens", sql: usageWindowTokensSchema },
+  { version: 74, name: "run_failure_kind", sql: runFailureKindSchema },
 ];
 
 const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;

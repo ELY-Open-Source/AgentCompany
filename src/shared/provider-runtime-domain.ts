@@ -46,7 +46,7 @@ export const PROVIDER_MONTHLY_LIMIT_MESSAGE = "Provider monthly request limit ha
  * Matched case-insensitively against recorded task_runs.error_message rows,
  * which also heals historical rows written before this classification existed.
  */
-const TRANSIENT_PROVIDER_FAILURE_SIGNATURES = [
+export const TRANSIENT_PROVIDER_FAILURE_SIGNATURES = [
   PROVIDER_MONTHLY_LIMIT_MESSAGE,
   "usage limit", // ChatGPT-account plans: "The usage limit has been reached"
   "rate limit",

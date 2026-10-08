@@ -1,5 +1,5 @@
 /** OpenAI Chat Completions encoding/decoding (xAI, Groq, Mistral, Cerebras, OpenRouter, Kimi family). */
-import { isRecord, type JsonRecord, type ProviderEventStreamMessage } from "../provider-http";
+import { isRecord, ProviderHttpError, type JsonRecord, type ProviderEventStreamMessage } from "../provider-http";
 import { parseArguments, type AgentTurnMessage, type AgentTurnResult, type ToolCall, type ToolDefinition } from "../provider-tool-turn";
 
 export function chatToolDefs(tools: ToolDefinition[]): unknown[] {
@@ -63,7 +63,7 @@ export async function accumulateChatStream(messages: AsyncIterable<ProviderEvent
   const fragments = new Map<number, { id: string; name: string; args: string }>();
   for await (const message of messages) {
     raw.push(message.rawData);
-    if (message.data.error !== undefined) throw new Error(streamErrorText(message.data.error));
+    if (message.data.error !== undefined) throw new ProviderHttpError(streamErrorText(message.data.error), null, streamErrorStatus(message.data.error));
     const choices = Array.isArray(message.data.choices) ? message.data.choices : [];
     const first = choices.length > 0 && isRecord(choices[0]) ? choices[0] : null;
     const delta = first && isRecord(first.delta) ? first.delta : null;
@@ -87,6 +87,11 @@ export async function accumulateChatStream(messages: AsyncIterable<ProviderEvent
     if (fragment.id && fragment.name) toolCalls.push({ id: fragment.id, name: fragment.name, arguments: parseArguments(fragment.args) });
   }
   return { text: textParts.join("").trim(), toolCalls, rawResponseJson: JSON.stringify(raw) };
+}
+
+/** An in-stream error object's HTTP-style code (OpenRouter sends e.g. { code: 500 }), or null. */
+function streamErrorStatus(error: unknown): number | null {
+  return isRecord(error) && typeof error.code === "number" ? error.code : null;
 }
 
 function streamErrorText(error: unknown): string {

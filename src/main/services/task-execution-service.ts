@@ -1,7 +1,6 @@
 import type { DatabaseSync } from "node:sqlite";
 import type { RunTaskInput } from "../../shared/commands";
 import { TASK_STATUS, WRITING_MODE } from "../../shared/domain";
-import { isTransientProviderFailure } from "../../shared/provider-runtime-domain";
 import { createId } from "../../shared/ids";
 import { AuditService } from "./audit-service";
 import { ProviderService } from "./provider-service";
@@ -13,6 +12,7 @@ import { runAgentLoop, runTools } from "./agent-run-loop";
 import type { RunModel } from "./skill-runtime";
 import { combineMidRunPolls, createGoalChangePoller } from "./goal-change-poller";
 import { recordRunAction, runJournalLines } from "./run-journal";
+import { classifyProviderFailure } from "./provider-failure";
 import { runStopReason, SESSION_TIME_LIMIT_MESSAGE, SESSION_TIME_LIMIT_MS, withRunControl } from "./run-control";
 import type { AgentToolContext } from "./agent-tools";
 import {
@@ -145,7 +145,7 @@ export class TaskExecutionService {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       console.error(`[task-run] run ${runId} failed before execution: ${message}`);
-      this.failRun(orgId, runId, null, message);
+      this.failRun(orgId, runId, null, message, false);
       this.audit.record({
         orgId,
         entityType: "task_run",
@@ -234,7 +234,11 @@ export class TaskExecutionService {
           }),
           toolContext,
           externalTools,
-          onModelTurn: contextRecorder.commit,
+          onModelTurn: () => {
+            contextRecorder.commit();
+            // A served request ends the provider's failure streak, so the next park starts small again.
+            this.cooldowns.clear(provider);
+          },
           onToolCompleted: (call, output) => recordRunAction(this.db, { orgId, runId, taskId: task.id, call, output }),
           inputBudgetTokens: inputBudgetTokens(provider.context_window_tokens),
           pollNewMessages: combineMidRunPolls(
@@ -298,8 +302,9 @@ export class TaskExecutionService {
         this.markStopped(orgId, runId, providerRequestId, stopReason, { taskId: task.id, agentId: agent.id, providerId: provider.id });
         throw new Error(stopReason);
       }
-      this.failRun(orgId, runId, providerRequestId, message);
-      if (isTransientProviderFailure(message)) this.cooldowns.park(provider, message);
+      const failure = classifyProviderFailure(error, Date.now());
+      this.failRun(orgId, runId, providerRequestId, message, failure.transient);
+      if (failure.transient) this.cooldowns.park(provider, message, failure.retryAfterMs);
       else if (task.origin === null) recordRunMemory(this.db, { orgId, runId, projectId: task.project_id, taskTitle: task.title, outcome: "failed", text: message });
       this.audit.record({
         orgId,
@@ -462,12 +467,12 @@ export class TaskExecutionService {
     return runId;
   }
 
-  private failRun(orgId: string, runId: string, providerRequestId: string | null, errorMessage: string): void {
+  private failRun(orgId: string, runId: string, providerRequestId: string | null, errorMessage: string, transient: boolean): void {
     this.db.prepare(`
       update task_runs
-      set state = ?, provider_request_id = coalesce(?, provider_request_id), completed_at = ?, error_message = ?
+      set state = ?, provider_request_id = coalesce(?, provider_request_id), completed_at = ?, error_message = ?, failure_kind = ?
       where id = ? and org_id = ?
-    `).run(TASK_RUN_STATE.FAILED, providerRequestId, new Date().toISOString(), errorMessage, runId, orgId);
+    `).run(TASK_RUN_STATE.FAILED, providerRequestId, new Date().toISOString(), errorMessage, transient ? "transient" : null, runId, orgId);
   }
 
   private resolveSkillRuntimeSnapshot(orgId: string, agentId: string, runId: string, maxTokens: number, taskText: string, runModel: RunModel, houseStyle: boolean): SkillRuntimeSnapshotRow | null {
