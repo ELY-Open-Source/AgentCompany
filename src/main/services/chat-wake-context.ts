@@ -1,6 +1,16 @@
 import type { DatabaseSync } from "node:sqlite";
 import type { ChatContextBlock } from "./task-prompts";
 
+const HISTORY_LIMIT = 20;
+
+const MESSAGE_SELECT = `
+  select m.body_md, m.created_at, m.edited_at, m.sender_type, m.sender_id,
+         coalesce(a.name, e.display_name, m.sender_type) as sender_name,
+         coalesce(a.role, e.role) as sender_role
+  from chat_messages m
+  left join agents a on a.id = m.sender_id and m.sender_type = 'agent'
+  left join employees e on e.id = m.sender_id and m.sender_type = 'employee'`;
+
 interface ThreadMessageRow {
   body_md: string;
   created_at: string;
@@ -18,28 +28,25 @@ export function loadChatWakeContext(db: DatabaseSync, orgId: string, agentId: st
   const thread = db.prepare("select space_id from chat_threads where id = ? and org_id = ?")
     .get(scope.sourceThreadId, orgId) as { space_id: string } | undefined;
   if (!thread) throw new Error(`Chat wake thread ${scope.sourceThreadId} no longer exists.`);
-  const messages = db.prepare(`
-    select m.body_md, m.created_at, m.edited_at, m.sender_type, m.sender_id,
-           coalesce(a.name, e.display_name, m.sender_type) as sender_name,
-           coalesce(a.role, e.role) as sender_role
-    from chat_messages m
-    left join agents a on a.id = m.sender_id and m.sender_type = 'agent'
-    left join employees e on e.id = m.sender_id and m.sender_type = 'employee'
-    where m.thread_id = ? and m.org_id = ?
-    order by m.created_at asc
-    limit 20
-  `).all(scope.sourceThreadId, orgId) as unknown as ThreadMessageRow[];
-  if (messages.length === 0) return null;
-  const isOwn = (m: ThreadMessageRow) => m.sender_type === "agent" && m.sender_id === agentId;
-  const ownReplies = messages.filter(isOwn);
-  const lastReplyAt = ownReplies.length > 0 ? ownReplies[ownReplies.length - 1].created_at : "";
-  const isFresh = (m: ThreadMessageRow) =>
-    !isOwn(m) && (m.created_at > lastReplyAt || (m.edited_at !== null && m.edited_at > lastReplyAt));
+  const lastReplyAt = (db.prepare(`
+    select coalesce(max(created_at), '') as at from chat_messages
+    where thread_id = ? and org_id = ? and sender_type = 'agent' and sender_id = ?
+  `).get(scope.sourceThreadId, orgId, agentId) as { at: string }).at;
+  const isFresh = `not (m.sender_type = 'agent' and m.sender_id = ?) and (m.created_at > ? or coalesce(m.edited_at, '') > ?)`;
+  const args = [scope.sourceThreadId, orgId, agentId, lastReplyAt, lastReplyAt];
+  const fresh = db.prepare(`${MESSAGE_SELECT} where m.thread_id = ? and m.org_id = ? and ${isFresh} order by m.created_at asc`)
+    .all(...args) as unknown as ThreadMessageRow[];
+  const history = (db.prepare(`${MESSAGE_SELECT} where m.thread_id = ? and m.org_id = ? and not (${isFresh}) order by m.created_at desc limit ?`)
+    .all(...args, HISTORY_LIMIT) as unknown as ThreadMessageRow[]).reverse();
+  const historyTotal = (db.prepare(`select count(*) as n from chat_messages m where m.thread_id = ? and m.org_id = ? and not (${isFresh})`)
+    .get(...args) as { n: number }).n;
+  if (fresh.length === 0 && history.length === 0) return null;
+  const omitted = historyTotal - history.length;
   return {
     threadId: scope.sourceThreadId,
     spaceId: thread.space_id,
-    history: messages.filter((m) => !isFresh(m)).map(formatMessage).join("\n"),
-    fresh: messages.filter(isFresh).map(formatMessage).join("\n"),
+    history: [...(omitted > 0 ? [`(${omitted} earlier messages in this thread are not shown.)`] : []), ...history.map(formatMessage)].join("\n"),
+    fresh: fresh.map(formatMessage).join("\n"),
   };
 }
 
@@ -60,13 +67,7 @@ export function createRunMessagePoller(
 ): () => string | null {
   let watermark = input.runStartedAt;
   return () => {
-    const rows = db.prepare(`
-      select m.body_md, m.created_at, m.edited_at, m.sender_type, m.sender_id,
-             coalesce(a.name, e.display_name, m.sender_type) as sender_name,
-             coalesce(a.role, e.role) as sender_role
-      from chat_messages m
-      left join agents a on a.id = m.sender_id and m.sender_type = 'agent'
-      left join employees e on e.id = m.sender_id and m.sender_type = 'employee'
+    const rows = db.prepare(`${MESSAGE_SELECT}
       where m.org_id = ? and m.created_at > ? and m.deleted_at is null
         and not (m.sender_type = 'agent' and m.sender_id = ?)
         and (m.thread_id = ? or m.thread_id in (

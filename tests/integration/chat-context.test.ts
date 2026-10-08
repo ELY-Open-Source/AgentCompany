@@ -173,4 +173,25 @@ describe("chat wake context", () => {
     expect(last.role === "user" && last.text).toContain("Stop — use Postgres instead.");
     h.connection.close();
   });
+
+  test("a long thread keeps every new message and the most recent history", async () => {
+    const h = await founderLine();
+    const threadId = h.say("Message 0", null);
+    await h.runWake();
+    for (let index = 1; index <= 30; index += 1) h.say(`Message ${index}`, threadId);
+    await h.runWake();
+    for (let index = 31; index <= 55; index += 1) h.say(`Message ${index}`, threadId);
+    await h.runWake();
+
+    const prompt = h.wakePrompts[2];
+    const earlier = prompt.slice(prompt.indexOf("Earlier in this thread"), prompt.indexOf("New since your last reply"));
+    const fresh = prompt.slice(prompt.indexOf("New since your last reply"));
+    const lineEnds = (block: string, text: string) => block.split("\n").some((line) => line.endsWith(text));
+    for (let index = 31; index <= 55; index += 1) expect(lineEnds(fresh, `: Message ${index}`)).toBe(true);
+    expect(lineEnds(earlier, ": Reply 2.")).toBe(true);
+    expect(lineEnds(earlier, ": Message 12")).toBe(true);
+    expect(lineEnds(earlier, ": Message 11")).toBe(false);
+    expect(earlier).toContain("13 earlier messages in this thread are not shown.");
+    h.connection.close();
+  });
 });
