@@ -243,7 +243,6 @@ function backgroundAdapters(status: string, text: string | null): ProviderAdapte
     openai: {
       ...providerAdapters.openai,
       parseAuthProfile: (secret) => ({ type: "api_key", apiKey: secret.trim() }),
-      checkHealth: async () => ({ checkedAt: new Date().toISOString(), rateLimitState: null }),
       createBackgroundResponse: async () => ({
         responseId: "resp_bg_1",
         status: "queued",

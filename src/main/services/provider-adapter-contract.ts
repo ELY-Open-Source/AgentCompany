@@ -32,16 +32,6 @@ export interface ProviderBackgroundRetrieveInput {
   responseId: string;
 }
 
-export interface ProviderHealthInput {
-  authProfile: ProviderAuthProfile;
-  model: string | null;
-}
-
-export interface ProviderHealthResult {
-  checkedAt: string;
-  rateLimitState: ProviderObservedRateLimitState | null;
-}
-
 export interface ProviderContext {
   authProfile: ProviderAuthProfile;
   model: string | null;
@@ -64,7 +54,6 @@ export interface ProviderAdapter {
   parseAuthProfile(secret: string): ProviderAuthProfile;
   listModels(ctx: ProviderContext): Promise<ProviderModelEntry[]>;
   getRateLimitState(ctx: ProviderContext): Promise<ProviderRateLimitState | null>;
-  checkHealth(input: ProviderHealthInput): Promise<ProviderHealthResult>;
   streamResponse(input: ProviderStreamInput): Promise<ProviderStreamResult>;
   cancelResponse(input: ProviderCancelInput): Promise<ProviderCancelResult>;
   createBackgroundResponse(input: ProviderBackgroundCreateInput): Promise<ProviderBackgroundCreateResult>;

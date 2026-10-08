@@ -64,7 +64,6 @@ describe("operations service", () => {
       openai: {
         ...providerAdapters.openai,
         parseAuthProfile: (secret) => ({ type: "api_key", apiKey: secret.trim() }),
-        checkHealth: async () => ({ checkedAt: new Date().toISOString(), rateLimitState: null }),
         createResponse: async () => ({ text: "accepted", rawResponseJson: "{}", rateLimitState: null }),
       },
     };

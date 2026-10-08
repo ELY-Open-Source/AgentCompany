@@ -1,6 +1,5 @@
 import { PROVIDER_AUTH_TYPE, type ProviderAuthType } from "../../shared/domain";
 import { listProviderModels, type ProviderModelEntry } from "../../shared/provider-models";
-import type { ProviderObservedRateLimitState } from "../../shared/provider-runtime-domain";
 import {
   parseAccessToken,
   parseAccountToken,
@@ -18,7 +17,6 @@ import {
   requireBedrockProfile,
   requireOpenAiCompatProfile,
   requireVertexProfile,
-  type ProviderAuthProfile,
 } from "./provider-auth-profiles";
 import { backgroundUnsupported, retrieveUnsupported } from "./provider-background";
 import { authorizeWithParser, refreshUnsupported, revokeLocalProfile } from "./provider-auth-lifecycle";
@@ -47,7 +45,6 @@ export * from "./provider-adapter-contract";
 import type {
   ProviderAdapter,
   ProviderAdapterRegistry,
-  ProviderHealthResult,
   ProviderRateLimitState,
 } from "./provider-adapter-contract";
 
@@ -63,7 +60,6 @@ export const providerAdapters: ProviderAdapterRegistry = {
       authorization: `Bearer ${requireApiKeyProfile(ctx.authProfile, "OpenAI").apiKey}`,
     }),
     getRateLimitState: providerRateLimitUnknown,
-    checkHealth: (input) => checkOpenAiHealth(input.authProfile, "https://api.openai.com/v1/models"),
     async streamResponse(input) {
       const profile = requireApiKeyProfile(input.authProfile, "OpenAI");
       const response = await postEventStream("https://api.openai.com/v1/responses", {
@@ -148,14 +144,6 @@ export const providerAdapters: ProviderAdapterRegistry = {
       "anthropic-version": ANTHROPIC_VERSION,
     }),
     getRateLimitState: providerRateLimitUnknown,
-    async checkHealth(input) {
-      const profile = requireApiKeyProfile(input.authProfile, "Anthropic");
-      const response = await getJson("https://api.anthropic.com/v1/models", {
-        "x-api-key": profile.apiKey,
-        "anthropic-version": "2023-06-01",
-      });
-      return healthy(response.rateLimitState);
-    },
     async streamResponse(input) {
       const profile = requireApiKeyProfile(input.authProfile, "Anthropic");
       const response = await postEventStream("https://api.anthropic.com/v1/messages", {
@@ -264,11 +252,6 @@ export const providerAdapters: ProviderAdapterRegistry = {
     cancelResponse: cancelUnsupported("Azure OpenAI"),
     createBackgroundResponse: backgroundUnsupported("Azure OpenAI"),
     retrieveResponse: retrieveUnsupported("Azure OpenAI"),
-    async checkHealth(input) {
-      const profile = requireAzureProfile(input.authProfile);
-      const response = await getJson(`${profile.baseUrl}/openai/deployments?api-version=2024-10-21`, { "api-key": profile.apiKey });
-      return healthy(response.rateLimitState);
-    },
   },
   "aws-bedrock": {
     providerKey: "aws-bedrock",
@@ -283,10 +266,6 @@ export const providerAdapters: ProviderAdapterRegistry = {
     cancelResponse: cancelUnsupported("AWS Bedrock"),
     createBackgroundResponse: backgroundUnsupported("AWS Bedrock"),
     retrieveResponse: retrieveUnsupported("AWS Bedrock"),
-    checkHealth: async (input) => {
-      requireBedrockProfile(input.authProfile);
-      return healthy(null);
-    },
   },
   "vertex-ai": {
     providerKey: "vertex-ai",
@@ -301,10 +280,6 @@ export const providerAdapters: ProviderAdapterRegistry = {
     cancelResponse: cancelUnsupported("Vertex AI"),
     createBackgroundResponse: backgroundUnsupported("Vertex AI"),
     retrieveResponse: retrieveUnsupported("Vertex AI"),
-    checkHealth: async (input) => {
-      requireVertexProfile(input.authProfile);
-      return healthy(null);
-    },
   },
   "custom-openai": {
     providerKey: "custom-openai",
@@ -319,10 +294,6 @@ export const providerAdapters: ProviderAdapterRegistry = {
     cancelResponse: cancelUnsupported("Custom OpenAI-compatible endpoint"),
     createBackgroundResponse: backgroundUnsupported("Custom OpenAI-compatible endpoint"),
     retrieveResponse: retrieveUnsupported("Custom OpenAI-compatible endpoint"),
-    checkHealth: async (input) => {
-      requireOpenAiCompatProfile(input.authProfile);
-      return healthy(null);
-    },
   },
   "custom-anthropic": {
     providerKey: "custom-anthropic",
@@ -337,10 +308,6 @@ export const providerAdapters: ProviderAdapterRegistry = {
     cancelResponse: cancelUnsupported("Custom Anthropic-compatible endpoint"),
     createBackgroundResponse: backgroundUnsupported("Custom Anthropic-compatible endpoint"),
     retrieveResponse: retrieveUnsupported("Custom Anthropic-compatible endpoint"),
-    checkHealth: async (input) => {
-      requireAnthropicCompatProfile(input.authProfile);
-      return healthy(null);
-    },
   },
 };
 
@@ -398,7 +365,6 @@ function openAiCompatibleAdapter({
       authorization: `Bearer ${requireApiKeyProfile(ctx.authProfile, label).apiKey}`,
     }),
     getRateLimitState: providerRateLimitUnknown,
-    checkHealth: (input) => checkOpenAiHealth(input.authProfile, healthUrl),
     async streamResponse(input) {
       const profile = requireApiKeyProfile(input.authProfile, label);
       const messages = responseMessages(input.instructions, input.prompt);
@@ -441,12 +407,6 @@ function responseMessages(instructions: string | null, prompt: string): Array<{ 
   ];
 }
 
-async function checkOpenAiHealth(authProfile: ProviderAuthProfile, healthUrl: string): Promise<ProviderHealthResult> {
-  const profile = requireApiKeyProfile(authProfile, "OpenAI-compatible provider");
-  const response = await getJson(healthUrl, { authorization: `Bearer ${profile.apiKey}` });
-  return healthy(response.rateLimitState);
-}
-
 function browserTokenAdapter(providerKey: string, authType: ProviderAuthType): ProviderAdapter {
   const parseAuthProfile = authType === PROVIDER_AUTH_TYPE.ACCOUNT_SUBSCRIPTION ? parseAccountToken : parseAccessToken;
   const assertProfile = authType === PROVIDER_AUTH_TYPE.ACCOUNT_SUBSCRIPTION ? requireAccountTokenProfile : requireAccessTokenProfile;
@@ -463,11 +423,6 @@ function browserTokenAdapter(providerKey: string, authType: ProviderAuthType): P
     cancelResponse: cancelUnsupported(providerKey),
     createBackgroundResponse: backgroundUnsupported(providerKey),
     retrieveResponse: retrieveUnsupported(providerKey),
-    checkHealth: async (input) => {
-      if (authType === PROVIDER_AUTH_TYPE.ACCOUNT_SUBSCRIPTION) requireAccountTokenProfile(input.authProfile);
-      else requireAccessTokenProfile(input.authProfile);
-      return healthy(null);
-    },
   };
 }
 
@@ -475,10 +430,6 @@ function requireResponseId(value: string): string {
   const responseId = value.trim();
   if (!responseId) throw new Error("Provider response id is required.");
   return responseId;
-}
-
-function healthy(rateLimitState: ProviderObservedRateLimitState | null): ProviderHealthResult {
-  return { checkedAt: new Date().toISOString(), rateLimitState };
 }
 
 function listStaticModels(providerKey: string): Promise<ProviderModelEntry[]> {

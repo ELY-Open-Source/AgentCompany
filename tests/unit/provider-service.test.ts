@@ -5,10 +5,12 @@ import { describe, expect, test } from "vitest";
 import { DatabaseConnection } from "../../src/main/database/connection";
 import { OrganizationService } from "../../src/main/services/organization-service";
 import { ProviderService } from "../../src/main/services/provider-service";
-import { ProviderHttpError, providerAdapters, type ProviderAdapterRegistry, type ProviderAuthProfile } from "../../src/main/services/provider-adapters";
+import { ProviderHttpError, providerAdapters, type ProviderAdapterRegistry } from "../../src/main/services/provider-adapters";
 import { SnapshotService } from "../../src/main/services/snapshot-service";
 import { PROVIDER_DATA_POLICY, PROVIDER_EXECUTION_MODE } from "../../src/shared/domain";
 import { PROVIDER_CATALOG } from "../../src/shared/provider-catalog";
+import { answeringModelCheck } from "../helpers/model-check";
+import type { AgentTurnResult, ProviderToolTurnInput } from "../../src/main/services/provider-tool-turn";
 
 function createConnection(): DatabaseConnection {
   return new DatabaseConnection(join(tmpdir(), `agentcompany-new-provider-${randomUUID()}.db`));
@@ -132,40 +134,42 @@ describe("provider service", () => {
     connection.close();
   });
 
-  test("checks provider health through its adapter", async () => {
+  test("health is a real agent call to the default model, not a look at the credential", async () => {
     const connection = createConnection();
     const organization = new OrganizationService(connection.db);
     const snapshot = new SnapshotService(connection.db);
-    let checkedProfile: ProviderAuthProfile | null = null;
-    const adapters: ProviderAdapterRegistry = {
-      ...providerAdapters,
-      openai: {
-        ...providerAdapters.openai,
-        parseAuthProfile: (secret) => ({ type: "api_key", apiKey: secret.trim() }),
-        checkHealth: async ({ authProfile }) => {
-          checkedProfile = authProfile;
-          return { checkedAt: new Date().toISOString(), rateLimitState: null };
-        },
-      },
-    };
-    const providers = new ProviderService(connection.db, adapters, testVault);
+    let mode: "capable" | "text" | "down" = "capable";
+    const seen: string[] = [];
+    const capable: (input: ProviderToolTurnInput) => Promise<AgentTurnResult> = answeringModelCheck(async () => ({ text: "", toolCalls: [], rawResponseJson: "{}" }));
+    const providers = new ProviderService(connection.db, providerAdapters, testVault, undefined, async (input) => {
+      seen.push(`${input.credential.apiKey}:${input.model}`);
+      if (mode === "down") throw new Error("401 invalid x-api-key");
+      return mode === "text" ? { text: "I am healthy.", toolCalls: [], rawResponseJson: "{}" } : capable(input);
+    });
     let orgId = "";
     let openAiProviderId = "";
-
     connection.transaction(() => {
       orgId = createOrganization(organization);
       openAiProviderId = providerId(connection, orgId, "openai");
       providers.saveCredential({ orgId, providerId: openAiProviderId, secret: "sk-live-provider", model: "gpt-5.4" });
     });
-    await providers.checkHealth(orgId, openAiProviderId);
+    const health = () => snapshot.load().providers.find((item) => item.id === openAiProviderId);
 
-    const state = snapshot.load();
-    const provider = state.providers.find((item) => item.id === openAiProviderId);
-    if (!provider) throw new Error("Provider was not found in snapshot.");
-    expect(checkedProfile).toEqual({ type: "api_key", apiKey: "sk-live-provider" });
-    expect(provider.healthState).toBe("healthy");
-    expect(provider.lastCheckedAt).toHaveLength(24);
-    expect(state.auditEvents.some((event) => event.entityType === "provider" && event.action === "health_checked")).toBe(true);
+    await providers.checkHealth(orgId, openAiProviderId);
+    expect(seen).toEqual(["sk-live-provider:gpt-5.4"]);
+    expect(health()).toMatchObject({ healthState: "healthy", lastError: null });
+    expect(snapshot.load().auditEvents.some((event) => event.entityType === "provider" && event.action === "health_checked")).toBe(true);
+
+    mode = "text";
+    await expect(providers.checkHealth(orgId, openAiProviderId)).rejects.toThrow("gpt-5.4 answered but cannot do agent work: it answered in text instead of calling the tool it was given");
+    expect(health()).toMatchObject({ healthState: "failed", lastError: expect.stringContaining("cannot do agent work") });
+
+    mode = "down";
+    await expect(providers.checkHealth(orgId, openAiProviderId)).rejects.toThrow("401 invalid x-api-key");
+    expect(health()).toMatchObject({ healthState: "failed", lastError: "401 invalid x-api-key" });
+
+    connection.db.prepare("update providers set model = null where id = ?").run(openAiProviderId);
+    await expect(providers.checkHealth(orgId, openAiProviderId)).rejects.toThrow("Pick a default model");
     connection.close();
   });
 
@@ -274,7 +278,6 @@ describe("provider service", () => {
       openai: {
         ...providerAdapters.openai,
         parseAuthProfile: (secret) => ({ type: "api_key", apiKey: secret.trim() }),
-        checkHealth: async () => ({ checkedAt: new Date().toISOString(), rateLimitState: null }),
         createResponse: async ({ authProfile, model, prompt }) => ({
           text: `${authProfile.type}:${model}:${prompt}`,
           rawResponseJson: JSON.stringify({ provider: "openai" }),
@@ -320,7 +323,6 @@ describe("provider service", () => {
       openai: {
         ...providerAdapters.openai,
         parseAuthProfile: (secret) => ({ type: "api_key", apiKey: secret.trim() }),
-        checkHealth: async () => ({ checkedAt: new Date().toISOString(), rateLimitState: null }),
         createResponse: async () => ({
           text: "accepted",
           rawResponseJson: "{}",
@@ -373,7 +375,6 @@ describe("provider service", () => {
       openai: {
         ...providerAdapters.openai,
         parseAuthProfile: (secret) => ({ type: "api_key", apiKey: secret.trim() }),
-        checkHealth: async () => ({ checkedAt: new Date().toISOString(), rateLimitState: null }),
         createResponse: async () => {
           throw new ProviderHttpError("rate limited", {
             requestLimit: 120,
@@ -430,7 +431,6 @@ describe("provider service", () => {
       openai: {
         ...providerAdapters.openai,
         parseAuthProfile: (secret) => ({ type: "api_key", apiKey: secret.trim() }),
-        checkHealth: async () => ({ checkedAt: new Date().toISOString(), rateLimitState: null }),
         createResponse: async ({ prompt }) => ({ text: `accepted:${prompt}`, rawResponseJson: "{}", rateLimitState: null }),
       },
     };
@@ -499,7 +499,6 @@ describe("provider service", () => {
       openai: {
         ...providerAdapters.openai,
         parseAuthProfile: (secret) => ({ type: "api_key", apiKey: secret.trim() }),
-        checkHealth: async () => ({ checkedAt: new Date().toISOString(), rateLimitState: null }),
         createResponse: async ({ prompt }) => ({ text: `accepted:${prompt}`, rawResponseJson: "{}", rateLimitState: null }),
       },
     };
@@ -561,7 +560,6 @@ describe("provider service", () => {
       openai: {
         ...providerAdapters.openai,
         parseAuthProfile: (secret) => ({ type: "api_key", apiKey: secret.trim() }),
-        checkHealth: async () => ({ checkedAt: new Date().toISOString(), rateLimitState: null }),
         createResponse: async () => {
           adapterCalled = true;
           return { text: "blocked", rawResponseJson: "{}", rateLimitState: null };

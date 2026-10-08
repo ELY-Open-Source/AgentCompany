@@ -43,7 +43,6 @@ describe("provider service streaming", () => {
       openai: {
         ...providerAdapters.openai,
         parseAuthProfile: (secret) => ({ type: "api_key", apiKey: secret.trim() }),
-        checkHealth: async () => ({ checkedAt: new Date().toISOString(), rateLimitState: null }),
         streamResponse: async () => ({
           events: streamEvents([
             event("message_start", null, "created", "resp_live_1"),
@@ -152,7 +151,6 @@ describe("provider service streaming", () => {
       openai: {
         ...providerAdapters.openai,
         parseAuthProfile: (secret) => ({ type: "api_key", apiKey: secret.trim() }),
-        checkHealth: async () => ({ checkedAt: new Date().toISOString(), rateLimitState: null }),
         cancelResponse: async ({ responseId }) => {
           cancelledResponseId = responseId;
           return { responseId, rawResponseJson: JSON.stringify({ id: responseId, status: "cancelled" }), rateLimitState: null };
@@ -227,7 +225,6 @@ describe("cancelled streams", () => {
       openai: {
         ...providerAdapters.openai,
         parseAuthProfile: (secret) => ({ type: "api_key", apiKey: secret.trim() }),
-        checkHealth: async () => ({ checkedAt: new Date().toISOString(), rateLimitState: null }),
         streamResponse: async () => ({ events: liveEvents(), rateLimitState: null }),
         cancelResponse: async ({ responseId }) => ({ responseId, rawResponseJson: JSON.stringify({ id: responseId, status: "cancelled" }), rateLimitState: null }),
       },

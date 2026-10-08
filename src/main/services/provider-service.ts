@@ -9,7 +9,7 @@ import { AuthBrokerService, type ProviderSecretVault } from "./auth-broker-servi
 import { OperationsService } from "./operations-service";
 import { IntegrationKeyStore } from "./integration-key-store";
 import { SecretVault } from "./secret-vault";
-import { providerAdapters, providerRateLimitStateFromError, type ProviderAdapterRegistry } from "./provider-adapters";
+import { providerAdapters, type ProviderAdapterRegistry } from "./provider-adapters";
 import { ProviderBackgroundService } from "./provider-background-service";
 import { ProviderRateLimitRegistry } from "./provider-rate-limit-registry";
 import { ProviderResponseObserver } from "./provider-response-observer";
@@ -28,7 +28,6 @@ import {
   WORKSPACE_SCOPES,
   loadConfiguredProvider,
   loadCredential,
-  recordObservedRateLimit,
   recordProviderHealth,
   requireAdapter,
   requireCatalogEntry,
@@ -199,14 +198,13 @@ export class ProviderService {
     return this.runner.checkModel(input);
   }
 
+  /** Health is a real agent call to the default model: account, endpoint and model all have to work. */
   async checkHealth(orgId: string, providerId: string): Promise<void> {
     const provider = loadConfiguredProvider(this.db, orgId, providerId);
-    const adapter = requireAdapter(this.adapters, provider.provider_key, provider.auth_type);
-    const credential = loadCredential(this.authBroker, orgId, provider);
     try {
-      const profile = adapter.parseAuthProfile(credential.secret);
-      const result = await adapter.checkHealth({ authProfile: profile, model: provider.model });
-      recordObservedRateLimit(this.rateLimitRegistry, orgId, provider, provider.model, result.rateLimitState);
+      if (!provider.model) throw new Error("Pick a default model; the health check is a real call to it.");
+      const check = await this.runner.checkModel({ orgId, providerId, model: provider.model });
+      if (!check.passed) throw new Error(`${provider.model} answered but cannot do agent work: ${check.detail}.`);
       recordProviderHealth(this.db, provider.id, orgId, HEALTH_STATE_HEALTHY, null);
       this.audit.record({
         orgId,
@@ -219,11 +217,11 @@ export class ProviderService {
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      recordObservedRateLimit(this.rateLimitRegistry, orgId, provider, provider.model, providerRateLimitStateFromError(error));
       recordProviderHealth(this.db, provider.id, orgId, HEALTH_STATE_FAILED, message);
       throw error;
     }
   }
+
 
   launchSignInWindow(input: LaunchProviderSignInInput): void {
     this.assertEmployee(input.orgId, input.employeeId);
