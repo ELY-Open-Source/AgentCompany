@@ -138,6 +138,31 @@ describe("reconnecting a connector keeps the working account until the new one i
     h.connection.close();
   });
 
+  test("a disconnect that fails partway leaves the account both working and shown", async () => {
+    const h = await connectedCompany();
+    remote.set("ca_leftover", { id: "ca_leftover", toolkitSlug: "github", status: "INITIATED", authConfigId: "ac_gh", createdAt: new Date().toISOString() });
+    failDelete.add("ca_leftover");
+    await expect(h.service.disconnectToolkit(h.orgId, "github", "main")).rejects.toThrow("Composio could not delete ca_leftover");
+    expect(remote.has(h.oldId)).toBe(true);
+    expect(h.account()).toEqual({ id: h.oldId, status: "ACTIVE", pending: null });
+    expect(h.grants()).toBe(1);
+    h.connection.close();
+  });
+
+  test("a reconnect whose old account cannot be deleted still moves the row and its grants to the new account", async () => {
+    const h = await connectedCompany();
+    const again = await h.service.connectToolkit(h.orgId, "github", "main");
+    remote.get(again.accountId)!.status = "ACTIVE";
+    failDelete.add(h.oldId);
+    await expect(h.service.refreshAccounts(h.orgId)).rejects.toThrow(`Composio could not delete ${h.oldId}`);
+    expect(h.account()).toEqual({ id: again.accountId, status: "ACTIVE", pending: null });
+    expect(h.grants()).toBe(1);
+    await h.service.refreshAccounts(h.orgId);
+    expect(h.account()).toEqual({ id: again.accountId, status: "ACTIVE", pending: null });
+    expect(h.grants()).toBe(1);
+    h.connection.close();
+  });
+
   test("a reconnect that cannot start touches nothing", async () => {
     const h = await connectedCompany();
     failCreate = true;

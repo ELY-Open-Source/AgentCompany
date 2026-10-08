@@ -1,4 +1,5 @@
 import type { DatabaseSync } from "node:sqlite";
+import { withSavepoint } from "../../database/connection";
 import type { ConnectorCatalogEntry, ConnectComposioToolkitResult } from "../../../shared/commands";
 import { ComposioClient, type ComposioConnectedAccount } from "./composio-client";
 import { IntegrationKeyStore } from "../integration-key-store";
@@ -139,17 +140,18 @@ export class ComposioConnectionService {
     oldIsLive: boolean,
   ): Promise<void> {
     const now = new Date().toISOString();
+    // The row is settled before the remote delete: an account that cannot be deleted is left as an orphan refresh ignores.
     if (pending && (pending.status === "ACTIVE" || !oldIsLive)) {
-      if (oldIsLive) await client.deleteConnectedAccount(row.id);
       this.db.prepare("update connector_accounts set id = ?, auth_config_id = ?, status = ?, pending_account_id = null, updated_at = ? where id = ?")
         .run(pending.id, pending.authConfigId, pending.status, now, row.id);
       console.info(`[connectors] ${row.toolkit_slug} reconnect ${pending.id} replaced ${row.id}`);
+      if (oldIsLive) await client.deleteConnectedAccount(row.id);
       return;
     }
     if (pending && WAITING_STATUSES.has(pending.status)) return;
-    if (pending) await client.deleteConnectedAccount(pending.id);
     this.db.prepare("update connector_accounts set pending_account_id = null, updated_at = ? where id = ?").run(now, row.id);
     console.warn(`[connectors] ${row.toolkit_slug} reconnect ${row.pending_account_id} ended ${pending?.status ?? "missing"}; ${row.id} stays in use`);
+    if (pending) await client.deleteConnectedAccount(pending.id);
   }
 
   /** Deletes one account of a toolkit in Composio, with untracked leftovers of that toolkit, then its row and the grants that named it. */
@@ -167,11 +169,12 @@ export class ComposioConnectionService {
     const client = this.requireClient();
     // Untracked accounts of the toolkit go too, so an orphan from a failed delete cannot be adopted later.
     const tracked = this.trackedIds(orgId);
-    const ids = new Set([row.id, ...(row.pending_account_id ? [row.pending_account_id] : [])]);
-    for (const account of await client.listConnectedAccounts(getComposioUserId(this.db, orgId))) {
-      if (account.toolkitSlug === slug && !tracked.has(account.id)) ids.add(account.id);
-    }
-    for (const id of ids) await client.deleteConnectedAccount(id);
+    const leftovers = (await client.listConnectedAccounts(getComposioUserId(this.db, orgId)))
+      .filter((account) => account.toolkitSlug === slug && !tracked.has(account.id))
+      .map((account) => account.id);
+    for (const id of [...leftovers, ...(row.pending_account_id ? [row.pending_account_id] : [])]) await client.deleteConnectedAccount(id);
+    // The working account goes last and its row right after, so a failure earlier leaves it both working and shown.
+    await client.deleteConnectedAccount(row.id);
     this.removeLocalAccount(orgId, slug, label);
   }
 
@@ -183,8 +186,10 @@ export class ComposioConnectionService {
   }
 
   private removeLocalAccount(orgId: string, slug: string, label: string): void {
-    this.db.prepare("delete from connector_accounts where org_id = ? and toolkit_slug = ? and label = ?").run(orgId, slug, label);
-    this.db.prepare("delete from agent_connector_grants where org_id = ? and toolkit_slug = ? and account_label = ?").run(orgId, slug, label);
+    withSavepoint(this.db, "remove_connector_account", () => {
+      this.db.prepare("delete from connector_accounts where org_id = ? and toolkit_slug = ? and label = ?").run(orgId, slug, label);
+      this.db.prepare("delete from agent_connector_grants where org_id = ? and toolkit_slug = ? and account_label = ?").run(orgId, slug, label);
+    });
   }
 
   private requireClient(): ComposioClient {

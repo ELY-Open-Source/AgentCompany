@@ -397,29 +397,32 @@ export function registerIpcHandlers(deps: IpcDeps): void {
   });
   ipcMain.handle(IPC_CHANNELS.connectComposioToolkit, async (_event, input) => {
     try {
-      const result = await composioConnections.connectToolkit(input.orgId, input.toolkitSlug, input.label);
-      notifyDataChanged();
-      return ok(result);
+      return ok(await composioConnections.connectToolkit(input.orgId, input.toolkitSlug, input.label));
     } catch (error) {
       return fail("composio_connect_failed", error instanceof Error ? error.message : String(error));
+    } finally {
+      // A connection change that failed partway may still have written; the page reloads either way.
+      notifyDataChanged();
     }
   });
   ipcMain.handle(IPC_CHANNELS.disconnectComposioToolkit, async (_event, input) => {
     try {
       await composioConnections.disconnectToolkit(input.orgId, input.toolkitSlug, input.label);
-      notifyDataChanged();
       return ok(snapshot.load());
     } catch (error) {
       return fail("composio_disconnect_failed", error instanceof Error ? error.message : String(error));
+    } finally {
+      notifyDataChanged();
     }
   });
   ipcMain.handle(IPC_CHANNELS.refreshComposioAccounts, async (_event, input) => {
     try {
       await composioConnections.refreshAccounts(input.orgId);
-      notifyDataChanged();
       return ok(snapshot.load());
     } catch (error) {
       return fail("composio_refresh_failed", error instanceof Error ? error.message : String(error));
+    } finally {
+      notifyDataChanged();
     }
   });
   ipcMain.handle(IPC_CHANNELS.windowMinimize, () => deps.mainWindow.minimize());
