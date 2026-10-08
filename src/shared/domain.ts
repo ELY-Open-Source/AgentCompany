@@ -324,6 +324,8 @@ export interface ProviderCatalogEntry {
   /** Set for user-configured OpenAI/Anthropic-compatible endpoints: the UI
    * collects a base URL + API key + model instead of a fixed provider form. */
   customEndpoint?: "openai" | "anthropic";
+  /** True when disconnecting also revokes the sign-in at the provider; otherwise it only erases it from this computer. */
+  revokesRemotely: boolean;
 }
 
 export interface SkillDefinitionRecord {

@@ -130,27 +130,40 @@ export class ProviderService {
     });
   }
 
-  revokeCredential(input: RevokeProviderCredentialInput): void {
+  /** Revokes at the provider where it can, then always disconnects and erases the credential here; a remote failure is reported, not hidden. */
+  async revokeCredential(input: RevokeProviderCredentialInput): Promise<void> {
     const provider = this.db.prepare(`
-      select id, provider_key
+      select id, provider_key, auth_type, label, credential_id
       from providers
       where id = ? and org_id = ?
-    `).get(input.providerId, input.orgId) as { id: string; provider_key: string } | undefined;
+    `).get(input.providerId, input.orgId) as { id: string; provider_key: string; auth_type: ProviderAuthType; label: string; credential_id: string | null } | undefined;
     if (!provider) throw new Error("Provider was not found.");
-    this.authBroker.revokeProviderProfile({
-      orgId: input.orgId,
-      providerId: input.providerId,
-      providerKey: provider.provider_key,
-    });
-    this.db.prepare(`
-      update providers
-      set credential_id = null, enabled = 0, auth_state = ?, health_state = ?, last_error = null, last_checked_at = null
-      where id = ? and org_id = ?
-    `).run(AUTH_STATE_REVOKED, HEALTH_STATE_UNCHECKED, input.providerId, input.orgId);
-    // Sessions mid-turn on this provider stop now instead of finishing on a revoked account.
-    const label = (this.db.prepare("select label from providers where id = ?").get(input.providerId) as { label: string }).label;
-    const running = this.db.prepare("select id from task_runs where provider_id = ? and state = 'running'").all(input.providerId) as Array<{ id: string }>;
-    for (const run of running) stopRun(run.id, `${label} was disconnected.`);
+    if (!provider.credential_id) throw new Error(`${provider.label} is not connected.`);
+    const credentialId = provider.credential_id;
+    const entry = requireCatalogEntry(provider.provider_key);
+    let remoteError: string | null = null;
+    if (entry.revokesRemotely) {
+      try {
+        const adapter = requireAdapter(this.adapters, provider.provider_key, provider.auth_type);
+        const secret = this.authBroker.loadProviderSecret({ orgId: input.orgId, providerId: provider.id, providerKey: provider.provider_key, credentialId });
+        await adapter.revoke({ authProfile: adapter.parseAuthProfile(secret), secret });
+      } catch (error) {
+        remoteError = error instanceof Error ? error.message : String(error);
+      }
+    }
+    // The credential read at the start is the one disconnected; a connection made while Google answered stays.
+    const disconnected = this.authBroker.revokeProviderProfile({ orgId: input.orgId, providerId: input.providerId, providerKey: provider.provider_key, credentialId });
+    if (disconnected) {
+      this.db.prepare(`
+        update providers
+        set credential_id = null, enabled = 0, auth_state = ?, health_state = ?, last_error = null, last_checked_at = null
+        where id = ? and org_id = ? and credential_id = ?
+      `).run(AUTH_STATE_REVOKED, HEALTH_STATE_UNCHECKED, input.providerId, input.orgId, credentialId);
+      // Sessions mid-turn on this provider stop now instead of finishing on a revoked account.
+      const running = this.db.prepare("select id from task_runs where provider_id = ? and state = 'running'").all(input.providerId) as Array<{ id: string }>;
+      for (const run of running) stopRun(run.id, `${provider.label} was disconnected.`);
+    }
+    const remote = !entry.revokesRemotely ? "not_supported" : remoteError ? "failed" : "revoked";
     this.audit.record({
       orgId: input.orgId,
       entityType: "provider",
@@ -158,8 +171,14 @@ export class ProviderService {
       actorType: "system",
       actorId: null,
       action: "credential_revoked",
-      payload: { providerKey: provider.provider_key },
+      payload: { providerKey: provider.provider_key, remote, remoteError, replacedMeanwhile: !disconnected },
     });
+    console.info(`[providers] ${provider.provider_key} disconnected; remote revocation ${remote}`);
+    const problems = [
+      ...(disconnected ? [] : [`${provider.label} was reconnected while it was being disconnected; the old sign-in is erased and the new connection stays.`]),
+      ...(remoteError ? [`${disconnected ? "Disconnected on this computer, but " : "The old sign-in was not confirmed revoked: "}${provider.label} did not confirm revoking the sign-in (${remoteError}); revoke it in your account.`] : []),
+    ];
+    if (problems.length > 0) throw new Error(problems.join(" "));
   }
 
   /**

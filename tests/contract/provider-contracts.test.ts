@@ -134,7 +134,8 @@ describe("provider contracts", () => {
       const secret = PROVIDER_SECRET_SAMPLES[provider.key];
       const profile = adapter.parseAuthProfile(secret);
       await expect(adapter.authorize({ secret })).resolves.toEqual({ authProfile: profile });
-      await expect(adapter.revoke({ authProfile: profile })).resolves.toBeUndefined();
+      // Remote revocation makes a network call; provider-disconnect.test covers it.
+      if (!provider.revokesRemotely) await expect(adapter.revoke({ authProfile: profile, secret })).resolves.toBeUndefined();
       await expect(adapter.refresh({ authProfile: profile })).rejects.toThrow("does not support token refresh");
     }
   });

@@ -72,6 +72,7 @@ export function ProvidersPanel({ orgId, employeeId, providers, authProfiles, cat
                 onCheck={() => void actions.run(() => window.agentCompany.checkProviderHealth({ orgId, providerId: provider.id }))}
                 onManage={() => setActive(provider)}
                 onRevoke={() => void actions.run(() => window.agentCompany.revokeProviderCredential({ orgId, providerId: provider.id }))}
+                revokesRemotely={requireCatalogEntry(catalog, provider.providerKey).revokesRemotely}
               />
             ))}
           </div>
@@ -317,6 +318,7 @@ function ProviderRow({
   onCheck,
   onManage,
   onRevoke,
+  revokesRemotely,
 }: {
   provider: ProviderRecord;
   authProfile: ProviderAuthProfileRecord | null;
@@ -324,6 +326,7 @@ function ProviderRow({
   onCheck: () => void;
   onManage: () => void;
   onRevoke: () => void;
+  revokesRemotely: boolean;
 }) {
   const boundCount = agents.filter((agent) => agent.modelProviderId === provider.id).length;
   return (
@@ -353,7 +356,15 @@ function ProviderRow({
       <span className="reveal row" style={{ gap: 6 }}>
         <Button onClick={onCheck}>{t("Check")}</Button>
         <Button onClick={onManage}>{t("Manage")}</Button>
-        <Button tone="ghost" onClick={onRevoke}>{t("Revoke")}</Button>
+        <Button
+          tone="ghost"
+          onClick={onRevoke}
+          title={revokesRemotely
+            ? t("Revokes the sign-in at {provider} and erases it from this computer.", { provider: provider.label })
+            : t("Erases the key from this computer. {provider} keeps accepting it until you revoke it in your account.", { provider: provider.label })}
+        >
+          {t("Disconnect")}
+        </Button>
       </span>
     </div>
   );
@@ -407,4 +418,10 @@ function requireProviderRateLimit(
   const rateLimit = rateLimits.find((item) => item.providerId === provider.id);
   if (!rateLimit) throw new Error(`Provider rate limit state missing for ${provider.id}.`);
   return rateLimit;
+}
+
+function requireCatalogEntry(catalog: ProviderCatalogEntry[], providerKey: string): ProviderCatalogEntry {
+  const entry = catalog.find((candidate) => candidate.key === providerKey);
+  if (!entry) throw new Error(`Provider ${providerKey} is not in the catalog.`);
+  return entry;
 }

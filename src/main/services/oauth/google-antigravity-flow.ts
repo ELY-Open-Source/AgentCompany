@@ -102,6 +102,16 @@ async function discoverProject(accessToken: string, cancel?: AbortSignal): Promi
   throw new Error("Antigravity project discovery failed.");
 }
 
+/** Revokes the sign-in at Google; revoking the refresh token also ends its access tokens. */
+export async function revokeAntigravity(refreshToken: string): Promise<void> {
+  const { response, text } = await oauthFetch("https://oauth2.googleapis.com/revoke", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ token: refreshToken }),
+  });
+  if (!response.ok) throw httpFailure(`Google revocation failed: ${response.status} ${text}`, response, text);
+}
+
 /** Refresh an expired Antigravity access token, retaining the project id. */
 export async function refreshAntigravity(refreshToken: string, projectId: string, clientSecret: string): Promise<OAuthCredentials> {
   const { response, text } = await oauthFetch(TOKEN_URL, {

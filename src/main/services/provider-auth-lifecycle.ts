@@ -20,6 +20,8 @@ export interface ProviderRefreshResult {
 
 export interface ProviderRevokeInput {
   authProfile: ProviderAuthProfile;
+  /** The stored credential, for providers that revoke with the refresh token. */
+  secret: string;
 }
 
 export type ProviderAuthorizeHandler = (input: ProviderAuthorizeInput) => Promise<ProviderAuthorizeResult>;

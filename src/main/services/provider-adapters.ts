@@ -26,6 +26,8 @@ import { fetchAnthropicModels, fetchOpenAiModels } from "./provider-models-fetch
 import { KIMI_CODE_BASE_URL } from "./oauth/kimi-code-flow";
 import { FINISHED_STOP_REASONS, incompleteTurn, requireFinished } from "./provider-tool-turn";
 import { incompleteReason } from "./provider-tool-turns/responses-format";
+import { revokeAntigravity } from "./oauth/google-antigravity-flow";
+import { parseStoredOAuth } from "./oauth/stored-oauth";
 
 const ANTHROPIC_VERSION = "2023-06-01";
 const CLAUDE_PRO_BETA = "claude-code-20250219,oauth-2025-04-20,fine-grained-tool-streaming-2025-05-14";
@@ -222,7 +224,10 @@ export const providerAdapters: ProviderAdapterRegistry = {
     healthUrl: "https://api.moonshot.cn/v1/models",
   }),
   "github-copilot": browserTokenAdapter("github-copilot", PROVIDER_AUTH_TYPE.OAUTH_PKCE),
-  "google-antigravity": browserTokenAdapter("google-antigravity", PROVIDER_AUTH_TYPE.OAUTH_PKCE),
+  "google-antigravity": {
+    ...browserTokenAdapter("google-antigravity", PROVIDER_AUTH_TYPE.OAUTH_PKCE),
+    revoke: async (input) => revokeAntigravity(parseStoredOAuth("google-antigravity", input.secret).refresh),
+  },
   "gpt-account": browserTokenAdapter("gpt-account", PROVIDER_AUTH_TYPE.ACCOUNT_SUBSCRIPTION),
   "claude-pro": {
     ...browserTokenAdapter("claude-pro", PROVIDER_AUTH_TYPE.OAUTH_PKCE),

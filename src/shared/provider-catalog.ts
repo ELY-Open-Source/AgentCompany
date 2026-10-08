@@ -1,7 +1,7 @@
 import { PROVIDER_AUTH_TYPE, type ProviderCatalogEntry } from "./domain";
 import { listProviderModels } from "./provider-models";
 
-const RAW_CATALOG: Omit<ProviderCatalogEntry, "models" | "supportsLiveModels">[] = [
+const RAW_CATALOG: Omit<ProviderCatalogEntry, "models" | "supportsLiveModels" | "revokesRemotely">[] = [
   {
     key: "openai",
     label: "OpenAI",
@@ -192,8 +192,12 @@ const CURATED_MODEL_PROVIDERS = new Set([
   "custom-anthropic",
 ]);
 
+// Google documents a token revocation endpoint (RFC 7009); the others offer none for what we hold.
+const REMOTE_REVOCATION = new Set(["google-antigravity"]);
+
 export const PROVIDER_CATALOG: ProviderCatalogEntry[] = RAW_CATALOG.map((entry) => ({
   ...entry,
   models: listProviderModels(entry.key),
   supportsLiveModels: !CURATED_MODEL_PROVIDERS.has(entry.key),
+  revokesRemotely: REMOTE_REVOCATION.has(entry.key),
 }));

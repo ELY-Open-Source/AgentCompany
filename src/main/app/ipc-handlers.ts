@@ -209,7 +209,17 @@ export function registerIpcHandlers(deps: IpcDeps): void {
   ipcMain.handle(IPC_CHANNELS.deleteMessage, (_event, input) => mutate(() => chat.deleteMessage(input)));
   ipcMain.handle(IPC_CHANNELS.markChatSpaceRead, (_event, input) => mutate(() => chat.markSpaceRead(input)));
   ipcMain.handle(IPC_CHANNELS.saveProviderCredential, (_event, input) => mutate(() => providers.saveCredential(input)));
-  ipcMain.handle(IPC_CHANNELS.revokeProviderCredential, (_event, input) => mutate(() => providers.revokeCredential(input)));
+  ipcMain.handle(IPC_CHANNELS.revokeProviderCredential, async (_event, input) => {
+    try {
+      await providers.revokeCredential(input);
+      notifyDataChanged();
+      return ok(snapshot.load());
+    } catch (error) {
+      // The local disconnect has happened even when the provider refused the revocation.
+      notifyDataChanged();
+      return fail("provider_revoke_failed", error instanceof Error ? error.message : String(error));
+    }
+  });
   ipcMain.handle(IPC_CHANNELS.updateProviderPolicy, (_event, input) => mutate(() => providers.updatePolicy(input)));
   ipcMain.handle(IPC_CHANNELS.setProviderPrices, (_event, input) => mutate(() => providers.setPrices(input)));
   ipcMain.handle(IPC_CHANNELS.checkProviderHealth, async (_event, input) => {

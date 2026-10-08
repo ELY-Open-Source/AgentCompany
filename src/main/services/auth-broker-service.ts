@@ -32,6 +32,8 @@ export interface RevokeProviderAuthProfileInput {
   orgId: string;
   providerId: string;
   providerKey: string;
+  /** The credential being disconnected; a newer connection made meanwhile is left alone. */
+  credentialId: string;
 }
 
 export class AuthBrokerService {
@@ -61,11 +63,14 @@ export class AuthBrokerService {
       insert into credentials(id, org_id, provider_key, kind, ciphertext, display_hint, created_at)
       values (?, ?, ?, ?, ?, ?, ?)
     `).run(credentialId, input.orgId, input.providerKey, input.authType, this.vault.encryptSecret(secret), displayHint, now);
+    const replaced = this.db.prepare("select credential_id from provider_auth_profiles where org_id = ? and provider_id = ? and active = 1")
+      .all(input.orgId, input.providerId) as Array<{ credential_id: string }>;
     this.db.prepare(`
       update provider_auth_profiles
       set active = 0
       where org_id = ? and provider_id = ? and active = 1
     `).run(input.orgId, input.providerId);
+    for (const row of replaced) this.eraseCredential(row.credential_id);
     this.db.prepare(`
       insert into provider_auth_profiles(
         id, org_id, provider_id, credential_id, provider_key, auth_type,
@@ -134,26 +139,36 @@ export class AuthBrokerService {
     const secret = input.secret.trim();
     if (!secret) throw new Error("Credential is required.");
     const displayHint = credentialDisplayHint(secret);
+    // Only a credential still in use may be written: a renewal that lands after a disconnect or replacement must not revive it.
     const result = this.db.prepare(`
       update credentials
       set ciphertext = ?, display_hint = ?
       where id = ? and org_id = ? and provider_key = ?
+        and id in (select credential_id from provider_auth_profiles where active = 1)
     `).run(this.vault.encryptSecret(secret), displayHint, input.credentialId, input.orgId, input.providerKey);
-    if (result.changes === 0) throw new Error("Provider credential was not found.");
+    if (result.changes === 0) throw new Error("The sign-in was disconnected or replaced while it was being renewed; the renewed token was discarded.");
     this.db.prepare("update provider_auth_profiles set display_hint = ? where credential_id = ? and org_id = ?")
       .run(displayHint, input.credentialId, input.orgId);
   }
 
-  revokeProviderProfile(input: RevokeProviderAuthProfileInput): void {
+  /** A retired credential keeps its row for history, never its secret. */
+  private eraseCredential(credentialId: string): void {
+    this.db.prepare("update credentials set ciphertext = x'' where id = ?").run(credentialId);
+  }
+
+  /** Retires one credential; false when a newer connection had already replaced it (it is erased either way). */
+  revokeProviderProfile(input: RevokeProviderAuthProfileInput): boolean {
+    this.eraseCredential(input.credentialId);
     const row = this.db.prepare(`
       select id, credential_id
       from provider_auth_profiles
       where org_id = ?
         and provider_id = ?
         and provider_key = ?
+        and credential_id = ?
         and active = 1
-    `).get(input.orgId, input.providerId, input.providerKey) as { id: string; credential_id: string } | undefined;
-    if (!row) throw new Error("Provider credential was not found.");
+    `).get(input.orgId, input.providerId, input.providerKey, input.credentialId) as { id: string; credential_id: string } | undefined;
+    if (!row) return false;
     this.db.prepare("update provider_auth_profiles set active = 0 where id = ? and org_id = ?")
       .run(row.id, input.orgId);
     this.audit.record({
@@ -169,6 +184,7 @@ export class AuthBrokerService {
         credentialId: row.credential_id,
       },
     });
+    return true;
   }
 }
 
