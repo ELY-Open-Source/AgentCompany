@@ -4,17 +4,18 @@
  * {@link AgentTurnResult}. Faithful ports of Pi's provider request handlers.
  */
 import { release as osRelease, arch as osArch, platform as osPlatform } from "node:os";
-import { postEventStream, postJson, type JsonRecord } from "../provider-http";
+import { postEventStream, postJson, WHOLE_RESPONSE_WAIT, type JsonRecord } from "../provider-http";
 import type { AgentTurnMessage, AgentTurnResult, ProviderToolTurnInput, TurnCredential } from "../provider-tool-turn";
 import { accumulateResponsesStream, parseResponsesOutput, responsesToolDefs, toResponsesInput } from "./responses-format";
 import { anthropicToolDefs, parseAnthropicContent, toAnthropicMessages } from "./anthropic-format";
-import { accumulateChatStream, chatToolDefs, parseChatChoice, toChatMessages } from "./chat-format";
+import { accumulateChatStream, chatMaxTokensField, chatToolDefs, parseChatChoice, toChatMessages } from "./chat-format";
 import { accumulateGeminiStream, antigravityRequestBody, parseGeminiResponse, vertexRequestBody } from "./gemini-format";
 import { bedrockToolConfig, parseBedrockOutput, toBedrockMessages } from "./bedrock-format";
 import { signAwsRequest } from "./aws-sigv4";
 import { getGcpAccessToken } from "./gcp-auth";
 import { COPILOT_HEADERS, copilotBaseUrl } from "../oauth/github-copilot-flow";
 import { KIMI_CODE_BASE_URL } from "../oauth/kimi-code-flow";
+import { OUTPUT_RESERVE_TOKENS } from "../context-budget";
 
 const ANTIGRAVITY_VERSION = "1.21.9";
 const ANTIGRAVITY_ENDPOINT = "https://cloudcode-pa.googleapis.com";
@@ -44,29 +45,25 @@ export async function runOpenAiResponsesTurn(input: ProviderToolTurnInput): Prom
     tools: responsesToolDefs(input.tools),
     tool_choice: "auto",
     store: false,
+    max_output_tokens: OUTPUT_RESERVE_TOKENS,
     ...(input.instructions ? { instructions: input.instructions } : {}),
   };
-  const response = await postJson("https://api.openai.com/v1/responses", { authorization: `Bearer ${requireApiKey(input.credential, "OpenAI")}` }, body);
+  const response = await postJson("https://api.openai.com/v1/responses", { authorization: `Bearer ${requireApiKey(input.credential, "OpenAI")}` }, body, WHOLE_RESPONSE_WAIT);
   const parsed = parseResponsesOutput(response.data);
   return { ...parsed, rawResponseJson: JSON.stringify(response.data), rateLimitState: response.rateLimitState };
 }
 
 // ---- OpenAI Chat Completions, streamed (xAI, Groq, Mistral, Cerebras, OpenRouter, Kimi, Kimi CN) ----
 
-/**
- * Streaming is required, not an optimization: a non-streaming completion
- * sends its response headers only after the WHOLE generation finishes, so a
- * reasoning model that thinks past the 60s header deadline gets aborted with
- * "Provider request timed out." even though it is working. Streamed turns
- * emit chunks continuously and only a truly dead connection times out.
- */
-async function runChatCompletionsStream(endpoint: string, headers: Record<string, string>, input: ProviderToolTurnInput, requestUsage = false): Promise<AgentTurnResult> {
+/** Streamed so a long think never meets a header deadline; only a stream that goes idle times out. */
+async function runChatCompletionsStream(providerKey: string, endpoint: string, headers: Record<string, string>, input: ProviderToolTurnInput, requestUsage = false): Promise<AgentTurnResult> {
   const body: JsonRecord = {
     model: input.model,
     messages: toChatMessages(input.instructions, input.messages),
     tools: chatToolDefs(input.tools),
     tool_choice: "auto",
     stream: true,
+    [chatMaxTokensField(providerKey)]: OUTPUT_RESERVE_TOKENS,
     // Some providers only report a stream's token usage when asked; the others send it unasked and may reject the field.
     ...(requestUsage ? { stream_options: { include_usage: true } } : {}),
   };
@@ -74,8 +71,8 @@ async function runChatCompletionsStream(endpoint: string, headers: Record<string
   return { ...(await accumulateChatStream(response.messages)), rateLimitState: response.rateLimitState };
 }
 
-export function makeChatCompletionsTurn(endpoint: string, label: string, requestUsage = false): (input: ProviderToolTurnInput) => Promise<AgentTurnResult> {
-  return async (input) => runChatCompletionsStream(endpoint, { authorization: `Bearer ${requireApiKey(input.credential, label)}` }, input, requestUsage);
+export function makeChatCompletionsTurn(providerKey: string, endpoint: string, label: string, requestUsage = false): (input: ProviderToolTurnInput) => Promise<AgentTurnResult> {
+  return async (input) => runChatCompletionsStream(providerKey, endpoint, { authorization: `Bearer ${requireApiKey(input.credential, label)}` }, input, requestUsage);
 }
 
 // ---- Anthropic Messages (api key) ----
@@ -83,12 +80,12 @@ export function makeChatCompletionsTurn(endpoint: string, label: string, request
 export async function runAnthropicTurn(input: ProviderToolTurnInput): Promise<AgentTurnResult> {
   const body: JsonRecord = {
     model: input.model,
-    max_tokens: 4096,
+    max_tokens: OUTPUT_RESERVE_TOKENS,
     tools: anthropicToolDefs(input.tools),
     messages: toAnthropicMessages(input.messages),
     ...(input.instructions ? { system: input.instructions } : {}),
   };
-  const response = await postJson("https://api.anthropic.com/v1/messages", { "x-api-key": requireApiKey(input.credential, "Anthropic"), "anthropic-version": "2023-06-01" }, body);
+  const response = await postJson("https://api.anthropic.com/v1/messages", { "x-api-key": requireApiKey(input.credential, "Anthropic"), "anthropic-version": "2023-06-01" }, body, WHOLE_RESPONSE_WAIT);
   const parsed = parseAnthropicContent(response.data);
   return { ...parsed, rawResponseJson: JSON.stringify(response.data), rateLimitState: response.rateLimitState };
 }
@@ -102,7 +99,7 @@ export async function runClaudeProTurn(input: ProviderToolTurnInput): Promise<Ag
   ];
   const body: JsonRecord = {
     model: input.model,
-    max_tokens: 4096,
+    max_tokens: OUTPUT_RESERVE_TOKENS,
     tools: anthropicToolDefs(input.tools),
     messages: toAnthropicMessages(input.messages),
     system,
@@ -114,7 +111,7 @@ export async function runClaudeProTurn(input: ProviderToolTurnInput): Promise<Ag
     "anthropic-dangerous-direct-browser-access": "true",
     "user-agent": "claude-cli/2.1.75",
     "x-app": "cli",
-  }, body);
+  }, body, WHOLE_RESPONSE_WAIT);
   const parsed = parseAnthropicContent(response.data);
   return { ...parsed, rawResponseJson: JSON.stringify(response.data), rateLimitState: response.rateLimitState };
 }
@@ -123,7 +120,7 @@ export async function runClaudeProTurn(input: ProviderToolTurnInput): Promise<Ag
 
 export async function runKimiCodeTurn(input: ProviderToolTurnInput): Promise<AgentTurnResult> {
   const access = requireAccessToken(input.credential, "Kimi Code");
-  return runChatCompletionsStream(`${KIMI_CODE_BASE_URL}/chat/completions`, { authorization: `Bearer ${access}` }, input);
+  return runChatCompletionsStream("kimi-code", `${KIMI_CODE_BASE_URL}/chat/completions`, { authorization: `Bearer ${access}` }, input);
 }
 
 // ---- GPT account / OpenAI Codex (OAuth, SSE) ----
@@ -142,6 +139,7 @@ export async function runCodexTurn(input: ProviderToolTurnInput): Promise<AgentT
     tool_choice: "auto",
     parallel_tool_calls: true,
     tools: responsesToolDefs(input.tools, null),
+    // No output cap: the ChatGPT backend takes none, and neither Codex CLI nor Pi sends one.
   };
   const response = await postEventStream(`${CODEX_BASE_URL}/codex/responses`, {
     Authorization: `Bearer ${access}`,
@@ -164,6 +162,7 @@ export async function runCopilotTurn(input: ProviderToolTurnInput): Promise<Agen
     tools: responsesToolDefs(input.tools),
     tool_choice: "auto",
     store: false,
+    max_output_tokens: OUTPUT_RESERVE_TOKENS,
     ...(input.instructions ? { instructions: input.instructions } : {}),
   };
   const response = await postJson(`${baseUrl}/responses`, {
@@ -171,7 +170,7 @@ export async function runCopilotTurn(input: ProviderToolTurnInput): Promise<Agen
     ...COPILOT_HEADERS,
     "X-Initiator": lastMessageIsUser(input.messages) ? "user" : "agent",
     "Openai-Intent": "conversation-edits",
-  }, body);
+  }, body, WHOLE_RESPONSE_WAIT);
   const parsed = parseResponsesOutput(response.data);
   return { ...parsed, rawResponseJson: JSON.stringify(response.data), rateLimitState: response.rateLimitState };
 }
@@ -186,8 +185,9 @@ export async function runCustomOpenAiTurn(input: ProviderToolTurnInput): Promise
     tools: chatToolDefs(input.tools),
     tool_choice: "auto",
     stream: false,
+    // No output cap: whatever serves a custom endpoint decides which cap field, if any, it accepts.
   };
-  const response = await postJson(`${input.credential.baseUrl}/chat/completions`, { authorization: `Bearer ${requireApiKey(input.credential, "Custom OpenAI-compatible provider")}` }, body);
+  const response = await postJson(`${input.credential.baseUrl}/chat/completions`, { authorization: `Bearer ${requireApiKey(input.credential, "Custom OpenAI-compatible provider")}` }, body, WHOLE_RESPONSE_WAIT);
   const parsed = parseChatChoice(response.data);
   return { ...parsed, rawResponseJson: JSON.stringify(response.data), rateLimitState: response.rateLimitState };
 }
@@ -198,12 +198,12 @@ export async function runCustomAnthropicTurn(input: ProviderToolTurnInput): Prom
   if (!input.credential.baseUrl) throw new Error("Custom Anthropic-compatible provider is missing its base URL.");
   const body: JsonRecord = {
     model: input.model,
-    max_tokens: 4096,
+    max_tokens: OUTPUT_RESERVE_TOKENS,
     tools: anthropicToolDefs(input.tools),
     messages: toAnthropicMessages(input.messages),
     ...(input.instructions ? { system: input.instructions } : {}),
   };
-  const response = await postJson(`${input.credential.baseUrl}/v1/messages`, { "x-api-key": requireApiKey(input.credential, "Custom Anthropic-compatible provider"), "anthropic-version": "2023-06-01" }, body);
+  const response = await postJson(`${input.credential.baseUrl}/v1/messages`, { "x-api-key": requireApiKey(input.credential, "Custom Anthropic-compatible provider"), "anthropic-version": "2023-06-01" }, body, WHOLE_RESPONSE_WAIT);
   const parsed = parseAnthropicContent(response.data);
   return { ...parsed, rawResponseJson: JSON.stringify(response.data), rateLimitState: response.rateLimitState };
 }
@@ -241,9 +241,10 @@ export async function runAzureTurn(input: ProviderToolTurnInput): Promise<AgentT
     tools: chatToolDefs(input.tools),
     tool_choice: "auto",
     stream: false,
+    [chatMaxTokensField("azure-openai")]: OUTPUT_RESERVE_TOKENS,
   };
   const url = `${input.credential.baseUrl}/openai/deployments/${input.credential.deployment}/chat/completions?api-version=2024-10-21`;
-  const response = await postJson(url, { "api-key": apiKey }, body);
+  const response = await postJson(url, { "api-key": apiKey }, body, WHOLE_RESPONSE_WAIT);
   const parsed = parseChatChoice(response.data);
   return { ...parsed, rawResponseJson: JSON.stringify(response.data), rateLimitState: response.rateLimitState };
 }
@@ -255,7 +256,8 @@ export async function runBedrockTurn(input: ProviderToolTurnInput): Promise<Agen
   if (!region || !accessKeyId || !secretAccessKey) throw new Error("AWS Bedrock credential is incomplete.");
   const converse: JsonRecord = {
     messages: toBedrockMessages(input.messages),
-    inferenceConfig: { maxTokens: 4096 },
+    // Output limits differ per Bedrock model family; only Claude's are known to cover the reserve, as in Pi.
+    ...(input.model.includes("anthropic.") ? { inferenceConfig: { maxTokens: OUTPUT_RESERVE_TOKENS } } : {}),
     toolConfig: bedrockToolConfig(input.tools),
     ...(input.instructions ? { system: [{ text: input.instructions }] } : {}),
   };
@@ -267,7 +269,7 @@ export async function runBedrockTurn(input: ProviderToolTurnInput): Promise<Agen
     body: bodyString,
     signer: { region, service: "bedrock", accessKeyId, secretAccessKey, sessionToken },
   });
-  const response = await postJson(signed.url, signed.headers, converse);
+  const response = await postJson(signed.url, signed.headers, converse, WHOLE_RESPONSE_WAIT);
   const parsed = parseBedrockOutput(response.data);
   return { ...parsed, rawResponseJson: JSON.stringify(response.data), rateLimitState: response.rateLimitState };
 }
@@ -280,7 +282,7 @@ export async function runVertexTurn(input: ProviderToolTurnInput): Promise<Agent
   const token = await getGcpAccessToken(serviceAccountJson);
   const body = vertexRequestBody({ model: input.model, instructions: input.instructions, messages: input.messages, tools: input.tools });
   const url = `https://${region}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${region}/publishers/google/models/${input.model}:generateContent`;
-  const response = await postJson(url, { authorization: `Bearer ${token}` }, body);
+  const response = await postJson(url, { authorization: `Bearer ${token}` }, body, WHOLE_RESPONSE_WAIT);
   const parsed = parseGeminiResponse(response.data);
   return { ...parsed, rawResponseJson: JSON.stringify(response.data), rateLimitState: response.rateLimitState };
 }

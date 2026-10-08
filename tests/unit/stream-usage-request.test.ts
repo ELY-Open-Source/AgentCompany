@@ -25,8 +25,10 @@ describe("stream usage requests", () => {
       for await (const event of result.events) void event;
     }
     expect(bodies.map((body) => body.stream_options ?? null)).toEqual([{ include_usage: true }, { include_usage: true }, null, null]);
+    expect(bodies.map((body) => body.max_completion_tokens ?? body.max_tokens)).toEqual([16_000, 16_000, 16_000, 16_000]);
+    expect(bodies.map((body) => "max_completion_tokens" in body)).toEqual([true, true, false, true]);
 
-    await makeChatCompletionsTurn("https://api.x.ai/v1/chat/completions", "xAI", true)({ credential: { apiKey: "k" }, model: "m", instructions: null, messages: [{ role: "user", text: "hi" }], tools: [] });
+    await makeChatCompletionsTurn("xai", "https://api.x.ai/v1/chat/completions", "xAI", true)({ credential: { apiKey: "k" }, model: "m", instructions: null, messages: [{ role: "user", text: "hi" }], tools: [] });
     expect(bodies.at(-1)?.stream_options).toEqual({ include_usage: true });
   });
 });

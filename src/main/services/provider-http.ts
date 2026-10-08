@@ -24,6 +24,9 @@ const HEADERS_TIMEOUT_MS = 60_000;
 const BODY_TIMEOUT_MS = 300_000;
 const STREAM_IDLE_TIMEOUT_MS = 60_000;
 
+/** A non-streamed request sends headers only after the whole answer; wait as long as Node's fetch itself allows (five minutes). */
+export const WHOLE_RESPONSE_WAIT: ProviderRequestTimeouts = { headersTimeoutMs: 300_000 };
+
 export interface ProviderRequestTimeouts {
   headersTimeoutMs?: number;
   bodyTimeoutMs?: number;

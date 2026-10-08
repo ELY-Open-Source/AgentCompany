@@ -3,6 +3,7 @@
  * Ported from Pi's google-shared `convertMessages` / `convertTools` and the
  * Antigravity request wrapper in google-gemini-cli.
  */
+import { OUTPUT_RESERVE_TOKENS } from "../context-budget";
 import { isRecord, ProviderHttpError, type JsonRecord, type ProviderEventStreamMessage } from "../provider-http";
 import { FINISHED_STOP_REASONS, replayIn, requireFinished, toolCallFromObject, type AgentTurnMessage, type AgentTurnResult, type AssistantReplay, type ToolCall, type ToolDefinition } from "../provider-tool-turn";
 
@@ -74,6 +75,7 @@ export function antigravityRequestBody(input: {
 }): JsonRecord {
   const request: JsonRecord = {
     contents: toGeminiContents(input.model, input.messages),
+    generationConfig: { maxOutputTokens: OUTPUT_RESERVE_TOKENS },
     systemInstruction: {
       role: "user",
       parts: [
@@ -97,7 +99,7 @@ export function vertexRequestBody(input: {
   messages: AgentTurnMessage[];
   tools: ToolDefinition[];
 }): JsonRecord {
-  const body: JsonRecord = { contents: toGeminiContents(input.model, input.messages) };
+  const body: JsonRecord = { contents: toGeminiContents(input.model, input.messages), generationConfig: { maxOutputTokens: OUTPUT_RESERVE_TOKENS } };
   if (input.instructions) body.systemInstruction = { parts: [{ text: input.instructions }] };
   if (input.tools.length > 0) {
     body.tools = geminiToolDefs(input.model, input.tools);

@@ -2,6 +2,18 @@
 import { isRecord, ProviderHttpError, type JsonRecord, type ProviderEventStreamMessage } from "../provider-http";
 import { FINISHED_STOP_REASONS, replayIn, requireFinished, type AgentTurnMessage, type AgentTurnResult, type AssistantReplay, toolCallFromJson, type ToolCall, type ToolDefinition } from "../provider-tool-turn";
 
+/** How each Chat Completions provider names the output cap: OpenAI's current field, or the older one the others document. */
+const MAX_TOKENS_FIELD: Record<string, "max_completion_tokens" | "max_tokens"> = {
+  xai: "max_completion_tokens", groq: "max_completion_tokens", cerebras: "max_completion_tokens", "azure-openai": "max_completion_tokens",
+  mistral: "max_tokens", openrouter: "max_tokens", kimi: "max_tokens", "kimi-cn": "max_tokens", "kimi-code": "max_tokens",
+};
+
+export function chatMaxTokensField(providerKey: string): "max_completion_tokens" | "max_tokens" {
+  const field = MAX_TOKENS_FIELD[providerKey];
+  if (!field) throw new Error(`No output-cap field is known for the ${providerKey} Chat Completions API.`);
+  return field;
+}
+
 /** Fields providers use for reasoning text; the first non-empty one is the provider's, as in Pi. */
 const REASONING_FIELDS = ["reasoning_content", "reasoning", "reasoning_text"] as const;
 

@@ -22,7 +22,9 @@ import {
 } from "./provider-auth-profiles";
 import { backgroundUnsupported, retrieveUnsupported } from "./provider-background";
 import { authorizeWithParser, refreshUnsupported, revokeLocalProfile } from "./provider-auth-lifecycle";
-import { getJson, postEventStream, postJson, type JsonRecord } from "./provider-http";
+import { getJson, postEventStream, postJson, WHOLE_RESPONSE_WAIT, type JsonRecord } from "./provider-http";
+import { OUTPUT_RESERVE_TOKENS } from "./context-budget";
+import { chatMaxTokensField } from "./provider-tool-turns/chat-format";
 import { fetchAnthropicModels, fetchOpenAiModels } from "./provider-models-fetch";
 import { KIMI_CODE_BASE_URL } from "./oauth/kimi-code-flow";
 import { FINISHED_STOP_REASONS, incompleteTurn, requireFinished } from "./provider-tool-turn";
@@ -70,6 +72,7 @@ export const providerAdapters: ProviderAdapterRegistry = {
         model: input.model,
         input: input.prompt,
         stream: true,
+        max_output_tokens: OUTPUT_RESERVE_TOKENS,
         ...(input.instructions ? { instructions: input.instructions } : {}),
       });
       return { events: mapOpenAiResponseStream(response.messages), rateLimitState: response.rateLimitState };
@@ -91,6 +94,7 @@ export const providerAdapters: ProviderAdapterRegistry = {
         input: input.prompt,
         background: true,
         store: true,
+        max_output_tokens: OUTPUT_RESERVE_TOKENS,
         ...(input.instructions ? { instructions: input.instructions } : {}),
       });
       const data = response.data;
@@ -123,8 +127,9 @@ export const providerAdapters: ProviderAdapterRegistry = {
       }, {
         model: input.model,
         input: input.prompt,
+        max_output_tokens: OUTPUT_RESERVE_TOKENS,
         ...(input.instructions ? { instructions: input.instructions } : {}),
-      });
+      }, WHOLE_RESPONSE_WAIT);
       const data = response.data;
       if (data.status !== "completed") throw incompleteTurn(incompleteReason(data));
       const text = requireText(collectText(data.output_text ?? data.output), "OpenAI");
@@ -158,7 +163,7 @@ export const providerAdapters: ProviderAdapterRegistry = {
         "anthropic-version": "2023-06-01",
       }, {
         model: input.model,
-        max_tokens: 4096,
+        max_tokens: OUTPUT_RESERVE_TOKENS,
         stream: true,
         ...(input.instructions ? { system: input.instructions } : {}),
         messages: [{ role: "user", content: input.prompt }],
@@ -175,10 +180,10 @@ export const providerAdapters: ProviderAdapterRegistry = {
         "anthropic-version": "2023-06-01",
       }, {
         model: input.model,
-        max_tokens: 4096,
+        max_tokens: OUTPUT_RESERVE_TOKENS,
         ...(input.instructions ? { system: input.instructions } : {}),
         messages: [{ role: "user", content: input.prompt }],
-      });
+      }, WHOLE_RESPONSE_WAIT);
       const data = response.data;
       requireFinished(data.stop_reason, FINISHED_STOP_REASONS.anthropic);
       const text = requireText(collectText(data.content), "Anthropic");
@@ -403,6 +408,7 @@ function openAiCompatibleAdapter({
         model: input.model,
         messages,
         stream: true,
+        [chatMaxTokensField(providerKey)]: OUTPUT_RESERVE_TOKENS,
         ...(requestStreamUsage ? { stream_options: { include_usage: true } } : {}),
       });
       return { events: mapOpenAiChatCompletionStream(response.messages), rateLimitState: response.rateLimitState };
@@ -418,7 +424,8 @@ function openAiCompatibleAdapter({
       }, {
         model: input.model,
         messages,
-      });
+        [chatMaxTokensField(providerKey)]: OUTPUT_RESERVE_TOKENS,
+      }, WHOLE_RESPONSE_WAIT);
       const data = response.data;
       requireFinished(Array.isArray(data.choices) && isRecord(data.choices[0]) ? data.choices[0].finish_reason : null, FINISHED_STOP_REASONS.chat);
       const text = requireText(collectText(Array.isArray(data.choices) ? data.choices.filter(isRecord).map((choice) => choice.message) : []), label);
