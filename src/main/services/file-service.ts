@@ -7,7 +7,7 @@ import type { ImportFileInput, OpenFileInput } from "../../shared/commands";
 import { FILE_SCAN_STATE } from "../../shared/domain";
 import { createId } from "../../shared/ids";
 import { AuditService } from "./audit-service";
-import { fileKind, scanFileContent, upsertFileObject } from "./files/file-object-store";
+import { fileKind, readVerifiedFile, scanFileContent, upsertFileObject } from "./files/file-object-store";
 
 export class FileService {
   private readonly audit: AuditService;
@@ -77,10 +77,12 @@ export class FileService {
 
   async openFile(input: OpenFileInput): Promise<void> {
     const row = this.db.prepare(
-      "select storage_path as storagePath, scan_state as scanState from file_objects where id = ? and org_id = ?",
-    ).get(input.fileId, input.orgId) as { storagePath: string; scanState: string } | undefined;
+      "select name, storage_path as storagePath, sha256, scan_state as scanState from file_objects where id = ? and org_id = ?",
+    ).get(input.fileId, input.orgId) as { name: string; storagePath: string; sha256: string; scanState: string } | undefined;
     if (!row) throw new Error("File was not found.");
     if (row.scanState !== FILE_SCAN_STATE.APPROVED) throw new Error("Blocked files cannot be opened.");
+    // What opens must still be what was recorded; a file changed by another program is refused, not shown under the old record.
+    readVerifiedFile(row);
     const failure = await shell.openPath(row.storagePath);
     if (failure) throw new Error(failure);
   }

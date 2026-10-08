@@ -6,6 +6,8 @@ import { describe, expect, test } from "vitest";
 import { DatabaseConnection } from "../../src/main/database/connection";
 import { OrganizationService } from "../../src/main/services/organization-service";
 import { preserveRecordedFiles, recordWorkspaceFile } from "../../src/main/services/files/file-object-store";
+import { ChatService } from "../../src/main/services/chat-service";
+import { readAttachmentTool } from "../../src/main/services/agent-attachment-tools";
 
 describe("recorded workspace files", () => {
   test("a file id keeps the bytes it was recorded with after the workspace file is rewritten", () => {
@@ -55,6 +57,27 @@ describe("recorded workspace files", () => {
     const kept = (connection.db.prepare("select storage_path from file_objects where id = 'fil_legacy'").get() as { storage_path: string }).storage_path;
     expect(kept.endsWith(`${sha}.md`)).toBe(true);
     expect(readFileSync(kept, "utf8")).toBe("as handed over");
+    connection.close();
+  });
+});
+
+describe("opening a recorded file", () => {
+  test("bytes that no longer match the recorded hash are refused, not shown as the recorded file", () => {
+    const connection = new DatabaseConnection(join(tmpdir(), `ac-verify-${randomUUID()}.db`));
+    const root = join(tmpdir(), `ac-verify-ws-${randomUUID()}`);
+    mkdirSync(root, { recursive: true });
+    let orgId = "";
+    connection.transaction(() => {
+      orgId = new OrganizationService(connection.db).createOrganization({ organizationName: "Acme", employeeName: "Dana", mission: "m", goal: "g" });
+    });
+    writeFileSync(join(root, "plan.md"), "recorded");
+    const fileId = recordWorkspaceFile(connection.db, { orgId, ownerType: "agent", ownerId: null, workspaceRoot: root, relativePath: "plan.md" });
+    const deps = { db: connection.db, organization: new OrganizationService(connection.db), chat: new ChatService(connection.db) };
+    const ctx = { orgId, agent: { id: "agt_x", modelProviderId: null, modelId: null }, taskProjectId: null, taskGoalId: null, taskId: null, sourceThreadId: null, workspace: null };
+    expect(readAttachmentTool(deps, ctx, { file_id: fileId })).toContain("recorded");
+    const stored = (connection.db.prepare("select storage_path from file_objects where id = ?").get(fileId) as { storage_path: string }).storage_path;
+    writeFileSync(stored, "tampered");
+    expect(() => readAttachmentTool(deps, ctx, { file_id: fileId })).toThrow("plan.md changed on disk since it was recorded; it is not the content that was handed over.");
     connection.close();
   });
 });

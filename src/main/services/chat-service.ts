@@ -1,3 +1,4 @@
+import { readVerifiedFile } from "./files/file-object-store";
 import type { DatabaseSync } from "node:sqlite";
 import type { CreateChatSpaceInput, DeleteMessageInput, EditMessageInput, MarkChatSpaceReadInput, SendMessageInput } from "../../shared/commands";
 import {
@@ -436,6 +437,8 @@ export class ChatService {
       if (!file) throw new Error("Attachment file was not found.");
       if (file.scan_state !== FILE_SCAN_STATE.APPROVED) throw new Error("Attachment file is not approved for handoff.");
       if (!this.senderCanReadFile(orgId, file, sender)) throw new Error("Attachment file access is required.");
+      // A handoff carries the recorded checksum, so the bytes must still be the recorded ones.
+      readVerifiedFile({ name: file.id, storagePath: file.storage_path, sha256: file.sha256 });
       return {
         fileId,
         checksum: file.sha256,

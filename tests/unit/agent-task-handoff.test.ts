@@ -86,6 +86,15 @@ describe("structured task handoff", () => {
     h.connection.close();
   });
 
+  test("an input whose bytes no longer match its record is refused, not pinned", () => {
+    const h = harness();
+    writeFileSync(h.specPath, "tampered");
+    expect(dispatchAgentTool(h.deps, h.ctx, call("create_task", { title: "Y", description: "d", input_file_ids: ["fil_spec"] })))
+      .toBe("ERROR: spec.md changed on disk since it was recorded; it is not the content that was handed over.");
+    expect(h.connection.db.prepare("select count(*) as n from tasks where title = 'Y'").get()).toEqual({ n: 0 });
+    h.connection.close();
+  });
+
   test("an unknown input file id fails the call and creates nothing", () => {
     const h = harness();
     expect(dispatchAgentTool(h.deps, h.ctx, call("create_task", { title: "X", description: "d", input_file_ids: ["fil_missing"] })))

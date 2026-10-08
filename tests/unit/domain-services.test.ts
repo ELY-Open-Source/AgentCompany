@@ -15,6 +15,17 @@ import { OnboardingService } from "../../src/main/services/onboarding-service";
 import { RISK_LEVEL, TASK_STATUS } from "../../src/shared/domain";
 import { createId } from "../../src/shared/ids";
 
+/** A real file and its hash, as a recorded file needs: bytes are checked against the hash when read. */
+const runbook = realFile("Runbook steps.");
+const releaseNotes = realFile("Release notes.");
+
+function realFile(content: string): [string, string] {
+  const path = join(tmpdir(), `ac-file-${randomUUID()}.md`);
+  writeFileSync(path, content);
+  return [createHash("sha256").update(content).digest("hex"), path];
+}
+
+
 function createConnection(): DatabaseConnection {
   return new DatabaseConnection(join(tmpdir(), `agentcompany-new-${randomUUID()}.db`));
 }
@@ -287,7 +298,7 @@ describe("domain services", () => {
       connection.db.prepare(`
         insert into file_objects(id, org_id, name, kind, size_bytes, sha256, storage_path, owner_type, owner_id, created_at)
         values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(fileId, orgId, "runbook.md", "text/markdown", 16, "8f3a", "artifacts/runbook.md", "employee", employee.id, new Date().toISOString());
+      `).run(fileId, orgId, "runbook.md", "text/markdown", 16, ...runbook, "employee", employee.id, new Date().toISOString());
 
       chat.sendMessage({
         orgId,
@@ -311,10 +322,10 @@ describe("domain services", () => {
       fileId,
       targetPrincipalType: "board",
       targetPrincipalId: orgId,
-      checksum: "8f3a",
+      checksum: runbook[0],
       scanState: "approved",
       policyDecision: "approved_for_handoff",
-      objectRef: "artifacts/runbook.md",
+      objectRef: runbook[1],
     });
     expect(state.chatMentions[0]).toMatchObject({ targetType: "board", targetId: orgId });
     expect(state.chatSlashInvocations[0]).toMatchObject({ command: "handoff" });
@@ -376,7 +387,7 @@ describe("domain services", () => {
           owner_type, owner_id, space_id, pinned, scan_state, scan_labels_json, scanned_at, created_at, updated_at
         )
         values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(approvedFileId, orgId, "release-notes.md", "md", 24, "sha-approved", "artifacts/release-notes.md", "agent", adaId, null, 0, "approved", "[]", now, now, now);
+      `).run(approvedFileId, orgId, "release-notes.md", "md", 24, ...releaseNotes, "agent", adaId, null, 0, "approved", "[]", now, now, now);
       connection.db.prepare(`
         insert into file_objects(
           id, org_id, name, kind, size_bytes, sha256, storage_path,
@@ -438,8 +449,8 @@ describe("domain services", () => {
       sourcePrincipalType: "agent",
       sourcePrincipalId: adaId,
       targetPrincipalType: "agent",
-      checksum: "sha-approved",
-      objectRef: "artifacts/release-notes.md",
+      checksum: releaseNotes[0],
+      objectRef: releaseNotes[1],
       scanState: "approved",
       policyDecision: "approved_for_handoff",
     });

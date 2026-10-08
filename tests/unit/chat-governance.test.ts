@@ -1,4 +1,5 @@
-import { randomUUID } from "node:crypto";
+import { writeFileSync } from "node:fs";
+import { createHash, randomUUID } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, test } from "vitest";
@@ -10,6 +11,14 @@ import { ProviderService } from "../../src/main/services/provider-service";
 import { providerAdapters } from "../../src/main/services/provider-adapters";
 import { SnapshotService } from "../../src/main/services/snapshot-service";
 import { RISK_LEVEL } from "../../src/shared/domain";
+
+/** A real file and its hash, as a recorded file needs: bytes are checked against the hash when read. */
+function realFile(content: string): [string, string] {
+  const path = join(tmpdir(), `ac-file-${randomUUID()}.md`);
+  writeFileSync(path, content);
+  return [createHash("sha256").update(content).digest("hex"), path];
+}
+
 
 function createConnection(): DatabaseConnection {
   return new DatabaseConnection(join(tmpdir(), `agentcompany-new-chat-${randomUUID()}.db`));
@@ -273,7 +282,7 @@ describe("chat governance", () => {
       connection.db.prepare(`
         insert into file_objects(id, org_id, name, kind, size_bytes, sha256, storage_path, owner_type, owner_id, created_at)
         values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(fileId, orgId, "release-notes.md", "md", 24, "8f3a", "artifacts/release-notes.md", "employee", employeeId, now);
+      `).run(fileId, orgId, "release-notes.md", "md", 24, ...realFile("Release notes."), "employee", employeeId, now);
       agentMessageId = chat.sendMessage({
         orgId,
         spaceId,

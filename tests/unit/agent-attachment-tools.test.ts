@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -23,8 +23,8 @@ function harness() {
     const fileId = `fil_${randomUUID()}`;
     connection.db.prepare(`
       insert into file_objects(id, org_id, name, kind, size_bytes, sha256, storage_path, owner_type, owner_id, created_at, scan_state)
-      values (?, ?, ?, 'md', 1, 'x', ?, 'employee', null, ?, ?)
-    `).run(fileId, owner, name, path, new Date().toISOString(), scanState);
+      values (?, ?, ?, 'md', 1, ?, ?, 'employee', null, ?, ?)
+    `).run(fileId, owner, name, createHash("sha256").update(content).digest("hex"), path, new Date().toISOString(), scanState);
     return fileId;
   };
   const ctx: AgentToolContext = {

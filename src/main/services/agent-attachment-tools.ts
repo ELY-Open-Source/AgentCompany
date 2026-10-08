@@ -1,5 +1,5 @@
+import { readVerifiedFile } from "./files/file-object-store";
 import type { DatabaseSync } from "node:sqlite";
-import { readFileSync } from "node:fs";
 import { FILE_SCAN_STATE } from "../../shared/domain";
 import { requireString } from "./agent-tool-args";
 import type { AgentToolContext, AgentToolDeps } from "./agent-tools";
@@ -32,11 +32,11 @@ export function attachmentNote(db: DatabaseSync, messageId: string): string {
 
 export function readAttachmentTool(deps: AgentToolDeps, ctx: AgentToolContext, args: JsonRecord): string {
   const fileId = requireString(args.file_id, "file_id");
-  const file = deps.db.prepare("select name, storage_path, scan_state from file_objects where id = ? and org_id = ?")
-    .get(fileId, ctx.orgId) as { name: string; storage_path: string; scan_state: string } | undefined;
+  const file = deps.db.prepare("select name, storage_path, sha256, scan_state from file_objects where id = ? and org_id = ?")
+    .get(fileId, ctx.orgId) as { name: string; storage_path: string; sha256: string; scan_state: string } | undefined;
   if (!file) throw new Error(`No file with file_id "${fileId}".`);
   if (file.scan_state !== FILE_SCAN_STATE.APPROVED) throw new Error(`${file.name} was blocked by the file scan and cannot be read.`);
-  const bytes = readFileSync(file.storage_path);
+  const bytes = readVerifiedFile({ name: file.name, storagePath: file.storage_path, sha256: file.sha256 });
   const content = utf8Text(bytes);
   if (content === null) return `${file.name} is a binary file (${bytes.length} bytes); it has no text to read.`;
   return pageText(file.name, content, readPageArgs(args));

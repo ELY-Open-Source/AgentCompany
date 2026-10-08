@@ -1,3 +1,4 @@
+import { readVerifiedFile } from "./files/file-object-store";
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import type { DatabaseSync } from "node:sqlite";
@@ -27,12 +28,12 @@ export function buildTaskHandoff(
   args: JsonRecord,
 ): TaskHandoff {
   const inputs = optionalStringArray(args.input_file_ids, "input_file_ids").map((fileId) => {
-    const file = db.prepare("select id, name from file_objects where id = ? and org_id = ?")
-      .get(fileId, orgId) as { id: string; name: string } | undefined;
+    const file = db.prepare("select id, name, storage_path, sha256 from file_objects where id = ? and org_id = ?")
+      .get(fileId, orgId) as { id: string; name: string; storage_path: string; sha256: string } | undefined;
     if (!file) throw new Error(`No file with file_id "${fileId}" exists in this company.`);
-    const sha256 = currentSha256(db, orgId, file.id);
-    if (!sha256) throw new Error(`File ${file.name} (file_id "${fileId}") is missing on disk.`);
-    return { fileId: file.id, name: file.name, sha256 };
+    // The handoff pins the recorded content; bytes that no longer match it are refused, not pinned as if they were.
+    readVerifiedFile({ name: file.name, storagePath: file.storage_path, sha256: file.sha256 });
+    return { fileId: file.id, name: file.name, sha256: file.sha256 };
   });
   return {
     sourceTaskId: source.taskId,

@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -87,8 +87,8 @@ async function founderLine() {
     const fileId = `fil_${randomUUID()}`;
     connection.db.prepare(`
       insert into file_objects(id, org_id, name, kind, size_bytes, sha256, storage_path, owner_type, owner_id, created_at)
-      values (?, ?, ?, 'md', ?, 'x', ?, 'employee', ?, ?)
-    `).run(fileId, orgId, name, content.length, path, founderId, new Date().toISOString());
+      values (?, ?, ?, 'md', ?, ?, ?, 'employee', ?, ?)
+    `).run(fileId, orgId, name, content.length, createHash("sha256").update(content).digest("hex"), path, founderId, new Date().toISOString());
     return fileId;
   };
   const sayAs = (senderType: "employee" | "board", senderId: string, bodyMd: string, threadId: string) =>

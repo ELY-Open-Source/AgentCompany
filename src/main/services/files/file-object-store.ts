@@ -184,6 +184,17 @@ export function recordWorkspaceFile(db: DatabaseSync, input: {
   }));
 }
 
+/** A recorded file's bytes, refused when they are gone or no longer match the hash it was recorded with. */
+export function readVerifiedFile(file: { name: string; storagePath: string; sha256: string }): Buffer {
+  if (!existsSync(file.storagePath)) throw new Error(`${file.name} is no longer on disk.`);
+  const bytes = readFileSync(file.storagePath);
+  if (createHash("sha256").update(bytes).digest("hex") !== file.sha256) {
+    console.warn(`[files] ${file.storagePath} no longer matches its recorded hash ${file.sha256}`);
+    throw new Error(`${file.name} changed on disk since it was recorded; it is not the content that was handed over.`);
+  }
+  return bytes;
+}
+
 /** The content-addressed copy of a workspace file, written once; it keeps the extension so the file still opens with its app. */
 function keepCopy(workspaceRoot: string, source: string, sha256: string, bytes: Buffer): string {
   const copy = join(workspaceRoot, ".agentcompany", "files", `${sha256}${extname(source)}`);
