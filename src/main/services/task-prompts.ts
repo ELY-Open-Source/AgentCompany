@@ -150,10 +150,6 @@ function roleVoice(input: AgentInstructionContext): string {
   return "You own your craft. Ask the question early instead of guessing, do the work properly, and when you are stuck for more than a few minutes say so in the thread instead of spinning in place.";
 }
 
-export interface InboxContextBlock {
-  transcript: string;
-}
-
 export function buildTaskPrompt(input: {
   task: TaskExecutionTaskRow;
   agent: TaskExecutionAgentRow;
@@ -167,7 +163,6 @@ export function buildTaskPrompt(input: {
   hasReports: boolean;
   managerName: string | null;
   chatContext: ChatContextBlock | null;
-  inboxContext: InboxContextBlock | null;
   /** Completed runs this task already spent without reaching done. */
   priorCompletedRuns: number;
 }): string {
@@ -219,15 +214,6 @@ export function buildTaskPrompt(input: {
       `You have been brought into this thread. Reply to the people here in your own voice — answer what they asked, give your honest take, push back if you disagree, or hand work over. Stay in the thread by passing thread_id="${input.chatContext.threadId}" to send_message. This is a conversation between colleagues, not a status report; only change a task's status if the work itself actually moved.`,
     );
     return lines.join("\n");
-  }
-  if (input.inboxContext) {
-    lines.push(
-      "",
-      "Recent messages that mention you:",
-      input.inboxContext.transcript,
-      "",
-      "Respond to anyone above who needs your input before starting the task.",
-    );
   }
   if (input.task.requires_filesystem === 1 && input.workspace) {
     lines.push(
