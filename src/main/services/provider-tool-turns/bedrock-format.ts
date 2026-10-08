@@ -1,6 +1,6 @@
 /** AWS Bedrock Converse API encoding/decoding (ported from Pi's bedrock handler). */
 import { isRecord, type JsonRecord } from "../provider-http";
-import { replayIn, type AgentTurnMessage, type AssistantReplay, type ToolCall, type ToolDefinition } from "../provider-tool-turn";
+import { FINISHED_STOP_REASONS, replayIn, requireFinished, type AgentTurnMessage, type AssistantReplay, type ToolCall, type ToolDefinition } from "../provider-tool-turn";
 
 export function bedrockToolConfig(tools: ToolDefinition[]): JsonRecord {
   return {
@@ -30,6 +30,7 @@ export function toBedrockMessages(messages: AgentTurnMessage[]): JsonRecord[] {
 }
 
 export function parseBedrockOutput(data: JsonRecord): { text: string; toolCalls: ToolCall[]; replay: AssistantReplay } {
+  requireFinished(data.stopReason, FINISHED_STOP_REASONS.bedrock);
   const output = isRecord(data.output) ? data.output : null;
   const message = output && isRecord(output.message) ? output.message : null;
   const content = message && Array.isArray(message.content) ? message.content : [];

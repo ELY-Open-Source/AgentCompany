@@ -35,7 +35,7 @@ describe("system instructions", () => {
   test("the GitHub Copilot turn sends the agent's instructions like every other Responses turn", async () => {
     vi.stubGlobal("fetch", async (_url: string, init: RequestInit) => {
       bodies.push(JSON.parse(String(init.body)) as Record<string, unknown>);
-      return new Response(JSON.stringify({ output: [{ type: "message", content: [{ type: "output_text", text: "ok" }] }] }), { status: 200, headers: { "content-type": "application/json" } });
+      return new Response(JSON.stringify({ status: "completed", output: [{ type: "message", content: [{ type: "output_text", text: "ok" }] }] }), { status: 200, headers: { "content-type": "application/json" } });
     });
     await runCopilotTurn({ credential: { accessToken: "tid=1;exp=9999999999" }, model: "gpt-5.4", instructions: "You are Ada, the backend engineer.", messages: [{ role: "user", text: "hi" }], tools: [] });
     expect(bodies.at(-1)?.instructions).toBe("You are Ada, the backend engineer.");

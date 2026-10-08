@@ -1,6 +1,6 @@
 /** OpenAI Chat Completions encoding/decoding (xAI, Groq, Mistral, Cerebras, OpenRouter, Kimi family). */
 import { isRecord, ProviderHttpError, type JsonRecord, type ProviderEventStreamMessage } from "../provider-http";
-import { parseArguments, replayIn, type AgentTurnMessage, type AgentTurnResult, type AssistantReplay, type ToolCall, type ToolDefinition } from "../provider-tool-turn";
+import { FINISHED_STOP_REASONS, parseArguments, replayIn, requireFinished, type AgentTurnMessage, type AgentTurnResult, type AssistantReplay, type ToolCall, type ToolDefinition } from "../provider-tool-turn";
 
 /** Fields providers use for reasoning text; the first non-empty one is the provider's, as in Pi. */
 const REASONING_FIELDS = ["reasoning_content", "reasoning", "reasoning_text"] as const;
@@ -35,6 +35,7 @@ export function toChatMessages(instructions: string | null, messages: AgentTurnM
 export function parseChatChoice(data: JsonRecord): { text: string; toolCalls: ToolCall[]; replay?: AssistantReplay } {
   const choices = Array.isArray(data.choices) ? data.choices : [];
   const first = choices.length > 0 && isRecord(choices[0]) ? choices[0] : null;
+  requireFinished(first?.finish_reason, FINISHED_STOP_REASONS.chat);
   const message = first && isRecord(first.message) ? first.message : null;
   if (!message) return { text: "", toolCalls: [] };
   const text = typeof message.content === "string" ? message.content : "";
@@ -78,11 +79,13 @@ export async function accumulateChatStream(messages: AsyncIterable<ProviderEvent
   const fragments = new Map<number, { id: string; name: string; args: string }>();
   const reasoning = { field: "", text: "" };
   const details: JsonRecord[] = [];
+  let finishReason: unknown = null;
   for await (const message of messages) {
     raw.push(message.rawData);
     if (message.data.error !== undefined) throw new ProviderHttpError(streamErrorText(message.data.error), null, streamErrorStatus(message.data.error));
     const choices = Array.isArray(message.data.choices) ? message.data.choices : [];
     const first = choices.length > 0 && isRecord(choices[0]) ? choices[0] : null;
+    if (first && typeof first.finish_reason === "string") finishReason = first.finish_reason;
     const delta = first && isRecord(first.delta) ? first.delta : null;
     if (!delta) continue;
     if (typeof delta.content === "string") textParts.push(delta.content);
@@ -102,6 +105,7 @@ export async function accumulateChatStream(messages: AsyncIterable<ProviderEvent
     }
   }
   if (raw.length === 0) throw new Error("Chat completions stream ended without any events.");
+  requireFinished(finishReason, FINISHED_STOP_REASONS.chat);
   const toolCalls: ToolCall[] = [];
   for (const [, fragment] of [...fragments.entries()].sort(([a], [b]) => a - b)) {
     if (fragment.id && fragment.name) toolCalls.push({ id: fragment.id, name: fragment.name, arguments: parseArguments(fragment.args) });

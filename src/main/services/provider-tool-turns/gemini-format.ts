@@ -4,7 +4,7 @@
  * Antigravity request wrapper in google-gemini-cli.
  */
 import { isRecord, ProviderHttpError, type JsonRecord, type ProviderEventStreamMessage } from "../provider-http";
-import { replayIn, type AgentTurnMessage, type AgentTurnResult, type AssistantReplay, type ToolCall, type ToolDefinition } from "../provider-tool-turn";
+import { FINISHED_STOP_REASONS, replayIn, requireFinished, type AgentTurnMessage, type AgentTurnResult, type AssistantReplay, type ToolCall, type ToolDefinition } from "../provider-tool-turn";
 
 const ANTIGRAVITY_SYSTEM_INSTRUCTION =
   "You are Antigravity, a powerful agentic AI coding assistant designed by the Google Deepmind team working on Advanced Agentic Coding." +
@@ -127,6 +127,7 @@ function partsToResult(parts: unknown[]): { text: string[]; toolCalls: ToolCall[
 /** Parse a non-streaming Gemini generateContent response (Vertex). */
 export function parseGeminiResponse(data: JsonRecord): { text: string; toolCalls: ToolCall[]; replay: AssistantReplay } {
   const candidates = Array.isArray(data.candidates) ? data.candidates : [];
+  requireFinished(isRecord(candidates[0]) ? candidates[0].finishReason : null, FINISHED_STOP_REASONS.gemini);
   const content = candidates.length > 0 && isRecord(candidates[0]) && isRecord(candidates[0].content) ? candidates[0].content : null;
   const parts = content && Array.isArray(content.parts) ? content.parts : [];
   const result = partsToResult(parts);
@@ -138,6 +139,7 @@ export async function accumulateGeminiStream(messages: AsyncIterable<ProviderEve
   const textParts: string[] = [];
   const toolCalls: ToolCall[] = [];
   const replayParts: unknown[] = [];
+  let finishReason: unknown = null;
   let counter = 0;
   for await (const message of messages) {
     raw.push(message.rawData);
@@ -148,6 +150,7 @@ export async function accumulateGeminiStream(messages: AsyncIterable<ProviderEve
     const response = isRecord(message.data.response) ? message.data.response : null;
     if (!response) continue;
     const candidates = Array.isArray(response.candidates) ? response.candidates : [];
+    if (isRecord(candidates[0]) && typeof candidates[0].finishReason === "string") finishReason = candidates[0].finishReason;
     const content = candidates.length > 0 && isRecord(candidates[0]) && isRecord(candidates[0].content) ? candidates[0].content : null;
     const parts = content && Array.isArray(content.parts) ? content.parts : [];
     for (const part of parts) {
@@ -164,5 +167,6 @@ export async function accumulateGeminiStream(messages: AsyncIterable<ProviderEve
       }
     }
   }
+  requireFinished(finishReason, FINISHED_STOP_REASONS.gemini);
   return { text: textParts.join("").trim(), toolCalls, rawResponseJson: JSON.stringify(raw), ...(replayParts.length > 0 ? { replay: { format: "gemini", content: replayParts } } : {}) };
 }

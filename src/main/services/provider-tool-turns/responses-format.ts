@@ -4,7 +4,7 @@
  * `convertResponsesTools` and the Responses streaming event shapes.
  */
 import { isRecord, ProviderHttpError, type JsonRecord, type ProviderEventStreamMessage } from "../provider-http";
-import { parseArguments, replayIn, type AgentTurnMessage, type AgentTurnResult, type AssistantReplay, type ToolCall, type ToolDefinition } from "../provider-tool-turn";
+import { incompleteTurn, parseArguments, replayIn, type AgentTurnMessage, type AgentTurnResult, type AssistantReplay, type ToolCall, type ToolDefinition } from "../provider-tool-turn";
 
 export function responsesToolDefs(tools: ToolDefinition[], strict: boolean | null = false): unknown[] {
   // `strict` must be a boolean or omitted. Passing `strict: null` (the Codex
@@ -48,6 +48,7 @@ export function toResponsesInput(messages: AgentTurnMessage[]): unknown[] {
 
 /** Parse a non-streaming Responses payload (`data.output[]`). */
 export function parseResponsesOutput(data: JsonRecord): { text: string; toolCalls: ToolCall[]; replay: AssistantReplay } {
+  if (data.status !== "completed") throw incompleteTurn(incompleteReason(data));
   const output = Array.isArray(data.output) ? data.output : [];
   const textParts: string[] = [];
   const toolCalls: ToolCall[] = [];
@@ -71,6 +72,11 @@ function responsesReplay(output: unknown[]): unknown[] {
   return output.filter(isRecord)
     .filter((item) => item.type !== "reasoning" || typeof item.encrypted_content === "string")
     .map(({ id: _id, ...item }) => item);
+}
+
+/** Why a Responses payload is not complete: its incomplete_details reason, else its status. */
+export function incompleteReason(response: JsonRecord): unknown {
+  return isRecord(response.incomplete_details) && typeof response.incomplete_details.reason === "string" ? response.incomplete_details.reason : response.status;
 }
 
 function eventType(message: ProviderEventStreamMessage): string | null {
@@ -122,14 +128,13 @@ export async function accumulateResponsesStream(messages: AsyncIterable<Provider
       streamed.push(message.data.item);
     }
     if (type === "response.completed" || type === "response.done" || type === "response.incomplete") {
-      const response = isRecord(message.data.response) ? message.data.response : null;
-      const completionOutput = response && Array.isArray(response.output) ? response.output : [];
+      const response = isRecord(message.data.response) ? message.data.response : {};
+      // Codex completions may omit the status; the event type says it finished unless a status says otherwise.
+      if (type === "response.incomplete" || (response.status !== undefined && response.status !== "completed")) throw incompleteTurn(incompleteReason(response) ?? "incomplete");
+      const completionOutput = Array.isArray(response.output) ? response.output : [];
       const output = completionOutput.length > 0 ? completionOutput : streamed;
-      return { ...parseResponsesOutput({ output }), rawResponseJson: JSON.stringify(raw) };
+      return { ...parseResponsesOutput({ status: "completed", output }), rawResponseJson: JSON.stringify(raw) };
     }
   }
-  if (streamed.length > 0) {
-    return { ...parseResponsesOutput({ output: streamed }), rawResponseJson: JSON.stringify(raw) };
-  }
-  throw new Error("Responses stream ended before a completion event.");
+  throw incompleteTurn(null);
 }

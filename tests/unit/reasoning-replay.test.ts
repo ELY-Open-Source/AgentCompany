@@ -31,7 +31,7 @@ describe("reasoning survives tool turns", () => {
       { type: "reasoning", summary: [], encrypted_content: "ENC" },
       { type: "function_call", call_id: "c1", name: "f", arguments: "{}" },
     ]);
-    const plain = parseResponsesOutput({ output: [{ type: "reasoning", id: "rs_2", summary: [] }, { type: "message", id: "msg_1", role: "assistant", content: [{ type: "output_text", text: "hi" }] }] });
+    const plain = parseResponsesOutput({ status: "completed", output: [{ type: "reasoning", id: "rs_2", summary: [] }, { type: "message", id: "msg_1", role: "assistant", content: [{ type: "output_text", text: "hi" }] }] });
     expect(plain.replay?.content).toEqual([{ type: "message", role: "assistant", content: [{ type: "output_text", text: "hi" }] }]);
   });
 
@@ -41,21 +41,21 @@ describe("reasoning survives tool turns", () => {
       { type: "redacted_thinking", data: "OPAQUE" },
       { type: "tool_use", id: "t1", name: "f", input: { a: 1 } },
     ];
-    const sent = toAnthropicMessages(after(parseAnthropicContent({ content }))) as JsonRecord[];
+    const sent = toAnthropicMessages(after(parseAnthropicContent({ stop_reason: "tool_use", content }))) as JsonRecord[];
     expect(sent[1]).toEqual({ role: "assistant", content });
   });
 
   test("Bedrock: reasoningContent with its signature goes back unmodified", () => {
     const content = [{ reasoningContent: { reasoningText: { text: "plan", signature: "SIG" } } }, { toolUse: { toolUseId: "t1", name: "f", input: {} } }];
-    const sent = toBedrockMessages(after(parseBedrockOutput({ output: { message: { role: "assistant", content } } })));
+    const sent = toBedrockMessages(after(parseBedrockOutput({ stopReason: "tool_use", output: { message: { role: "assistant", content } } })));
     expect(sent[1]).toEqual({ role: "assistant", content });
   });
 
   test("Gemini: thought signatures on parts go back, streamed or not", async () => {
     const parts = [{ text: "plan", thought: true }, { functionCall: { name: "f", args: {} }, thoughtSignature: "SIG" }];
-    const vertex = vertexRequestBody({ model: "gemini-3-pro", instructions: null, messages: after(parseGeminiResponse({ candidates: [{ content: { parts } }] })), tools: [] });
+    const vertex = vertexRequestBody({ model: "gemini-3-pro", instructions: null, messages: after(parseGeminiResponse({ candidates: [{ content: { parts }, finishReason: "STOP" }] })), tools: [] });
     expect((vertex.contents as JsonRecord[])[1]).toEqual({ role: "model", parts });
-    const streamed = await accumulateGeminiStream(stream(parts.map((part) => ({ response: { candidates: [{ content: { parts: [part] } }] } }))));
+    const streamed = await accumulateGeminiStream(stream([...parts.map((part) => ({ response: { candidates: [{ content: { parts: [part] } }] } })), { response: { candidates: [{ finishReason: "STOP" }] } }]));
     expect(streamed.replay).toEqual({ format: "gemini", content: parts });
   });
 
@@ -63,22 +63,22 @@ describe("reasoning survives tool turns", () => {
     const kimi = await accumulateChatStream(stream([
       { choices: [{ delta: { reasoning_content: "think " } }] },
       { choices: [{ delta: { reasoning_content: "hard" } }] },
-      { choices: [{ delta: { tool_calls: [{ index: 0, id: "c1", function: { name: "f", arguments: "{}" } }] } }] },
+      { choices: [{ delta: { tool_calls: [{ index: 0, id: "c1", function: { name: "f", arguments: "{}" } }] }, finish_reason: "tool_calls" }] },
     ]));
     expect((toChatMessages(null, after(kimi)) as JsonRecord[])[1]).toMatchObject({ role: "assistant", reasoning_content: "think hard" });
     const openrouter = await accumulateChatStream(stream([
       { choices: [{ delta: { reasoning: "a", reasoning_details: [{ type: "reasoning.text", text: "a", index: 0 }] } }] },
       { choices: [{ delta: { reasoning: "b", reasoning_details: [{ type: "reasoning.text", text: "b", signature: "SIG", index: 0 }] } }] },
       { choices: [{ delta: { reasoning_details: [{ type: "reasoning.encrypted", data: "ENC", index: 1 }] } }] },
-      { choices: [{ delta: { content: "done" } }] },
+      { choices: [{ delta: { content: "done" }, finish_reason: "stop" }] },
     ]));
     expect(openrouter.replay).toEqual({ format: "chat", content: { reasoning_details: [{ type: "reasoning.text", text: "ab", signature: "SIG", index: 0 }, { type: "reasoning.encrypted", data: "ENC", index: 1 }] } });
-    const azure = parseChatChoice({ choices: [{ message: { content: "x", reasoning: "why" } }] });
+    const azure = parseChatChoice({ choices: [{ message: { content: "x", reasoning: "why" }, finish_reason: "stop" }] });
     expect(azure.replay).toEqual({ format: "chat", content: { reasoning: "why" } });
   });
 
   test("a turn from one wire format is never silently replayed in another", () => {
-    const messages = after(parseAnthropicContent({ content: [{ type: "text", text: "hi" }] }));
+    const messages = after(parseAnthropicContent({ stop_reason: "end_turn", content: [{ type: "text", text: "hi" }] }));
     expect(() => toChatMessages(null, messages)).toThrow("anthropic format cannot be sent to a chat provider");
   });
 });

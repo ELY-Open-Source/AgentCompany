@@ -25,6 +25,8 @@ import { authorizeWithParser, refreshUnsupported, revokeLocalProfile } from "./p
 import { getJson, postEventStream, postJson, type JsonRecord } from "./provider-http";
 import { fetchAnthropicModels, fetchOpenAiModels } from "./provider-models-fetch";
 import { KIMI_CODE_BASE_URL } from "./oauth/kimi-code-flow";
+import { FINISHED_STOP_REASONS, incompleteTurn, requireFinished } from "./provider-tool-turn";
+import { incompleteReason } from "./provider-tool-turns/responses-format";
 
 const ANTHROPIC_VERSION = "2023-06-01";
 const CLAUDE_PRO_BETA = "claude-code-20250219,oauth-2025-04-20,fine-grained-tool-streaming-2025-05-14";
@@ -124,6 +126,7 @@ export const providerAdapters: ProviderAdapterRegistry = {
         ...(input.instructions ? { instructions: input.instructions } : {}),
       });
       const data = response.data;
+      if (data.status !== "completed") throw incompleteTurn(incompleteReason(data));
       const text = requireText(collectText(data.output_text ?? data.output), "OpenAI");
       return { text, rawResponseJson: JSON.stringify(data), rateLimitState: response.rateLimitState };
     },
@@ -177,6 +180,7 @@ export const providerAdapters: ProviderAdapterRegistry = {
         messages: [{ role: "user", content: input.prompt }],
       });
       const data = response.data;
+      requireFinished(data.stop_reason, FINISHED_STOP_REASONS.anthropic);
       const text = requireText(collectText(data.content), "Anthropic");
       return { text, rawResponseJson: JSON.stringify(data), rateLimitState: response.rateLimitState };
     },
@@ -416,7 +420,8 @@ function openAiCompatibleAdapter({
         messages,
       });
       const data = response.data;
-      const text = requireText(collectText(data.choices), label);
+      requireFinished(Array.isArray(data.choices) && isRecord(data.choices[0]) ? data.choices[0].finish_reason : null, FINISHED_STOP_REASONS.chat);
+      const text = requireText(collectText(Array.isArray(data.choices) ? data.choices.filter(isRecord).map((choice) => choice.message) : []), label);
       return { text, rawResponseJson: JSON.stringify(data), rateLimitState: response.rateLimitState };
     },
   };

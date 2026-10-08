@@ -1,6 +1,6 @@
 /** Anthropic Messages API encoding/decoding, shared by anthropic + claude-pro. */
 import { isRecord, type JsonRecord } from "../provider-http";
-import { replayIn, type AgentTurnMessage, type AssistantReplay, type ToolCall, type ToolDefinition } from "../provider-tool-turn";
+import { FINISHED_STOP_REASONS, replayIn, requireFinished, type AgentTurnMessage, type AssistantReplay, type ToolCall, type ToolDefinition } from "../provider-tool-turn";
 
 export function anthropicToolDefs(tools: ToolDefinition[]): unknown[] {
   return tools.map((tool) => ({ name: tool.name, description: tool.description, input_schema: tool.parameters }));
@@ -27,6 +27,7 @@ export function toAnthropicMessages(messages: AgentTurnMessage[]): unknown[] {
 }
 
 export function parseAnthropicContent(data: JsonRecord): { text: string; toolCalls: ToolCall[]; replay: AssistantReplay } {
+  requireFinished(data.stop_reason, FINISHED_STOP_REASONS.anthropic);
   const content = Array.isArray(data.content) ? data.content : [];
   const textParts: string[] = [];
   const toolCalls: ToolCall[] = [];

@@ -79,6 +79,24 @@ export interface ProviderToolTurnInput {
 
 export type ToolTurnFn = (input: ProviderToolTurnInput) => Promise<AgentTurnResult>;
 
+/** Stop reasons that mean the model finished its turn, per wire format, as Pi maps them. */
+export const FINISHED_STOP_REASONS = {
+  chat: ["stop", "end", "tool_calls", "function_call"],
+  anthropic: ["end_turn", "tool_use", "stop_sequence"],
+  bedrock: ["end_turn", "tool_use", "stop_sequence"],
+  gemini: ["STOP"],
+} as const;
+
+/** The error for a turn the provider cut short; acting on half a turn's text or arguments is worse than failing. */
+export function incompleteTurn(reason: unknown): Error {
+  const named = typeof reason === "string" && reason ? reason : "no stop reason";
+  return new Error(`The provider stopped before finishing its answer (${named}); the partial answer was not used.`);
+}
+
+export function requireFinished(reason: unknown, finished: readonly string[]): void {
+  if (typeof reason !== "string" || !finished.includes(reason)) throw incompleteTurn(reason);
+}
+
 /** Coerce a tool-call argument payload (string or object) into a JSON object. */
 export function parseArguments(value: unknown): JsonRecord {
   if (isRecord(value)) return value;

@@ -115,6 +115,34 @@ describe("provider service streaming", () => {
     connection.close();
   });
 
+  test("a stream that ends without the provider's stop fails instead of saving the partial text", async () => {
+    const connection = createConnection();
+    const organization = new OrganizationService(connection.db);
+    const adapters: ProviderAdapterRegistry = {
+      ...providerAdapters,
+      openai: {
+        ...providerAdapters.openai,
+        parseAuthProfile: (secret) => ({ type: "api_key", apiKey: secret.trim() }),
+        streamResponse: async () => ({
+          events: streamEvents([event("message_start", null, "created", "resp_cut"), event("text_delta", "Hal", "delta-1", "resp_cut")]),
+          rateLimitState: null,
+        }),
+      },
+    };
+    const providers = new ProviderService(connection.db, adapters, testVault);
+    let orgId = "";
+    let openAiProviderId = "";
+    connection.transaction(() => {
+      orgId = createOrganization(organization);
+      openAiProviderId = providerId(connection, orgId, "openai");
+      providers.saveCredential({ orgId, providerId: openAiProviderId, secret: "sk-live-provider", model: "gpt-5.4" });
+    });
+    await expect(providers.streamResponse({ orgId, providerId: openAiProviderId, prompt: "Draft", instructions: null, executionMode: PROVIDER_EXECUTION_MODE.FOREGROUND }, () => {}))
+      .rejects.toThrow("no stop reason");
+    expect(connection.db.prepare("select state from provider_requests where org_id = ?").get(orgId)).toEqual({ state: PROVIDER_REQUEST_STATE.FAILED });
+    connection.close();
+  });
+
   test("cancels a provider request through the adapter response id", async () => {
     const connection = createConnection();
     const organization = new OrganizationService(connection.db);

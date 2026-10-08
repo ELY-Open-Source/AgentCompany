@@ -12,7 +12,7 @@ import type { ProviderRateLimitRegistry } from "./provider-rate-limit-registry";
 import type { ProviderRequestStore } from "./provider-request-store";
 import type { ProviderResponseObserver } from "./provider-response-observer";
 import { hashPrompt, readProviderResponseId, requireStreamText } from "./provider-response-utils";
-import { type AgentTurnMessage, type AgentTurnResult, type ToolDefinition, type ToolTurnFn } from "./provider-tool-turn";
+import { incompleteTurn, type AgentTurnMessage, type AgentTurnResult, type ToolDefinition, type ToolTurnFn } from "./provider-tool-turn";
 import { selectToolTurn, supportsToolTurn } from "./provider-tool-turns/router";
 import { resolveTurnCredential } from "./provider-tool-turns/credential-resolver";
 import { currentRunId } from "./run-control";
@@ -201,6 +201,7 @@ export class ProviderResponseRunner {
     const rawEvents: string[] = [];
     const textParts: string[] = [];
     let providerResponseId: string | null = null;
+    let finished = false;
     try {
       const authProfile = execution.adapter.parseAuthProfile(execution.credential.secret);
       const result = await execution.adapter.streamResponse({
@@ -214,6 +215,7 @@ export class ProviderResponseRunner {
         if (event.type === "error") throw new Error(event.textDelta ?? "Provider stream failed.");
         rawEvents.push(event.rawEventJson);
         if (event.type === "usage") continue;
+        if (event.type === "message_stop") finished = true;
         if (event.providerResponseId) providerResponseId = event.providerResponseId;
         if (event.textDelta) textParts.push(event.textDelta);
         const responseText = textParts.join("");
@@ -244,8 +246,9 @@ export class ProviderResponseRunner {
           streamEventCount,
         });
       }
+      if (!finished) throw incompleteTurn(null);
       const responseText = requireStreamText(textParts);
-      const finished = this.deps.requestStore.markSucceeded({
+      const succeeded = this.deps.requestStore.markSucceeded({
         orgId: input.orgId,
         requestId,
         responseText,
@@ -254,7 +257,7 @@ export class ProviderResponseRunner {
         externalResponseId: providerResponseId,
         completedAt: new Date().toISOString(),
       });
-      if (!finished) return requestId;
+      if (!succeeded) return requestId;
       this.deps.responseObserver.recordSuccess({
         orgId: input.orgId,
         provider: execution.provider,

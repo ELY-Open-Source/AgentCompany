@@ -1,6 +1,8 @@
 import type { ProviderObservedRateLimitState } from "../../shared/provider-runtime-domain";
 import type { JsonRecord, ProviderEventStreamMessage } from "./provider-http";
 import { isRecord } from "./provider-http";
+import { FINISHED_STOP_REASONS, incompleteTurn } from "./provider-tool-turn";
+import { incompleteReason } from "./provider-tool-turns/responses-format";
 
 export interface ProviderStreamEvent {
   /** usage: a chunk that only reports token usage; it is recorded, never shown. */
@@ -41,7 +43,12 @@ export async function* mapOpenAiResponseStream(messages: AsyncIterable<ProviderE
       if (delta) yield streamEvent("text_delta", delta, message);
       continue;
     }
-    if (type === "response.completed" || type === "response.incomplete") {
+    if (type === "response.incomplete") {
+      const response = recordField(message.data, "response") ?? {};
+      yield streamEvent("error", incompleteTurn(incompleteReason(response)).message, message);
+      return;
+    }
+    if (type === "response.completed") {
       if (!started) {
         started = true;
         yield streamEvent("message_start", null, message);
@@ -66,7 +73,12 @@ export async function* mapOpenAiChatCompletionStream(messages: AsyncIterable<Pro
       }
       yield streamEvent("text_delta", delta, message);
     }
-    if (hasChatFinish(message.data)) {
+    const finish = chatFinishReason(message.data);
+    if (finish && !(FINISHED_STOP_REASONS.chat as readonly string[]).includes(finish)) {
+      yield streamEvent("error", incompleteTurn(finish).message, message);
+      return;
+    }
+    if (finish) {
       if (!started) {
         started = true;
         yield streamEvent("message_start", null, message);
@@ -89,6 +101,11 @@ export async function* mapAnthropicMessageStream(messages: AsyncIterable<Provide
     }
     // Anthropic reports output tokens on message_delta, input tokens on message_start.
     if (type === "message_delta") {
+      const stopReason = stringField(recordField(message.data, "delta") ?? {}, "stop_reason");
+      if (stopReason && !(FINISHED_STOP_REASONS.anthropic as readonly string[]).includes(stopReason)) {
+        yield streamEvent("error", incompleteTurn(stopReason).message, message);
+        return;
+      }
       yield streamEvent("usage", null, message);
       continue;
     }
@@ -145,8 +162,9 @@ function readChatDeltaContent(data: JsonRecord): string | null {
   return null;
 }
 
-function hasChatFinish(data: JsonRecord): boolean {
-  return recordArray(data.choices).some((choice) => typeof choice.finish_reason === "string" && choice.finish_reason.length > 0);
+function chatFinishReason(data: JsonRecord): string | null {
+  const reason = recordArray(data.choices).map((choice) => choice.finish_reason).find((value) => typeof value === "string" && value.length > 0);
+  return typeof reason === "string" ? reason : null;
 }
 
 function readAnthropicTextDelta(data: JsonRecord): string | null {

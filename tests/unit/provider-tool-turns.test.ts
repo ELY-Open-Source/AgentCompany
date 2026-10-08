@@ -47,7 +47,7 @@ describe("openai responses encoding", () => {
   });
 
   test("parses output text and function calls", () => {
-    const data = { output: [
+    const data = { status: "completed", output: [
       { type: "message", content: [{ type: "output_text", text: "done" }] },
       { type: "function_call", call_id: "c2", name: "create_task", arguments: '{"title":"x"}' },
     ] };
@@ -88,8 +88,8 @@ describe("openai chat completions encoding", () => {
   });
 
   test("parses a tool call choice", () => {
-    const data = { choices: [{ message: { content: "hi", tool_calls: [{ id: "c9", function: { name: "f", arguments: '{"a":1}' } }] } }] };
-    expect(parseChatChoice(data)).toEqual({ text: "hi", toolCalls: [{ id: "c9", name: "f", arguments: { a: 1 } }] });
+    const data = { choices: [{ message: { content: "hi", tool_calls: [{ id: "c9", function: { name: "f", arguments: '{"a":1}' } }] }, finish_reason: "tool_calls" }] };
+    expect(parseChatChoice(data)).toMatchObject({ text: "hi", toolCalls: [{ id: "c9", name: "f", arguments: { a: 1 } }] });
   });
 
   test("accumulates streamed content deltas and indexed tool-call fragments", async () => {
@@ -130,7 +130,7 @@ describe("anthropic encoding", () => {
   });
 
   test("parses text and tool_use blocks", () => {
-    const data = { content: [{ type: "text", text: "ok" }, { type: "tool_use", id: "tu", name: "f", input: { x: 1 } }] };
+    const data = { stop_reason: "tool_use", content: [{ type: "text", text: "ok" }, { type: "tool_use", id: "tu", name: "f", input: { x: 1 } }] };
     expect(parseAnthropicContent(data)).toMatchObject({ text: "ok", toolCalls: [{ id: "tu", name: "f", arguments: { x: 1 } }] });
   });
 });
@@ -162,7 +162,7 @@ describe("antigravity (gemini) encoding", () => {
 
   test("accumulates streamed candidates", async () => {
     const result = await accumulateGeminiStream(stream([
-      { response: { candidates: [{ content: { parts: [{ text: "hello" }, { functionCall: { name: "f", args: { x: 1 }, id: "g1" } }] } }] } },
+      { response: { candidates: [{ content: { parts: [{ text: "hello" }, { functionCall: { name: "f", args: { x: 1 }, id: "g1" } }] }, finishReason: "STOP" }] } },
     ]));
     expect(result.text).toBe("hello");
     expect(result.toolCalls).toEqual([{ id: "g1", name: "f", arguments: { x: 1 } }]);
@@ -183,7 +183,7 @@ describe("bedrock converse encoding", () => {
   });
 
   test("parses the converse output", () => {
-    const data = { output: { message: { content: [{ text: "ok" }, { toolUse: { toolUseId: "t1", name: "f", input: { x: 1 } } }] } } };
+    const data = { stopReason: "tool_use", output: { message: { content: [{ text: "ok" }, { toolUse: { toolUseId: "t1", name: "f", input: { x: 1 } } }] } } };
     expect(parseBedrockOutput(data)).toMatchObject({ text: "ok", toolCalls: [{ id: "t1", name: "f", arguments: { x: 1 } }] });
   });
 });
@@ -193,7 +193,7 @@ describe("vertex (gemini) encoding", () => {
     const body = vertexRequestBody({ model: "gemini-2.5-pro", instructions: "sys", messages: CONVO, tools: [{ name: "f", description: "d", parameters: { type: "object" } }] });
     expect((body.systemInstruction as JsonRecord).parts).toEqual([{ text: "sys" }]);
     expect(body.tools).toEqual([{ functionDeclarations: [{ name: "f", description: "d", parametersJsonSchema: { type: "object" } }] }]);
-    const parsed = parseGeminiResponse({ candidates: [{ content: { parts: [{ text: "hi" }, { functionCall: { name: "f", args: { x: 1 }, id: "v1" } }] } }] });
+    const parsed = parseGeminiResponse({ candidates: [{ content: { parts: [{ text: "hi" }, { functionCall: { name: "f", args: { x: 1 }, id: "v1" } }] }, finishReason: "STOP" }] });
     expect(parsed).toMatchObject({ text: "hi", toolCalls: [{ id: "v1", name: "f", arguments: { x: 1 } }] });
   });
 });
