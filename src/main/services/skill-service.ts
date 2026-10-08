@@ -57,9 +57,9 @@ export class SkillService {
 
   /**
    * Retires every active skill whose slug is not in `keepSlugs`, so the org
-   * catalogue mirrors the shipped bundle. Bindings pin revisions directly
-   * and keep resolving; retired skills leave list_skills and cannot be
-   * granted anew. Returns the retired slugs.
+   * catalogue mirrors the shipped bundle. Retired skills leave list_skills,
+   * cannot be granted, and stop loading into runs; their bindings stay so a
+   * restore brings them back. Returns the retired slugs.
    */
   retireSkillsNotIn(orgId: string, keepSlugs: string[]): string[] {
     const keep = new Set(keepSlugs);
@@ -245,9 +245,10 @@ export class SkillService {
    */
   hasRuntimeSkills(orgId: string, agentId: string): boolean {
     if (this.forcedSkillRows(orgId).length > 0) return true;
-    return Boolean(this.db.prepare(
-      "select id from skill_bindings where org_id = ? and agent_id = ? and enabled = 1 limit 1",
-    ).get(orgId, agentId));
+    return Boolean(this.db.prepare(`
+      select sb.id from skill_bindings sb join skill_definitions sd on sd.id = sb.skill_id and sd.status = 'active'
+      where sb.org_id = ? and sb.agent_id = ? and sb.enabled = 1 limit 1
+    `).get(orgId, agentId));
   }
 
   /**
@@ -279,6 +280,14 @@ export class SkillService {
     return [];
   }
 
+  private carriesRetiredSkill(revisionIds: string[]): boolean {
+    if (revisionIds.length === 0) return false;
+    return Boolean(this.db.prepare(`
+      select 1 from skill_revisions sr join skill_definitions sd on sd.id = sr.skill_id
+      where sd.status <> 'active' and sr.id in (${revisionIds.map(() => "?").join(", ")}) limit 1
+    `).get(...revisionIds));
+  }
+
   private appLanguage(): string {
     const row = this.db.prepare("select language from app_state where id = 1").get() as { language: string } | undefined;
     return row?.language === "zh" ? "zh" : "en";
@@ -292,12 +301,13 @@ export class SkillService {
    * prompt instead of silently overflowing the model's context.
    */
   resolveRuntimeSnapshot(input: ResolveAgentSkillsInput): string {
-    // Idempotent per run: a run interrupted after resolving (crash, quit) is
-    // re-queued by startup recovery and must reuse its frozen skill set, not
-    // die on a uniqueness error that burns real retry budget.
-    const existingSnapshot = this.db.prepare("select id from skill_runtime_snapshots where agent_id = ? and run_id = ?")
-      .get(input.agentId, input.runId) as { id: string } | undefined;
-    if (existingSnapshot) return existingSnapshot.id;
+    // Idempotent per run: a re-queued run reuses its frozen skill set unless a skill in it was retired since.
+    const existingSnapshot = this.db.prepare("select id, source_revision_ids from skill_runtime_snapshots where agent_id = ? and run_id = ?")
+      .get(input.agentId, input.runId) as { id: string; source_revision_ids: string } | undefined;
+    if (existingSnapshot) {
+      if (!this.carriesRetiredSkill(JSON.parse(existingSnapshot.source_revision_ids) as string[])) return existingSnapshot.id;
+      this.db.prepare("delete from skill_runtime_snapshots where id = ?").run(existingSnapshot.id);
+    }
     const forcedRows = this.forcedSkillRows(input.orgId);
     const boundRows = this.db.prepare(`
       select
@@ -307,6 +317,7 @@ export class SkillService {
         sr.manifest_json,
         sa.object_key
       from skill_bindings sb
+      join skill_definitions sd on sd.id = sb.skill_id and sd.status = 'active'
       join skill_revisions sr on sr.id = sb.pinned_revision_id
       join skill_artifacts sa on sa.revision_id = sr.id and sa.artifact_type in ('entrypoint', 'markdown')
       where sb.org_id = ? and sb.agent_id = ? and sb.enabled = 1

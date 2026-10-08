@@ -154,22 +154,45 @@ describe("built-in skills", () => {
     h.connection.close();
   });
 
-  test("a skill the bundle drops and later ships again comes back active", () => {
+  test("a skill the bundle drops stops applying to bound agents, and comes back when shipped again", () => {
     const h = harness();
     const sync = () => h.connection.transaction(() => importStagedSkills(h.skills, h.orgId, stageBuiltinSkillsLibrary(h.sourceRoot, h.libraryRoot)));
     sync();
+    const skill = h.connection.db.prepare(`
+      select sd.id, sr.id as revision_id from skill_definitions sd join skill_revisions sr on sr.skill_id = sd.id
+      where sd.org_id = ? and sd.slug = 'engineering-backend-architect'
+    `).get(h.orgId) as { id: string; revision_id: string };
+    let agentId = "";
+    h.connection.transaction(() => {
+      agentId = h.organization.createAgent({
+        orgId: h.orgId, name: "Ada", role: "Engineer", department: "Engineering",
+        modelProviderId: null, modelId: null, budgetCents: 1000, managerAgentId: null,
+      });
+      h.skills.bind({ orgId: h.orgId, agentId, skillId: skill.id, revisionId: skill.revision_id });
+    });
+    const prompt = (runId: string) => {
+      const id = h.connection.transaction(() => h.skills.resolveRuntimeSnapshot({ orgId: h.orgId, agentId, runId, maxTokens: SKILL_TOKENS, taskText: "" }));
+      return (h.connection.db.prepare("select compiled_prompt from skill_runtime_snapshots where id = ?").get(id) as { compiled_prompt: string }).compiled_prompt;
+    };
+    expect(prompt("run_before")).toContain("# Skill: Backend Architect");
+
     const architectPath = join(h.sourceRoot, "engineering", "engineering-backend-architect.md");
     rmSync(architectPath);
     expect(sync()).toMatchObject({ retired: 1 });
+    expect(prompt("run_retired")).not.toContain("# Skill: Backend Architect");
+    expect(prompt("run_retired")).toContain("# Skill: humanizer");
+    expect(prompt("run_before")).not.toContain("# Skill: Backend Architect");
+
     writeFileSync(architectPath, ARCHITECT_MD, "utf8");
     expect(sync()).toMatchObject({ imported: 0, restored: 1, upgraded: 0, retired: 0, failures: [] });
+    expect(prompt("run_restored")).toContain("# Skill: Backend Architect");
     expect(h.connection.db.prepare("select status from skill_definitions where org_id = ? and slug = 'engineering-backend-architect'").get(h.orgId))
       .toEqual({ status: "active" });
     expect(sync()).toMatchObject({ restored: 0, skipped: 3 });
     h.connection.close();
   });
 
-  test("legacy catalogue entries retire so every install mirrors the bundle, while their bindings keep working", () => {
+  test("legacy catalogue entries retire so every install mirrors the bundle", () => {
     const h = harness();
     const staged = stageBuiltinSkillsLibrary(h.sourceRoot, h.libraryRoot);
     h.connection.transaction(() => importStagedSkills(h.skills, h.orgId, staged));

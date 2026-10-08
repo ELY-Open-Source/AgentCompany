@@ -80,7 +80,7 @@ export function stageBuiltinSkillsLibrary(sourceRoot: string, libraryRoot: strin
  * the org does not carry yet, restores retired skills the bundle ships again,
  * upgrades skills whose files changed (moving bindings onto the new
  * revision), then retires active skills whose slug the bundle no longer
- * ships. Retired skills leave list_skills and stop being grantable.
+ * ships. Retired skills leave list_skills, stop being grantable, and stop loading into runs.
  */
 export function importStagedSkills(skills: SkillService, orgId: string, staged: StagedBuiltinSkill[]): BuiltinSkillSyncReport {
   const report: BuiltinSkillSyncReport = { imported: 0, upgraded: 0, restored: 0, skipped: 0, retired: 0, failures: [] };
