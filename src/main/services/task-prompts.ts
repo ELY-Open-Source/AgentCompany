@@ -76,6 +76,7 @@ export interface ChatContextBlock {
   history: string;
   /** Messages after it: what this run answers. */
   fresh: string;
+  manifest: { history: Array<{ id: string; version: string }>; fresh: Array<{ id: string; version: string }>; omittedCount: number };
 }
 
 export interface AgentInstructionContext {

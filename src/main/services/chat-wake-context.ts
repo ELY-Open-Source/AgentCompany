@@ -50,7 +50,42 @@ export function loadChatWakeContext(db: DatabaseSync, orgId: string, agentId: st
     spaceId: thread.space_id,
     history: [...(omitted > 0 ? [`(${omitted} earlier messages in this thread are not shown.)`] : []), ...history.map((m) => formatMessage(db, m))].join("\n"),
     fresh: fresh.map((m) => formatMessage(db, m)).join("\n"),
+    manifest: { history: history.map(readEntry), fresh: fresh.map(readEntry), omittedCount: omitted },
   };
+}
+
+/** A message as the model saw it: id plus edit-or-create time. */
+export interface ReadEntry {
+  id: string;
+  version: string;
+}
+
+/** What a run read: thread messages up front plus anything injected mid-run. */
+export interface RunContextManifest {
+  threadId: string | null;
+  history: ReadEntry[];
+  fresh: ReadEntry[];
+  omittedCount: number;
+  midRun: ReadEntry[];
+}
+
+/** Collects what the run read; commit() persists it once a model turn succeeds. */
+export function createRunContextRecorder(db: DatabaseSync, runId: string, chatContext: ChatContextBlock | null) {
+  const manifest: RunContextManifest = {
+    threadId: chatContext?.threadId ?? null,
+    history: chatContext?.manifest.history ?? [],
+    fresh: chatContext?.manifest.fresh ?? [],
+    omittedCount: chatContext?.manifest.omittedCount ?? 0,
+    midRun: [],
+  };
+  return {
+    addMidRun: (entries: ReadEntry[]) => { manifest.midRun.push(...entries); },
+    commit: () => { db.prepare("update task_runs set context_json = ? where id = ?").run(JSON.stringify(manifest), runId); },
+  };
+}
+
+function readEntry(m: ThreadMessageRow): ReadEntry {
+  return { id: m.id, version: m.edited_at ?? m.created_at };
 }
 
 function formatMessage(db: DatabaseSync, m: ThreadMessageRow): string {
@@ -66,7 +101,7 @@ function utcMinute(iso: string): string {
 /** Polls the threads this run is part of for messages from others. */
 export function createRunMessagePoller(
   db: DatabaseSync,
-  input: { orgId: string; agentId: string; sourceThreadId: string | null; runStartedAt: string },
+  input: { orgId: string; agentId: string; sourceThreadId: string | null; runStartedAt: string; onInjected: (entries: ReadEntry[]) => void },
 ): () => string | null {
   let watermark = input.runStartedAt;
   return () => {
@@ -81,6 +116,7 @@ export function createRunMessagePoller(
     `).all(input.orgId, watermark, input.agentId, input.sourceThreadId, input.orgId, input.agentId, input.runStartedAt) as unknown as ThreadMessageRow[];
     if (rows.length === 0) return null;
     watermark = rows[rows.length - 1].created_at;
+    input.onInjected(rows.map(readEntry));
     console.info(`[run-inbox] agent ${input.agentId}: ${rows.length} new message(s) injected mid-run`);
     return ["Messages that arrived while you were working (they may change what you should do):", ...rows.map((m) => formatMessage(db, m))].join("\n");
   };

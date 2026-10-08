@@ -8,6 +8,7 @@ import {
   buildConversations,
   collectParticipants,
   filterApprovalsForSpace,
+  messageReaders,
 } from "./chat/chat-helpers";
 import type { PageProps } from "./types";
 import { activeOrgId, requireActiveEmployee } from "./types";
@@ -27,6 +28,10 @@ export function ChatPage({ snapshot, actions }: PageProps) {
   const agents = useMemo(() => snapshot.agents.filter((item) => item.orgId === orgId), [snapshot.agents, orgId]);
   const files = useMemo(() => snapshot.files.filter((item) => item.orgId === orgId), [snapshot.files, orgId]);
   const messagesAll = useMemo(() => snapshot.chatMessages.filter((m) => m.orgId === orgId), [snapshot.chatMessages, orgId]);
+  const readersByMessage = useMemo(
+    () => messageReaders(snapshot.taskRuns.filter((run) => run.orgId === orgId), agents, messagesAll),
+    [snapshot.taskRuns, orgId, agents, messagesAll],
+  );
   const messageIds = useMemo(() => new Set(messagesAll.map((message) => message.id)), [messagesAll]);
   const mentionsAll = useMemo(
     () => snapshot.chatMentions.filter((mention) => messageIds.has(mention.messageId)),
@@ -202,7 +207,7 @@ export function ChatPage({ snapshot, actions }: PageProps) {
         mentions={mentionsAll}
         slashInvocations={slashInvocationsAll}
         files={files}
-        context={{ employees, agents }}
+        context={{ employees, agents, readersByMessage }}
         attachmentFileId={attachmentFileId}
         currentEmployeeId={employee.id}
         onAttachmentChange={setAttachmentFileId}

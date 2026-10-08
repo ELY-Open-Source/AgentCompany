@@ -27,6 +27,7 @@ export const zh: Record<string, string> = {
   "Advance": "推进",
   "Advanced": "高级",
   "Integrations": "集成密钥",
+  "Read by {names}": "已读：{names}",
   "Keys are stored on this device, encrypted by the operating system, and shared by every company.": "密钥保存在本机，由操作系统加密，所有公司共用。",
   "Composio API key": "Composio API 密钥",
   "Powers the Connectors page and agent connector tools. Create one at platform.composio.dev.": "用于连接器页面和 Agent 的连接器工具。在 platform.composio.dev 创建。",

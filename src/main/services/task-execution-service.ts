@@ -24,7 +24,7 @@ import {
   type WorkspaceRow,
 } from "./task-prompts";
 import { renderTaskHandoff } from "./agent-task-handoff";
-import { createRunMessagePoller, loadChatWakeContext } from "./chat-wake-context";
+import { createRunContextRecorder, createRunMessagePoller, loadChatWakeContext } from "./chat-wake-context";
 import { runningWorkspaceWriter } from "./workspace-write-lock";
 import { loadComposioTools } from "./composio/composio-tool-bridge";
 import { connectorDisplayName } from "./composio/connector-brands";
@@ -159,6 +159,7 @@ export class TaskExecutionService {
       // Watermark for reply delivery and mid-run message polling.
       const runStartedAt = new Date().toISOString();
       const chatContext = loadChatWakeContext(this.db, orgId, agent.id, isolation.secretScopeJson);
+      const contextRecorder = createRunContextRecorder(this.db, runId, chatContext);
       const toolContext: AgentToolContext = {
         orgId,
         agent: { id: agent.id, modelProviderId: agent.model_provider_id, modelId: agent.model_id },
@@ -206,7 +207,8 @@ export class TaskExecutionService {
           }),
           toolContext,
           externalTools,
-          pollNewMessages: createRunMessagePoller(this.db, { orgId, agentId: agent.id, sourceThreadId: chatContext?.threadId ?? null, runStartedAt }),
+          onModelTurn: contextRecorder.commit,
+          pollNewMessages: createRunMessagePoller(this.db, { orgId, onInjected: contextRecorder.addMidRun, agentId: agent.id, sourceThreadId: chatContext?.threadId ?? null, runStartedAt }),
         },
       );
       providerRequestId = result.lastRequestId;

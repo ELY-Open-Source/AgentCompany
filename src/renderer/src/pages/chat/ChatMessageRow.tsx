@@ -41,6 +41,7 @@ export function ChatMessageRow({
   const messageFiles = deleted ? [] : messageAttachments(message.id, attachments, files);
   const messageMentions = mentions.filter((mention) => mention.messageId === message.id);
   const slashInvocation = deleted ? null : slashInvocations.find((invocation) => invocation.messageId === message.id) ?? null;
+  const readers = bot || deleted ? [] : context.readersByMessage.get(message.id) ?? [];
   const submitEdit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const next = new FormData(event.currentTarget).get("body");
@@ -97,6 +98,11 @@ export function ChatMessageRow({
               const handoff = bot && attachment?.transferType === "handoff";
               return <AttachmentCard key={file.id} file={file} handoff={handoff} onOpen={onOpenFile ? () => onOpenFile(file.id) : null} />;
             })}
+          </div>
+        )}
+        {readers.length > 0 && (
+          <div style={{ fontSize: 12, color: "var(--text-3)", marginTop: 4 }}>
+            {t("Read by {names}", { names: readers.join(", ") })}
           </div>
         )}
       </div>

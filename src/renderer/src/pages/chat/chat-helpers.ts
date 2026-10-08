@@ -8,15 +8,38 @@ import type {
   ChatSpaceRecord,
   EmployeeRecord,
   FileObjectRecord,
+  TaskRunRecord,
 } from "../../../../shared/domain";
 import { t } from "../../i18n/i18n";
 
 export interface MessageContext {
   employees: EmployeeRecord[];
   agents: AgentRecord[];
+  /** Agent names whose runs read each message. */
+  readersByMessage: Map<string, string[]>;
 }
 
-export function senderName(message: ChatMessageRecord, context: MessageContext): string {
+/** Which agents' runs read the current version of each message. */
+export function messageReaders(taskRuns: TaskRunRecord[], agents: AgentRecord[], messages: ChatMessageRecord[]): Map<string, string[]> {
+  const currentVersion = new Map(messages.map((message) => [message.id, message.editedAt ?? message.createdAt]));
+  const readers = new Map<string, string[]>();
+  for (const run of taskRuns) {
+    if (!run.contextJson || !run.agentId) continue;
+    const agent = agents.find((item) => item.id === run.agentId);
+    if (!agent) continue;
+    type Entry = { id: string; version: string };
+    const manifest = JSON.parse(run.contextJson) as { history: Entry[]; fresh: Entry[]; midRun: Entry[] };
+    for (const entry of [...manifest.history, ...manifest.fresh, ...manifest.midRun]) {
+      if (currentVersion.get(entry.id) !== entry.version) continue;
+      const names = readers.get(entry.id) ?? [];
+      if (!names.includes(agent.name)) names.push(agent.name);
+      readers.set(entry.id, names);
+    }
+  }
+  return readers;
+}
+
+export function senderName(message: ChatMessageRecord, context: Pick<MessageContext, "employees" | "agents">): string {
   // A message whose principal no longer resolves must degrade to a visible
   // placeholder, not throw: one orphaned row would otherwise blank the whole
   // Messages page mid-render.
@@ -128,7 +151,7 @@ export function buildConversations(input: {
     if (group) group.push(membership);
     else membersBySpace.set(membership.spaceId, [membership]);
   }
-  const context: MessageContext = { employees: input.employees, agents: input.agents };
+  const context = { employees: input.employees, agents: input.agents };
 
   const items = input.spaces.map((space) => {
     const last = lastBySpace.get(space.id) ?? null;

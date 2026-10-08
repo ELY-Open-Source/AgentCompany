@@ -151,6 +151,8 @@ export interface TaskRunRecord {
   startedAt: string | null;
   completedAt: string | null;
   errorMessage: string | null;
+  /** JSON RunContextManifest: which messages the run read. */
+  contextJson: string | null;
 }
 
 export interface ApprovalRecord {

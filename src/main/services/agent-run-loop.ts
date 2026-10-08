@@ -19,6 +19,8 @@ export interface AgentRunLoopInput {
   externalTools?: ToolDefinition[];
   /** Messages that arrived mid-run, or null. */
   pollNewMessages?: () => string | null;
+  /** Called after each model turn the provider answered. */
+  onModelTurn?: () => void;
 }
 
 export interface AgentRunLoopResult {
@@ -57,6 +59,7 @@ export async function runAgentLoop(deps: AgentRunLoopDeps, input: AgentRunLoopIn
       tools: allTools,
     });
     lastRequestId = turn.requestId;
+    input.onModelTurn?.();
 
     if (turn.toolCalls.length === 0) {
       if (toolCallCount === 0 && !turn.text.trim()) {

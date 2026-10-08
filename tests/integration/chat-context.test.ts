@@ -182,6 +182,13 @@ describe("chat wake context", () => {
     expect(seenFollowUps[0]).toContain("Messages that arrived while you were working");
     expect(seenFollowUps[0]).toContain("Stop — use Postgres instead.");
     expect(seenFollowUps[0]).not.toContain("Use MySQL.");
+    const entry = (body: string) => {
+      const row = connection.db.prepare("select id, created_at from chat_messages where body_md = ?").get(body) as { id: string; created_at: string };
+      return { id: row.id, version: row.created_at };
+    };
+    const manifest = JSON.parse((connection.db.prepare("select context_json from task_runs where id = ?").get(wake.id) as { context_json: string }).context_json);
+    expect(manifest).toEqual({ threadId, history: [], fresh: [entry("Use MySQL.")], omittedCount: 0, midRun: [entry("Stop — use Postgres instead.")] });
+    expect(firstId).toBe(entry("Use MySQL.").id);
     connection.close();
   });
 
@@ -249,14 +256,14 @@ describe("chat wake context", () => {
     const threadId = h.say("Old plan: launch in March.", null);
     await h.runWake();
     h.remove("Old plan: launch in March.");
-    h.say("Wrong number, ignore it: 4242.", threadId);
-    h.remove("Wrong number, ignore it: 4242.");
+    h.say("Wrong number, ignore it: QZX-WRONG.", threadId);
+    h.remove("Wrong number, ignore it: QZX-WRONG.");
     h.say("What is the launch date now?", threadId);
     await h.runWake();
     const prompt = h.wakePrompts[1];
     expect(prompt).toContain("What is the launch date now?");
     expect(prompt).not.toContain("Old plan: launch in March.");
-    expect(prompt).not.toContain("4242");
+    expect(prompt).not.toContain("QZX-WRONG");
     h.connection.close();
   });
 
