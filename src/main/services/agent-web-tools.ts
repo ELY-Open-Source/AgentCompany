@@ -8,6 +8,7 @@ const FETCH_TIMEOUT_MS = 30_000;
 const MAX_REDIRECTS = 3;
 const MAX_RESPONSE_BYTES = 2_000_000;
 const SEARCH_RESULT_LIMIT = 8;
+const STATUS_EXCERPT_CHARS = 300;
 const USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AgentCompany/1.0";
 
 /** Subset of the fetch contract the tools rely on; injectable so tests stay off the network. */
@@ -126,6 +127,9 @@ async function guardedFetch(rawUrl: string, fetcher: WebFetcher): Promise<Guarde
       continue;
     }
     const text = await readBodyCapped(response);
+    if (response.status < 200 || response.status >= 300) {
+      throw new Error(`${url.toString()} answered with status ${response.status}: ${statusExcerpt(response.headers.get("content-type") ?? "", text)}`);
+    }
     return {
       status: response.status,
       contentType: response.headers.get("content-type") ?? "",
@@ -134,6 +138,12 @@ async function guardedFetch(rawUrl: string, fetcher: WebFetcher): Promise<Guarde
     };
   }
   throw new Error(`Too many redirects (more than ${MAX_REDIRECTS}).`);
+}
+
+/** The start of an error page, as one line, so the agent sees why without the whole page. */
+function statusExcerpt(contentType: string, text: string): string {
+  const plain = (looksLikeHtml(contentType, text) ? htmlToText(text) : text).replace(/\s+/g, " ").trim();
+  return plain ? plain.slice(0, STATUS_EXCERPT_CHARS) : "(empty body)";
 }
 
 function parseHttpUrl(rawUrl: string): URL {

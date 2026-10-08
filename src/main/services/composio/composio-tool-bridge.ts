@@ -114,7 +114,10 @@ async function runAction(db: DatabaseSync, apiKey: string, orgId: string, agentI
   const input = typeof args.arguments === "object" && args.arguments !== null && !Array.isArray(args.arguments) ? args.arguments as Record<string, unknown> : null;
   if (!input) return "ERROR: arguments must be an object matching the action's input.";
   const result = await new ComposioClient(apiKey).executeTool({ toolName: action.name, arguments: input, userId: getComposioUserId(db, orgId), connectedAccountId: account.id });
-  if (result.error) return `ERROR: ${result.error}`;
+  if (!result.successful) {
+    console.warn(`[connectors] ${action.name} failed: ${result.error.replace(/\s+/g, " ")}`);
+    return `ERROR: ${action.name} failed: ${result.error}`;
+  }
   return JSON.stringify(result.data);
 }
 

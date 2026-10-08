@@ -26,10 +26,8 @@ export interface ComposioConnectedAccount {
   createdAt: string;
 }
 
-export interface ComposioToolExecutionResult {
-  data: Record<string, unknown>;
-  error: string | null;
-}
+/** Composio answers 200 for business failures too; only `successful` tells them apart. */
+export type ComposioToolExecutionResult = { successful: true; data: unknown } | { successful: false; error: string };
 
 const MAX_RESPONSE_BYTES = 2_000_000;
 
@@ -142,10 +140,9 @@ export class ComposioClient {
     };
     if (input.connectedAccountId) body.connected_account_id = input.connectedAccountId;
     const response = await this.request("POST", url, body);
-    return {
-      data: typeof response === "object" && response !== null ? response as Record<string, unknown> : {},
-      error: null,
-    };
+    if (typeof response.successful !== "boolean") throw new Error(`Composio returned no execution status for ${input.toolName}.`);
+    if (response.successful) return { successful: true, data: response.data };
+    return { successful: false, error: typeof response.error === "string" && response.error.trim() ? response.error.trim() : "Composio gave no reason." };
   }
 
   private async request(

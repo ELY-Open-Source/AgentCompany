@@ -62,6 +62,13 @@ describe("agent web tools", () => {
     expect(output).toContain("status 200");
   });
 
+  test("a page or search answered with an error status is a failed call, not data", async () => {
+    const missing = await executeWebTool(call("fetch_url", { url: "http://93.184.216.34/gone" }), fetcherReturning([{ status: 404, body: "<h1>Not Found</h1>" }]).fetcher);
+    expect(missing).toBe("ERROR: http://93.184.216.34/gone answered with status 404: Not Found");
+    const limited = await executeWebTool(call("web_search", { query: "pricing" }), fetcherReturning([{ status: 429, body: "slow down" }]).fetcher);
+    expect(limited).toMatch(/^ERROR: https:\/\/html\.duckduckgo\.com\/html\/\?q=pricing answered with status 429: slow down$/);
+  });
+
   test("fetch_url follows public redirects but refuses a hop into a private range", async () => {
     const followed = fetcherReturning([
       { status: 302, headers: { location: "http://93.184.216.35/final" } },

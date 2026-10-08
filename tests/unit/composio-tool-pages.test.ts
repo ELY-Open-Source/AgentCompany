@@ -7,6 +7,7 @@ import { describe, expect, test, vi } from "vitest";
 const requested: string[] = [];
 const written: string[] = [];
 const pages = new Map<string, Record<string, unknown>>();
+const executions = new Map<string, Record<string, unknown>>();
 
 vi.mock("electron", () => ({
   net: {
@@ -18,7 +19,7 @@ vi.mock("electron", () => ({
       request.end = () => {
         requested.push(url);
         const query = new URL(url).searchParams;
-        const page = url.includes("/tools/execute/") ? { data: { number: 42 }, successful: true } : pages.get(`${query.get("toolkit_slug")}:${query.get("cursor") ?? ""}`);
+        const page = url.includes("/tools/execute/") ? executions.get(url.split("/tools/execute/")[1]) ?? { data: { number: 42 }, error: null, successful: true } : pages.get(`${query.get("toolkit_slug")}:${query.get("cursor") ?? ""}`);
         const response = new EventEmitter() as EventEmitter & { statusCode: number };
         response.statusCode = page ? 200 : 404;
         request.emit("response", response);
@@ -86,10 +87,20 @@ describe("agents reach every action through search and run", () => {
     const found = JSON.parse(await h.call("composio_find_actions", { query: "create pull request" })) as { matches: Array<{ action: string; input: unknown }>; searched: number };
     expect(found.searched).toBe(101);
     expect(found.matches[0]).toMatchObject({ action: "GITHUB_CREATE_A_PULL_REQUEST", input: { properties: { title: { type: "string" } }, required: ["title"] } });
-    expect(await h.call("composio_run_action", { action: "GITHUB_CREATE_A_PULL_REQUEST", arguments: { title: "Fix" } })).toBe(JSON.stringify({ data: { number: 42 }, successful: true }));
+    expect(await h.call("composio_run_action", { action: "GITHUB_CREATE_A_PULL_REQUEST", arguments: { title: "Fix" } })).toBe(JSON.stringify({ number: 42 }));
     expect(written.at(-1)).toContain("/tools/execute/GITHUB_CREATE_A_PULL_REQUEST");
     expect(written.at(-1)).toContain("\"connected_account_id\":\"ca_gh\"");
     expect(await h.call("composio_run_action", { action: "SLACK_SEND_MESSAGE", arguments: {} })).toContain("is not an action of your connected services (github)");
+    h.connection.close();
+  });
+
+  test("an action Composio reports as failed, or without a status, is a failed call", async () => {
+    pages.set("github:", { items: [tool("GITHUB_MERGE"), tool("GITHUB_ODD")], next_cursor: null });
+    executions.set("GITHUB_MERGE", { data: { message: "Not Found" }, error: "Repository not found", successful: false });
+    executions.set("GITHUB_ODD", { data: { ok: 1 } });
+    const h = company("ak_failed");
+    expect(await h.call("composio_run_action", { action: "GITHUB_MERGE", arguments: {} })).toBe("ERROR: GITHUB_MERGE failed: Repository not found");
+    expect(await h.call("composio_run_action", { action: "GITHUB_ODD", arguments: {} })).toBe("ERROR: Composio returned no execution status for GITHUB_ODD.");
     h.connection.close();
   });
 
