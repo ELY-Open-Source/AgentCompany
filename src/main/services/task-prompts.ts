@@ -14,6 +14,7 @@ export interface TaskExecutionTaskRow {
   priority: string;
   requires_filesystem: number;
   handoff_json: string | null;
+  origin: string | null;
 }
 
 export interface TaskExecutionAgentRow {

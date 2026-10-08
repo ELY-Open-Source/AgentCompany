@@ -66,7 +66,14 @@ async function founderLine() {
     chat.editMessage({ orgId, messageId: row.id, bodyMd: newBody, actorType: "employee", actorId: founderId });
   };
   const onWakeTurn = (hook: (turnIndex: number) => void) => { onWake = hook; };
-  return { connection, wakePrompts, wakeInputs, say, runWake, edit, onWakeTurn };
+  const runManually = async () => {
+    const wake = connection.db.prepare(
+      "select id, task_id from task_runs where org_id = ? and agent_id = ? and trigger = 'chat_mention' and state = 'queued'",
+    ).get(orgId, ceoId) as { id: string; task_id: string };
+    connection.db.prepare("update task_runs set state = 'failed' where id = ?").run(wake.id);
+    await execution.runTask({ orgId, taskId: wake.task_id });
+  };
+  return { connection, wakePrompts, wakeInputs, say, runWake, runManually, edit, onWakeTurn };
 }
 
 describe("chat wake context", () => {
@@ -192,6 +199,29 @@ describe("chat wake context", () => {
     expect(lineEnds(earlier, ": Message 12")).toBe(true);
     expect(lineEnds(earlier, ": Message 11")).toBe(false);
     expect(earlier).toContain("13 earlier messages in this thread are not shown.");
+    h.connection.close();
+  });
+
+  test("a long message reaches the run whole, and the task description does not truncate it", async () => {
+    const h = await founderLine();
+    const long = `Plan: ${"step ".repeat(200)}END-OF-PLAN`;
+    h.say(long, null);
+    await h.runWake();
+    const prompt = h.wakePrompts[0];
+    expect(prompt).toContain(long);
+    expect(prompt).not.toContain("step ...");
+    const description = (h.connection.db.prepare("select description from tasks where origin = 'chat_wake'").get() as { description: string }).description;
+    expect(description).not.toContain("step ");
+    expect(description).toContain("messaged you directly");
+    h.connection.close();
+  });
+
+  test("re-running a chat wake by hand answers the same thread", async () => {
+    const h = await founderLine();
+    h.say("Please draft the Q3 hiring plan.", null);
+    await h.runManually();
+    expect(h.wakePrompts).toHaveLength(1);
+    expect(h.wakePrompts[0]).toContain("Please draft the Q3 hiring plan.");
     h.connection.close();
   });
 });

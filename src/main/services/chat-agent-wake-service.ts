@@ -130,7 +130,7 @@ export class ChatAgentWakeService {
     const taskId = this.organization.createTask({
       orgId: input.orgId,
       title: direct ? `Reply to ${from}` : `Reply to ${from} in #${space.name}`,
-      description: this.mentionTaskDescription(input, from, space.name, direct),
+      description: this.mentionTaskDescription(from, space.name, direct),
       status: TASK_STATUS.BACKLOG,
       assigneeAgentId: agent.id,
       risk: RISK_LEVEL.LOW,
@@ -296,15 +296,15 @@ export class ChatAgentWakeService {
     return `Chat mention: ${title.length > 64 ? `${title.slice(0, 61)}...` : title}`;
   }
 
-  private mentionTaskDescription(input: SendMessageInput, from: string, channel: string, direct: boolean): string {
-    const said = input.bodyMd.trim();
-    const where = direct ? `${from} messaged you directly:` : `${from} addressed you in #${channel}:`;
+  private mentionTaskDescription(from: string, channel: string, direct: boolean): string {
+    const where = direct
+      ? `${from} messaged you directly; their full message is in the thread below.`
+      : `${from} addressed you in #${channel}; their full message is in the thread below.`;
     const how = direct
       ? `Reply to ${from} in your direct conversation: call send_message with to="${from}" and this thread_id.`
       : `Reply to ${from} in this thread.`;
     return [
       where,
-      `"${said.length > 400 ? `${said.slice(0, 397)}...` : said}"`,
       "",
       `${how} Answer what they asked, give your honest take, push back if you disagree, or hand work over — speak as yourself, the way a colleague would, not as a status report.`,
     ].join("\n");

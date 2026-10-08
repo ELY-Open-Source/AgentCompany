@@ -665,8 +665,24 @@ export class TaskExecutionService {
         providerIds: [provider.id],
         scope: "task_run",
         credentialAccess: "provider_runtime_only",
+        ...this.chatWakeSource(orgId, task),
       }),
     };
+  }
+
+  /** A re-run of a chat wake answers the same thread. */
+  private chatWakeSource(orgId: string, task: TaskExecutionTaskRow): { sourceThreadId: string; sourceMessageId: string } | Record<string, never> {
+    if (task.origin !== "chat_wake") return {};
+    const row = this.db.prepare(`
+      select json_extract(secret_scope_json, '$.sourceThreadId') as thread_id,
+             json_extract(secret_scope_json, '$.sourceMessageId') as message_id
+      from task_runs
+      where task_id = ? and org_id = ? and json_extract(secret_scope_json, '$.sourceThreadId') is not null
+      order by created_at desc
+      limit 1
+    `).get(task.id, orgId) as { thread_id: string; message_id: string } | undefined;
+    if (!row) throw new Error(`Chat wake task ${task.id} has no recorded source thread.`);
+    return { sourceThreadId: row.thread_id, sourceMessageId: row.message_id };
   }
 
   private requireServiceIdentity(orgId: string, agentId: string): string {
