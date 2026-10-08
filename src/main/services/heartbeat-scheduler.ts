@@ -3,6 +3,7 @@ import { currentProviderUsageWindow, isTransientProviderFailure } from "../../sh
 import { createId } from "../../shared/ids";
 import type { ProviderCooldowns } from "./provider-cooldowns";
 import { assertExecutionApproval, createIsolationContext, loadWorkspace, requireAgentProvider, requireAssignedAgent, requireTask } from "./task-run-preparation";
+import { AuditService } from "./audit-service";
 
 const TASK_RETRY_BUDGET = 3;
 
@@ -10,10 +11,13 @@ const TASK_RETRY_BUDGET = 3;
 export class HeartbeatScheduler {
   /** Providers currently parked on their monthly quota, for transition logging. */
   private quotaBlockedProviders = new Map<string, string>();
-  /** Tasks already logged as budget-spent, so the park is announced once, not every 5s tick. */
-  private spentTasksLogged = new Set<string>();
 
-  constructor(private readonly db: DatabaseSync, private readonly cooldowns: ProviderCooldowns, private readonly now: () => number) {}
+  constructor(
+    private readonly db: DatabaseSync,
+    private readonly cooldowns: ProviderCooldowns,
+    private readonly now: () => number,
+    private readonly notifyDataChanged: () => void,
+  ) {}
 
   /**
    * Heartbeat: keeps every open assigned task of a heartbeat-enabled agent
@@ -57,7 +61,10 @@ export class HeartbeatScheduler {
     `).all(window.start, nowIso) as Array<{ task_id: string; org_id: string; provider_id: string; agent_id: string; interval_sec: number }>;
     this.observeQuotaBlocks(window.start);
     const cooling = new Set(this.cooldowns.cooledProviderIds());
-    const attemptMessages = this.db.prepare("select error_message from task_runs where task_id = ? and state <> 'superseded'");
+    const attemptMessages = this.db.prepare(`
+      select r.error_message from task_runs r join tasks t on t.id = r.task_id
+      where r.task_id = ? and r.state <> 'superseded' and r.rowid > t.run_budget_floor
+    `);
     const created: string[] = [];
     const pacedAgents = new Set<string>();
     for (const row of rows) {
@@ -66,7 +73,7 @@ export class HeartbeatScheduler {
       const attempts = (attemptMessages.all(row.task_id) as Array<{ error_message: string | null }>)
         .filter((run) => !isTransientProviderFailure(run.error_message)).length;
       if (attempts >= TASK_RETRY_BUDGET) {
-        this.observeSpentTask(row.task_id);
+        this.markStalled(row.org_id, row.task_id);
         continue;
       }
       try {
@@ -79,16 +86,15 @@ export class HeartbeatScheduler {
     return created;
   }
 
-  /**
-   * A task that spent its whole retry budget without reaching done parks
-   * silently otherwise — one log line makes the stall diagnosable from the
-   * main-process log instead of looking like an idle queue.
-   */
-  private observeSpentTask(taskId: string): void {
-    if (this.spentTasksLogged.has(taskId)) return;
-    this.spentTasksLogged.add(taskId);
-    const task = this.db.prepare("select title from tasks where id = ?").get(taskId) as { title: string } | undefined;
-    console.warn(`[task-queue] task "${task?.title ?? taskId}" spent its ${TASK_RETRY_BUDGET}-run budget without reaching done; it stays parked until someone closes or reassigns it.`);
+  /** Records once, on the task itself, that it spent its run budget without reaching done. */
+  private markStalled(orgId: string, taskId: string): void {
+    const reason = `Stalled: ${TASK_RETRY_BUDGET} sessions ran without reaching done. Edit, reassign or reopen the task to give it a fresh budget.`;
+    const marked = this.db.prepare("update tasks set stalled_reason = ? where id = ? and stalled_reason is null").run(reason, taskId);
+    if (marked.changes === 0) return;
+    const task = this.db.prepare("select title from tasks where id = ?").get(taskId) as { title: string };
+    console.warn(`[task-queue] task "${task.title}" ${reason}`);
+    new AuditService(this.db).record({ orgId, entityType: "task", entityId: taskId, actorType: "system", actorId: null, action: "stalled", payload: { reason } });
+    this.notifyDataChanged();
   }
 
   /**

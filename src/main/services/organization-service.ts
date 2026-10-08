@@ -494,7 +494,8 @@ export class OrganizationService {
     if (input.assigneeAgentId) this.verifyOptionalOrgEntity("agents", input.assigneeAgentId, input.orgId, "Assignee agent");
     if (input.parentTaskId) this.assertParentAllowed(input.orgId, input.taskId, input.parentTaskId, input.title.trim());
     const result = this.db.prepare(`
-      update tasks set title = ?, description = ?, assignee_agent_id = ?, risk = ?, priority = ?, parent_task_id = ?, updated_at = ?
+      update tasks set title = ?, description = ?, assignee_agent_id = ?, risk = ?, priority = ?, parent_task_id = ?, updated_at = ?,
+        stalled_reason = null, run_budget_floor = (select coalesce(max(rowid), 0) from task_runs)
       where id = ? and org_id = ?
     `).run(input.title.trim(), input.description.trim(), input.assigneeAgentId, input.risk, input.priority, input.parentTaskId, now, input.taskId, input.orgId);
     if (result.changes === 0) throw new Error("Task was not found.");
@@ -528,8 +529,14 @@ export class OrganizationService {
 
   updateTaskStatus(orgId: string, taskId: string, status: string): void {
     if (status === TASK_STATUS.DONE) this.assertNoOpenSubtasks(orgId, taskId);
-    const result = this.db.prepare("update tasks set status = ?, updated_at = ? where id = ? and org_id = ?")
-      .run(status, new Date().toISOString(), taskId, orgId);
+    const now = new Date().toISOString();
+    // Reopening a done task gives it a fresh run budget.
+    const result = this.db.prepare(`
+      update tasks set status = ?, updated_at = ?,
+        stalled_reason = case when status = 'done' and ? <> 'done' then null else stalled_reason end,
+        run_budget_floor = case when status = 'done' and ? <> 'done' then (select coalesce(max(rowid), 0) from task_runs) else run_budget_floor end
+      where id = ? and org_id = ?
+    `).run(status, now, status, status, taskId, orgId);
     if (result.changes === 0) throw new Error("Task was not found.");
     this.audit.record({
       orgId,

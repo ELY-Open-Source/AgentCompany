@@ -65,6 +65,7 @@ import { knowledgeScopeSchema } from "./migrations/063-knowledge-scope";
 import { knowledgeRevisionsSchema } from "./migrations/064-knowledge-revisions";
 import { documentVersionsSchema } from "./migrations/065-document-versions";
 import { taskWritingModeSchema } from "./migrations/066-task-writing-mode";
+import { taskRunBudgetSchema } from "./migrations/067-task-run-budget";
 
 interface Migration {
   version: number;
@@ -139,6 +140,7 @@ const MIGRATIONS: Migration[] = [
   { version: 64, name: "knowledge_revisions", sql: knowledgeRevisionsSchema },
   { version: 65, name: "document_versions", sql: documentVersionsSchema },
   { version: 66, name: "task_writing_mode", sql: taskWritingModeSchema },
+  { version: 67, name: "task_run_budget", sql: taskRunBudgetSchema },
 ];
 
 const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;

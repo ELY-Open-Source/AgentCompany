@@ -78,7 +78,7 @@ export class TaskExecutionService {
     this.organization = new OrganizationService(db);
     this.chat = new ChatService(db);
     this.cooldowns = new ProviderCooldowns(now);
-    this.heartbeat = new HeartbeatScheduler(db, this.cooldowns, now);
+    this.heartbeat = new HeartbeatScheduler(db, this.cooldowns, now, notifyDataChanged);
   }
 
   async runTask(input: RunTaskInput): Promise<string> {

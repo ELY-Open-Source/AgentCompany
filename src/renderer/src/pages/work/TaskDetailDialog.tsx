@@ -142,6 +142,7 @@ function OverviewTab({ task, assignee, project, goal, workspace, provider, runs 
 }) {
   return (
     <>
+      {task.stalledReason && <div className="form-error" role="alert" style={{ marginBottom: 12 }}>{task.stalledReason}</div>}
       {task.description && (
         <p style={{ margin: "0 0 14px", color: "var(--text-2)", fontSize: 14, lineHeight: 1.55, whiteSpace: "pre-wrap" }}>{task.description}</p>
       )}

@@ -98,6 +98,10 @@ export interface TaskRecord {
   parentTaskId: string | null;
   requiresFilesystem: boolean;
   writingMode: WritingMode;
+  /** Set when the task spent its run budget without reaching done. */
+  stalledReason: string | null;
+  /** Runs at or below this task_runs rowid no longer count toward the run budget. */
+  runBudgetFloor: number;
   createdAt: string;
   updatedAt: string;
 }

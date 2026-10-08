@@ -337,6 +337,7 @@ function TaskCard({
       </div>
       <div className="row" style={{ flexWrap: "wrap", gap: 6, minWidth: 0 }}>
         {project ? <Pill>{project.name}</Pill> : <Pill>{capitalize(task.risk)}</Pill>}
+        {task.stalledReason && task.status !== "done" && <Pill tone="red">{t("stalled")}</Pill>}
         {task.status !== "done" && latestRun && (
           <span style={{ flexShrink: 0, display: "inline-flex" }}>
             <Pill tone={runTone(latestRun.state)}>{prettyRunState(latestRun.state)}</Pill>
