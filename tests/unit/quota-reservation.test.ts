@@ -27,7 +27,7 @@ describe("monthly quota reservation", () => {
       return { text: "done", toolCalls: [], rawResponseJson: "{}" };
     };
     const connection = new DatabaseConnection(join(tmpdir(), `ac-quota-${randomUUID()}.db`));
-    const providers = new ProviderService(connection.db, providerAdapters, testVault, undefined, turn);
+    const providers = new ProviderService(connection.db, providerAdapters, testVault, turn);
     let orgId = "";
     let providerId = "";
     connection.transaction(() => {

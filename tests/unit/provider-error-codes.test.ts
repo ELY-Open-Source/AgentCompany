@@ -109,7 +109,7 @@ describe("provider errors keep their status and machine code", () => {
   test("our own monthly limit is a typed error, and a failed request keeps its status and code", async () => {
     const connection = new DatabaseConnection(join(tmpdir(), `ac-codes-${randomUUID()}.db`));
     const vault = { encryptSecret: (secret: string) => Buffer.from(secret, "utf8"), decryptSecret: (ciphertext: Buffer) => ciphertext.toString("utf8") };
-    const providers = new ProviderService(connection.db, providerAdapters, vault, undefined, async () => { throw new ProviderHttpError("Overloaded", null, 529, false, "overloaded_error"); });
+    const providers = new ProviderService(connection.db, providerAdapters, vault, async () => { throw new ProviderHttpError("Overloaded", null, 529, false, "overloaded_error"); });
     let orgId = "";
     let providerId = "";
     connection.transaction(() => {

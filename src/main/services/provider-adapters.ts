@@ -1,8 +1,7 @@
 import { PROVIDER_AUTH_TYPE, type ProviderAuthType } from "../../shared/domain";
 import { listProviderModels, type ProviderModelEntry } from "../../shared/provider-models";
 import {
-  parseAccessToken,
-  parseAccountToken,
+  oauthProfileParser,
   parseApiKey,
   parseAnthropicCompatProfile,
   parseAzureProfile,
@@ -408,7 +407,7 @@ function responseMessages(instructions: string | null, prompt: string): Array<{ 
 }
 
 function browserTokenAdapter(providerKey: string, authType: ProviderAuthType): ProviderAdapter {
-  const parseAuthProfile = authType === PROVIDER_AUTH_TYPE.ACCOUNT_SUBSCRIPTION ? parseAccountToken : parseAccessToken;
+  const parseAuthProfile = oauthProfileParser(providerKey, authType === PROVIDER_AUTH_TYPE.ACCOUNT_SUBSCRIPTION ? "account_token" : "access_token");
   const assertProfile = authType === PROVIDER_AUTH_TYPE.ACCOUNT_SUBSCRIPTION ? requireAccountTokenProfile : requireAccessTokenProfile;
   return {
     providerKey,

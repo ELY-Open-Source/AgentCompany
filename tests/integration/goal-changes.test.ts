@@ -18,7 +18,7 @@ const testVault = {
 
 function company(turn: (input: ProviderToolTurnInput, db: DatabaseConnection["db"]) => AgentTurnResult) {
   const connection = new DatabaseConnection(join(tmpdir(), `ac-goalchg-${randomUUID()}.db`));
-  const providers = new ProviderService(connection.db, providerAdapters, testVault, undefined, answeringModelCheck(async (input) => turn(input, connection.db)));
+  const providers = new ProviderService(connection.db, providerAdapters, testVault, answeringModelCheck(async (input) => turn(input, connection.db)));
   const onboarding = new OnboardingService({ db: connection.db, saveProviderCredential: (input) => providers.saveCredential(input) });
   const execution = new TaskExecutionService(connection.db, providers);
   let orgId = "";

@@ -26,7 +26,7 @@ describe("rate limits seen on successful calls", () => {
     });
     const connection = new DatabaseConnection(join(tmpdir(), `ac-ratelimit-${randomUUID()}.db`));
     const organization = new OrganizationService(connection.db);
-    const providers = new ProviderService(connection.db, providerAdapters, testVault, undefined, turn);
+    const providers = new ProviderService(connection.db, providerAdapters, testVault, turn);
     const execution = new TaskExecutionService(connection.db, providers);
     let orgId = "";
     let providerId = "";

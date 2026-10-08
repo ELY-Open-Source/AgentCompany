@@ -29,7 +29,7 @@ function company() {
     prompts.push(first.text);
     return { text: "done", toolCalls: [], rawResponseJson: "{}" };
   };
-  const providers = new ProviderService(connection.db, providerAdapters, testVault, undefined, answeringModelCheck(turn));
+  const providers = new ProviderService(connection.db, providerAdapters, testVault, answeringModelCheck(turn));
   const onboarding = new OnboardingService({ db: connection.db, saveProviderCredential: (input) => providers.saveCredential(input) });
   const execution = new TaskExecutionService(connection.db, providers);
   const organization = new OrganizationService(connection.db);

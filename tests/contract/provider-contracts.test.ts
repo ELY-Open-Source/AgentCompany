@@ -12,7 +12,7 @@ import { PROVIDER_CATALOG } from "../../src/shared/provider-catalog";
 const PROVIDER_SECRET_SAMPLES: Record<string, string> = {
   openai: "sk-live-provider",
   anthropic: "sk-live-provider",
-  "claude-pro": "claude-session-token",
+  "claude-pro": JSON.stringify({ access: "live-access", refresh: "live-refresh", expires: 1_900_000_000_000 }),
   xai: "sk-live-provider",
   groq: "sk-live-provider",
   mistral: "sk-live-provider",
@@ -20,10 +20,10 @@ const PROVIDER_SECRET_SAMPLES: Record<string, string> = {
   openrouter: "sk-or-live-provider",
   kimi: "sk-live-provider",
   "kimi-cn": "sk-live-provider",
-  "kimi-code": "kimi-session-token",
-  "github-copilot": "ghu_live_provider",
-  "google-antigravity": "antigravity-session",
-  "gpt-account": "chatgpt-session",
+  "kimi-code": JSON.stringify({ access: "live-access", refresh: "live-refresh", expires: 1_900_000_000_000 }),
+  "github-copilot": JSON.stringify({ access: "live-access", refresh: "live-refresh", expires: 1_900_000_000_000 }),
+  "google-antigravity": JSON.stringify({ access: "live-access", refresh: "live-refresh", expires: 1_900_000_000_000, projectId: "acme-project" }),
+  "gpt-account": JSON.stringify({ access: "live-access", refresh: "live-refresh", expires: 1_900_000_000_000, accountId: "acct_1" }),
   "azure-openai": JSON.stringify({
     baseUrl: "https://acme.openai.azure.com",
     deployment: "gpt-5.4",

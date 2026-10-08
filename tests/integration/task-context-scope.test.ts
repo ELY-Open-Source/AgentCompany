@@ -50,7 +50,7 @@ describe("task prompt scope", () => {
       return { text: step.text, toolCalls: step.toolCalls, rawResponseJson: "{}" };
     };
     const connection = new DatabaseConnection(join(tmpdir(), `ac-scope-${randomUUID()}.db`));
-    const providers = new ProviderService(connection.db, providerAdapters, testVault, undefined, answeringModelCheck(turn));
+    const providers = new ProviderService(connection.db, providerAdapters, testVault, answeringModelCheck(turn));
     const onboarding = new OnboardingService({ db: connection.db, saveProviderCredential: (input) => providers.saveCredential(input) });
     const execution = new TaskExecutionService(connection.db, providers);
     let orgId = "";
@@ -91,7 +91,7 @@ describe("task prompt scope", () => {
       calls += 1;
       return { text: "done", toolCalls: [], rawResponseJson: "{}" };
     };
-    const providers = new ProviderService(connection.db, providerAdapters, testVault, undefined, answeringModelCheck(turn));
+    const providers = new ProviderService(connection.db, providerAdapters, testVault, answeringModelCheck(turn));
     const onboarding = new OnboardingService({ db: connection.db, saveProviderCredential: (input) => providers.saveCredential(input) });
     const organization = new OrganizationService(connection.db);
     const execution = new TaskExecutionService(connection.db, providers);
@@ -126,7 +126,7 @@ describe("task prompt scope", () => {
   test("a manual write run waits while another run is changing the same workspace", async () => {
     const connection = new DatabaseConnection(join(tmpdir(), `ac-wsplock-${randomUUID()}.db`));
     const turn = async (): Promise<AgentTurnResult> => ({ text: "done", toolCalls: [], rawResponseJson: "{}" });
-    const providers = new ProviderService(connection.db, providerAdapters, testVault, undefined, answeringModelCheck(turn));
+    const providers = new ProviderService(connection.db, providerAdapters, testVault, answeringModelCheck(turn));
     const onboarding = new OnboardingService({ db: connection.db, saveProviderCredential: (input) => providers.saveCredential(input) });
     const organization = new OrganizationService(connection.db);
     const execution = new TaskExecutionService(connection.db, providers);

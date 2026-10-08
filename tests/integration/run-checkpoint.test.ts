@@ -25,7 +25,7 @@ describe("session checkpoints", () => {
       ? { text: "Audit done: all clean.", toolCalls: [], rawResponseJson: "{}" }
       : { text: "Looking into it.", toolCalls: [{ id: `c_${randomUUID()}`, name: "read_messages", arguments: {} }], rawResponseJson: "{}" };
     const connection = new DatabaseConnection(join(tmpdir(), `ac-checkpoint-${randomUUID()}.db`));
-    const providers = new ProviderService(connection.db, providerAdapters, testVault, undefined, answeringModelCheck(turn));
+    const providers = new ProviderService(connection.db, providerAdapters, testVault, answeringModelCheck(turn));
     const onboarding = new OnboardingService({ db: connection.db, saveProviderCredential: (input) => providers.saveCredential(input) });
     const execution = new TaskExecutionService(connection.db, providers);
     let orgId = "";

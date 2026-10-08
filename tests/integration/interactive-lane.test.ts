@@ -77,7 +77,7 @@ describe("interactive execution lane", () => {
       }
       return turn("done");
     };
-    const providers = new ProviderService(connection.db, providerAdapters, testVault, undefined, answeringModelCheck(script));
+    const providers = new ProviderService(connection.db, providerAdapters, testVault, answeringModelCheck(script));
     providers.saveCredential({ orgId, providerId, secret: "sk-test-key", model: "gpt-5.4" });
     const taskExecution = new TaskExecutionService(connection.db, providers);
 
@@ -164,7 +164,7 @@ describe("interactive execution lane", () => {
       }
       return turn("done");
     };
-    const providers = new ProviderService(connection.db, providerAdapters, testVault, undefined, answeringModelCheck(script));
+    const providers = new ProviderService(connection.db, providerAdapters, testVault, answeringModelCheck(script));
     providers.saveCredential({ orgId, providerId, secret: "sk-test-key", model: "gpt-5.4" });
     const taskExecution = new TaskExecutionService(connection.db, providers);
 
@@ -229,7 +229,7 @@ describe("interactive execution lane", () => {
     const alwaysOverloaded = async (): Promise<AgentTurnResult> => {
       throw new ProviderHttpError("The engine is currently overloaded, please try again later", null, 529, false, "overloaded_error");
     };
-    const providers = new ProviderService(connection.db, providerAdapters, testVault, undefined, answeringModelCheck(alwaysOverloaded));
+    const providers = new ProviderService(connection.db, providerAdapters, testVault, answeringModelCheck(alwaysOverloaded));
     providers.saveCredential({ orgId, providerId, secret: "sk-test-key", model: "gpt-5.4" });
     const taskExecution = new TaskExecutionService(connection.db, providers);
     const wakeDana = () => dispatchAgentTool({ db: connection.db, organization, chat }, {

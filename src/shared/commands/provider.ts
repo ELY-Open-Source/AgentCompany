@@ -5,18 +5,11 @@ export interface SaveProviderCredentialInput {
   providerId: string;
   secret: string;
   model: string | null;
-  employeeId?: string | null;
 }
 
 export interface RevokeProviderCredentialInput {
   orgId: string;
   providerId: string;
-}
-
-export interface LaunchProviderSignInInput {
-  orgId: string;
-  providerId: string;
-  employeeId: string;
 }
 
 export interface StartProviderOAuthInput {

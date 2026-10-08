@@ -24,7 +24,7 @@ describe("money budgets", () => {
       return { text: "Worked.", toolCalls: [], rawResponseJson: JSON.stringify({ usage: { input_tokens: 2_000_000, output_tokens: 1_000_000 } }) };
     };
     const connection = new DatabaseConnection(join(tmpdir(), `ac-spend-${randomUUID()}.db`));
-    const providers = new ProviderService(connection.db, providerAdapters, testVault, undefined, turn);
+    const providers = new ProviderService(connection.db, providerAdapters, testVault, turn);
     const onboarding = new OnboardingService({ db: connection.db, saveProviderCredential: (input) => providers.saveCredential(input) });
     const execution = new TaskExecutionService(connection.db, providers);
     let orgId = "";

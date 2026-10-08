@@ -52,7 +52,6 @@ export function ProvidersPanel({ orgId, employeeId, providers, authProfiles, cat
       providerId: active.id,
       secret,
       model: String(form.get("model") ?? "").trim() || null,
-      employeeId,
     })).then((result) => { if (result) close(); });
   };
 

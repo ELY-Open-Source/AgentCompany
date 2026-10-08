@@ -235,14 +235,6 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       return fail("provider_model_check_failed", error instanceof Error ? error.message : String(error));
     }
   });
-  ipcMain.handle(IPC_CHANNELS.launchProviderSignIn, (_event, input) => {
-    try {
-      providers.launchSignInWindow(input);
-      return ok(null);
-    } catch (error) {
-      return fail("provider_sign_in_failed", error instanceof Error ? error.message : String(error));
-    }
-  });
   ipcMain.handle(IPC_CHANNELS.startProviderOAuth, async (_event, input) => {
     const emit = (event: Record<string, unknown>) =>
       deps.mainWindow.webContents.send(IPC_CHANNELS.rendererEvent, { type: "provider-oauth", providerKey: input.providerKey, ...event });
@@ -264,7 +256,6 @@ export function registerIpcHandlers(deps: IpcDeps): void {
           providerId: input.providerId,
           secret,
           model: input.model ?? null,
-          employeeId: input.employeeId,
         });
         emit({ phase: "active" });
         notifyDataChanged();

@@ -30,29 +30,7 @@ import { refreshAntigravity, requireAntigravityClientSecret } from "../oauth/goo
 import type { IntegrationKeyStore } from "../integration-key-store";
 import { refreshGitHubCopilotToken } from "../oauth/github-copilot-flow";
 import { refreshKimiCode } from "../oauth/kimi-code-flow";
-
-interface StoredOAuth {
-  access: string;
-  refresh: string;
-  expires: number;
-  accountId?: string;
-  projectId?: string;
-  enterpriseUrl?: string | null;
-}
-
-function parseStoredOAuth(secret: string): StoredOAuth {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(secret);
-  } catch {
-    throw new Error("Stored OAuth credential is not valid JSON; reconnect the provider.");
-  }
-  const creds = parsed as StoredOAuth;
-  if (typeof creds.access !== "string" || typeof creds.refresh !== "string" || typeof creds.expires !== "number") {
-    throw new Error("Stored OAuth credential is incomplete; reconnect the provider.");
-  }
-  return creds;
-}
+import { parseStoredOAuth, type StoredOAuth } from "../oauth/stored-oauth";
 
 function refreshOAuth(providerKey: string, creds: StoredOAuth, keys: IntegrationKeyStore): Promise<OAuthCredentials> {
   switch (providerKey) {
@@ -61,8 +39,7 @@ function refreshOAuth(providerKey: string, creds: StoredOAuth, keys: Integration
     case "claude-pro":
       return refreshClaudePro(creds.refresh);
     case "google-antigravity":
-      if (!creds.projectId) throw new Error("Antigravity credential is missing its project id; reconnect the provider.");
-      return refreshAntigravity(creds.refresh, creds.projectId, requireAntigravityClientSecret(keys.read("google_antigravity_client_secret")));
+      return refreshAntigravity(creds.refresh, requireProjectId(creds), requireAntigravityClientSecret(keys.read("google_antigravity_client_secret")));
     case "github-copilot":
       return refreshGitHubCopilotToken(creds.refresh, creds.enterpriseUrl ?? undefined);
     case "kimi-code":
@@ -122,7 +99,7 @@ export async function resolveTurnCredential(deps: {
   if (deps.provider.auth_type === PROVIDER_AUTH_TYPE.CLOUD) {
     return resolveCloudCredential(deps.provider.provider_key, secret);
   }
-  const creds = parseStoredOAuth(secret);
+  const creds = parseStoredOAuth(deps.provider.provider_key, secret);
   if (Date.now() < creds.expires) return toTurnCredential(creds);
   if (!deps.provider.credential_id) throw new Error("Provider credential id is missing; reconnect the provider.");
   const refreshed = await refreshOAuth(deps.provider.provider_key, creds, deps.integrationKeys);
@@ -133,4 +110,9 @@ export async function resolveTurnCredential(deps: {
     secret: JSON.stringify(refreshed),
   });
   return toTurnCredential(refreshed);
+}
+
+function requireProjectId(creds: StoredOAuth): string {
+  if (!creds.projectId) throw new Error("The Google Antigravity sign-in is missing its Google Cloud project id; sign in again.");
+  return creds.projectId;
 }

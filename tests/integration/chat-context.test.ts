@@ -35,7 +35,7 @@ async function founderLine() {
     return { text: `Reply ${wakePrompts.length}.`, toolCalls: [], rawResponseJson: "{}" };
   };
   const connection = new DatabaseConnection(join(tmpdir(), `ac-chatctx-${randomUUID()}.db`));
-  const providers = new ProviderService(connection.db, providerAdapters, testVault, undefined, answeringModelCheck(turn));
+  const providers = new ProviderService(connection.db, providerAdapters, testVault, answeringModelCheck(turn));
   const onboarding = new OnboardingService({ db: connection.db, saveProviderCredential: (input) => providers.saveCredential(input) });
   const execution = new TaskExecutionService(connection.db, providers);
   const chat = new ChatService(connection.db);
@@ -154,7 +154,7 @@ describe("chat wake context", () => {
       }
       return { text: "Switching to Postgres.", toolCalls: [], rawResponseJson: "{}" };
     };
-    const providers = new ProviderService(connection.db, providerAdapters, testVault, undefined, answeringModelCheck(turn));
+    const providers = new ProviderService(connection.db, providerAdapters, testVault, answeringModelCheck(turn));
     const onboarding = new OnboardingService({ db: connection.db, saveProviderCredential: (input) => providers.saveCredential(input) });
     const execution = new TaskExecutionService(connection.db, providers);
     let ceoId = "";

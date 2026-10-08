@@ -1,6 +1,5 @@
 import type { DatabaseSync } from "node:sqlite";
-import { createHash, randomBytes } from "node:crypto";
-import type { CancelProviderResponseInput, LaunchProviderSignInInput, ListProviderModelsInput, RevokeProviderCredentialInput, SaveProviderCredentialInput, StreamProviderResponseInput, UpdateProviderPolicyInput, SetProviderPricesInput } from "../../shared/commands";
+import type { CancelProviderResponseInput, ListProviderModelsInput, RevokeProviderCredentialInput, SaveProviderCredentialInput, StreamProviderResponseInput, UpdateProviderPolicyInput, SetProviderPricesInput } from "../../shared/commands";
 import type { ProviderModelEntry } from "../../shared/provider-models";
 import { PROVIDER_AUTH_TYPE, PROVIDER_DATA_POLICY, type ProviderAuthType } from "../../shared/domain";
 import type { ProviderStreamRendererEvent } from "../../shared/provider-request-domain";
@@ -15,7 +14,6 @@ import { ProviderRateLimitRegistry } from "./provider-rate-limit-registry";
 import { ProviderResponseObserver } from "./provider-response-observer";
 import { ProviderRequestStore } from "./provider-request-store";
 import { ProviderResponseRunner, type ProviderResponseCreateInput } from "./provider-response-runner";
-import { launchProviderSignInWindow, type LaunchProviderSignInWindowInput } from "./provider-sign-in-window";
 import type { ToolTurnFn } from "./provider-tool-turn";
 import { stopRun } from "./run-control";
 import type { ModelCheckResult } from "../../shared/desktop-api";
@@ -35,8 +33,6 @@ import {
 
 export type { ProviderResponseCreateInput };
 
-const AUTH_SESSION_TTL_MS = 15 * 60 * 1000;
-
 /** Room for instructions, the output reserve, and some history. */
 const MIN_CONTEXT_WINDOW_TOKENS = 24_000;
 
@@ -55,7 +51,6 @@ export class ProviderService {
     private readonly db: DatabaseSync,
     private readonly adapters: ProviderAdapterRegistry = providerAdapters,
     vault: ProviderSecretVault = new SecretVault(),
-    private readonly launchSignIn: (input: LaunchProviderSignInWindowInput) => void = launchProviderSignInWindow,
     toolTurn?: ToolTurnFn,
   ) {
     this.audit = new AuditService(db);
@@ -106,14 +101,7 @@ export class ProviderService {
     const adapter = requireAdapter(this.adapters, provider.provider_key, provider.auth_type);
     adapter.parseAuthProfile(secret);
     const catalogEntry = requireCatalogEntry(provider.provider_key);
-    const source = this.resolveCredentialSource({
-      orgId: input.orgId,
-      providerId: input.providerId,
-      providerKey: provider.provider_key,
-      authType: provider.auth_type,
-      employeeId: input.employeeId ?? null,
-      secret,
-    });
+    const source = this.resolveCredentialSource(provider.auth_type);
     const authProfile = this.authBroker.createProviderProfile({
       orgId: input.orgId,
       providerId: input.providerId,
@@ -223,44 +211,6 @@ export class ProviderService {
   }
 
 
-  launchSignInWindow(input: LaunchProviderSignInInput): void {
-    this.assertEmployee(input.orgId, input.employeeId);
-    const provider = this.db.prepare(`
-      select id, provider_key, label, auth_type
-      from providers
-      where id = ? and org_id = ?
-    `).get(input.providerId, input.orgId) as { id: string; provider_key: string; label: string; auth_type: string } | undefined;
-    if (!provider) throw new Error("Provider was not found.");
-    const catalogEntry = requireCatalogEntry(provider.provider_key);
-    if (!catalogEntry.signInUrl) throw new Error(`${provider.label} does not support browser sign-in.`);
-    const session = this.createAuthSession({
-      orgId: input.orgId,
-      providerId: provider.id,
-      providerKey: provider.provider_key,
-      employeeId: input.employeeId,
-      signInUrl: catalogEntry.signInUrl,
-    });
-    this.launchSignIn({ providerId: provider.id, label: provider.label, signInUrl: catalogEntry.signInUrl, partition: session.partition });
-
-    this.audit.record({
-      orgId: input.orgId,
-      entityType: "provider",
-      entityId: provider.id,
-      actorType: "employee",
-      actorId: input.employeeId,
-      action: "sign_in_window_opened",
-      payload: {
-        providerKey: provider.provider_key,
-        authType: provider.auth_type,
-        authSessionId: session.id,
-        state: session.state,
-        nonce: session.nonce,
-        codeVerifierSha256: session.codeVerifierSha256,
-        redirectUri: session.redirectUri,
-        partition: session.partition,
-      },
-    });
-  }
 
   /** Sets the per-million-token prices that turn recorded usage into spend. */
   setPrices(input: SetProviderPricesInput): void {
@@ -322,101 +272,12 @@ export class ProviderService {
     });
   }
 
-  private assertEmployee(orgId: string, employeeId: string): void {
-    const employee = this.db.prepare("select id from employees where id = ? and org_id = ?")
-      .get(employeeId, orgId) as { id: string } | undefined;
-    if (!employee) throw new Error("Provider sign-in employee was not found.");
-  }
-
-  private resolveCredentialSource(input: {
-    orgId: string;
-    providerId: string;
-    providerKey: string;
-    authType: ProviderAuthType;
-    employeeId: string | null;
-    secret: string;
-  }): { sourceType: string; sourceRef: string | null } {
-    if (input.authType !== PROVIDER_AUTH_TYPE.OAUTH_PKCE && input.authType !== PROVIDER_AUTH_TYPE.ACCOUNT_SUBSCRIPTION) {
+  private resolveCredentialSource(authType: ProviderAuthType): { sourceType: string; sourceRef: null } {
+    if (authType !== PROVIDER_AUTH_TYPE.OAUTH_PKCE && authType !== PROVIDER_AUTH_TYPE.ACCOUNT_SUBSCRIPTION) {
       return { sourceType: "manual_secret", sourceRef: null };
     }
-    // Credentials obtained through the native OAuth login arrive as a JSON
-    // object; they are authenticated by the flow itself and need no paste session.
-    if (input.secret.trim().startsWith("{")) {
-      return { sourceType: "provider_oauth_login", sourceRef: null };
-    }
-    if (!input.employeeId) throw new Error("Provider sign-in employee is required.");
-    const session = this.db.prepare(`
-      select id
-      from provider_auth_sessions
-      where org_id = ?
-        and provider_id = ?
-        and provider_key = ?
-        and employee_id = ?
-        and completed_at is null
-        and expires_at > ?
-      order by created_at desc
-      limit 1
-    `).get(input.orgId, input.providerId, input.providerKey, input.employeeId, new Date().toISOString()) as { id: string } | undefined;
-    if (!session) throw new Error("Provider sign-in session is required.");
-    this.db.prepare("update provider_auth_sessions set completed_at = ? where id = ? and org_id = ?")
-      .run(new Date().toISOString(), session.id, input.orgId);
-    return { sourceType: "provider_sign_in_session", sourceRef: session.id };
+    // A sign-in credential can only come from the native OAuth login: parseStoredOAuth refuses anything else.
+    return { sourceType: "provider_oauth_login", sourceRef: null };
   }
 
-  private createAuthSession(input: {
-    orgId: string;
-    providerId: string;
-    providerKey: string;
-    employeeId: string;
-    signInUrl: string;
-  }): ProviderAuthSessionDraft {
-    const id = createProviderAuthSessionId();
-    const state = randomToken();
-    const nonce = randomToken();
-    const codeVerifier = randomToken();
-    const codeVerifierSha256 = createHash("sha256").update(codeVerifier).digest("hex");
-    const redirectUri = `agentcompany://provider-auth/${input.providerId}`;
-    const partition = `persist:agentcompany-provider-${input.providerId}`;
-    const createdAt = new Date();
-    const expiresAt = new Date(createdAt.getTime() + AUTH_SESSION_TTL_MS);
-    this.db.prepare(`
-      insert into provider_auth_sessions(
-        id, org_id, provider_id, provider_key, employee_id, state, nonce,
-        code_verifier_sha256, redirect_uri, sign_in_url, partition,
-        created_at, expires_at, completed_at
-      ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, null)
-    `).run(
-      id,
-      input.orgId,
-      input.providerId,
-      input.providerKey,
-      input.employeeId,
-      state,
-      nonce,
-      codeVerifierSha256,
-      redirectUri,
-      input.signInUrl,
-      partition,
-      createdAt.toISOString(),
-      expiresAt.toISOString(),
-    );
-    return { id, state, nonce, codeVerifierSha256, redirectUri, partition };
-  }
-}
-
-interface ProviderAuthSessionDraft {
-  id: string;
-  state: string;
-  nonce: string;
-  codeVerifierSha256: string;
-  redirectUri: string;
-  partition: string;
-}
-
-function createProviderAuthSessionId(): string {
-  return `auths_${randomToken()}`;
-}
-
-function randomToken(): string {
-  return randomBytes(24).toString("base64url");
 }

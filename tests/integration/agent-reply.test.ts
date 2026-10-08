@@ -60,7 +60,7 @@ function scriptedTeam(): (input: ProviderToolTurnInput) => Promise<AgentTurnResu
 describe("inter-agent reply", () => {
   test("an @mention wakes the teammate, who replies in the same thread", async () => {
     const connection = new DatabaseConnection(join(tmpdir(), `ac-reply-${randomUUID()}.db`));
-    const providers = new ProviderService(connection.db, providerAdapters, testVault, undefined, answeringModelCheck(scriptedTeam()));
+    const providers = new ProviderService(connection.db, providerAdapters, testVault, answeringModelCheck(scriptedTeam()));
     const onboarding = new OnboardingService({ db: connection.db, saveProviderCredential: (input) => providers.saveCredential(input) });
     const taskExecution = new TaskExecutionService(connection.db, providers);
     const snapshot = new SnapshotService(connection.db);

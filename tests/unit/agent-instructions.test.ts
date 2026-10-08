@@ -135,7 +135,7 @@ describe("agent instruction wiring", () => {
       capturedInstructions = input.instructions ?? "";
       return { text: "done", toolCalls: [], rawResponseJson: JSON.stringify({ id: "resp-1" }) };
     };
-    const providers = new ProviderService(connection.db, providerAdapters, testVault, undefined, answeringModelCheck(fakeToolTurn));
+    const providers = new ProviderService(connection.db, providerAdapters, testVault, answeringModelCheck(fakeToolTurn));
     const execution = new TaskExecutionService(connection.db, providers);
 
     let orgId = "";
@@ -190,7 +190,7 @@ describe("agent instruction wiring", () => {
       capturedPrompt = first.text;
       return { text: "done", toolCalls: [], rawResponseJson: JSON.stringify({ id: "resp-1" }) };
     };
-    const providers = new ProviderService(connection.db, providerAdapters, testVault, undefined, answeringModelCheck(fakeToolTurn));
+    const providers = new ProviderService(connection.db, providerAdapters, testVault, answeringModelCheck(fakeToolTurn));
     const execution = new TaskExecutionService(connection.db, providers);
     let orgId = "";
     let taskId = "";

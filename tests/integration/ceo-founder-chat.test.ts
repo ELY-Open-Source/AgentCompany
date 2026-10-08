@@ -68,7 +68,7 @@ describe("founder⇄CEO chat", () => {
   test("a founder DM wakes the CEO, who sees who is asking and replies in the pinned conversation", async () => {
     const connection = new DatabaseConnection(join(tmpdir(), `ac-ceo-chat-${randomUUID()}.db`));
     const capturedWakePrompts: string[] = [];
-    const providers = new ProviderService(connection.db, providerAdapters, testVault, undefined, answeringModelCheck(scriptedCeo(capturedWakePrompts)));
+    const providers = new ProviderService(connection.db, providerAdapters, testVault, answeringModelCheck(scriptedCeo(capturedWakePrompts)));
     const onboarding = new OnboardingService({ db: connection.db, saveProviderCredential: (input) => providers.saveCredential(input) });
     const taskExecution = new TaskExecutionService(connection.db, providers);
     const chat = new ChatService(connection.db);
@@ -144,7 +144,7 @@ describe("founder⇄CEO chat", () => {
 
   test("a CEO who answers in plain text still has the reply delivered into the founder's thread", async () => {
     const connection = new DatabaseConnection(join(tmpdir(), `ac-ceo-plain-${randomUUID()}.db`));
-    const providers = new ProviderService(connection.db, providerAdapters, testVault, undefined, answeringModelCheck(plainTextCeo()));
+    const providers = new ProviderService(connection.db, providerAdapters, testVault, answeringModelCheck(plainTextCeo()));
     const onboarding = new OnboardingService({ db: connection.db, saveProviderCredential: (input) => providers.saveCredential(input) });
     const taskExecution = new TaskExecutionService(connection.db, providers);
     const chat = new ChatService(connection.db);

@@ -22,7 +22,7 @@ const testVault = {
 
 function company(turn: (input: ProviderToolTurnInput) => Promise<AgentTurnResult>) {
   const connection = new DatabaseConnection(join(tmpdir(), `ac-stop-${randomUUID()}.db`));
-  const providers = new ProviderService(connection.db, providerAdapters, testVault, undefined, answeringModelCheck(turn));
+  const providers = new ProviderService(connection.db, providerAdapters, testVault, answeringModelCheck(turn));
   const onboarding = new OnboardingService({ db: connection.db, saveProviderCredential: (input) => providers.saveCredential(input) });
   const execution = new TaskExecutionService(connection.db, providers);
   let orgId = "";
@@ -45,7 +45,7 @@ describe("stopping runs", () => {
       return { text: "Announcing.", toolCalls: [{ id: "c1", name: "send_message", arguments: { channel: "general", body: "Should never be posted." } }], rawResponseJson: "{}" };
     };
     const connection = new DatabaseConnection(join(tmpdir(), `ac-stop-${randomUUID()}.db`));
-    const providers = new ProviderService(connection.db, providerAdapters, testVault, undefined, answeringModelCheck(turn));
+    const providers = new ProviderService(connection.db, providerAdapters, testVault, answeringModelCheck(turn));
     const onboarding = new OnboardingService({ db: connection.db, saveProviderCredential: (input) => providers.saveCredential(input) });
     const execution = new TaskExecutionService(connection.db, providers);
     let orgId = "";
@@ -116,7 +116,7 @@ describe("stopping runs", () => {
       return { text: "done", toolCalls: [], rawResponseJson: "{}" };
     };
     const connection = new DatabaseConnection(join(tmpdir(), `ac-deadline-${randomUUID()}.db`));
-    const providers = new ProviderService(connection.db, providerAdapters, testVault, undefined, answeringModelCheck(turn));
+    const providers = new ProviderService(connection.db, providerAdapters, testVault, answeringModelCheck(turn));
     const onboarding = new OnboardingService({ db: connection.db, saveProviderCredential: (input) => providers.saveCredential(input) });
     const execution = new TaskExecutionService(connection.db, providers, undefined, undefined, undefined, 200);
     let orgId = "";

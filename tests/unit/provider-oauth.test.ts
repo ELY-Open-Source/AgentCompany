@@ -5,7 +5,7 @@ import { interpretKimiPollResponse } from "../../src/main/services/oauth/kimi-co
 import { extractAccountId } from "../../src/main/services/oauth/openai-codex-flow";
 import { readProjectId, requireAntigravityClientSecret } from "../../src/main/services/oauth/google-antigravity-flow";
 import { generatePkce } from "../../src/main/services/oauth/pkce";
-import { parseAccessToken, parseAccountToken } from "../../src/main/services/provider-auth-profiles";
+import { providerAdapters } from "../../src/main/services/provider-adapters";
 
 function makeJwt(claims: Record<string, unknown>): string {
   const part = (value: unknown) => Buffer.from(JSON.stringify(value)).toString("base64url");
@@ -112,18 +112,20 @@ describe("pkce generation", () => {
 });
 
 describe("oauth credential parsing", () => {
-  test("accepts a raw token", () => {
-    expect(parseAccessToken("ghu_raw")).toEqual({ type: "access_token", accessToken: "ghu_raw" });
-    expect(parseAccountToken("chatgpt_raw")).toEqual({ type: "account_token", accessToken: "chatgpt_raw" });
+  const signIn = (extra: Record<string, unknown> = {}) => JSON.stringify({ access: "live_token", refresh: "r", expires: 1_900_000_000_000, ...extra });
+
+  test("a stored sign-in is accepted only with what a run needs to use and renew it", () => {
+    expect(providerAdapters["github-copilot"].parseAuthProfile(signIn())).toEqual({ type: "access_token", accessToken: "live_token" });
+    expect(providerAdapters["gpt-account"].parseAuthProfile(signIn({ accountId: "acct_1" }))).toEqual({ type: "account_token", accessToken: "live_token" });
+    expect(providerAdapters["google-antigravity"].parseAuthProfile(signIn({ projectId: "proj-1" }))).toEqual({ type: "access_token", accessToken: "live_token" });
   });
 
-  test("extracts the access token from native OAuth credential JSON", () => {
-    const secret = JSON.stringify({ access: "live_token", refresh: "r", expires: 123 });
-    expect(parseAccessToken(secret)).toEqual({ type: "access_token", accessToken: "live_token" });
-    expect(parseAccountToken(secret)).toEqual({ type: "account_token", accessToken: "live_token" });
-  });
-
-  test("rejects credential JSON without an access token", () => {
-    expect(() => parseAccessToken(JSON.stringify({ refresh: "r" }))).toThrow("missing an access token");
+  test("a pasted token, or a sign-in missing its refresh token, expiry or provider extras, is refused at save time", () => {
+    expect(() => providerAdapters["github-copilot"].parseAuthProfile("ghu_raw")).toThrow("Sign in to GitHub Copilot");
+    expect(() => providerAdapters["claude-pro"].parseAuthProfile(JSON.stringify({ access: "a", expires: 1 }))).toThrow("missing its refresh token");
+    expect(() => providerAdapters["kimi-code"].parseAuthProfile(JSON.stringify({ access: "a", refresh: "r" }))).toThrow("missing its expiry");
+    expect(() => providerAdapters["gpt-account"].parseAuthProfile(signIn())).toThrow("missing its ChatGPT account id");
+    expect(() => providerAdapters["google-antigravity"].parseAuthProfile(signIn())).toThrow("missing its Google Cloud project id");
   });
 });
+

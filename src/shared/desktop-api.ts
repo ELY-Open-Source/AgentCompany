@@ -61,7 +61,6 @@ import type {
   ImportFileInput,
   OpenFileInput,
   GrantRoleInput,
-  LaunchProviderSignInInput,
   LaunchSocialLoginInput,
   ResolveMigrationReconciliationInput,
   RunChaosDrillInput,
@@ -162,7 +161,6 @@ export interface DesktopApi {
   markChatSpaceRead(input: MarkChatSpaceReadInput): Promise<DesktopResult<AppSnapshot>>;
   saveProviderCredential(input: SaveProviderCredentialInput): Promise<DesktopResult<AppSnapshot>>;
   revokeProviderCredential(input: RevokeProviderCredentialInput): Promise<DesktopResult<AppSnapshot>>;
-  launchProviderSignIn(input: LaunchProviderSignInInput): Promise<DesktopResult<null>>;
   startProviderOAuth(input: StartProviderOAuthInput): Promise<DesktopResult<StartProviderOAuthResult>>;
   cancelProviderOAuth(input: CancelProviderOAuthInput): Promise<DesktopResult<null>>;
   checkProviderHealth(input: CheckProviderHealthInput): Promise<DesktopResult<AppSnapshot>>;

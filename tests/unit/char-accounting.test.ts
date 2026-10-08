@@ -19,7 +19,7 @@ describe("character accounting", () => {
     const toolCalls = [{ id: "c1", name: "send_message", arguments: { channel: "general", body: "Shipping today." } }];
     const turn = async (): Promise<AgentTurnResult> => ({ text: "Posting.", toolCalls, rawResponseJson: "{}" });
     const connection = new DatabaseConnection(join(tmpdir(), `ac-chars-${randomUUID()}.db`));
-    const providers = new ProviderService(connection.db, providerAdapters, testVault, undefined, turn);
+    const providers = new ProviderService(connection.db, providerAdapters, testVault, turn);
     let orgId = "";
     let providerId = "";
     connection.transaction(() => {

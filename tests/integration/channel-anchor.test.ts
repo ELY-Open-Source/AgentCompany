@@ -38,7 +38,7 @@ function scriptedCeoReply(): (input: ProviderToolTurnInput) => Promise<AgentTurn
 describe("channel anchor wake", () => {
   test("a plain user message in a channel wakes the most senior member, who replies", async () => {
     const connection = new DatabaseConnection(join(tmpdir(), `ac-anchor-${randomUUID()}.db`));
-    const providers = new ProviderService(connection.db, providerAdapters, testVault, undefined, answeringModelCheck(scriptedCeoReply()));
+    const providers = new ProviderService(connection.db, providerAdapters, testVault, answeringModelCheck(scriptedCeoReply()));
     const onboarding = new OnboardingService({ db: connection.db, saveProviderCredential: (input) => providers.saveCredential(input) });
     const taskExecution = new TaskExecutionService(connection.db, providers);
     const chat = new ChatService(connection.db);

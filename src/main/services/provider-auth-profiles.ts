@@ -1,5 +1,6 @@
 import type { JsonRecord } from "./provider-http";
 import { isRecord } from "./provider-http";
+import { parseStoredOAuth } from "./oauth/stored-oauth";
 
 export type ProviderAuthProfile =
   | { type: "api_key"; apiKey: string }
@@ -15,31 +16,9 @@ export function parseApiKey(secret: string): ProviderAuthProfile {
   return { type: "api_key", apiKey: nonEmptySecret(secret, "API key") };
 }
 
-export function parseAccessToken(secret: string): ProviderAuthProfile {
-  return { type: "access_token", accessToken: oauthAccessToken(secret, "Access token") };
-}
-
-export function parseAccountToken(secret: string): ProviderAuthProfile {
-  return { type: "account_token", accessToken: oauthAccessToken(secret, "Account token") };
-}
-
-/**
- * Accepts either a raw token string or the JSON credential object produced by
- * the native OAuth login flow, returning the usable access token.
- */
-function oauthAccessToken(secret: string, label: string): string {
-  const value = nonEmptySecret(secret, label);
-  if (!value.startsWith("{")) return value;
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(value);
-  } catch {
-    throw new Error(`${label} credential must be a token or JSON.`);
-  }
-  if (isRecord(parsed) && typeof parsed.access === "string" && parsed.access.trim()) {
-    return parsed.access.trim();
-  }
-  throw new Error(`${label} credential is missing an access token.`);
+/** A sign-in provider's parser: it accepts only what a run can use and renew (see parseStoredOAuth). */
+export function oauthProfileParser(providerKey: string, type: "access_token" | "account_token"): (secret: string) => ProviderAuthProfile {
+  return (secret) => ({ type, accessToken: parseStoredOAuth(providerKey, secret).access });
 }
 
 export function parseAzureProfile(secret: string): ProviderAuthProfile {

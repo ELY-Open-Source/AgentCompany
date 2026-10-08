@@ -21,7 +21,7 @@ const TEXT_ONLY = async (): Promise<AgentTurnResult> => ({ text: "Sure, the code
 
 function harness(turn: (input: ProviderToolTurnInput) => Promise<AgentTurnResult>) {
   const connection = new DatabaseConnection(join(tmpdir(), `ac-model-check-${randomUUID()}.db`));
-  const providers = new ProviderService(connection.db, providerAdapters, testVault, undefined, turn);
+  const providers = new ProviderService(connection.db, providerAdapters, testVault, turn);
   let orgId = "";
   let providerId = "";
   connection.transaction(() => {
