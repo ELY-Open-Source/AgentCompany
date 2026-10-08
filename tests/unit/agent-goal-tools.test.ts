@@ -1,3 +1,4 @@
+import { DocumentService } from "../../src/main/services/document-service";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { tmpdir } from "node:os";
@@ -123,13 +124,63 @@ describe("complete_goal with independent audit", () => {
       insert into held_deliverables(id, org_id, approval_id, kind, goal_id, title, doc_type, content, state, created_at)
       values (?, ?, 'app_x', 'document_create', ?, 'Launch memo', 'memo', 'draft', 'held', ?)
     `).run(`hld_${randomUUID()}`, h.orgId, h.goalId, new Date().toISOString());
+    let turns = 0;
     const auditor = async (): Promise<AuditorTurn> => {
+      turns += 1;
+      if (turns === 1) return turnOf("Reading.", [{ id: "c1", name: "read_file", arguments: { path: "src/index.ts" } }]);
       hold();
       return turnOf("<approved/>");
     };
     const output = await completeGoalTool(argsFor(h, h.ceoId, auditor, call({ evidence: "src/index.ts works" })));
     expect(output).toBe('ERROR: Goal "Ship it" has work awaiting board review (Launch memo); it is not written yet, so the goal cannot be achieved.');
     expect(goalStatus(h)).toBe("active");
+    h.connection.close();
+  });
+
+  test("an approval that read nothing is sent back to inspect, and alone never closes the goal", async () => {
+    const h = createHarness();
+    const prompts: string[] = [];
+    const auditor = async (input: AuditorInput): Promise<AuditorTurn> => {
+      const last = input.messages.at(-1);
+      prompts.push(last && "text" in last ? String(last.text) : "");
+      return turnOf("Looks done. <approved/>");
+    };
+    const output = await completeGoalTool(argsFor(h, h.ceoId, auditor, call({ evidence: "Trust me." })));
+    expect(output).toContain("audit rejected");
+    expect(goalStatus(h)).toBe("active");
+    expect(prompts[1]).toBe("You approved without reading any evidence. Open the work itself with read_file or read_document, then decide again.");
+    h.connection.close();
+  });
+
+  test("a failed read is not inspection; reading the document the work lives in is", async () => {
+    const h = createHarness();
+    const docId = h.connection.transaction(() => new DocumentService(h.connection.db).create({
+      orgId: h.orgId, title: "Launch report", docType: "report", content: "Shipped to 40 customers.", authorAgentId: h.ceoId,
+      reviewerAgentId: null, projectId: null, goalId: h.goalId, taskId: null,
+    }));
+    const replay = { format: "anthropic" as const, content: [{ type: "thinking", thinking: "unsure", signature: "SIG" }] };
+    const turns = [
+      turnOf("Reading.", [{ id: "c1", name: "read_file", arguments: { path: "no-such-file.md" } }]),
+      { ...turnOf("<approved/>"), replay },
+      turnOf("History only.", [{ id: "c3", name: "read_document", arguments: { doc_id: docId, history: true } }]),
+      turnOf("<approved/>"),
+      turnOf("Reading the report.", [{ id: "c2", name: "read_document", arguments: { doc_id: docId } }]),
+      turnOf("The report shows customers. <approved/>"),
+    ];
+    const seen: string[][] = [];
+    const histories: AuditorInput["messages"][] = [];
+    const auditor = async (input: AuditorInput): Promise<AuditorTurn> => {
+      seen.push(input.tools.map((tool) => tool.name));
+      histories.push([...input.messages]);
+      return turns.shift()!;
+    };
+    const output = await completeGoalTool(argsFor(h, h.ceoId, auditor, call({ evidence: "See the launch report." })));
+    expect(output).toContain("achieved");
+    expect(goalStatus(h)).toBe("achieved");
+    expect(seen[0]).toEqual(expect.arrayContaining(["read_file", "list_documents", "read_document"]));
+    expect(seen[0]).not.toContain("update_document");
+    // The sent-back approval keeps its reasoning for the next turn.
+    expect(histories[2].at(-2)).toMatchObject({ role: "assistant", replay });
     h.connection.close();
   });
 
@@ -147,7 +198,7 @@ describe("complete_goal with independent audit", () => {
     let auditorCalls = 0;
     const auditor = async (): Promise<AuditorTurn> => {
       auditorCalls += 1;
-      return turnOf("<approved/>");
+      return auditorCalls % 2 === 1 ? turnOf("Reading.", [{ id: `c${auditorCalls}`, name: "read_file", arguments: { path: "src/index.ts" } }]) : turnOf("<approved/>");
     };
 
     // Staff cannot complete a goal they do not own.
@@ -166,7 +217,7 @@ describe("complete_goal with independent audit", () => {
     await completeGoalTool(argsFor(h, h.ceoId, auditor, call({ evidence: "src/index.ts works" })));
     expect(goalStatus(h)).toBe("achieved");
     expect(await completeGoalTool(argsFor(h, h.ceoId, auditor, call({ evidence: "again" })))).toContain("already achieved");
-    expect(auditorCalls).toBe(1);
+    expect(auditorCalls).toBe(2);
     h.connection.close();
   });
 });

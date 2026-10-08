@@ -8,8 +8,11 @@ import type { ProviderService } from "./provider-service";
 import { unreadableArguments, type AgentTurnMessage, type ToolCall, type ToolDefinition } from "./provider-tool-turn";
 import { MAX_TOOL_CALLS_PER_TURN, throwIfRunStopped, untilStopped } from "./run-control";
 import { heldWorkTitles } from "./held-deliverables";
+import { DOCUMENT_TOOLS, listDocumentsTool, readDocumentTool } from "./agent-document-tools";
 
 const AUDIT_MAX_ITERATIONS = 6;
+const AUDIT_DOCUMENT_TOOLS = new Set(["list_documents", "read_document"]);
+const UNREAD_APPROVAL = "You approved without reading any evidence. Open the work itself with read_file or read_document, then decide again.";
 const STATUS_TASK_LINES = 8;
 
 export const GOAL_TOOLS: ToolDefinition[] = [
@@ -121,8 +124,12 @@ async function auditGoalCompletion(
   goal: { title: string; description: string },
   evidence: string,
 ): Promise<AuditVerdict> {
-  // Read-only inspection: the auditor may look at anything but change nothing.
-  const auditTools = WORKSPACE_TOOLS.filter((tool) => tool.name !== "run_command");
+  // Read-only inspection of the workspace and the library: the auditor may look at anything but change nothing.
+  const auditTools = [
+    ...WORKSPACE_TOOLS.filter((tool) => tool.name !== "run_command"),
+    ...DOCUMENT_TOOLS.filter((tool) => AUDIT_DOCUMENT_TOOLS.has(tool.name)),
+  ];
+  let evidenceRead = false;
   const auditCtx: AgentToolContext = {
     ...args.ctx,
     workspace: args.ctx.workspace ? { ...args.ctx.workspace, writeAccess: false } : null,
@@ -135,7 +142,7 @@ async function auditGoalCompletion(
       `Goal detail: ${goal.description}`,
       "The executor's claim:",
       evidence,
-      "Inspect the workspace with list_files and read_file before deciding. Judge outcomes, not artifacts about outcomes: plans, specs, status reports, and skeletons do not make a goal achieved; working deliverables do. If the goal promises software, look for the actual implementation, not documents describing it.",
+      "Inspect the work before deciding: list_files and read_file for the workspace, list_documents and read_document for the library. An approval counts only after you have read some of it. Judge outcomes, not artifacts about outcomes: plans, specs, status reports, and skeletons do not make a goal achieved; working deliverables do. If the goal promises software, look for the actual implementation, not documents describing it.",
       "End your final message with exactly one marker: <approved/> if the goal is genuinely achieved, or <disapproved/> followed by one short sentence naming the decisive gap.",
     ].join("\n\n"),
   }];
@@ -152,19 +159,40 @@ async function auditGoalCompletion(
       messages,
       tools: auditTools,
     }));
-    if (turn.toolCalls.length === 0) return parseVerdict(turn.text);
+    if (turn.toolCalls.length === 0) {
+      const verdict = parseVerdict(turn.text);
+      if (!verdict.approved || evidenceRead) return verdict;
+      // An approval reached without opening anything is not a judgment of the work; the auditor must look first.
+      messages.push({ role: "assistant", text: turn.text, toolCalls: [], ...(turn.replay ? { replay: turn.replay } : {}) }, { role: "user", text: UNREAD_APPROVAL });
+      continue;
+    }
     messages.push({ role: "assistant", text: turn.text, toolCalls: turn.toolCalls, ...(turn.replay ? { replay: turn.replay } : {}) });
     const results: Array<{ toolCallId: string; toolName: string; output: string }> = [];
     for (const [index, toolCall] of turn.toolCalls.entries()) {
       throwIfRunStopped();
       const output = index >= MAX_TOOL_CALLS_PER_TURN
         ? `ERROR: not run: this turn asked for ${turn.toolCalls.length} tool calls; the limit is ${MAX_TOOL_CALLS_PER_TURN}.`
-        : toolCall.argumentsError ? unreadableArguments(toolCall) : await untilStopped(executeWorkspaceTool(auditCtx, toolCall));
+        : toolCall.argumentsError ? unreadableArguments(toolCall) : await runAuditTool(args.deps, auditCtx, toolCall);
+      if (readsEvidence(toolCall) && !output.startsWith("ERROR")) evidenceRead = true;
       results.push({ toolCallId: toolCall.id, toolName: toolCall.name, output });
     }
     messages.push({ role: "tool", results });
   }
   return { approved: false, reason: "the audit did not reach a verdict within its budget, which counts as not achieved" };
+}
+
+/** Whether a call opens the work itself; listings and a document's version history do not. */
+function readsEvidence(call: ToolCall): boolean {
+  return call.name === "read_file" || (call.name === "read_document" && call.arguments.history !== true);
+}
+
+async function runAuditTool(deps: AgentToolDeps, ctx: AgentToolContext, call: ToolCall): Promise<string> {
+  if (!AUDIT_DOCUMENT_TOOLS.has(call.name)) return untilStopped(executeWorkspaceTool(ctx, call));
+  try {
+    return call.name === "read_document" ? readDocumentTool(deps, ctx, call.arguments) : listDocumentsTool(deps, ctx, call.arguments);
+  } catch (error) {
+    return `ERROR: ${error instanceof Error ? error.message : String(error)}`;
+  }
 }
 
 function parseVerdict(text: string): AuditVerdict {
