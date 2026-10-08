@@ -1,0 +1,29 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
+
+jobs:
+  verify:
+    name: Typecheck, lint, tests, e2e
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Enable pnpm via corepack
+        run: corepack enable pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Verify
+        run: pnpm verify:ci

@@ -1,24 +1,9 @@
 name: Build Release Installers
 
-# Builds the Windows and macOS installers whenever a release is published and
-# attaches them to that release. To back-fill installers onto an older
-# release, run this workflow manually with the release tag as input (note: a
-# manual run builds the dispatched ref's code, not the old tag's).
-#
-# Runs on GitHub-hosted runners (windows-latest / macos-latest). Node 24 comes
-# from actions/setup-node; pnpm is activated via corepack and pinned by the
-# `packageManager` field in package.json.
-#
-# macOS signing: hosted runners have no Developer ID certificate in the
-# keychain, so the signing-detection step falls back to ad-hoc-signed,
-# un-notarized installers with a warning. To ship signed + notarized builds
-# from hosted runners you would need to import the "Developer ID Application:
-# Yang Zhang (9PDD8M2SMS)" certificate (e.g. a base64 P12 secret + an import
-# step) and set the APPLE_API_ISSUER secret (App Store Connect issuer ID)
-# used together with the API key file in the repo.
-#
-# (2026-08: this pipeline ran as .gitea/workflows/release-build.yml against
-# self-hosted runners while the GitHub account was unavailable.)
+# Builds Windows and macOS installers when a release is published and
+# attaches them to it. macOS builds are signed and notarized only when the
+# runner has the Developer ID identity and the APPLE_API_ISSUER and
+# APPLE_API_KEY_P8 secrets are set; otherwise they are ad-hoc signed.
 
 on:
   release:
@@ -82,23 +67,24 @@ jobs:
         id: signing
         env:
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
         run: |
-          if security find-identity -v -p codesigning | grep -q "Developer ID Application: Yang Zhang (9PDD8M2SMS)" && [ -n "$APPLE_API_ISSUER" ]; then
+          if security find-identity -v -p codesigning | grep -q "Developer ID Application: Yang Zhang (9PDD8M2SMS)" && [ -n "$APPLE_API_ISSUER" ] && [ -n "$APPLE_API_KEY_P8" ]; then
             echo "signed=true" >> "$GITHUB_OUTPUT"
             echo "Developer ID identity and notarization credentials found: building signed + notarized installers."
           else
             echo "signed=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::Building ad-hoc-signed, un-notarized macOS installers. To enable signing + notarization, see the setup steps in the header of this workflow file."
+            echo "::warning::Building ad-hoc-signed, un-notarized macOS installers."
           fi
       - name: Build installers (signed + notarized)
         if: steps.signing.outputs.signed == 'true'
         env:
-          APPLE_API_KEY: ${{ github.workspace }}/ApiKey_ZDCSZ5IE7071.p8
+          APPLE_API_KEY: ${{ runner.temp }}/apple-api-key.p8
           APPLE_API_KEY_ID: ZDCSZ5IE7071
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
-        # forceCodeSigning makes a signing failure fail the build instead of
-        # silently attaching unsigned installers to the release.
+          APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
         run: |
+          printf '%s' "$APPLE_API_KEY_P8" > "$APPLE_API_KEY"
           pnpm build
           pnpm exec electron-builder --mac --x64 --arm64 --publish never -c.forceCodeSigning=true
       - name: Build installers (ad-hoc fallback)
