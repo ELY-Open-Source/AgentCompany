@@ -1,4 +1,5 @@
 import {
+  BookOpen,
   Briefcase,
   Buildings2,
   ChatRoundDots,
@@ -20,6 +21,7 @@ const NAV_ICONS: Record<RouteId, typeof Home> = {
   chat: ChatRoundDots,
   runs: Send,
   files: Folder,
+  library: BookOpen,
   approvals: ShieldCheck,
   connectors: Plug2,
   office: Buildings2,

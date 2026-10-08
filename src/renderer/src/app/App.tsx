@@ -8,6 +8,7 @@ import { TeamPage } from "../pages/TeamPage";
 import { WorkPage } from "../pages/WorkPage";
 import { ChatPage } from "../pages/ChatPage";
 import { FilesPage } from "../pages/FilesPage";
+import { LibraryPage } from "../pages/LibraryPage";
 import { ApprovalsPage } from "../pages/ApprovalsPage";
 import { ConnectorsPage } from "../pages/ConnectorsPage";
 import { RunsPage } from "../pages/RunsPage";
@@ -81,6 +82,7 @@ export function App() {
     work: <WorkPage {...pageProps} />,
     chat: <ChatPage {...pageProps} />,
     files: <FilesPage {...pageProps} />,
+    library: <LibraryPage {...pageProps} />,
     runs: <RunsPage {...pageProps} />,
     approvals: <ApprovalsPage {...pageProps} />,
     connectors: <ConnectorsPage {...pageProps} />,

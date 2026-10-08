@@ -15,6 +15,7 @@ export type RouteId =
   | "work"
   | "chat"
   | "files"
+  | "library"
   | "runs"
   | "approvals"
   | "connectors"
@@ -28,7 +29,7 @@ interface NavSpec {
 
 /** Routes whose pages own a full-height, multi-pane layout with their own
  * internal scroll regions, so the content area must not scroll as one block. */
-const FLUSH_ROUTES = new Set<RouteId>(["chat", "settings", "files", "runs", "office", "work"]);
+const FLUSH_ROUTES = new Set<RouteId>(["chat", "settings", "files", "library", "runs", "office", "work"]);
 
 const allNav: NavSpec[] = [
   { id: "home", label: t("Home") },
@@ -38,6 +39,7 @@ const allNav: NavSpec[] = [
   { id: "chat", label: t("Messages") },
   { id: "runs", label: t("Runs") },
   { id: "files", label: t("Files") },
+  { id: "library", label: t("Library") },
   { id: "approvals", label: t("Approvals") },
   { id: "connectors", label: t("Connectors") },
 ];

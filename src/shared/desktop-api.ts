@@ -20,6 +20,11 @@ import type {
   DeleteMeetingInput,
   DeleteSprintInput,
   CreateKnowledgeEntryInput,
+  UpdateKnowledgeEntryInput,
+  DocumentVersionRecord,
+  KnowledgeRevisionRecord,
+  ListDocumentVersionsInput,
+  ListKnowledgeRevisionsInput,
   CreateProjectInput,
   CreateWorkspaceInput,
   DeleteAutomationRuleInput,
@@ -128,6 +133,9 @@ export interface DesktopApi {
   deleteDocument(input: DeleteDocumentInput): Promise<DesktopResult<AppSnapshot>>;
   createKnowledgeEntry(input: CreateKnowledgeEntryInput): Promise<DesktopResult<AppSnapshot>>;
   deleteKnowledgeEntry(input: DeleteKnowledgeEntryInput): Promise<DesktopResult<AppSnapshot>>;
+  updateKnowledgeEntry(input: UpdateKnowledgeEntryInput): Promise<DesktopResult<AppSnapshot>>;
+  listDocumentVersions(input: ListDocumentVersionsInput): Promise<DesktopResult<DocumentVersionRecord[]>>;
+  listKnowledgeRevisions(input: ListKnowledgeRevisionsInput): Promise<DesktopResult<KnowledgeRevisionRecord[]>>;
   createAutomationRule(input: CreateAutomationRuleInput): Promise<DesktopResult<AppSnapshot>>;
   updateAutomationRule(input: UpdateAutomationRuleInput): Promise<DesktopResult<AppSnapshot>>;
   deleteAutomationRule(input: DeleteAutomationRuleInput): Promise<DesktopResult<AppSnapshot>>;

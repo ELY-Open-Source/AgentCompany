@@ -90,6 +90,14 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     }
   };
 
+  const query = <T>(code: string, read: () => T): DesktopResult<T> => {
+    try {
+      return ok(read());
+    } catch (error) {
+      return fail(code, error instanceof Error ? error.message : String(error));
+    }
+  };
+
   ipcMain.handle(IPC_CHANNELS.loadSnapshot, () => {
     try {
       return ok(snapshot.load());
@@ -163,6 +171,17 @@ export function registerIpcHandlers(deps: IpcDeps): void {
   ipcMain.handle(IPC_CHANNELS.deleteDocument, (_event, input) => mutate(() => documents.delete(input)));
   ipcMain.handle(IPC_CHANNELS.createKnowledgeEntry, (_event, input) => mutate(() => knowledge.create(input)));
   ipcMain.handle(IPC_CHANNELS.deleteKnowledgeEntry, (_event, input) => mutate(() => knowledge.delete(input)));
+  ipcMain.handle(IPC_CHANNELS.updateKnowledgeEntry, (_event, input) => mutate(() => knowledge.update(input)));
+  ipcMain.handle(IPC_CHANNELS.listDocumentVersions, (_event, input) => query("document_versions_failed", () =>
+    documents.versions(input.orgId, input.documentId).map((v) => ({
+      version: v.version, title: v.title, content: v.content, status: v.status,
+      changedByType: v.changed_by_type, changedById: v.changed_by_id, reason: v.reason, createdAt: v.created_at,
+    }))));
+  ipcMain.handle(IPC_CHANNELS.listKnowledgeRevisions, (_event, input) => query("knowledge_revisions_failed", () =>
+    knowledge.revisions(input.orgId, input.entryId).map((r) => ({
+      revision: r.revision, topic: r.topic, category: r.category, content: r.content, importance: r.importance,
+      changedByType: r.changed_by_type, changedById: r.changed_by_id, reason: r.reason, createdAt: r.created_at,
+    }))));
   ipcMain.handle(IPC_CHANNELS.createAutomationRule, (_event, input) => mutate(() => automation.create(input)));
   ipcMain.handle(IPC_CHANNELS.updateAutomationRule, (_event, input) => mutate(() => automation.update(input)));
   ipcMain.handle(IPC_CHANNELS.deleteAutomationRule, (_event, input) => mutate(() => automation.delete(input)));

@@ -59,6 +59,39 @@ export interface UpdateKnowledgeEntryInput {
   changedById: string | null;
 }
 
+export interface DocumentVersionRecord {
+  version: number;
+  title: string;
+  content: string;
+  status: string;
+  changedByType: string;
+  changedById: string | null;
+  reason: string;
+  createdAt: string;
+}
+
+export interface KnowledgeRevisionRecord {
+  revision: number;
+  topic: string;
+  category: string;
+  content: string;
+  importance: string;
+  changedByType: string;
+  changedById: string | null;
+  reason: string;
+  createdAt: string;
+}
+
+export interface ListDocumentVersionsInput {
+  orgId: string;
+  documentId: string;
+}
+
+export interface ListKnowledgeRevisionsInput {
+  orgId: string;
+  entryId: string;
+}
+
 export interface DeleteKnowledgeEntryInput {
   orgId: string;
   entryId: string;
