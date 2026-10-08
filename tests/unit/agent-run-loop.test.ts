@@ -286,6 +286,18 @@ describe("agent run loop (real tool dispatch)", () => {
     const results = (lastToolMessage as { results: Array<{ output: string }> }).results;
     expect(results.filter((result) => result.output.startsWith("ERROR: not run: this turn asked for 20 tool calls; the limit is 16"))).toHaveLength(4);
 
+    // A call whose arguments could not be read is answered with the reason and never run.
+    const broken = [{ text: "Writing.", toolCalls: [{ id: "c_bad", name: "send_message", arguments: {}, argumentsError: "not valid JSON (Unexpected end of JSON input): {\"body\":\"hi" }] }];
+    let brokenResults: Array<{ output: string }> = [];
+    const breaking = fakeProvider(broken, connection.db);
+    const brokenRun = await runAgentLoop({ providers: { ...breaking, runToolTurn: async (input: { messages: Array<{ role: string; results?: Array<{ output: string }> }> }) => {
+      const last = input.messages.at(-1);
+      if (last?.role === "tool") brokenResults = last.results ?? [];
+      return breaking.runToolTurn();
+    } }, tools } as never, loopInput);
+    expect(brokenRun.toolCallCount).toBe(0);
+    expect(brokenResults.map((result) => result.output)).toEqual(['ERROR: not run: the arguments of send_message were not valid JSON (Unexpected end of JSON input): {"body":"hi. Call send_message again with a complete JSON object.']);
+
     // A third goal audit in one session is refused before it runs.
     const audits = [{ text: "Closing.", toolCalls: [call("complete_goal", { evidence: "a" }), call("complete_goal", { evidence: "b" }), call("complete_goal", { evidence: "c" })] }];
     let auditResults: Array<{ output: string }> = [];

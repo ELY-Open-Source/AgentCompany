@@ -5,7 +5,7 @@ import { optionalString, requireString } from "./agent-tool-args";
 import type { AgentToolContext, AgentToolDeps } from "./agent-tools";
 import type { JsonRecord } from "./provider-http";
 import type { ProviderService } from "./provider-service";
-import type { AgentTurnMessage, ToolCall, ToolDefinition } from "./provider-tool-turn";
+import { unreadableArguments, type AgentTurnMessage, type ToolCall, type ToolDefinition } from "./provider-tool-turn";
 import { MAX_TOOL_CALLS_PER_TURN, throwIfRunStopped, untilStopped } from "./run-control";
 
 const AUDIT_MAX_ITERATIONS = 6;
@@ -148,9 +148,9 @@ async function auditGoalCompletion(
     const results: Array<{ toolCallId: string; toolName: string; output: string }> = [];
     for (const [index, toolCall] of turn.toolCalls.entries()) {
       throwIfRunStopped();
-      const output = index < MAX_TOOL_CALLS_PER_TURN
-        ? await untilStopped(executeWorkspaceTool(auditCtx, toolCall))
-        : `ERROR: not run: this turn asked for ${turn.toolCalls.length} tool calls; the limit is ${MAX_TOOL_CALLS_PER_TURN}.`;
+      const output = index >= MAX_TOOL_CALLS_PER_TURN
+        ? `ERROR: not run: this turn asked for ${turn.toolCalls.length} tool calls; the limit is ${MAX_TOOL_CALLS_PER_TURN}.`
+        : toolCall.argumentsError ? unreadableArguments(toolCall) : await untilStopped(executeWorkspaceTool(auditCtx, toolCall));
       results.push({ toolCallId: toolCall.id, toolName: toolCall.name, output });
     }
     messages.push({ role: "tool", results });

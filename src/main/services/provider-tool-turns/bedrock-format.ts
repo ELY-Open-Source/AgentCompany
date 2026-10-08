@@ -1,6 +1,6 @@
 /** AWS Bedrock Converse API encoding/decoding (ported from Pi's bedrock handler). */
 import { isRecord, type JsonRecord } from "../provider-http";
-import { FINISHED_STOP_REASONS, replayIn, requireFinished, type AgentTurnMessage, type AssistantReplay, type ToolCall, type ToolDefinition } from "../provider-tool-turn";
+import { FINISHED_STOP_REASONS, replayIn, requireFinished, toolCallFromObject, type AgentTurnMessage, type AssistantReplay, type ToolCall, type ToolDefinition } from "../provider-tool-turn";
 
 export function bedrockToolConfig(tools: ToolDefinition[]): JsonRecord {
   return {
@@ -43,7 +43,7 @@ export function parseBedrockOutput(data: JsonRecord): { text: string; toolCalls:
       const toolUse = block.toolUse;
       const id = typeof toolUse.toolUseId === "string" ? toolUse.toolUseId : "";
       const name = typeof toolUse.name === "string" ? toolUse.name : "";
-      if (id && name) toolCalls.push({ id, name, arguments: isRecord(toolUse.input) ? toolUse.input : {} });
+      if (id && name) toolCalls.push(toolCallFromObject(id, name, toolUse.input));
     }
   }
   return { text: textParts.join("\n").trim(), toolCalls, replay: { format: "bedrock", content } };

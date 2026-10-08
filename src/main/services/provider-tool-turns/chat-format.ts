@@ -1,6 +1,6 @@
 /** OpenAI Chat Completions encoding/decoding (xAI, Groq, Mistral, Cerebras, OpenRouter, Kimi family). */
 import { isRecord, ProviderHttpError, type JsonRecord, type ProviderEventStreamMessage } from "../provider-http";
-import { FINISHED_STOP_REASONS, parseArguments, replayIn, requireFinished, type AgentTurnMessage, type AgentTurnResult, type AssistantReplay, type ToolCall, type ToolDefinition } from "../provider-tool-turn";
+import { FINISHED_STOP_REASONS, replayIn, requireFinished, type AgentTurnMessage, type AgentTurnResult, type AssistantReplay, toolCallFromJson, type ToolCall, type ToolDefinition } from "../provider-tool-turn";
 
 /** Fields providers use for reasoning text; the first non-empty one is the provider's, as in Pi. */
 const REASONING_FIELDS = ["reasoning_content", "reasoning", "reasoning_text"] as const;
@@ -46,7 +46,7 @@ export function parseChatChoice(data: JsonRecord): { text: string; toolCalls: To
     const fn = isRecord(call.function) ? call.function : null;
     const id = typeof call.id === "string" ? call.id : "";
     const name = fn && typeof fn.name === "string" ? fn.name : "";
-    if (id && name) toolCalls.push({ id, name, arguments: parseArguments(fn?.arguments) });
+    if (id && name) toolCalls.push(toolCallFromJson(id, name, fn?.arguments));
   }
   const field = REASONING_FIELDS.find((name) => typeof message[name] === "string" && message[name]);
   const details = Array.isArray(message.reasoning_details) ? message.reasoning_details.filter(isRecord) : [];
@@ -76,7 +76,7 @@ function appendReasoningDetail(details: JsonRecord[], detail: JsonRecord): void 
 export async function accumulateChatStream(messages: AsyncIterable<ProviderEventStreamMessage>): Promise<AgentTurnResult> {
   const raw: string[] = [];
   const textParts: string[] = [];
-  const fragments = new Map<number, { id: string; name: string; args: string }>();
+  const fragments = new Map<number, { id: string; name: string; args: string; nonText: unknown[] }>();
   const reasoning = { field: "", text: "" };
   const details: JsonRecord[] = [];
   let finishReason: unknown = null;
@@ -96,11 +96,12 @@ export async function accumulateChatStream(messages: AsyncIterable<ProviderEvent
     for (const call of calls) {
       if (!isRecord(call)) continue;
       const index = typeof call.index === "number" ? call.index : fragments.size;
-      const fragment = fragments.get(index) ?? { id: "", name: "", args: "" };
+      const fragment = fragments.get(index) ?? { id: "", name: "", args: "", nonText: [] };
       if (typeof call.id === "string" && call.id) fragment.id = call.id;
       const fn = isRecord(call.function) ? call.function : null;
       if (fn && typeof fn.name === "string" && fn.name) fragment.name = fn.name;
       if (fn && typeof fn.arguments === "string") fragment.args += fn.arguments;
+      else if (fn && fn.arguments !== undefined) fragment.nonText.push(fn.arguments);
       fragments.set(index, fragment);
     }
   }
@@ -108,9 +109,18 @@ export async function accumulateChatStream(messages: AsyncIterable<ProviderEvent
   requireFinished(finishReason, FINISHED_STOP_REASONS.chat);
   const toolCalls: ToolCall[] = [];
   for (const [, fragment] of [...fragments.entries()].sort(([a], [b]) => a - b)) {
-    if (fragment.id && fragment.name) toolCalls.push({ id: fragment.id, name: fragment.name, arguments: parseArguments(fragment.args) });
+    if (fragment.id && fragment.name) toolCalls.push(streamedToolCall(fragment));
   }
   return { text: textParts.join("").trim(), toolCalls, rawResponseJson: JSON.stringify(raw), ...chatReplay(reasoning.field ? reasoning : null, details) };
+}
+
+/** Streamed arguments are text fragments or one whole value; a mix of the two cannot be read as one object. */
+function streamedToolCall(fragment: { id: string; name: string; args: string; nonText: unknown[] }): ToolCall {
+  const { id, name, args, nonText } = fragment;
+  if (nonText.length === 0) return toolCallFromJson(id, name, args);
+  if (nonText.length === 1 && !args) return toolCallFromJson(id, name, nonText[0]);
+  const parts = args ? `text and ${nonText.length} non-text fragment${nonText.length > 1 ? "s" : ""}` : `${nonText.length} non-text fragments`;
+  return { id, name, arguments: {}, argumentsError: `expected one JSON object, got ${parts}` };
 }
 
 /** An in-stream error object's HTTP-style code (OpenRouter sends e.g. { code: 500 }), or null. */

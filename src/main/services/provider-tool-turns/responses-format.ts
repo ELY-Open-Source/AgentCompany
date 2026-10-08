@@ -4,7 +4,7 @@
  * `convertResponsesTools` and the Responses streaming event shapes.
  */
 import { isRecord, ProviderHttpError, type JsonRecord, type ProviderEventStreamMessage } from "../provider-http";
-import { incompleteTurn, parseArguments, replayIn, type AgentTurnMessage, type AgentTurnResult, type AssistantReplay, type ToolCall, type ToolDefinition } from "../provider-tool-turn";
+import { incompleteTurn, replayIn, toolCallFromJson, type AgentTurnMessage, type AgentTurnResult, type AssistantReplay, type ToolCall, type ToolDefinition } from "../provider-tool-turn";
 
 export function responsesToolDefs(tools: ToolDefinition[], strict: boolean | null = false): unknown[] {
   // `strict` must be a boolean or omitted. Passing `strict: null` (the Codex
@@ -57,7 +57,7 @@ export function parseResponsesOutput(data: JsonRecord): { text: string; toolCall
     if (item.type === "function_call") {
       const id = typeof item.call_id === "string" ? item.call_id : typeof item.id === "string" ? item.id : "";
       const name = typeof item.name === "string" ? item.name : "";
-      if (id && name) toolCalls.push({ id, name, arguments: parseArguments(item.arguments) });
+      if (id && name) toolCalls.push(toolCallFromJson(id, name, item.arguments));
     } else if (item.type === "message" && Array.isArray(item.content)) {
       for (const block of item.content) {
         if (isRecord(block) && block.type === "output_text" && typeof block.text === "string") textParts.push(block.text);

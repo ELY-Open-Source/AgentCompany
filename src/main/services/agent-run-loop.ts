@@ -4,7 +4,7 @@ import { completeGoalTool } from "./agent-goal-tools";
 import { executeWebTool, isWebTool, WEB_TOOLS } from "./agent-web-tools";
 import { executeWorkspaceTool, isWorkspaceTool, WORKSPACE_TOOLS } from "./agent-workspace-tools";
 import { canonicalMentionHandle } from "../../shared/mention-handles";
-import type { AgentTurnMessage, AgentTurnResult, ToolCall, ToolDefinition } from "./provider-tool-turn";
+import { unreadableArguments, type AgentTurnMessage, type AgentTurnResult, type ToolCall, type ToolDefinition } from "./provider-tool-turn";
 import { isComposioTool, executeComposioTool } from "./composio/composio-tool-bridge";
 import { capToolOutput, compactToolHistory } from "./run-context-compaction";
 import { fitContextBudget } from "./context-budget";
@@ -108,6 +108,11 @@ export async function runAgentLoop(deps: AgentRunLoopDeps, input: AgentRunLoopIn
       throwIfRunStopped();
       if (index >= MAX_TOOL_CALLS_PER_TURN) {
         results.push({ toolCallId: call.id, toolName: call.name, output: `ERROR: not run: this turn asked for ${turn.toolCalls.length} tool calls; the limit is ${MAX_TOOL_CALLS_PER_TURN}. Repeat the ones you still need.` });
+        continue;
+      }
+      if (call.argumentsError) {
+        console.warn(`[run-loop] ${call.name} not run: arguments ${call.argumentsError}`);
+        results.push({ toolCallId: call.id, toolName: call.name, output: unreadableArguments(call) });
         continue;
       }
       if (call.name === "complete_goal" && goalAudits >= MAX_GOAL_AUDITS_PER_SESSION) {

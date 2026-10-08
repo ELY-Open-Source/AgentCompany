@@ -1,6 +1,6 @@
 /** Anthropic Messages API encoding/decoding, shared by anthropic + claude-pro. */
 import { isRecord, type JsonRecord } from "../provider-http";
-import { FINISHED_STOP_REASONS, replayIn, requireFinished, type AgentTurnMessage, type AssistantReplay, type ToolCall, type ToolDefinition } from "../provider-tool-turn";
+import { FINISHED_STOP_REASONS, replayIn, requireFinished, toolCallFromObject, type AgentTurnMessage, type AssistantReplay, type ToolCall, type ToolDefinition } from "../provider-tool-turn";
 
 export function anthropicToolDefs(tools: ToolDefinition[]): unknown[] {
   return tools.map((tool) => ({ name: tool.name, description: tool.description, input_schema: tool.parameters }));
@@ -35,7 +35,7 @@ export function parseAnthropicContent(data: JsonRecord): { text: string; toolCal
     if (!isRecord(block)) continue;
     if (block.type === "text" && typeof block.text === "string") textParts.push(block.text);
     else if (block.type === "tool_use" && typeof block.id === "string" && typeof block.name === "string") {
-      toolCalls.push({ id: block.id, name: block.name, arguments: isRecord(block.input) ? block.input : {} });
+      toolCalls.push(toolCallFromObject(block.id, block.name, block.input));
     }
   }
   return { text: textParts.join("\n").trim(), toolCalls, replay: { format: "anthropic", content } };

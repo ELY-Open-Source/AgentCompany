@@ -20,6 +20,8 @@ export interface ToolCall {
   id: string;
   name: string;
   arguments: JsonRecord;
+  /** Why the provider's arguments were unusable; such a call is answered with this and never run. */
+  argumentsError?: string;
 }
 
 /** The provider's own assistant output, sent back unchanged so reasoning, encrypted reasoning and signatures survive tool turns. */
@@ -97,16 +99,34 @@ export function requireFinished(reason: unknown, finished: readonly string[]): v
   if (typeof reason !== "string" || !finished.includes(reason)) throw incompleteTurn(reason);
 }
 
-/** Coerce a tool-call argument payload (string or object) into a JSON object. */
-export function parseArguments(value: unknown): JsonRecord {
-  if (isRecord(value)) return value;
-  if (typeof value === "string" && value.trim()) {
-    try {
-      const parsed = JSON.parse(value) as unknown;
-      if (isRecord(parsed)) return parsed;
-    } catch {
-      return {};
-    }
+const RAW_ARGUMENTS_SHOWN = 200;
+
+/** A call whose arguments arrive as JSON text (chat, Responses): empty means none, the text must parse to an object. */
+export function toolCallFromJson(id: string, name: string, raw: unknown): ToolCall {
+  if (typeof raw !== "string" || !raw.trim()) return toolCallFromObject(id, name, raw === "" ? undefined : raw);
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (error) {
+    return { id, name, arguments: {}, argumentsError: `not valid JSON (${error instanceof Error ? error.message : String(error)}): ${raw.slice(0, RAW_ARGUMENTS_SHOWN)}` };
   }
-  return {};
+  return toolCallFromObject(id, name, parsed);
+}
+
+/** A call whose arguments arrive as an object (Anthropic, Bedrock, Gemini): absent means none, anything else must be an object. */
+export function toolCallFromObject(id: string, name: string, raw: unknown): ToolCall {
+  if (isRecord(raw)) return { id, name, arguments: raw };
+  if (raw === undefined) return { id, name, arguments: {} };
+  return { id, name, arguments: {}, argumentsError: `expected a JSON object, got ${jsonKind(raw)}` };
+}
+
+/** The answer to a call whose arguments could not be read, naming why so the model can resend them. */
+export function unreadableArguments(call: ToolCall): string {
+  return `ERROR: not run: the arguments of ${call.name} were ${call.argumentsError}. Call ${call.name} again with a complete JSON object.`;
+}
+
+function jsonKind(value: unknown): string {
+  if (value === null) return "null";
+  if (Array.isArray(value)) return "an array";
+  return typeof value === "object" ? "an object" : `a ${typeof value}`;
 }

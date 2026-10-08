@@ -4,7 +4,7 @@
  * Antigravity request wrapper in google-gemini-cli.
  */
 import { isRecord, ProviderHttpError, type JsonRecord, type ProviderEventStreamMessage } from "../provider-http";
-import { FINISHED_STOP_REASONS, replayIn, requireFinished, type AgentTurnMessage, type AgentTurnResult, type AssistantReplay, type ToolCall, type ToolDefinition } from "../provider-tool-turn";
+import { FINISHED_STOP_REASONS, replayIn, requireFinished, toolCallFromObject, type AgentTurnMessage, type AgentTurnResult, type AssistantReplay, type ToolCall, type ToolDefinition } from "../provider-tool-turn";
 
 const ANTIGRAVITY_SYSTEM_INSTRUCTION =
   "You are Antigravity, a powerful agentic AI coding assistant designed by the Google Deepmind team working on Advanced Agentic Coding." +
@@ -118,7 +118,7 @@ function partsToResult(parts: unknown[]): { text: string[]; toolCalls: ToolCall[
       const name = typeof fc.name === "string" ? fc.name : "";
       if (!name) continue;
       const id = typeof fc.id === "string" && fc.id ? fc.id : `${name}_${(counter += 1)}`;
-      toolCalls.push({ id, name, arguments: isRecord(fc.args) ? fc.args : {} });
+      toolCalls.push(toolCallFromObject(id, name, fc.args));
     }
   }
   return { text, toolCalls };
@@ -163,7 +163,7 @@ export async function accumulateGeminiStream(messages: AsyncIterable<ProviderEve
         const name = typeof fc.name === "string" ? fc.name : "";
         if (!name) continue;
         const id = typeof fc.id === "string" && fc.id ? fc.id : `${name}_${(counter += 1)}`;
-        toolCalls.push({ id, name, arguments: isRecord(fc.args) ? fc.args : {} });
+        toolCalls.push(toolCallFromObject(id, name, fc.args));
       }
     }
   }
