@@ -88,6 +88,8 @@ export class SearchService {
       ...this.providerDocs(orgId),
       ...this.socialDocs(orgId),
       ...this.scheduledPostDocs(orgId),
+      ...this.documentDocs(orgId),
+      ...this.knowledgeDocs(orgId),
     ];
   }
 
@@ -154,6 +156,24 @@ export class SearchService {
   private scheduledPostDocs(orgId: string): SearchDoc[] {
     const rows = this.db.prepare("select id, social_account_id, body_md, state from scheduled_posts where org_id = ?").all(orgId) as Array<{ id: string; social_account_id: string; body_md: string; state: string }>;
     return rows.map((row) => doc("scheduled_post", row.id, createTitle(row.body_md), row.body_md, { type: "Social", state: row.state, account: row.social_account_id }));
+  }
+
+  private documentDocs(orgId: string): SearchDoc[] {
+    const rows = this.db.prepare("select id, title, doc_type, status, content from documents where org_id = ?").all(orgId) as Array<{ id: string; title: string; doc_type: string; status: string; content: string }>;
+    return rows.map((row) => doc("document", row.id, row.title, row.content, { type: "Library", kind: row.doc_type, status: row.status }));
+  }
+
+  private knowledgeDocs(orgId: string): SearchDoc[] {
+    const rows = this.db.prepare("select id, topic, category, content, scope_type, superseded_by, valid_until from knowledge_entries where org_id = ?").all(orgId) as Array<{
+      id: string; topic: string; category: string; content: string; scope_type: string; superseded_by: string | null; valid_until: string | null;
+    }>;
+    const now = new Date().toISOString();
+    return rows.map((row) => doc("knowledge", row.id, row.topic, row.content, {
+      type: "Library",
+      category: row.category,
+      scope: row.scope_type,
+      state: row.superseded_by ? "superseded" : row.valid_until && row.valid_until <= now ? "expired" : "active",
+    }));
   }
 
   private canRead(orgId: string, employeeId: string, entityType: SearchEntityType, entityId: string): boolean {

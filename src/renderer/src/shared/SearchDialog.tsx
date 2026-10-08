@@ -21,6 +21,8 @@ const LABELS: Record<SearchEntityType, string> = {
   provider: t("Provider"),
   social_account: t("Social"),
   scheduled_post: t("Post"),
+  document: t("Document"),
+  knowledge: t("Knowledge"),
 };
 
 export function SearchDialog({
@@ -142,6 +144,7 @@ function routeFor(entityType: SearchEntityType): RouteId {
   if (entityType === "file") return "files";
   if (entityType === "provider") return "settings";
   if (entityType === "social_account" || entityType === "scheduled_post") return "connectors";
+  if (entityType === "document" || entityType === "knowledge") return "library";
   return "work";
 }
 

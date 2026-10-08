@@ -12,6 +12,8 @@ export const SEARCH_ENTITY_TYPES = [
   "provider",
   "social_account",
   "scheduled_post",
+  "document",
+  "knowledge",
 ] as const;
 
 export type SearchEntityType = (typeof SEARCH_ENTITY_TYPES)[number];

@@ -27,6 +27,7 @@ export const zh: Record<string, string> = {
   "Advance": "推进",
   "Advanced": "高级",
   "Integrations": "集成密钥",
+  "Document": "文档",
   "Applies to": "适用范围",
   "Category": "类别",
   "Content": "内容",
