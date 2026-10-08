@@ -6,6 +6,7 @@ import { executeWorkspaceTool, isWorkspaceTool, WORKSPACE_TOOLS } from "./agent-
 import { canonicalMentionHandle } from "../../shared/mention-handles";
 import type { AgentTurnMessage, ToolDefinition } from "./provider-tool-turn";
 import { isComposioTool, executeComposioTool } from "./composio/composio-tool-bridge";
+import { compactToolHistory } from "./run-context-compaction";
 
 const MAX_ITERATIONS = 12;
 
@@ -50,6 +51,11 @@ export async function runAgentLoop(deps: AgentRunLoopDeps, input: AgentRunLoopIn
   let lastRequestId = "";
 
   for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration += 1) {
+    const compaction = compactToolHistory(messages);
+    if (compaction.elided > 0) {
+      messages.splice(0, messages.length, ...compaction.messages);
+      console.info(`[run-loop] iteration ${iteration}: elided ${compaction.elided} earlier tool result(s)`);
+    }
     const turn = await deps.providers.runToolTurn({
       orgId: input.orgId,
       providerId: input.providerId,
