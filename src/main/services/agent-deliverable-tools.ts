@@ -42,7 +42,7 @@ export function createDocumentTool(deps: AgentToolDeps, ctx: AgentToolContext, a
     reviewerAgentId: null,
     projectId: ctx.taskProjectId,
     goalId: ctx.taskGoalId,
-    taskId: null,
+    taskId: ctx.taskId,
   });
   const review = requestDeliverableReview(deps, ctx, {
     title: `Review ${docType}: ${title}`,

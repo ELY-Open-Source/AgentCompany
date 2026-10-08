@@ -16,6 +16,8 @@ interface DocumentRow {
   status: string;
   content: string;
   updated_at: string;
+  task_id: string | null;
+  task_title: string | null;
 }
 
 export const DOCUMENT_TOOLS: ToolDefinition[] = [
@@ -65,12 +67,13 @@ export function listDocumentsTool(deps: AgentToolDeps, ctx: AgentToolContext, ar
   const docType = args.doc_type === undefined ? null : optionalEnum(args.doc_type, "doc_type", DOCUMENT_TYPES, "");
   const limit = optionalLimit(args.limit, "limit", 10, 30);
   const rows = deps.db.prepare(`
-    select id, title, doc_type, status, content, updated_at from documents
-    where org_id = ? and (? is null or doc_type = ?) order by updated_at desc
+    select d.id, d.title, d.doc_type, d.status, d.content, d.updated_at, d.task_id, t.title as task_title
+    from documents d left join tasks t on t.id = d.task_id
+    where d.org_id = ? and (? is null or d.doc_type = ?) order by d.updated_at desc
   `).all(ctx.orgId, docType, docType) as unknown as DocumentRow[];
   const found = query ? relevantItems(rows, (row) => `${row.title} ${row.content}`, query, limit) : rows.slice(0, limit);
   if (found.length === 0) return query ? `No documents match "${query}".` : "No documents yet.";
-  return found.map((row) => `${row.title} (doc_id=${row.id}, ${row.doc_type}, ${row.status}, ${row.content.length} chars, updated ${row.updated_at})`).join("\n");
+  return found.map((row) => `${row.title} (doc_id=${row.id}, ${row.doc_type}, ${row.status}, ${row.content.length} chars, updated ${row.updated_at}${producedBy(row)})`).join("\n");
 }
 
 export function readDocumentTool(deps: AgentToolDeps, ctx: AgentToolContext, args: JsonRecord): string {
@@ -97,4 +100,9 @@ export function updateDocumentTool(deps: AgentToolDeps, ctx: AgentToolContext, a
     sourceEntityId: id,
   });
   return `Updated document "${title}" (doc_id=${id}).${review ? " The update is queued for board review in Approvals." : ""}`;
+}
+
+function producedBy(row: DocumentRow): string {
+  if (row.task_id === null || row.task_title === null) return "";
+  return `, from task "${row.task_title}" task_id=${row.task_id}`;
 }

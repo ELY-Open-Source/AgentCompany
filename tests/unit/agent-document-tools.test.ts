@@ -6,6 +6,7 @@ import { DatabaseConnection } from "../../src/main/database/connection";
 import { OrganizationService } from "../../src/main/services/organization-service";
 import { ChatService } from "../../src/main/services/chat-service";
 import { dispatchAgentTool, type AgentToolContext } from "../../src/main/services/agent-tools";
+import { RISK_LEVEL, TASK_PRIORITY, TASK_STATUS } from "../../src/shared/domain";
 
 function harness(reviewDeliverables: boolean) {
   const connection = new DatabaseConnection(join(tmpdir(), `ac-docs-${randomUUID()}.db`));
@@ -25,6 +26,34 @@ function harness(reviewDeliverables: boolean) {
     dispatchAgentTool({ db: connection.db, organization, chat: new ChatService(connection.db) }, ctx, { id: `c_${randomUUID()}`, name, arguments: args });
   return { connection, orgId, run };
 }
+
+describe("document provenance", () => {
+  test("a document records the task that produced it, shown when listing", () => {
+    const connection = new DatabaseConnection(join(tmpdir(), `ac-docs-${randomUUID()}.db`));
+    const organization = new OrganizationService(connection.db);
+    let orgId = "";
+    let agentId = "";
+    let taskId = "";
+    connection.transaction(() => {
+      orgId = organization.createOrganization({ organizationName: "D", employeeName: "Y", mission: "m", goal: "g" });
+      agentId = organization.createAgent({ orgId, name: "Ana", role: "PM", department: "Product", modelProviderId: null, modelId: null, budgetCents: 1000, managerAgentId: null });
+      taskId = organization.createTask({
+        orgId, title: "Write the booking PRD", description: "d", status: TASK_STATUS.IN_PROGRESS, assigneeAgentId: agentId,
+        risk: RISK_LEVEL.LOW, projectId: null, goalId: null, workspaceId: null, priority: TASK_PRIORITY.NORMAL, requiresFilesystem: false,
+      });
+    });
+    const ctx: AgentToolContext = {
+      orgId, agent: { id: agentId, modelProviderId: null, modelId: null },
+      taskProjectId: null, taskGoalId: null, taskId, sourceThreadId: null, workspace: null,
+    };
+    const run = (name: string, args: Record<string, unknown>) =>
+      dispatchAgentTool({ db: connection.db, organization, chat: new ChatService(connection.db) }, ctx, { id: `c_${randomUUID()}`, name, arguments: args });
+    const docId = /doc_id=(doc_\w+)/.exec(run("create_document", { title: "Booking PRD", doc_type: "prd", content: "v1" }))![1];
+    expect(connection.db.prepare("select task_id from documents where id = ?").get(docId)).toEqual({ task_id: taskId });
+    expect(run("list_documents", {})).toContain(`from task "Write the booking PRD" task_id=${taskId})`);
+    connection.close();
+  });
+});
 
 describe("agent document tools", () => {
   test("documents an agent wrote can be found, read in pages, and updated", () => {
