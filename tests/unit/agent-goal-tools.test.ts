@@ -84,15 +84,17 @@ describe("complete_goal with independent audit", () => {
   test("an approving auditor closes the goal; the auditor gets read-only workspace access", async () => {
     const h = createHarness();
     const seenTools: string[][] = [];
+    const replay = { format: "anthropic" as const, content: [{ type: "thinking", thinking: "check", signature: "SIG" }] };
     let turns = 0;
     const auditor = async (input: AuditorInput): Promise<AuditorTurn> => {
       seenTools.push(input.tools.map((tool) => tool.name));
       turns += 1;
       if (turns === 1) {
-        return turnOf("Inspecting.", [{ id: "c1", name: "read_file", arguments: { path: "src/index.ts" } }]);
+        return { ...turnOf("Inspecting.", [{ id: "c1", name: "read_file", arguments: { path: "src/index.ts" } }]), replay };
       }
       const readResult = input.messages.at(-1);
       expect(readResult?.role).toBe("tool");
+      expect(input.messages.at(-2)).toMatchObject({ role: "assistant", replay });
       return turnOf("The implementation exists and runs. <approved/>");
     };
 

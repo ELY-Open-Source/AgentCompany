@@ -1,6 +1,6 @@
 /** Anthropic Messages API encoding/decoding, shared by anthropic + claude-pro. */
 import { isRecord, type JsonRecord } from "../provider-http";
-import { type AgentTurnMessage, type ToolCall, type ToolDefinition } from "../provider-tool-turn";
+import { replayIn, type AgentTurnMessage, type AssistantReplay, type ToolCall, type ToolDefinition } from "../provider-tool-turn";
 
 export function anthropicToolDefs(tools: ToolDefinition[]): unknown[] {
   return tools.map((tool) => ({ name: tool.name, description: tool.description, input_schema: tool.parameters }));
@@ -12,10 +12,11 @@ export function toAnthropicMessages(messages: AgentTurnMessage[]): unknown[] {
     if (message.role === "user") {
       out.push({ role: "user", content: [{ type: "text", text: message.text }] });
     } else if (message.role === "assistant") {
+      const replay = replayIn(message, "anthropic");
       const content: unknown[] = [];
       if (message.text) content.push({ type: "text", text: message.text });
       for (const call of message.toolCalls) content.push({ type: "tool_use", id: call.id, name: call.name, input: call.arguments });
-      out.push({ role: "assistant", content });
+      out.push({ role: "assistant", content: replay ? replay.content : content });
     } else {
       const content: unknown[] = message.results.map((result) => ({ type: "tool_result", tool_use_id: result.toolCallId, content: result.output }));
       if (message.followUp) content.push({ type: "text", text: message.followUp });
@@ -25,7 +26,7 @@ export function toAnthropicMessages(messages: AgentTurnMessage[]): unknown[] {
   return out;
 }
 
-export function parseAnthropicContent(data: JsonRecord): { text: string; toolCalls: ToolCall[] } {
+export function parseAnthropicContent(data: JsonRecord): { text: string; toolCalls: ToolCall[]; replay: AssistantReplay } {
   const content = Array.isArray(data.content) ? data.content : [];
   const textParts: string[] = [];
   const toolCalls: ToolCall[] = [];
@@ -36,5 +37,5 @@ export function parseAnthropicContent(data: JsonRecord): { text: string; toolCal
       toolCalls.push({ id: block.id, name: block.name, arguments: isRecord(block.input) ? block.input : {} });
     }
   }
-  return { text: textParts.join("\n").trim(), toolCalls };
+  return { text: textParts.join("\n").trim(), toolCalls, replay: { format: "anthropic", content } };
 }

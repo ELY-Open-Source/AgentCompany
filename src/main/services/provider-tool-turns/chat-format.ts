@@ -1,6 +1,9 @@
 /** OpenAI Chat Completions encoding/decoding (xAI, Groq, Mistral, Cerebras, OpenRouter, Kimi family). */
 import { isRecord, ProviderHttpError, type JsonRecord, type ProviderEventStreamMessage } from "../provider-http";
-import { parseArguments, type AgentTurnMessage, type AgentTurnResult, type ToolCall, type ToolDefinition } from "../provider-tool-turn";
+import { parseArguments, replayIn, type AgentTurnMessage, type AgentTurnResult, type AssistantReplay, type ToolCall, type ToolDefinition } from "../provider-tool-turn";
+
+/** Fields providers use for reasoning text; the first non-empty one is the provider's, as in Pi. */
+const REASONING_FIELDS = ["reasoning_content", "reasoning", "reasoning_text"] as const;
 
 export function chatToolDefs(tools: ToolDefinition[]): unknown[] {
   return tools.map((tool) => ({ type: "function", function: { name: tool.name, description: tool.description, parameters: tool.parameters } }));
@@ -13,7 +16,8 @@ export function toChatMessages(instructions: string | null, messages: AgentTurnM
     if (message.role === "user") {
       out.push({ role: "user", content: message.text });
     } else if (message.role === "assistant") {
-      const entry: JsonRecord = { role: "assistant", content: message.text || null };
+      const replay = replayIn(message, "chat");
+      const entry: JsonRecord = { role: "assistant", content: message.text || null, ...(replay ? replay.content as JsonRecord : {}) };
       if (message.toolCalls.length > 0) {
         entry.tool_calls = message.toolCalls.map((call) => ({ id: call.id, type: "function", function: { name: call.name, arguments: JSON.stringify(call.arguments) } }));
       }
@@ -28,7 +32,7 @@ export function toChatMessages(instructions: string | null, messages: AgentTurnM
   return out;
 }
 
-export function parseChatChoice(data: JsonRecord): { text: string; toolCalls: ToolCall[] } {
+export function parseChatChoice(data: JsonRecord): { text: string; toolCalls: ToolCall[]; replay?: AssistantReplay } {
   const choices = Array.isArray(data.choices) ? data.choices : [];
   const first = choices.length > 0 && isRecord(choices[0]) ? choices[0] : null;
   const message = first && isRecord(first.message) ? first.message : null;
@@ -43,24 +47,37 @@ export function parseChatChoice(data: JsonRecord): { text: string; toolCalls: To
     const name = fn && typeof fn.name === "string" ? fn.name : "";
     if (id && name) toolCalls.push({ id, name, arguments: parseArguments(fn?.arguments) });
   }
-  return { text: text.trim(), toolCalls };
+  const field = REASONING_FIELDS.find((name) => typeof message[name] === "string" && message[name]);
+  const details = Array.isArray(message.reasoning_details) ? message.reasoning_details.filter(isRecord) : [];
+  return { text: text.trim(), toolCalls, ...chatReplay(field ? { field, text: message[field] as string } : null, details) };
 }
 
-/**
- * Accumulate a Chat Completions SSE stream into the final turn result.
- *
- * Streaming here is load-bearing, not cosmetic: reasoning models (the Kimi
- * family) can think well past the 60s header deadline before a buffered
- * response would start, so the turn must consume deltas as they arrive and
- * let the stream idle deadline govern instead. Tool calls arrive as indexed
- * fragments — the opening chunk of a call carries id and name, later chunks
- * append argument text. Usage-only chunks have no choices; reasoning_content
- * deltas keep the stream alive but are not part of the result.
- */
+/** Reasoning to send back on the assistant message: the text under its own field, or OpenRouter's structured details. */
+function chatReplay(reasoning: { field: string; text: string } | null, details: JsonRecord[]): { replay?: AssistantReplay } {
+  if (details.length > 0) return { replay: { format: "chat", content: { reasoning_details: details } } };
+  if (reasoning) return { replay: { format: "chat", content: { [reasoning.field]: reasoning.text } } };
+  return {};
+}
+
+/** OpenRouter streams reasoning details as deltas; consecutive text or summary deltas form one entry, encrypted entries stay whole. */
+function appendReasoningDetail(details: JsonRecord[], detail: JsonRecord): void {
+  const last = details.at(-1);
+  const key = detail.type === "reasoning.text" ? "text" : detail.type === "reasoning.summary" ? "summary" : null;
+  if (!key || !last || last.type !== detail.type) {
+    details.push({ ...detail });
+    return;
+  }
+  last[key] = String(last[key] ?? "") + String(detail[key] ?? "");
+  for (const [name, value] of Object.entries(detail)) if (last[name] === undefined || last[name] === null) last[name] = value;
+}
+
+/** Streamed so reasoning models outlive the header deadline; tool calls arrive as indexed fragments, reasoning deltas become the replay. */
 export async function accumulateChatStream(messages: AsyncIterable<ProviderEventStreamMessage>): Promise<AgentTurnResult> {
   const raw: string[] = [];
   const textParts: string[] = [];
   const fragments = new Map<number, { id: string; name: string; args: string }>();
+  const reasoning = { field: "", text: "" };
+  const details: JsonRecord[] = [];
   for await (const message of messages) {
     raw.push(message.rawData);
     if (message.data.error !== undefined) throw new ProviderHttpError(streamErrorText(message.data.error), null, streamErrorStatus(message.data.error));
@@ -69,6 +86,9 @@ export async function accumulateChatStream(messages: AsyncIterable<ProviderEvent
     const delta = first && isRecord(first.delta) ? first.delta : null;
     if (!delta) continue;
     if (typeof delta.content === "string") textParts.push(delta.content);
+    const field = REASONING_FIELDS.find((name) => typeof delta[name] === "string" && delta[name]);
+    if (field) Object.assign(reasoning, { field: reasoning.field || field, text: reasoning.text + (delta[field] as string) });
+    if (Array.isArray(delta.reasoning_details)) for (const detail of delta.reasoning_details.filter(isRecord)) appendReasoningDetail(details, detail);
     const calls = Array.isArray(delta.tool_calls) ? delta.tool_calls : [];
     for (const call of calls) {
       if (!isRecord(call)) continue;
@@ -86,7 +106,7 @@ export async function accumulateChatStream(messages: AsyncIterable<ProviderEvent
   for (const [, fragment] of [...fragments.entries()].sort(([a], [b]) => a - b)) {
     if (fragment.id && fragment.name) toolCalls.push({ id: fragment.id, name: fragment.name, arguments: parseArguments(fragment.args) });
   }
-  return { text: textParts.join("").trim(), toolCalls, rawResponseJson: JSON.stringify(raw) };
+  return { text: textParts.join("").trim(), toolCalls, rawResponseJson: JSON.stringify(raw), ...chatReplay(reasoning.field ? reasoning : null, details) };
 }
 
 /** An in-stream error object's HTTP-style code (OpenRouter sends e.g. { code: 500 }), or null. */

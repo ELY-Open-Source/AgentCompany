@@ -144,7 +144,7 @@ async function auditGoalCompletion(
       tools: auditTools,
     }));
     if (turn.toolCalls.length === 0) return parseVerdict(turn.text);
-    messages.push({ role: "assistant", text: turn.text, toolCalls: turn.toolCalls });
+    messages.push({ role: "assistant", text: turn.text, toolCalls: turn.toolCalls, ...(turn.replay ? { replay: turn.replay } : {}) });
     const results: Array<{ toolCallId: string; toolName: string; output: string }> = [];
     for (const [index, toolCall] of turn.toolCalls.entries()) {
       throwIfRunStopped();

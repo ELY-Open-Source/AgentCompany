@@ -31,5 +31,12 @@ export function compactToolHistory(messages: AgentTurnMessage[], keepRecent = KE
     });
     return { ...message, results };
   });
-  return { messages: compacted, elided };
+  const firstRewritten = compacted.findIndex((message, index) => message.role === "tool" && message.results.some((result, at) => result !== (messages[index] as typeof message).results[at]));
+  if (firstRewritten < 0) return { messages: compacted, elided };
+  // Bedrock's reasoning signature hashes every earlier message, so its turns after a rewrite go back unsigned; Gemini requires its signatures kept.
+  const unsigned = compacted.map((message, index) => {
+    if (index < firstRewritten || message.role !== "assistant" || message.replay?.format !== "bedrock") return message;
+    return { role: message.role, text: message.text, toolCalls: message.toolCalls };
+  });
+  return { messages: unsigned, elided };
 }

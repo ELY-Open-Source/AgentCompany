@@ -51,7 +51,7 @@ describe("openai responses encoding", () => {
       { type: "message", content: [{ type: "output_text", text: "done" }] },
       { type: "function_call", call_id: "c2", name: "create_task", arguments: '{"title":"x"}' },
     ] };
-    expect(parseResponsesOutput(data)).toEqual({ text: "done", toolCalls: [{ id: "c2", name: "create_task", arguments: { title: "x" } }] });
+    expect(parseResponsesOutput(data)).toMatchObject({ text: "done", toolCalls: [{ id: "c2", name: "create_task", arguments: { title: "x" } }] });
   });
 
   test("accumulates the SSE completion event", async () => {
@@ -131,7 +131,7 @@ describe("anthropic encoding", () => {
 
   test("parses text and tool_use blocks", () => {
     const data = { content: [{ type: "text", text: "ok" }, { type: "tool_use", id: "tu", name: "f", input: { x: 1 } }] };
-    expect(parseAnthropicContent(data)).toEqual({ text: "ok", toolCalls: [{ id: "tu", name: "f", arguments: { x: 1 } }] });
+    expect(parseAnthropicContent(data)).toMatchObject({ text: "ok", toolCalls: [{ id: "tu", name: "f", arguments: { x: 1 } }] });
   });
 });
 
@@ -184,7 +184,7 @@ describe("bedrock converse encoding", () => {
 
   test("parses the converse output", () => {
     const data = { output: { message: { content: [{ text: "ok" }, { toolUse: { toolUseId: "t1", name: "f", input: { x: 1 } } }] } } };
-    expect(parseBedrockOutput(data)).toEqual({ text: "ok", toolCalls: [{ id: "t1", name: "f", arguments: { x: 1 } }] });
+    expect(parseBedrockOutput(data)).toMatchObject({ text: "ok", toolCalls: [{ id: "t1", name: "f", arguments: { x: 1 } }] });
   });
 });
 
@@ -194,7 +194,7 @@ describe("vertex (gemini) encoding", () => {
     expect((body.systemInstruction as JsonRecord).parts).toEqual([{ text: "sys" }]);
     expect(body.tools).toEqual([{ functionDeclarations: [{ name: "f", description: "d", parametersJsonSchema: { type: "object" } }] }]);
     const parsed = parseGeminiResponse({ candidates: [{ content: { parts: [{ text: "hi" }, { functionCall: { name: "f", args: { x: 1 }, id: "v1" } }] } }] });
-    expect(parsed).toEqual({ text: "hi", toolCalls: [{ id: "v1", name: "f", arguments: { x: 1 } }] });
+    expect(parsed).toMatchObject({ text: "hi", toolCalls: [{ id: "v1", name: "f", arguments: { x: 1 } }] });
   });
 });
 

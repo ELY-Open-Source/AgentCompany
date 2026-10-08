@@ -8,7 +8,7 @@ import { DatabaseConnection } from "../../src/main/database/connection";
 import { OrganizationService } from "../../src/main/services/organization-service";
 import { ChatService } from "../../src/main/services/chat-service";
 import { IntegrationKeyStore } from "../../src/main/services/integration-key-store";
-import type { AgentTurnMessage, AgentTurnResult } from "../../src/main/services/provider-tool-turn";
+import type { AgentTurnMessage, AgentTurnResult, AssistantReplay } from "../../src/main/services/provider-tool-turn";
 
 function toolTurn(name: string, output: string): AgentTurnMessage[] {
   const id = `c_${randomUUID()}`;
@@ -38,6 +38,24 @@ describe("tool history compaction", () => {
     expect(outputs[3]).toBe(big("fourth"));
     expect(outputs[4]).toBe(big("fifth"));
     expect(compactToolHistory(compacted).elided).toBe(0);
+  });
+
+  test("Bedrock turns after a rewritten result lose their history-bound signature; earlier ones and Gemini signatures stay", () => {
+    const replay = { format: "bedrock" as const, content: [{ reasoningContent: { reasoningText: { text: "plan", signature: "SIG" } } }] };
+    const gemini = { format: "gemini" as const, content: [{ functionCall: { name: "read_file", args: {} }, thoughtSignature: "SIG" }] };
+    const signed = (turn: AgentTurnMessage[], with_: AssistantReplay = replay) => turn.map((message) => (message.role === "assistant" ? { ...message, replay: with_ } : message));
+    const messages: AgentTurnMessage[] = [
+      { role: "user", text: "task" },
+      ...signed(toolTurn("read_file", "x".repeat(2000))),
+      ...signed(toolTurn("read_file", "short")),
+      ...signed(toolTurn("read_file", "short")),
+      ...signed(toolTurn("read_file", "short")),
+    ];
+    const replays = compactToolHistory(messages).messages.flatMap((message) => (message.role === "assistant" ? [message.replay ?? null] : []));
+    expect(replays).toEqual([replay, null, null, null]);
+    expect(compactToolHistory(signed(toolTurn("read_file", "short"))).messages[0]).toMatchObject({ replay });
+    const geminiTurns = [...signed(toolTurn("read_file", "x".repeat(2000)), gemini), ...signed(toolTurn("read_file", "a"), gemini), ...signed(toolTurn("read_file", "b"), gemini), ...signed(toolTurn("read_file", "c"), gemini)];
+    expect(compactToolHistory(geminiTurns).messages.flatMap((message) => (message.role === "assistant" ? [message.replay] : []))).toEqual([gemini, gemini, gemini, gemini]);
   });
 
   test("the run loop sends compacted history to the provider", async () => {

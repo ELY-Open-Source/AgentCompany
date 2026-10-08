@@ -4,7 +4,7 @@
  * Antigravity request wrapper in google-gemini-cli.
  */
 import { isRecord, ProviderHttpError, type JsonRecord, type ProviderEventStreamMessage } from "../provider-http";
-import { type AgentTurnMessage, type AgentTurnResult, type ToolCall, type ToolDefinition } from "../provider-tool-turn";
+import { replayIn, type AgentTurnMessage, type AgentTurnResult, type AssistantReplay, type ToolCall, type ToolDefinition } from "../provider-tool-turn";
 
 const ANTIGRAVITY_SYSTEM_INSTRUCTION =
   "You are Antigravity, a powerful agentic AI coding assistant designed by the Google Deepmind team working on Advanced Agentic Coding." +
@@ -36,6 +36,11 @@ function toGeminiContents(model: string, messages: AgentTurnMessage[]): JsonReco
     if (message.role === "user") {
       contents.push({ role: "user", parts: [{ text: message.text }] });
     } else if (message.role === "assistant") {
+      const replay = replayIn(message, "gemini");
+      if (replay) {
+        contents.push({ role: "model", parts: replay.content });
+        continue;
+      }
       const parts: unknown[] = [];
       if (message.text) parts.push({ text: message.text });
       for (const call of message.toolCalls) {
@@ -120,18 +125,19 @@ function partsToResult(parts: unknown[]): { text: string[]; toolCalls: ToolCall[
 }
 
 /** Parse a non-streaming Gemini generateContent response (Vertex). */
-export function parseGeminiResponse(data: JsonRecord): { text: string; toolCalls: ToolCall[] } {
+export function parseGeminiResponse(data: JsonRecord): { text: string; toolCalls: ToolCall[]; replay: AssistantReplay } {
   const candidates = Array.isArray(data.candidates) ? data.candidates : [];
   const content = candidates.length > 0 && isRecord(candidates[0]) && isRecord(candidates[0].content) ? candidates[0].content : null;
   const parts = content && Array.isArray(content.parts) ? content.parts : [];
   const result = partsToResult(parts);
-  return { text: result.text.join("").trim(), toolCalls: result.toolCalls };
+  return { text: result.text.join("").trim(), toolCalls: result.toolCalls, replay: { format: "gemini", content: parts } };
 }
 
 export async function accumulateGeminiStream(messages: AsyncIterable<ProviderEventStreamMessage>): Promise<AgentTurnResult> {
   const raw: string[] = [];
   const textParts: string[] = [];
   const toolCalls: ToolCall[] = [];
+  const replayParts: unknown[] = [];
   let counter = 0;
   for await (const message of messages) {
     raw.push(message.rawData);
@@ -146,6 +152,7 @@ export async function accumulateGeminiStream(messages: AsyncIterable<ProviderEve
     const parts = content && Array.isArray(content.parts) ? content.parts : [];
     for (const part of parts) {
       if (!isRecord(part)) continue;
+      replayParts.push(part);
       if (typeof part.text === "string" && part.thought !== true) {
         textParts.push(part.text);
       } else if (isRecord(part.functionCall)) {
@@ -157,5 +164,5 @@ export async function accumulateGeminiStream(messages: AsyncIterable<ProviderEve
       }
     }
   }
-  return { text: textParts.join("").trim(), toolCalls, rawResponseJson: JSON.stringify(raw) };
+  return { text: textParts.join("").trim(), toolCalls, rawResponseJson: JSON.stringify(raw), ...(replayParts.length > 0 ? { replay: { format: "gemini", content: replayParts } } : {}) };
 }

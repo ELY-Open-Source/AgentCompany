@@ -4,7 +4,7 @@
  * `convertResponsesTools` and the Responses streaming event shapes.
  */
 import { isRecord, ProviderHttpError, type JsonRecord, type ProviderEventStreamMessage } from "../provider-http";
-import { parseArguments, type AgentTurnMessage, type AgentTurnResult, type ToolCall, type ToolDefinition } from "../provider-tool-turn";
+import { parseArguments, replayIn, type AgentTurnMessage, type AgentTurnResult, type AssistantReplay, type ToolCall, type ToolDefinition } from "../provider-tool-turn";
 
 export function responsesToolDefs(tools: ToolDefinition[], strict: boolean | null = false): unknown[] {
   // `strict` must be a boolean or omitted. Passing `strict: null` (the Codex
@@ -25,6 +25,11 @@ export function toResponsesInput(messages: AgentTurnMessage[]): unknown[] {
     if (message.role === "user") {
       items.push({ role: "user", content: [{ type: "input_text", text: message.text }] });
     } else if (message.role === "assistant") {
+      const replay = replayIn(message, "responses");
+      if (replay) {
+        items.push(...(replay.content as unknown[]));
+        continue;
+      }
       if (message.text) {
         items.push({ type: "message", role: "assistant", content: [{ type: "output_text", text: message.text, annotations: [] }] });
       }
@@ -42,7 +47,7 @@ export function toResponsesInput(messages: AgentTurnMessage[]): unknown[] {
 }
 
 /** Parse a non-streaming Responses payload (`data.output[]`). */
-export function parseResponsesOutput(data: JsonRecord): { text: string; toolCalls: ToolCall[] } {
+export function parseResponsesOutput(data: JsonRecord): { text: string; toolCalls: ToolCall[]; replay: AssistantReplay } {
   const output = Array.isArray(data.output) ? data.output : [];
   const textParts: string[] = [];
   const toolCalls: ToolCall[] = [];
@@ -58,7 +63,14 @@ export function parseResponsesOutput(data: JsonRecord): { text: string; toolCall
       }
     }
   }
-  return { text: textParts.join("\n").trim(), toolCalls };
+  return { text: textParts.join("\n").trim(), toolCalls, replay: { format: "responses", content: responsesReplay(output) } };
+}
+
+/** Output items as next-turn input, the Codex way under store:false: no item ids, and reasoning only when it carries its encrypted content. */
+function responsesReplay(output: unknown[]): unknown[] {
+  return output.filter(isRecord)
+    .filter((item) => item.type !== "reasoning" || typeof item.encrypted_content === "string")
+    .map(({ id: _id, ...item }) => item);
 }
 
 function eventType(message: ProviderEventStreamMessage): string | null {
@@ -113,13 +125,11 @@ export async function accumulateResponsesStream(messages: AsyncIterable<Provider
       const response = isRecord(message.data.response) ? message.data.response : null;
       const completionOutput = response && Array.isArray(response.output) ? response.output : [];
       const output = completionOutput.length > 0 ? completionOutput : streamed;
-      const parsed = parseResponsesOutput({ output });
-      return { text: parsed.text, toolCalls: parsed.toolCalls, rawResponseJson: JSON.stringify(raw) };
+      return { ...parseResponsesOutput({ output }), rawResponseJson: JSON.stringify(raw) };
     }
   }
   if (streamed.length > 0) {
-    const parsed = parseResponsesOutput({ output: streamed });
-    return { text: parsed.text, toolCalls: parsed.toolCalls, rawResponseJson: JSON.stringify(raw) };
+    return { ...parseResponsesOutput({ output: streamed }), rawResponseJson: JSON.stringify(raw) };
   }
   throw new Error("Responses stream ended before a completion event.");
 }

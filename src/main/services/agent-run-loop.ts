@@ -95,14 +95,14 @@ export async function runAgentLoop(deps: AgentRunLoopDeps, input: AgentRunLoopIn
       }
       const lateMessages = input.pollNewMessages?.();
       if (lateMessages) {
-        messages.push({ role: "assistant", text: turn.text, toolCalls: [] }, { role: "user", text: lateMessages });
+        messages.push({ role: "assistant", text: turn.text, toolCalls: [], ...(turn.replay ? { replay: turn.replay } : {}) }, { role: "user", text: lateMessages });
         continue;
       }
       return { finalText: turn.text, iterations: iteration, toolCallCount, lastRequestId, hitStepLimit: false };
     }
 
     lastText = turn.text.trim() || lastText;
-    messages.push({ role: "assistant", text: turn.text, toolCalls: turn.toolCalls });
+    messages.push({ role: "assistant", text: turn.text, toolCalls: turn.toolCalls, ...(turn.replay ? { replay: turn.replay } : {}) });
     const results: Array<{ toolCallId: string; toolName: string; output: string }> = [];
     for (const [index, call] of turn.toolCalls.entries()) {
       throwIfRunStopped();
