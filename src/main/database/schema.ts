@@ -66,6 +66,7 @@ import { knowledgeRevisionsSchema } from "./migrations/064-knowledge-revisions";
 import { documentVersionsSchema } from "./migrations/065-document-versions";
 import { taskWritingModeSchema } from "./migrations/066-task-writing-mode";
 import { taskRunBudgetSchema } from "./migrations/067-task-run-budget";
+import { taskReviewLinkSchema } from "./migrations/068-task-review-link";
 
 interface Migration {
   version: number;
@@ -141,6 +142,7 @@ const MIGRATIONS: Migration[] = [
   { version: 65, name: "document_versions", sql: documentVersionsSchema },
   { version: 66, name: "task_writing_mode", sql: taskWritingModeSchema },
   { version: 67, name: "task_run_budget", sql: taskRunBudgetSchema },
+  { version: 68, name: "task_review_link", sql: taskReviewLinkSchema },
 ];
 
 const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;

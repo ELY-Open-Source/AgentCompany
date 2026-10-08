@@ -383,7 +383,14 @@ function updateTaskStatus(deps: AgentToolDeps, ctx: AgentToolContext, args: Json
   const taskId = requireString(args.task_id, "task_id");
   const status = normalizeStatus(args.status);
   deps.organization.updateTaskStatus(ctx.orgId, taskId, status);
-  return `Task ${taskId} moved to ${status}.`;
+  if (status !== TASK_STATUS.REVIEW) return `Task ${taskId} moved to ${status}.`;
+  const reviewer = deps.db.prepare(`
+    select a.name from tasks r join agents a on a.id = r.assignee_agent_id
+    where r.review_of_task_id = ? and r.status <> 'done' limit 1
+  `).get(taskId) as { name: string } | undefined;
+  return reviewer
+    ? `Task ${taskId} moved to review. ${reviewer.name} will review it.`
+    : `Task ${taskId} moved to review. It has no manager to review it, so it waits for the operator on the Work board.`;
 }
 
 

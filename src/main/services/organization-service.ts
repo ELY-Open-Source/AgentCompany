@@ -1,5 +1,5 @@
 import type { DatabaseSync } from "node:sqlite";
-import { APPROVAL_STATE, RISK_LEVEL, TASK_STATUS, WRITING_MODE, type ApprovalState } from "../../shared/domain";
+import { RISK_LEVEL, TASK_STATUS, WRITING_MODE } from "../../shared/domain";
 import { createId } from "../../shared/ids";
 import type { CreateAgentInput, CreateGoalInput, CreateOrganizationInput, CreateProjectInput, CreateTaskInput, CreateWorkspaceInput, DeleteTaskInput, UpdateAgentInput, UpdateEmployeeProfileInput, UpdateTaskInput } from "../../shared/commands";
 import { AuditService } from "./audit-service";
@@ -9,18 +9,23 @@ import { IdentityAccessService } from "./identity-access-service";
 import { OrgGovernanceService } from "./org-governance-service";
 import { assertUsableMentionName } from "../../shared/mention-handles";
 import { seedOrganization } from "./organization-seed";
+import { TaskMutations } from "./task-mutations";
+import { normalizeAvatarColor, normalizeAvatarImage } from "./avatar-values";
+import { approvalDecision, autonomy } from "./org-approvals";
 
 export class OrganizationService {
   private readonly audit: AuditService;
   private readonly policy: PolicyService;
   private readonly identityAccess: IdentityAccessService;
   private readonly governance: OrgGovernanceService;
+  private readonly tasks: TaskMutations;
 
   constructor(private readonly db: DatabaseSync) {
     this.audit = new AuditService(db);
     this.policy = new PolicyService(db);
     this.identityAccess = new IdentityAccessService(db);
     this.governance = new OrgGovernanceService(db);
+    this.tasks = new TaskMutations(db, (input) => this.createTask(input));
   }
 
   createOrganization(input: CreateOrganizationInput): string {
@@ -132,8 +137,8 @@ export class OrganizationService {
     this.identityAccess.createAgentServiceIdentity(input.orgId, id, input.name, now);
     if (hiringPolicy.reviewRequired) {
       const approvalId = createId("app");
-      const autoApprove = this.autonomy(input.orgId).autoApproveHires;
-      const decision = this.approvalDecision(input.orgId, autoApprove, now);
+      const autoApprove = autonomy(this.db, input.orgId).autoApproveHires;
+      const decision = approvalDecision(this.db, input.orgId, autoApprove, now);
       this.db.prepare(`
         insert into approvals(
           id, org_id, kind, title, details, risk, requested_by_type,
@@ -260,8 +265,8 @@ export class OrganizationService {
     if (approvalRequired) {
       const approvalId = createId("app");
       const approvalKind = policy.approvalRequired ? "task_risk" : "task_execution";
-      const autoApprove = this.autonomy(input.orgId).executionMode === "ai_ceo";
-      const decision = this.approvalDecision(input.orgId, autoApprove, now);
+      const autoApprove = autonomy(this.db, input.orgId).executionMode === "ai_ceo";
+      const decision = approvalDecision(this.db, input.orgId, autoApprove, now);
       this.db.prepare(`
         insert into approvals(
           id, org_id, kind, title, details, risk, requested_by_type,
@@ -297,23 +302,6 @@ export class OrganizationService {
     return id;
   }
 
-  /**
-   * Reads the org's autonomy settings. In `ai_ceo` mode the CEO runs without
-   * the operator approving each task; `autoApproveHires` clears hire reviews.
-   */
-  private autonomy(orgId: string): { executionMode: string; autoApproveHires: boolean } {
-    const row = this.db.prepare("select execution_mode, auto_approve_hires from organizations where id = ?")
-      .get(orgId) as { execution_mode: string; auto_approve_hires: number } | undefined;
-    if (!row) throw new Error("Organization was not found.");
-    return { executionMode: row.execution_mode, autoApproveHires: row.auto_approve_hires === 1 };
-  }
-
-  /** The decision recorded on an approval: pending, or auto-approved by the board chair. */
-  private approvalDecision(orgId: string, autoApprove: boolean, now: string): { state: ApprovalState; decidedBy: string | null; decidedAt: string | null } {
-    if (!autoApprove) return { state: APPROVAL_STATE.PENDING, decidedBy: null, decidedAt: null };
-    return { state: APPROVAL_STATE.APPROVED, decidedBy: this.boardChairEmployeeId(orgId), decidedAt: now };
-  }
-
   /** Routes a pending approval to its decider, or records the auto-approval in the audit trail. */
   private settleApproval(orgId: string, approvalId: string, kind: string, risk: typeof RISK_LEVEL[keyof typeof RISK_LEVEL], autoApproved: boolean): void {
     if (!autoApproved) {
@@ -329,13 +317,6 @@ export class OrganizationService {
       action: "approved",
       payload: { kind, auto: true },
     });
-  }
-
-  private boardChairEmployeeId(orgId: string): string {
-    const row = this.db.prepare("select id from employees where org_id = ? order by created_at asc limit 1")
-      .get(orgId) as { id: string } | undefined;
-    if (!row) throw new Error("Organization has no employee to record the approval decision.");
-    return row.id;
   }
 
   private verifyOptionalOrgEntity(table: "agents" | "goals" | "workspaces", id: string | null, orgId: string, label: string): void {
@@ -490,111 +471,14 @@ export class OrganizationService {
   }
 
   updateTask(input: UpdateTaskInput): void {
-    const now = new Date().toISOString();
-    if (input.assigneeAgentId) this.verifyOptionalOrgEntity("agents", input.assigneeAgentId, input.orgId, "Assignee agent");
-    if (input.parentTaskId) this.assertParentAllowed(input.orgId, input.taskId, input.parentTaskId, input.title.trim());
-    const result = this.db.prepare(`
-      update tasks set title = ?, description = ?, assignee_agent_id = ?, risk = ?, priority = ?, parent_task_id = ?, updated_at = ?,
-        stalled_reason = null, run_budget_floor = (select coalesce(max(rowid), 0) from task_runs)
-      where id = ? and org_id = ?
-    `).run(input.title.trim(), input.description.trim(), input.assigneeAgentId, input.risk, input.priority, input.parentTaskId, now, input.taskId, input.orgId);
-    if (result.changes === 0) throw new Error("Task was not found.");
-    this.audit.record({
-      orgId: input.orgId,
-      entityType: "task",
-      entityId: input.taskId,
-      actorType: "employee",
-      actorId: null,
-      action: "updated",
-      payload: { title: input.title.trim() },
-    });
+    this.tasks.update(input);
   }
 
   deleteTask(input: DeleteTaskInput): void {
-    const running = this.db.prepare("select 1 from task_runs where task_id = ? and org_id = ? and state = 'running' limit 1")
-      .get(input.taskId, input.orgId);
-    if (running) throw new Error("This task has a run in progress; wait for it to finish before deleting the task.");
-    const result = this.db.prepare("delete from tasks where id = ? and org_id = ?").run(input.taskId, input.orgId);
-    if (result.changes === 0) throw new Error("Task was not found.");
-    this.audit.record({
-      orgId: input.orgId,
-      entityType: "task",
-      entityId: input.taskId,
-      actorType: "employee",
-      actorId: null,
-      action: "deleted",
-      payload: {},
-    });
+    this.tasks.delete(input);
   }
 
   updateTaskStatus(orgId: string, taskId: string, status: string): void {
-    if (status === TASK_STATUS.DONE) this.assertNoOpenSubtasks(orgId, taskId);
-    const now = new Date().toISOString();
-    // Reopening a done task gives it a fresh run budget.
-    const result = this.db.prepare(`
-      update tasks set status = ?, updated_at = ?,
-        stalled_reason = case when status = 'done' and ? <> 'done' then null else stalled_reason end,
-        run_budget_floor = case when status = 'done' and ? <> 'done' then (select coalesce(max(rowid), 0) from task_runs) else run_budget_floor end
-      where id = ? and org_id = ?
-    `).run(status, now, status, status, taskId, orgId);
-    if (result.changes === 0) throw new Error("Task was not found.");
-    this.audit.record({
-      orgId,
-      entityType: "task",
-      entityId: taskId,
-      actorType: "system",
-      actorId: null,
-      action: "status_changed",
-      payload: { status },
-    });
+    this.tasks.updateStatus(orgId, taskId, status);
   }
-
-  private assertParentAllowed(orgId: string, taskId: string, parentTaskId: string, title: string): void {
-    if (parentTaskId === taskId) throw new Error(`"${title}" cannot be its own parent.`);
-    const parent = this.db.prepare("select title from tasks where id = ? and org_id = ?").get(parentTaskId, orgId) as { title: string } | undefined;
-    if (!parent) throw new Error("Parent task was not found.");
-    const loop = this.db.prepare(`
-      with recursive ancestors(id) as (
-        select parent_task_id from tasks where id = ?
-        union select t.parent_task_id from tasks t join ancestors a on t.id = a.id where t.parent_task_id is not null
-      )
-      select 1 from ancestors where id = ? limit 1
-    `).get(parentTaskId, taskId);
-    if (loop) throw new Error(`"${title}" cannot sit under "${parent.title}": "${parent.title}" is already beneath "${title}".`);
-  }
-
-  private assertNoOpenSubtasks(orgId: string, taskId: string): void {
-    const open = this.db.prepare("select title from tasks where org_id = ? and parent_task_id = ? and status <> 'done' order by created_at")
-      .all(orgId, taskId) as Array<{ title: string }>;
-    if (open.length === 0) return;
-    const parent = this.db.prepare("select title from tasks where id = ? and org_id = ?").get(taskId, orgId) as { title: string };
-    throw new Error(`"${parent.title}" has open subtasks: ${open.map((task) => task.title).join(", ")}. It can close once they are done.`);
-  }
-}
-
-/** Avatar colors persist as #rrggbb; anything else is a caller bug. */
-function normalizeAvatarColor(value: string): string | null {
-  const color = value.trim();
-  if (!color) return null;
-  if (!/^#[0-9a-fA-F]{6}$/.test(color)) throw new Error("Avatar color must be a #rrggbb hex value.");
-  return color.toLowerCase();
-}
-
-/**
- * Avatar portraits persist as small base64 data URLs (the renderer downscales
- * before submitting). The cap keeps a rogue caller from turning the snapshot
- * back into a megabyte payload.
- */
-const MAX_AVATAR_IMAGE_CHARS = 300_000;
-
-function normalizeAvatarImage(value: string): string | null {
-  const image = value.trim();
-  if (!image) return null;
-  if (!/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(image)) {
-    throw new Error("Avatar image must be a base64 data URL (png, jpeg, or webp).");
-  }
-  if (image.length > MAX_AVATAR_IMAGE_CHARS) {
-    throw new Error("Avatar image is too large - upload a smaller picture.");
-  }
-  return image;
 }

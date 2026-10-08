@@ -88,8 +88,8 @@ export interface CreateTaskInput {
   requiresFilesystem: boolean;
   /** Defaults to conversational. */
   writingMode?: WritingMode;
-  /** Provenance: 'chat_wake' for mention-wake vehicles, 'goal_review' for CEO goal checkpoints, omitted for plain work. */
-  origin?: "chat_wake" | "goal_review";
+  /** Provenance: 'chat_wake' for mention-wake vehicles, 'goal_review' for CEO goal checkpoints, 'task_review' for a manager's review of work, omitted for plain work. */
+  origin?: "chat_wake" | "goal_review" | "task_review";
 }
 
 export interface UpdateTaskStatusInput {
