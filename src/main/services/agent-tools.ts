@@ -189,6 +189,8 @@ export const AGENT_TOOLS: ToolDefinition[] = [
         agent_name: { type: "string", description: "The teammate receiving access." },
         toolkit: { type: "string", description: "Connected toolkit slug, e.g. 'github'." },
         account: { type: "string", description: "Which of the toolkit's accounts, by label (see list_connectors); required when it has several." },
+        actions: { type: "array", items: { type: "string" }, description: "Only these exact action names, e.g. read-only actions; omit to allow every action." },
+        fixed_arguments: { type: "object", description: "Argument values every action must take, e.g. {\"repo\": \"site\"}; actions without these arguments are refused." },
       },
       required: ["agent_name", "toolkit"],
     },

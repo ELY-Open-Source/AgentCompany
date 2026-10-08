@@ -467,6 +467,10 @@ export interface ConnectorGrantRecord {
   agentId: string;
   toolkitSlug: string;
   accountLabel: string;
+  /** JSON array of the only action names this grant allows; null allows every action. */
+  allowedActions: string | null;
+  /** JSON object of argument values every action under this grant must take; null fixes none. */
+  fixedArguments: string | null;
   grantedByType: string;
   grantedById: string | null;
   createdAt: string;

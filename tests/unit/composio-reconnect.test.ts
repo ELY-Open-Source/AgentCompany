@@ -58,7 +58,7 @@ async function connectedCompany() {
   const first = await service.connectToolkit(orgId, "github", "main");
   remote.get(first.accountId)!.status = "ACTIVE";
   await service.refreshAccounts(orgId);
-  new ConnectorGrantsService(connection.db).grant({ orgId, agentId: ceoId, toolkitSlug: "github", accountLabel: null, grantedByType: "agent", grantedById: ceoId });
+  new ConnectorGrantsService(connection.db).grant({ orgId, agentId: ceoId, toolkitSlug: "github", accountLabel: null, limits: { actions: null, fixedArguments: null }, grantedByType: "agent", grantedById: ceoId });
   const account = () => connection.db.prepare("select id, status, pending_account_id as pending from connector_accounts where org_id = ?").get(orgId) as { id: string; status: string; pending: string | null };
   const grants = () => (connection.db.prepare("select count(*) as n from agent_connector_grants where org_id = ?").get(orgId) as { n: number }).n;
   return { connection, orgId, service, oldId: first.accountId, account, grants };

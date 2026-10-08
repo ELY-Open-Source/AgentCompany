@@ -3,7 +3,7 @@ import type { ToolDefinition, ToolCall } from "../provider-tool-turn";
 import { ComposioClient, ComposioHttpError, type ComposioToolExecutionResult, type ComposioToolSchema } from "./composio-client";
 import { beginConnectorExecution, settleConnectorExecution } from "./connector-executions";
 import type { IntegrationKeyStore } from "../integration-key-store";
-import { ConnectorGrantsService } from "./connector-grants";
+import { ConnectorGrantsService, grantAllowsAction, grantLimitRefusal } from "./connector-grants";
 import { currentRunId } from "../run-control";
 
 const COMPOSIO_TOOL_PREFIX = "composio_";
@@ -70,7 +70,7 @@ export async function executeComposioTool(
   const toolkits = new ConnectorGrantsService(db).toolkitsForAgent(orgId, agentId);
   if (toolkits.length === 0) return "ERROR: You hold no connector grants. Ask the CEO to grant you one (grant_connector).";
   try {
-    if (call.name === FIND_ACTIONS_TOOL) return await findActions(db, apiKey, toolkits, call.arguments);
+    if (call.name === FIND_ACTIONS_TOOL) return await findActions(db, apiKey, orgId, agentId, toolkits, call.arguments);
     if (call.name === RUN_ACTION_TOOL) return await runAction(db, apiKey, orgId, agentId, toolkits, call.arguments);
     return `ERROR: ${call.name} is not a connector tool; use ${FIND_ACTIONS_TOOL} and ${RUN_ACTION_TOOL}.`;
   } catch (error) {
@@ -78,12 +78,19 @@ export async function executeComposioTool(
   }
 }
 
-async function findActions(db: DatabaseSync, apiKey: string, toolkits: string[], args: Record<string, unknown>): Promise<string> {
+async function findActions(db: DatabaseSync, apiKey: string, orgId: string, agentId: string, toolkits: string[], args: Record<string, unknown>): Promise<string> {
   const query = typeof args.query === "string" ? args.query.trim().toLowerCase() : "";
   if (!query) return "ERROR: query is required: say in a few words what you want to do.";
   const toolkit = typeof args.toolkit === "string" ? args.toolkit.toLowerCase() : null;
   if (toolkit && !toolkits.includes(toolkit)) return `ERROR: You hold no grant for "${toolkit}". Your services: ${toolkits.join(", ")}.`;
-  const actions = (await actionCatalog(db, apiKey, toolkits)).filter((action) => !toolkit || action.toolkitSlug?.toLowerCase() === toolkit);
+  const grants = new ConnectorGrantsService(db);
+  const limits = new Map(toolkits.map((slug) => [slug, grants.limitsForAgent(orgId, agentId, slug)]));
+  // Actions a grant does not allow are not shown at all.
+  const actions = (await actionCatalog(db, apiKey, toolkits)).filter((action) => {
+    const slug = action.toolkitSlug?.toLowerCase();
+    const allowed = slug ? limits.get(slug) : undefined;
+    return (!toolkit || slug === toolkit) && allowed !== undefined && grantAllowsAction(allowed, action.name);
+  });
   const words = query.split(/[^a-z0-9]+/).filter(Boolean);
   const scored = actions
     .map((action) => {
@@ -111,9 +118,12 @@ async function runAction(db: DatabaseSync, apiKey: string, orgId: string, agentI
     return `ERROR: You have no grant for the "${toolkit}" connector. Ask the CEO to grant it to you (grant_connector).`;
   }
   if (args.account !== undefined && typeof args.account !== "string") return "ERROR: account must be the label of one of the service's accounts.";
-  const account = new ConnectorGrantsService(db).accountForAgent(orgId, agentId, toolkit, args.account ?? null);
+  const grants = new ConnectorGrantsService(db);
+  const account = grants.accountForAgent(orgId, agentId, toolkit, args.account ?? null);
   const input = typeof args.arguments === "object" && args.arguments !== null && !Array.isArray(args.arguments) ? args.arguments as Record<string, unknown> : null;
   if (!input) return "ERROR: arguments must be an object matching the action's input.";
+  const refusal = grantLimitRefusal(grants.limitsForAgent(orgId, agentId, toolkit), toolkit, action, input);
+  if (refusal) return `ERROR: ${refusal}`;
   if (args.confirm_not_done !== undefined && typeof args.confirm_not_done !== "boolean") return "ERROR: confirm_not_done must be true or false.";
   const started = beginConnectorExecution(db, { orgId, agentId, runId: currentRunId(), action: action.name, accountLabel: account.label, args: input, confirmedNotDone: args.confirm_not_done === true });
   if ("blockedBy" in started) {

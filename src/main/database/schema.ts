@@ -82,6 +82,7 @@ import { runCapabilityWarningsSchema } from "./migrations/080-run-capability-war
 import { connectorExecutionsSchema } from "./migrations/081-connector-executions";
 import { connectorPendingAccountSchema } from "./migrations/082-connector-pending-account";
 import { connectorAccountLabelsSchema } from "./migrations/083-connector-account-labels";
+import { connectorGrantLimitsSchema } from "./migrations/084-connector-grant-limits";
 
 interface Migration {
   version: number;
@@ -173,6 +174,7 @@ const MIGRATIONS: Migration[] = [
   { version: 81, name: "connector_executions", sql: connectorExecutionsSchema },
   { version: 82, name: "connector_pending_account", sql: connectorPendingAccountSchema },
   { version: 83, name: "connector_account_labels", sql: connectorAccountLabelsSchema },
+  { version: 84, name: "connector_grant_limits", sql: connectorGrantLimitsSchema },
 ];
 
 const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;

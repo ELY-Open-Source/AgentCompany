@@ -5,7 +5,7 @@ import { describe, expect, test } from "vitest";
 import { DatabaseConnection } from "../../src/main/database/connection";
 import { OrganizationService } from "../../src/main/services/organization-service";
 import { ChatService } from "../../src/main/services/chat-service";
-import { ConnectorGrantsService } from "../../src/main/services/composio/connector-grants";
+import { ConnectorGrantsService, grantLimitRefusal } from "../../src/main/services/composio/connector-grants";
 import { dispatchAgentTool, type AgentToolContext } from "../../src/main/services/agent-tools";
 
 function call(name: string, args: Record<string, unknown>) {
@@ -71,7 +71,7 @@ describe("connector grants", () => {
     const h = harness();
     const grants = new ConnectorGrantsService(h.connection.db);
     expect(() => grants.grant({
-      orgId: h.orgId, agentId: h.danaId, toolkitSlug: "github", accountLabel: null, grantedByType: "employee", grantedById: null,
+      orgId: h.orgId, agentId: h.danaId, toolkitSlug: "github", accountLabel: null, limits: { actions: null, fixedArguments: null }, grantedByType: "employee", grantedById: null,
     })).toThrow(/No active connection/);
   });
 
@@ -122,6 +122,29 @@ describe("connector grants", () => {
     expect(grants.toolkitsForAgent(h.orgId, h.ceoId)).toEqual(["github"]);
   });
 
+  test("the CEO grants a toolkit narrowed to some actions and argument values", () => {
+    const h = harness();
+    connectToolkit(h, "gmail", "Gmail");
+    expect(dispatchAgentTool(h.deps, h.ceoCtx, call("grant_connector", { agent_name: "Dana", toolkit: "gmail", actions: ["gmail_fetch_emails"], fixed_arguments: { label: "support" } })))
+      .toContain('through its "main" account (only GMAIL_FETCH_EMAILS; limited to {"label":"support"})');
+    expect(dispatchAgentTool(h.deps, h.danaCtx, call("list_connectors", {})))
+      .toContain('Gmail (gmail), account "main": granted to Dana (only GMAIL_FETCH_EMAILS; limited to {"label":"support"})');
+    expect(new ConnectorGrantsService(h.connection.db).limitsForAgent(h.orgId, h.danaId, "gmail")).toEqual({ actions: ["GMAIL_FETCH_EMAILS"], fixedArguments: { label: "support" } });
+    expect(dispatchAgentTool(h.deps, h.ceoCtx, call("grant_connector", { agent_name: "Dana", toolkit: "gmail", actions: [] })))
+      .toBe("ERROR: actions must name at least one action, none blank.");
+    expect(dispatchAgentTool(h.deps, h.ceoCtx, call("grant_connector", { agent_name: "Dana", toolkit: "gmail", fixed_arguments: ["label"] })))
+      .toBe('ERROR: "fixed_arguments" must be an object of argument values.');
+    const nullRepo = { actions: null, fixedArguments: { repo: null } };
+    const action = { name: "GITHUB_LIST_ISSUES", parameters: { properties: { repo: {} } } };
+    expect(grantLimitRefusal(nullRepo, "github", action, {})).toBe("Your grant for github is limited to repo=null; pass repo with that value.");
+    expect(grantLimitRefusal(nullRepo, "github", action, { repo: null })).toBeNull();
+    const proto = { actions: null, fixedArguments: JSON.parse('{"__proto__": {}}') as Record<string, unknown> };
+    expect(grantLimitRefusal(proto, "github", action, {})).toBe("Your grant for github is limited to __proto__={}, and GITHUB_LIST_ISSUES takes no __proto__.");
+    // A grant without limits replaces a limited one.
+    dispatchAgentTool(h.deps, h.ceoCtx, call("grant_connector", { agent_name: "Dana", toolkit: "gmail" }));
+    expect(new ConnectorGrantsService(h.connection.db).limitsForAgent(h.orgId, h.danaId, "gmail")).toEqual({ actions: null, fixedArguments: null });
+  });
+
   test("staff cannot hand out connector access", () => {
     const h = harness();
     connectToolkit(h, "github", "GitHub");
@@ -134,7 +157,7 @@ describe("connector grants", () => {
     const h = harness();
     connectToolkit(h, "slack", "Slack");
     const grants = new ConnectorGrantsService(h.connection.db);
-    grants.grant({ orgId: h.orgId, agentId: h.danaId, toolkitSlug: "slack", accountLabel: null, grantedByType: "employee", grantedById: null });
+    grants.grant({ orgId: h.orgId, agentId: h.danaId, toolkitSlug: "slack", accountLabel: null, limits: { actions: null, fixedArguments: null }, grantedByType: "employee", grantedById: null });
     expect(grants.toolkitsForAgent(h.orgId, h.danaId)).toEqual(["slack"]);
     h.connection.db.prepare("update connector_accounts set status = 'EXPIRED' where org_id = ? and toolkit_slug = 'slack'").run(h.orgId);
     expect(grants.toolkitsForAgent(h.orgId, h.danaId)).toEqual([]);

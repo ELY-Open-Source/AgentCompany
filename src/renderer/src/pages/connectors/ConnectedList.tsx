@@ -56,8 +56,10 @@ export function ConnectedList({
         {accounts.map((account) => {
           const holders = grants
             .filter((grant) => grant.toolkitSlug === account.toolkitSlug && grant.accountLabel === account.label)
-            .map((grant) => agentNames.get(grant.agentId))
-            .filter((name): name is string => Boolean(name));
+            .flatMap((grant) => {
+              const name = agentNames.get(grant.agentId);
+              return name ? [grant.allowedActions || grant.fixedArguments ? `${name} · ${t("limited")}` : name] : [];
+            });
           const busy = busySlug !== null;
           return (
             <div key={account.id} style={{ border: "1px solid var(--border)", borderRadius: 12, padding: 14, background: "var(--panel)" }}>

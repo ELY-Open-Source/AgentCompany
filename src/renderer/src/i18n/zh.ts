@@ -386,6 +386,7 @@ export const zh: Record<string, string> = {
   "Service": "服务",
   "Account label, e.g. sales": "账号标签，例如 sales",
   "Add account": "添加账号",
+  "limited": "受限",
   "Refresh models": "刷新模型",
   "Region": "区域",
   "Rejected": "已驳回",

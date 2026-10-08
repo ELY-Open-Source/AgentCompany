@@ -1,6 +1,7 @@
 import type { DatabaseSync } from "node:sqlite";
 import { DEFAULT_CONNECTOR_ACCOUNT_LABEL } from "../../../shared/commands/composio";
 import { createId } from "../../../shared/ids";
+import { canonicalJson } from "./connector-executions";
 
 export const DEFAULT_ACCOUNT_LABEL = DEFAULT_CONNECTOR_ACCOUNT_LABEL;
 const MAX_LABEL_CHARS = 40;
@@ -20,26 +21,39 @@ export interface ConnectorGrantRow {
   agentId: string;
   toolkitSlug: string;
   accountLabel: string;
+  limits: ConnectorGrantLimits;
 }
+
+/** What a grant narrows the toolkit to: only these actions, and these argument values on every call; null means no limit. */
+export interface ConnectorGrantLimits {
+  actions: string[] | null;
+  fixedArguments: Record<string, unknown> | null;
+}
+
+const NO_LIMITS: ConnectorGrantLimits = { actions: null, fixedArguments: null };
 
 /** Which agents may use which labelled company accounts: the CEO all active ones by role, others one per toolkit by grant. */
 export class ConnectorGrantsService {
   constructor(private readonly db: DatabaseSync) {}
 
-  grant(input: { orgId: string; agentId: string; toolkitSlug: string; accountLabel: string | null; grantedByType: "agent" | "employee"; grantedById: string | null }): string {
+  grant(input: { orgId: string; agentId: string; toolkitSlug: string; accountLabel: string | null; limits: ConnectorGrantLimits; grantedByType: "agent" | "employee"; grantedById: string | null }): string {
     const agent = this.db.prepare("select id from agents where id = ? and org_id = ? and lifecycle = 'active'")
       .get(input.agentId, input.orgId);
     if (!agent) throw new Error("Grant target must be an active agent in this organization.");
     const slug = normalizeSlug(input.toolkitSlug);
     const label = this.chooseAccount(input.orgId, slug, input.accountLabel).label;
+    const actions = input.limits.actions === null ? null : JSON.stringify(normalizeActionNames(input.limits.actions));
+    const fixed = input.limits.fixedArguments === null ? null : JSON.stringify(input.limits.fixedArguments);
     this.db.prepare(`
-      insert into agent_connector_grants(id, org_id, agent_id, toolkit_slug, account_label, granted_by_type, granted_by_id, created_at)
-      values (?, ?, ?, ?, ?, ?, ?, ?)
+      insert into agent_connector_grants(id, org_id, agent_id, toolkit_slug, account_label, allowed_actions, fixed_arguments, granted_by_type, granted_by_id, created_at)
+      values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       on conflict(org_id, agent_id, toolkit_slug) do update set
         account_label = excluded.account_label,
+        allowed_actions = excluded.allowed_actions,
+        fixed_arguments = excluded.fixed_arguments,
         granted_by_type = excluded.granted_by_type,
         granted_by_id = excluded.granted_by_id
-    `).run(createId("cgr"), input.orgId, input.agentId, slug, label, input.grantedByType, input.grantedById, new Date().toISOString());
+    `).run(createId("cgr"), input.orgId, input.agentId, slug, label, actions, fixed, input.grantedByType, input.grantedById, new Date().toISOString());
     return label;
   }
 
@@ -78,6 +92,15 @@ export class ConnectorGrantsService {
     return account;
   }
 
+  /** The limits this agent works under on a toolkit; the CEO has none. */
+  limitsForAgent(orgId: string, agentId: string, toolkitSlug: string): ConnectorGrantLimits {
+    if (this.isCeo(orgId, agentId)) return NO_LIMITS;
+    const row = this.db.prepare("select allowed_actions, fixed_arguments from agent_connector_grants where org_id = ? and agent_id = ? and toolkit_slug = ?")
+      .get(orgId, agentId, normalizeSlug(toolkitSlug)) as { allowed_actions: string | null; fixed_arguments: string | null } | undefined;
+    if (!row) throw new Error(`You have no grant for the "${toolkitSlug}" connector. Ask the CEO to grant it to you (grant_connector).`);
+    return parseLimits(row.allowed_actions, row.fixed_arguments);
+  }
+
   activeAccounts(orgId: string): ConnectorAccountRow[] {
     const rows = this.db.prepare(`
       select id, org_id, toolkit_slug, toolkit_name, label, status
@@ -97,12 +120,19 @@ export class ConnectorGrantsService {
 
   grantsForOrg(orgId: string): ConnectorGrantRow[] {
     const rows = this.db.prepare(`
-      select id, org_id, agent_id, toolkit_slug, account_label
+      select id, org_id, agent_id, toolkit_slug, account_label, allowed_actions, fixed_arguments
       from agent_connector_grants
       where org_id = ?
       order by toolkit_slug asc
-    `).all(orgId) as Array<{ id: string; org_id: string; agent_id: string; toolkit_slug: string; account_label: string }>;
-    return rows.map((row) => ({ id: row.id, orgId: row.org_id, agentId: row.agent_id, toolkitSlug: row.toolkit_slug, accountLabel: row.account_label }));
+    `).all(orgId) as Array<{ id: string; org_id: string; agent_id: string; toolkit_slug: string; account_label: string; allowed_actions: string | null; fixed_arguments: string | null }>;
+    return rows.map((row) => ({
+      id: row.id,
+      orgId: row.org_id,
+      agentId: row.agent_id,
+      toolkitSlug: row.toolkit_slug,
+      accountLabel: row.account_label,
+      limits: parseLimits(row.allowed_actions, row.fixed_arguments),
+    }));
   }
 
   /** The named active account of a toolkit, or its only one; several accounts with no name is an error that lists them. */
@@ -131,6 +161,46 @@ export function normalizeSlug(slug: string): string {
   const normalized = slug.trim().toLowerCase();
   if (!normalized) throw new Error("Toolkit slug is required.");
   return normalized;
+}
+
+/** Why a call breaks a grant's limits, or null when it keeps them; an action that cannot take a fixed argument could reach past it, so it is refused. */
+export function grantLimitRefusal(
+  limits: ConnectorGrantLimits,
+  toolkit: string,
+  action: { name: string; parameters: Record<string, unknown> },
+  input: Record<string, unknown>,
+): string | null {
+  const name = action.name.toUpperCase();
+  if (limits.actions && !limits.actions.includes(name)) {
+    return `Your grant for ${toolkit} allows only ${limits.actions.join(", ")}; ${name} is not among them.`;
+  }
+  const properties = (action.parameters.properties ?? {}) as Record<string, unknown>;
+  for (const [key, value] of Object.entries(limits.fixedArguments ?? {})) {
+    if (!Object.hasOwn(properties, key)) return `Your grant for ${toolkit} is limited to ${key}=${JSON.stringify(value)}, and ${name} takes no ${key}.`;
+    if (!Object.hasOwn(input, key)) return `Your grant for ${toolkit} is limited to ${key}=${JSON.stringify(value)}; pass ${key} with that value.`;
+    if (canonicalJson(input[key]) !== canonicalJson(value)) {
+      return `Your grant for ${toolkit} is limited to ${key}=${JSON.stringify(value)}; this call has ${key}=${JSON.stringify(input[key])}.`;
+    }
+  }
+  return null;
+}
+
+/** Whether a grant's action list lets an agent see an action at all. */
+export function grantAllowsAction(limits: ConnectorGrantLimits, actionName: string): boolean {
+  return limits.actions === null || limits.actions.includes(actionName.toUpperCase());
+}
+
+function normalizeActionNames(actions: string[]): string[] {
+  const names = actions.map((action) => action.trim().toUpperCase());
+  if (names.length === 0 || names.some((name) => !name)) throw new Error("actions must name at least one action, none blank.");
+  return [...new Set(names)];
+}
+
+function parseLimits(actions: string | null, fixedArguments: string | null): ConnectorGrantLimits {
+  return {
+    actions: actions === null ? null : JSON.parse(actions) as string[],
+    fixedArguments: fixedArguments === null ? null : JSON.parse(fixedArguments) as Record<string, unknown>,
+  };
 }
 
 /** Account labels are trimmed and lower-case so "Sales" and "sales " name the same account. */

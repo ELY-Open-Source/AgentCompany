@@ -175,13 +175,42 @@ describe("agents reach every action through search and run", () => {
     h.connection.close();
   });
 
+  test("a grant limited to some actions and one resource shows and runs only those", async () => {
+    const withRepo = (slug: string, description: string) => ({ slug, name: slug, description, input_parameters: { type: "object", properties: { repo: { type: "string" } } }, toolkit: { slug: "github" } });
+    pages.set("github:", { items: [withRepo("GITHUB_LIST_ISSUES", "list issues"), withRepo("GITHUB_CREATE_ISSUE", "create issue"), tool("GITHUB_LIST_ALL_REPOS")], next_cursor: null });
+    const h = company("ak_limits");
+    const staff = h.connection.transaction(() => {
+      const providerId = (h.connection.db.prepare("select id from providers where org_id = ? and provider_key = 'openai'").get(h.orgId) as { id: string }).id;
+      const id = new OrganizationService(h.connection.db).createAgent({ orgId: h.orgId, name: "Ada", role: "Engineer", department: "Engineering", modelProviderId: providerId, modelId: "gpt-5.4", budgetCents: 1000, managerAgentId: h.ceoId });
+      new ConnectorGrantsService(h.connection.db).grant({ orgId: h.orgId, agentId: id, toolkitSlug: "github", accountLabel: null, limits: { actions: ["github_list_issues", "GITHUB_LIST_ALL_REPOS"], fixedArguments: { repo: "site" } }, grantedByType: "agent", grantedById: h.ceoId });
+      return id;
+    });
+    const asAda = (name: string, args: Record<string, unknown>) => executeComposioTool(h.connection.db, h.keys, h.orgId, staff, { id: "c9", name, arguments: args });
+    const found = JSON.parse(await asAda("composio_find_actions", { query: "issue" })) as { matches: Array<{ action: string }> };
+    expect(found.matches.map((match) => match.action)).toEqual(["GITHUB_LIST_ISSUES"]);
+    expect(await asAda("composio_run_action", { action: "GITHUB_CREATE_ISSUE", arguments: { repo: "site" } }))
+      .toBe("ERROR: Your grant for github allows only GITHUB_LIST_ISSUES, GITHUB_LIST_ALL_REPOS; GITHUB_CREATE_ISSUE is not among them.");
+    expect(await asAda("composio_run_action", { action: "GITHUB_LIST_ISSUES", arguments: { repo: "secret" } }))
+      .toBe('ERROR: Your grant for github is limited to repo="site"; this call has repo="secret".');
+    expect(await asAda("composio_run_action", { action: "GITHUB_LIST_ISSUES", arguments: {} }))
+      .toBe('ERROR: Your grant for github is limited to repo="site"; pass repo with that value.');
+    expect(await asAda("composio_run_action", { action: "GITHUB_LIST_ALL_REPOS", arguments: {} }))
+      .toBe('ERROR: Your grant for github is limited to repo="site", and GITHUB_LIST_ALL_REPOS takes no repo.');
+    const sent = written.length;
+    expect(await asAda("composio_run_action", { action: "GITHUB_LIST_ISSUES", arguments: { repo: "site" } })).toBe(JSON.stringify({ number: 42 }));
+    expect(written.length).toBe(sent + 1);
+    // The CEO holds every action by role.
+    expect(await h.call("composio_run_action", { action: "GITHUB_CREATE_ISSUE", arguments: { repo: "other" } })).toBe(JSON.stringify({ number: 42 }));
+    h.connection.close();
+  });
+
   test("a grant revoked while the catalog loads stops the action, and a search is not journaled as work", async () => {
     pages.set("github:", { items: [tool("GITHUB_STAR_A_REPOSITORY")], next_cursor: null });
     const h = company("ak_revoke");
     const staff = h.connection.transaction(() => {
       const providerId = (h.connection.db.prepare("select id from providers where org_id = ? and provider_key = 'openai'").get(h.orgId) as { id: string }).id;
       const id = new OrganizationService(h.connection.db).createAgent({ orgId: h.orgId, name: "Ada", role: "Engineer", department: "Engineering", modelProviderId: providerId, modelId: "gpt-5.4", budgetCents: 1000, managerAgentId: h.ceoId });
-      new ConnectorGrantsService(h.connection.db).grant({ orgId: h.orgId, agentId: id, toolkitSlug: "github", accountLabel: null, grantedByType: "agent", grantedById: h.ceoId });
+      new ConnectorGrantsService(h.connection.db).grant({ orgId: h.orgId, agentId: id, toolkitSlug: "github", accountLabel: null, limits: { actions: null, fixedArguments: null }, grantedByType: "agent", grantedById: h.ceoId });
       return id;
     });
     const running = executeComposioTool(h.connection.db, h.keys, h.orgId, staff, { id: "c2", name: "composio_run_action", arguments: { action: "GITHUB_STAR_A_REPOSITORY", arguments: {} } });
