@@ -5,7 +5,10 @@ import type { ProviderCooldowns } from "./provider-cooldowns";
 import { assertExecutionApproval, createIsolationContext, loadWorkspace, requireAgentProvider, requireAssignedAgent, requireTask } from "./task-run-preparation";
 import { AuditService } from "./audit-service";
 
+/** Sessions that made no progress before a task stalls. */
 const TASK_RETRY_BUDGET = 3;
+/** Sessions of any kind before a task stalls, so endless busywork still stops. */
+const TASK_SESSION_CEILING = 12;
 
 /** Enqueues follow-up runs for open tasks each worker tick. */
 export class HeartbeatScheduler {
@@ -19,22 +22,7 @@ export class HeartbeatScheduler {
     private readonly notifyDataChanged: () => void,
   ) {}
 
-  /**
-   * Heartbeat: keeps every open assigned task of a heartbeat-enabled agent
-   * moving. A task is enqueued whenever it has no run in flight and its
-   * status is still open — a completed run that left the task open gets a
-   * follow-up session (the prompt carries the prior-run count), because a
-   * task is finished when it reaches done, not when a run happens to end.
-   * The retry budget bounds this: at most TASK_RETRY_BUDGET non-transient
-   * runs per task, then it parks for a human or manager to intervene.
-   *
-   * Three rules keep the loop self-healing when a provider stops serving:
-   * tasks on a provider over its monthly window are parked (not enqueued into
-   * certain failure), tasks on a provider inside a transient-failure cooldown
-   * wait it out, and transient failures (usage/rate limits, overload) never
-   * count toward the retry budget. Raising a limit — or the provider's own
-   * window resetting — therefore resumes work without a restart.
-   */
+  /** Queues the next session of open work; stalls a task after sessions without progress or too many in all; transient provider failures never count. */
   enqueueHeartbeatRuns(): string[] {
     const window = currentProviderUsageWindow();
     const nowIso = new Date(this.now()).toISOString();
@@ -62,19 +50,26 @@ export class HeartbeatScheduler {
     `).all(window.start, nowIso) as Array<{ task_id: string; org_id: string; provider_id: string; agent_id: string; interval_sec: number }>;
     this.observeQuotaBlocks(window.start);
     const cooling = new Set(this.cooldowns.cooledProviderIds());
-    const attemptMessages = this.db.prepare(`
-      select r.error_message from task_runs r join tasks t on t.id = r.task_id
-      where r.task_id = ? and r.state not in ('superseded', 'stopped') and r.rowid > t.run_budget_floor
+    const sessionsOf = this.db.prepare(`
+      select r.error_message,
+        exists (select 1 from run_actions a where a.run_id = r.id and a.result_excerpt not like 'ERROR%') as progressed
+      from task_runs r join tasks t on t.id = r.task_id
+      where r.task_id = ? and r.state not in ('superseded', 'stopped', 'queued', 'running') and r.rowid > t.run_budget_floor
     `);
     const created: string[] = [];
     const pacedAgents = new Set<string>();
     for (const row of rows) {
       if (cooling.has(row.provider_id)) continue;
       if (row.interval_sec > 0 && pacedAgents.has(row.agent_id)) continue;
-      const attempts = (attemptMessages.all(row.task_id) as Array<{ error_message: string | null }>)
-        .filter((run) => !isTransientProviderFailure(run.error_message)).length;
-      if (attempts >= TASK_RETRY_BUDGET) {
-        this.markStalled(row.org_id, row.task_id);
+      const sessions = (sessionsOf.all(row.task_id) as Array<{ error_message: string | null; progressed: number }>)
+        .filter((run) => !isTransientProviderFailure(run.error_message));
+      const stuck = sessions.filter((run) => run.progressed === 0).length;
+      if (stuck >= TASK_RETRY_BUDGET) {
+        this.markStalled(row.org_id, row.task_id, `${TASK_RETRY_BUDGET} sessions made no progress`);
+        continue;
+      }
+      if (sessions.length >= TASK_SESSION_CEILING) {
+        this.markStalled(row.org_id, row.task_id, `${TASK_SESSION_CEILING} sessions ran without reaching done`);
         continue;
       }
       try {
@@ -88,8 +83,8 @@ export class HeartbeatScheduler {
   }
 
   /** Records once, on the task itself, that it spent its run budget without reaching done. */
-  private markStalled(orgId: string, taskId: string): void {
-    const reason = `Stalled: ${TASK_RETRY_BUDGET} sessions ran without reaching done. Edit, reassign or reopen the task to give it a fresh budget.`;
+  private markStalled(orgId: string, taskId: string, why: string): void {
+    const reason = `Stalled: ${why}. Edit, reassign or reopen the task to give it a fresh budget.`;
     const marked = this.db.prepare("update tasks set stalled_reason = ? where id = ? and stalled_reason is null").run(reason, taskId);
     if (marked.changes === 0) return;
     const task = this.db.prepare("select title from tasks where id = ?").get(taskId) as { title: string };

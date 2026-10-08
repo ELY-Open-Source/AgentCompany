@@ -727,7 +727,7 @@ describe("task execution service", () => {
     spendRun(); spendRun(); spendRun();
     expect(connection.transaction(() => execution.enqueueHeartbeatRuns())).toEqual([]);
     const stalled = connection.db.prepare("select status, stalled_reason from tasks where id = ?").get(taskId) as { status: string; stalled_reason: string };
-    expect(stalled).toEqual({ status: "in_progress", stalled_reason: "Stalled: 3 sessions ran without reaching done. Edit, reassign or reopen the task to give it a fresh budget." });
+    expect(stalled).toEqual({ status: "in_progress", stalled_reason: "Stalled: 3 sessions made no progress. Edit, reassign or reopen the task to give it a fresh budget." });
     expect(connection.db.prepare("select count(*) as n from audit_events where entity_id = ? and action = 'stalled'").get(taskId)).toEqual({ n: 1 });
     expect(notified).toBe(1);
 
@@ -740,6 +740,42 @@ describe("task execution service", () => {
     organization.updateTaskStatus(orgId, taskId, TASK_STATUS.IN_PROGRESS);
     const reopened = connection.db.prepare("select stalled_reason, run_budget_floor = (select max(rowid) from task_runs) as fresh from tasks where id = ?").get(taskId);
     expect(reopened).toEqual({ stalled_reason: null, fresh: 1 });
+    connection.close();
+  });
+
+  test("sessions that make progress do not spend the run budget, up to a ceiling of sessions", () => {
+    const connection = createConnection();
+    const organization = new OrganizationService(connection.db);
+    const providers = new ProviderService(connection.db, providerAdapters, testVault);
+    const execution = new TaskExecutionService(connection.db, providers);
+    let orgId = "";
+    let taskId = "";
+    connection.transaction(() => {
+      orgId = organization.createOrganization({ organizationName: "Acme", employeeName: "Dana Lee", mission: "m", goal: "g" });
+      const providerId = openAiProviderId(connection, orgId);
+      providers.saveCredential({ orgId, providerId, secret: "sk-live-provider", model: "gpt-5.4" });
+      const agentId = organization.createAgent({
+        orgId, name: "Ada", role: "Engineer", department: "Engineering", modelProviderId: providerId, modelId: "gpt-5.4",
+        budgetCents: 10000, managerAgentId: null, heartbeatEnabled: true,
+      });
+      taskId = organization.createTask({
+        orgId, title: "Big build", description: "d", status: TASK_STATUS.IN_PROGRESS, assigneeAgentId: agentId,
+        risk: RISK_LEVEL.LOW, projectId: null, goalId: null, workspaceId: null, priority: TASK_PRIORITY.NORMAL, requiresFilesystem: false,
+      });
+    });
+    const productiveSession = (): boolean => {
+      const [runId] = connection.transaction(() => execution.enqueueHeartbeatRuns());
+      if (!runId) return false;
+      connection.db.prepare("update task_runs set state = 'completed' where id = ?").run(runId);
+      connection.db.prepare("insert into run_actions(id, org_id, run_id, task_id, tool_name, arguments_excerpt, result_excerpt, created_at) values (?, ?, ?, ?, 'write_deliverable', '{}', 'Wrote src/app.ts', ?)")
+        .run(`rac_${runId}`, orgId, runId, taskId, new Date().toISOString());
+      return true;
+    };
+    let sessions = 0;
+    while (productiveSession()) sessions += 1;
+    expect(sessions).toBe(12);
+    expect(connection.db.prepare("select stalled_reason from tasks where id = ?").get(taskId))
+      .toEqual({ stalled_reason: "Stalled: 12 sessions ran without reaching done. Edit, reassign or reopen the task to give it a fresh budget." });
     connection.close();
   });
 

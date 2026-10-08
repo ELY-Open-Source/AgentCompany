@@ -11,6 +11,7 @@ import { fitContextBudget } from "./context-budget";
 import { throwIfRunStopped, untilStopped } from "./run-control";
 
 const MAX_ITERATIONS = 12;
+const STEP_LIMIT_TEXT = "I used this session's steps and will continue in the next one.";
 
 export interface AgentRunLoopInput {
   orgId: string;
@@ -35,6 +36,8 @@ export interface AgentRunLoopResult {
   iterations: number;
   toolCallCount: number;
   lastRequestId: string;
+  /** The session was still working when it reached the step limit; the task continues next session. */
+  hitStepLimit: boolean;
 }
 
 export interface AgentRunLoopDeps {
@@ -60,6 +63,7 @@ export async function runAgentLoop(deps: AgentRunLoopDeps, input: AgentRunLoopIn
   const messages: AgentTurnMessage[] = [{ role: "user", text: input.initialUserTurn }];
   let toolCallCount = 0;
   let lastRequestId = "";
+  let lastText = "";
 
   for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration += 1) {
     const compaction = compactToolHistory(messages);
@@ -96,9 +100,10 @@ export async function runAgentLoop(deps: AgentRunLoopDeps, input: AgentRunLoopIn
         messages.push({ role: "assistant", text: turn.text, toolCalls: [] }, { role: "user", text: lateMessages });
         continue;
       }
-      return { finalText: turn.text, iterations: iteration, toolCallCount, lastRequestId };
+      return { finalText: turn.text, iterations: iteration, toolCallCount, lastRequestId, hitStepLimit: false };
     }
 
+    lastText = turn.text.trim() || lastText;
     messages.push({ role: "assistant", text: turn.text, toolCalls: turn.toolCalls });
     const results: Array<{ toolCallId: string; toolName: string; output: string }> = [];
     for (const call of turn.toolCalls) {
@@ -136,7 +141,9 @@ export async function runAgentLoop(deps: AgentRunLoopDeps, input: AgentRunLoopIn
     deps.onToolResults?.();
   }
 
-  throw new Error(`Agent run did not converge within ${MAX_ITERATIONS} iterations.`);
+  // Still working at the limit: end as a checkpoint; the next session picks up from the run journal.
+  console.info(`[run-loop] reached the ${MAX_ITERATIONS}-step limit with work in progress; ending the session as a checkpoint`);
+  return { finalText: lastText || STEP_LIMIT_TEXT, iterations: MAX_ITERATIONS, toolCallCount, lastRequestId, hitStepLimit: true };
 }
 
 function shouldAnnounceTaskAssignment(call: { name: string; arguments: Record<string, unknown> }, toolCalls: Array<{ name: string; arguments: Record<string, unknown> }>): boolean {

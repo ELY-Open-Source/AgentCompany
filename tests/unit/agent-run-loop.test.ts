@@ -234,4 +234,28 @@ describe("agent run loop (real tool dispatch)", () => {
     )).rejects.toThrow(/empty turn/);
     connection.close();
   });
+
+  test("a session still working at the step limit ends as a checkpoint instead of failing", async () => {
+    const connection = new DatabaseConnection(join(tmpdir(), `ac-loop4-${randomUUID()}.db`));
+    const organization = new OrganizationService(connection.db);
+    let orgId = "";
+    let ceoId = "";
+    let providerId = "";
+    connection.transaction(() => {
+      orgId = organization.createOrganization({ organizationName: "OrbitOps", employeeName: "Yang", mission: "m", goal: "g" });
+      providerId = (connection.db.prepare("select id from providers where org_id = ? and provider_key = 'openai'").get(orgId) as { id: string }).id;
+      ceoId = organization.createAgent({ orgId, name: "CEO", role: "CEO", department: "Executive", modelProviderId: providerId, modelId: "gpt-5.4", budgetCents: 25000, managerAgentId: null });
+    });
+    const ctx: AgentToolContext = {
+      orgId, agent: { id: ceoId, modelProviderId: providerId, modelId: "gpt-5.4" },
+      taskProjectId: null, taskGoalId: null, taskId: null, sourceThreadId: null, workspace: null,
+    };
+    const busy = Array.from({ length: 40 }, (_, index) => ({ text: index === 11 ? "Still building." : "", toolCalls: [call("read_messages", {})] }));
+    const result = await runAgentLoop(
+      { providers: fakeProvider(busy, connection.db), tools: { db: connection.db, organization, chat: new ChatService(connection.db) } },
+      { orgId, providerId, inputBudgetTokens: 112_000, workspaceId: null, instructions: "i", initialUserTurn: "u", toolContext: ctx },
+    );
+    expect(result).toMatchObject({ iterations: 12, toolCallCount: 12, hitStepLimit: true, finalText: "Still building." });
+    connection.close();
+  });
 });

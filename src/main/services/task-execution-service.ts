@@ -246,7 +246,8 @@ export class TaskExecutionService {
       // in plain text instead of calling send_message, deliver that text into
       // the source thread BEFORE the run may complete — a delivery failure
       // fails the run rather than closing it on silence.
-      if (chatContext) {
+      // A checkpoint is unfinished work: no stand-in reply, and a chat wake stays open for its next session.
+      if (chatContext && !result.hitStepLimit) {
         const delivered = deliverChatReplyIfMissing(this.db, this.chat, {
           orgId,
           agentId: agent.id,
@@ -257,7 +258,7 @@ export class TaskExecutionService {
         });
         if (delivered) this.notifyDataChanged();
       }
-      this.completeRun(orgId, runId, result.lastRequestId);
+      this.completeRun(orgId, runId, result.lastRequestId, result.hitStepLimit);
       this.cooldowns.clear(provider);
       if (task.origin === null) recordRunMemory(this.db, { orgId, runId, projectId: task.project_id, taskTitle: task.title, outcome: "completed", text: result.finalText });
       this.audit.record({
@@ -274,6 +275,7 @@ export class TaskExecutionService {
           providerRequestId: result.lastRequestId,
           iterations: result.iterations,
           toolCalls: result.toolCallCount,
+          hitStepLimit: result.hitStepLimit,
           executionContextId: isolation.executionContextId,
           serviceIdentityId: isolation.serviceIdentityId,
           skillRuntimeSnapshotId: skillRuntimeSnapshot?.id ?? null,
@@ -398,13 +400,13 @@ export class TaskExecutionService {
     return row?.language === "zh" ? "zh" : "en";
   }
 
-  private completeRun(orgId: string, runId: string, providerRequestId: string): void {
+  private completeRun(orgId: string, runId: string, providerRequestId: string, checkpoint: boolean): void {
     this.db.prepare(`
       update task_runs
       set state = ?, provider_request_id = ?, completed_at = ?, error_message = null
       where id = ? and org_id = ?
     `).run(TASK_RUN_STATE.COMPLETED, providerRequestId, new Date().toISOString(), runId, orgId);
-    this.closeChatWakeTask(orgId, runId);
+    if (!checkpoint) this.closeChatWakeTask(orgId, runId);
   }
 
   /**
@@ -414,9 +416,9 @@ export class TaskExecutionService {
    * enqueued again) and pile zombie "Reply to ..." rows onto the board.
    */
   private closeChatWakeTask(orgId: string, runId: string): void {
-    const run = this.db.prepare("select task_id, trigger from task_runs where id = ? and org_id = ?")
-      .get(runId, orgId) as { task_id: string; trigger: string } | undefined;
-    if (!run || run.trigger !== "chat_mention") return;
+    const run = this.db.prepare("select r.task_id, t.origin from task_runs r join tasks t on t.id = r.task_id where r.id = ? and r.org_id = ?")
+      .get(runId, orgId) as { task_id: string; origin: string | null } | undefined;
+    if (!run || run.origin !== "chat_wake") return;
     const task = this.db.prepare("select status from tasks where id = ? and org_id = ?")
       .get(run.task_id, orgId) as { status: string } | undefined;
     if (!task || (task.status !== TASK_STATUS.BACKLOG && task.status !== TASK_STATUS.IN_PROGRESS)) return;
