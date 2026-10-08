@@ -62,6 +62,20 @@ export class OrgGovernanceService {
     return { reviewRequired: input.budgetCents > policy.require_approval_above_cents, departmentName };
   }
 
+  /** c_suite is the CEO's rank and carries company-wide powers: one per company, and no edit grants or removes it. */
+  assertRank(orgId: string, agentId: string | null, nextLevel: string): void {
+    const current = agentId
+      ? (this.db.prepare("select role_level from agents where id = ? and org_id = ?").get(agentId, orgId) as { role_level: string } | undefined)?.role_level ?? null
+      : null;
+    if (current === "c_suite" && nextLevel !== "c_suite") {
+      throw new Error("The CEO's rank carries company-wide powers (hiring officers, granting connectors and skills, closing goals) and cannot be changed by an edit.");
+    }
+    if (nextLevel !== "c_suite" || current === "c_suite") return;
+    if (agentId) throw new Error("The CEO's rank carries company-wide powers and cannot be given by an edit; officers are directors with a title.");
+    const ceo = this.db.prepare("select 1 from agents where org_id = ? and role_level = 'c_suite' and lifecycle in ('active', 'pending_hire')").get(orgId);
+    if (ceo) throw new Error("The company already has its CEO; officers are directors with a title.");
+  }
+
   /** An existing agent moving department or changing budget meets the same limits a hire does. */
   enforceStaffingChange(input: { orgId: string; agentId: string; departmentName: string; budgetCents: number }): void {
     const policy = this.db.prepare("select max_headcount, monthly_budget_limit_cents from hiring_policies where org_id = ? and department_name = ?")

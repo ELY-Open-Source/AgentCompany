@@ -95,6 +95,7 @@ export class OrganizationService {
   createAgent(input: CreateAgentInput): string {
     assertUsableMentionName(input.name);
     this.assertAgentNameAvailable(input.orgId, input.name, null);
+    this.governance.assertRank(input.orgId, null, input.roleLevel ?? "staff");
     const hiringPolicy = this.governance.enforceHiringPolicy(input);
     const id = createId("agt");
     const now = new Date().toISOString();
@@ -184,6 +185,7 @@ export class OrganizationService {
         .get(input.modelProviderId, input.orgId) as { id: string } | undefined;
       if (!provider) throw new Error("Agent provider was not found.");
     }
+    this.governance.assertRank(input.orgId, input.agentId, input.roleLevel.trim() || "staff");
     const department = this.governance.requireCanonicalDepartment(input.orgId, input.department);
     const budgetCents = Math.max(0, Math.round(input.budgetCents));
     this.governance.enforceStaffingChange({ orgId: input.orgId, agentId: input.agentId, departmentName: department, budgetCents });

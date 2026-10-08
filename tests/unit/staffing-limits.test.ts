@@ -37,4 +37,30 @@ describe("staffing limits on edits", () => {
     expect(() => edit("Design", 1000)).toThrow("Design is at its headcount limit (1).");
     connection.close();
   });
+
+  test("the CEO's rank is one per company and no edit grants or removes it", () => {
+    const connection = new DatabaseConnection(join(tmpdir(), `ac-rank-${randomUUID()}.db`));
+    const organization = new OrganizationService(connection.db);
+    let orgId = "";
+    connection.transaction(() => {
+      orgId = organization.createOrganization({ organizationName: "Acme", employeeName: "Dana", mission: "m", goal: "g" });
+    });
+    const hire = (name: string, roleLevel: string) => organization.createAgent({
+      orgId, name, role: name, department: "Executive", modelProviderId: null, modelId: null, budgetCents: 1000, managerAgentId: null, roleLevel,
+    });
+    const ceo = hire("Chief", "c_suite");
+    expect(() => hire("Rival", "c_suite")).toThrow("The company already has its CEO; officers are directors with a title.");
+    const cto = hire("Cora", "director");
+    const edit = (agentId: string, roleLevel: string) => organization.updateAgent({
+      orgId, agentId, role: "Exec", title: "Exec", roleLevel, department: "Executive", budgetCents: 1000, modelProviderId: null, modelId: null,
+    });
+    expect(() => edit(cto, "c_suite")).toThrow("The CEO's rank carries company-wide powers and cannot be given by an edit; officers are directors with a title.");
+    expect(() => edit(ceo, "director")).toThrow("The CEO's rank carries company-wide powers (hiring officers, granting connectors and skills, closing goals) and cannot be changed by an edit.");
+    edit(ceo, "c_suite");
+    edit(cto, "lead");
+    expect(connection.db.prepare("select name, role_level from agents where org_id = ? order by name").all(orgId)).toEqual([
+      { name: "Chief", role_level: "c_suite" }, { name: "Cora", role_level: "lead" },
+    ]);
+    connection.close();
+  });
 });

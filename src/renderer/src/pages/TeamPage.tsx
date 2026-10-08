@@ -162,7 +162,6 @@ export function TeamPage({ snapshot, actions }: PageProps) {
             <option value="staff">{t("Staff")}</option>
             <option value="lead">{t("Lead")}</option>
             <option value="director">{t("Director")}</option>
-            <option value="c_suite">{t("Executive")}</option>
           </select>
         </Field>
       </Dialog>
@@ -185,12 +184,19 @@ export function TeamPage({ snapshot, actions }: PageProps) {
             <input className="input" name="modelId" defaultValue={editingAgent.modelId ?? ""} list="agent-model-suggestions" />
           </Field>
           <Field label={t("Seniority")}>
-            <select className="input" name="roleLevel" defaultValue={editingAgent.roleLevel}>
-              <option value="staff">{t("Staff")}</option>
-              <option value="lead">{t("Lead")}</option>
-              <option value="director">{t("Director")}</option>
-              <option value="c_suite">{t("Executive")}</option>
-            </select>
+            {/* The CEO's rank carries company-wide powers, so it is shown, never picked. */}
+            {editingAgent.roleLevel === "c_suite" ? (
+              <>
+                <input type="hidden" name="roleLevel" value="c_suite" />
+                <div style={{ fontSize: 13, color: "var(--text-2)" }}>{t("CEO: hires officers, grants connectors and skills, and closes goals. This rank cannot be changed.")}</div>
+              </>
+            ) : (
+              <select className="input" name="roleLevel" defaultValue={editingAgent.roleLevel}>
+                <option value="staff">{t("Staff")}</option>
+                <option value="lead">{t("Lead")}</option>
+                <option value="director">{t("Director")}</option>
+              </select>
+            )}
           </Field>
         </Dialog>
       )}

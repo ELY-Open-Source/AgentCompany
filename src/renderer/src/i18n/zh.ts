@@ -391,6 +391,7 @@ export const zh: Record<string, string> = {
   "Changed since approval": "批准后已改动",
   "Removed since approval": "批准后已删除",
   "Goal audit": "目标审查",
+  "CEO: hires officers, grants connectors and skills, and closes goals. This rank cannot be changed.": "CEO：招聘高管、授予连接器和技能、关闭目标。此职级不可更改。",
   "An independent model checks every goal before it closes. Pick one your agents do not use, ideally from another provider.": "每个目标关闭前都由一个独立模型检查。请选择 Agent 不使用的模型，最好来自另一家服务商。",
   "No auditor is set, so goals cannot be closed yet.": "尚未设置审查模型，目标暂时无法关闭。",
   "Choose a provider": "选择服务商",
