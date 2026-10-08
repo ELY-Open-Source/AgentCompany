@@ -135,14 +135,17 @@ export const AGENT_TOOLS: ToolDefinition[] = [
   },
   {
     name: "read_messages",
-    description: "Read recent messages from a channel, a direct conversation, or (with no arguments) the mentions you have not answered in their thread yet. Check what your teammates have been saying before you respond or start work.",
+    description: "Read messages from a channel, a direct conversation, or one thread — newest first page, with before= to page back and query= to search — or, with no arguments, the mentions you have not answered in their thread yet.",
     parameters: {
       type: "object",
       additionalProperties: false,
       properties: {
         channel: { type: "string", description: "Channel name: 'engineering', 'product', 'general'." },
         with: { type: "string", description: "Teammate name to read your direct conversation with, e.g. 'CEO'." },
-        limit: { type: "number", description: "Number of recent messages (default 10, max 30)." },
+        thread_id: { type: "string", description: "Read one thread, e.g. a thread_id from a message or handoff." },
+        before: { type: "string", description: "Page back: the message_id a previous page told you to pass, or a UTC ISO timestamp." },
+        query: { type: "string", description: "Only messages containing this text (case-insensitive)." },
+        limit: { type: "number", description: "Number of messages (default 10, max 30)." },
       },
       required: [],
     },

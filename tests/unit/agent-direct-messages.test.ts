@@ -153,6 +153,6 @@ describe("agent direct messages", () => {
     dispatchAgentTool(deps, h.ctx, call("send_message", { to: "Dana", body: "Morning - priorities for today are in the doc." }));
     const readBack = dispatchAgentTool(deps, h.ctx, call("read_messages", { with: "Dana" }));
     expect(readBack).toContain("priorities for today");
-    expect(readBack).toContain("[CEO]");
+    expect(readBack).toMatch(/\] CEO \(thread=/);
   });
 });
