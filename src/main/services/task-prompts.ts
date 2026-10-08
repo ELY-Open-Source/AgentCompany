@@ -128,7 +128,7 @@ function capabilityBriefing(input: AgentInstructionContext): string {
   const lines: string[] = [];
   if (input.connectorNames.length > 0) {
     lines.push(
-      `Connected external services you carry in this run: ${input.connectorNames.join(", ")}. Their tools arrive with the composio_ prefix — use them directly whenever the work touches those platforms instead of describing what you would do.`,
+      `Connected external services you carry in this run: ${input.connectorNames.join(", ")}. Reach every action they offer with composio_find_actions (search in a few words) and composio_run_action (run the one you found) whenever the work touches those platforms, instead of describing what you would do.`,
     );
   }
   lines.push(

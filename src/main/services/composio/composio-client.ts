@@ -63,15 +63,20 @@ export class ComposioClient {
     return configs;
   }
 
+  /** Every tool of each toolkit, page by page; an agent's actions must not depend on where a list happens to stop. */
   async getTools(toolkits: string[]): Promise<ComposioToolSchema[]> {
     const all: ComposioToolSchema[] = [];
     for (const toolkit of toolkits) {
-      const params = new URLSearchParams({ toolkit_slug: toolkit, limit: "20" });
-      const url = `${BASE_URL}/tools?${params.toString()}`;
-      const response = await this.request("GET", url);
-      if (Array.isArray(response.items)) {
-        all.push(...(response.items as Array<Record<string, unknown>>).map(normalizeToolSchema));
-      }
+      let cursor: string | null = null;
+      do {
+        const params = new URLSearchParams({ toolkit_slug: toolkit, limit: "100" });
+        if (cursor) params.set("cursor", cursor);
+        const response = await this.request("GET", `${BASE_URL}/tools?${params.toString()}`);
+        const items = Array.isArray(response.items) ? response.items as Array<Record<string, unknown>> : [];
+        all.push(...items.map(normalizeToolSchema));
+        cursor = typeof response.next_cursor === "string" && response.next_cursor ? response.next_cursor : null;
+        if (items.length === 0) break;
+      } while (cursor);
     }
     return all;
   }

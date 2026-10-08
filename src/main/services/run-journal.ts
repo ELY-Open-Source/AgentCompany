@@ -4,7 +4,7 @@ import type { ToolCall } from "./provider-tool-turn";
 
 /** Tools that only look; everything else changes the company or the world and is journaled. */
 const READ_ONLY_TOOLS = new Set([
-  "company_status", "fetch_url", "list_connectors", "list_documents", "list_files", "list_skills",
+  "company_status", "composio_find_actions", "fetch_url", "list_connectors", "list_documents", "list_files", "list_skills",
   "read_attachment", "read_document", "read_file", "read_messages", "search_knowledge", "web_search",
 ]);
 const JOURNAL_LINES = 40;

@@ -79,7 +79,7 @@ describe("agent instructions", () => {
       language: "en",
     });
     expect(text).toContain("Connected external services you carry in this run: Stripe");
-    expect(text).toContain("composio_ prefix");
+    expect(text).toContain("composio_find_actions");
     expect(text).toContain("list_connectors");
     expect(text).toContain("list_skills");
     expect(text).not.toContain("You run this company");

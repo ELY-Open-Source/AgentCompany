@@ -31,7 +31,7 @@ function ceoHarness() {
 describe("composio tool loading", () => {
   test("an agent without connector access loads no tools and needs no key", async () => {
     const { connection, orgId, ceoId } = ceoHarness();
-    await expect(loadComposioTools(connection.db, new IntegrationKeyStore(connection.db, plainVault), orgId, ceoId)).resolves.toEqual([]);
+    expect(loadComposioTools(connection.db, new IntegrationKeyStore(connection.db, plainVault), orgId, ceoId)).toEqual([]);
     connection.close();
   });
 
@@ -42,7 +42,7 @@ describe("composio tool loading", () => {
       insert into connector_accounts(id, org_id, toolkit_slug, toolkit_name, auth_config_id, status, created_at, updated_at)
       values ('ca_1', ?, 'gmail', 'Gmail', 'ac_1', 'ACTIVE', ?, ?)
     `).run(orgId, now, now);
-    await expect(loadComposioTools(connection.db, new IntegrationKeyStore(connection.db, plainVault), orgId, ceoId)).rejects.toThrow("no Composio API key is saved");
+    expect(() => loadComposioTools(connection.db, new IntegrationKeyStore(connection.db, plainVault), orgId, ceoId)).toThrow("no Composio API key is saved");
     connection.close();
   });
 });

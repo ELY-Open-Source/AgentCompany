@@ -207,7 +207,7 @@ export class TaskExecutionService {
       const language = this.appLanguage();
       // Baseline taken before any await, so a goal closed while tools load still reaches the session.
       const goalChanges = createGoalChangePoller(this.db, task.goal_id);
-      const externalTools = await loadComposioTools(this.db, this.providers.integrationKeys, orgId, agent.id);
+      const externalTools = loadComposioTools(this.db, this.providers.integrationKeys, orgId, agent.id);
       const result = await runAgentLoop(
         {
           providers: this.providers,
