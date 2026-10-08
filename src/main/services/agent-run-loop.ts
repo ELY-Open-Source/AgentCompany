@@ -6,7 +6,7 @@ import { executeWorkspaceTool, isWorkspaceTool, WORKSPACE_TOOLS } from "./agent-
 import { canonicalMentionHandle } from "../../shared/mention-handles";
 import type { AgentTurnMessage, ToolDefinition } from "./provider-tool-turn";
 import { isComposioTool, executeComposioTool } from "./composio/composio-tool-bridge";
-import { compactToolHistory } from "./run-context-compaction";
+import { capToolOutput, compactToolHistory } from "./run-context-compaction";
 import { fitContextBudget } from "./context-budget";
 
 const MAX_ITERATIONS = 12;
@@ -114,7 +114,7 @@ export async function runAgentLoop(deps: AgentRunLoopDeps, input: AgentRunLoopIn
           announceTaskAssignments: shouldAnnounceTaskAssignment(call, turn.toolCalls),
         });
       }
-      results.push({ toolCallId: call.id, toolName: call.name, output });
+      results.push({ toolCallId: call.id, toolName: call.name, output: capToolOutput(call.name, output) });
     }
     const followUp = input.pollNewMessages?.();
     messages.push(followUp ? { role: "tool", results, followUp } : { role: "tool", results });

@@ -33,6 +33,8 @@ export interface ComposioToolExecutionResult {
   error: string | null;
 }
 
+const MAX_RESPONSE_BYTES = 2_000_000;
+
 export class ComposioClient {
   constructor(private readonly apiKey: string) {}
 
@@ -155,10 +157,24 @@ export class ComposioClient {
       request.setHeader("Accept", "application/json");
       if (body) request.setHeader("Content-Type", "application/json");
 
-      let responseData = "";
+      const chunks: Buffer[] = [];
+      let received = 0;
+      let aborted = false;
       request.on("response", (response) => {
-        response.on("data", (chunk) => { responseData += chunk.toString(); });
+        response.on("data", (chunk) => {
+          if (aborted) return;
+          received += chunk.length;
+          if (received > MAX_RESPONSE_BYTES) {
+            aborted = true;
+            request.abort();
+            reject(new Error(`Composio API ${method} ${url} returned more than ${MAX_RESPONSE_BYTES} bytes; ask for fewer items or narrower fields.`));
+            return;
+          }
+          chunks.push(chunk);
+        });
         response.on("end", () => {
+          if (aborted) return;
+          const responseData = Buffer.concat(chunks).toString("utf8");
           if (response.statusCode === 404 && options?.tolerateNotFound) {
             resolve({});
             return;

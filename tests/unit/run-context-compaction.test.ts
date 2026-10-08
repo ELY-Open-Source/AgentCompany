@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, test } from "vitest";
-import { compactToolHistory } from "../../src/main/services/run-context-compaction";
+import { capToolOutput, compactToolHistory } from "../../src/main/services/run-context-compaction";
 import { runAgentLoop } from "../../src/main/services/agent-run-loop";
 import { DatabaseConnection } from "../../src/main/database/connection";
 import { OrganizationService } from "../../src/main/services/organization-service";
@@ -82,5 +82,12 @@ describe("tool history compaction", () => {
     expect(outputs.slice(0, 2).every((output) => output.startsWith("[Earlier result of read_messages elided"))).toBe(true);
     expect(outputs.slice(2).every((output) => output.includes("y".repeat(3000)))).toBe(true);
     connection.close();
+  });
+
+  test("every tool result is capped with a note that names the tool and the full size", () => {
+    expect(capToolOutput("composio_gmail_list", "short")).toBe("short");
+    const capped = capToolOutput("composio_gmail_list", "r".repeat(40_000));
+    expect(capped.length).toBeLessThan(26_200);
+    expect(capped.endsWith("[result of composio_gmail_list cut at 26000 of 40000 characters; ask for less (filters, pagination, fewer fields)]")).toBe(true);
   });
 });

@@ -3,6 +3,14 @@ import type { AgentTurnMessage } from "./provider-tool-turn";
 const KEEP_RECENT_TOOL_TURNS = 3;
 const ELIDE_ABOVE_CHARS = 600;
 const PREVIEW_CHARS = 300;
+const TOOL_RESULT_CHAR_LIMIT = 26_000;
+
+/** One tool result never exceeds the per-result cap. */
+export function capToolOutput(toolName: string, output: string): string {
+  if (output.length <= TOOL_RESULT_CHAR_LIMIT) return output;
+  console.warn(`[run-loop] ${toolName} returned ${output.length} chars; cut to ${TOOL_RESULT_CHAR_LIMIT}`);
+  return `${output.slice(0, TOOL_RESULT_CHAR_LIMIT)}\n\n[result of ${toolName} cut at ${TOOL_RESULT_CHAR_LIMIT} of ${output.length} characters; ask for less (filters, pagination, fewer fields)]`;
+}
 
 /** Older tool results shrink to a preview; the latest turns stay verbatim. */
 export function compactToolHistory(messages: AgentTurnMessage[], keepRecent = KEEP_RECENT_TOOL_TURNS): { messages: AgentTurnMessage[]; elided: number } {
