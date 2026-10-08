@@ -34,7 +34,7 @@ describe("thread participant wake", () => {
     const deps = { db: connection.db, organization, chat };
     const ctx: AgentToolContext = {
       orgId, agent: { id: ceoId, modelProviderId: providerId, modelId: "gpt-5.4" },
-      taskProjectId: null, taskGoalId: null, workspace: null,
+      taskProjectId: null, taskGoalId: null, taskId: null, sourceThreadId: null, workspace: null,
     };
 
     const firstResult = dispatchAgentTool(deps, ctx, call("send_message", { channel: "general", body: "The plan is ready for review." }));

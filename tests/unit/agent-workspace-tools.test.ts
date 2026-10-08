@@ -30,7 +30,7 @@ function ctx(writeAccess: boolean): AgentToolContext {
     orgId: "org_test",
     agent: { id: "agt_test", modelProviderId: null, modelId: null },
     taskProjectId: null,
-    taskGoalId: null,
+    taskGoalId: null, taskId: null, sourceThreadId: null,
     workspace: { id: "wsp_test", localPath: workspaceRoot, writeAccess },
   };
 }
@@ -91,7 +91,7 @@ describe("agent workspace tools", () => {
     const deps = { db: connection.db, organization, chat: new ChatService(connection.db) };
     const toolCtx: AgentToolContext = {
       orgId, agent: { id: ceoId, modelProviderId: providerId, modelId: "gpt-5.4" },
-      taskProjectId: null, taskGoalId: null, workspace: null,
+      taskProjectId: null, taskGoalId: null, taskId: null, sourceThreadId: null, workspace: null,
     };
 
     const result = dispatchAgentTool(deps, toolCtx, call("create_task", {

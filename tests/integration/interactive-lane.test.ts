@@ -82,7 +82,7 @@ describe("interactive execution lane", () => {
     // Older autonomous work: the CEO DMs Dana, waking her.
     dispatchAgentTool({ db: connection.db, organization, chat }, {
       orgId, agent: { id: ceoId, modelProviderId: null, modelId: null },
-      taskProjectId: null, taskGoalId: null, workspace: null,
+      taskProjectId: null, taskGoalId: null, taskId: null, sourceThreadId: null, workspace: null,
     }, call("send_message", { to: "Dana", body: "Grind through the migration backlog." }));
 
     // Newer interactive work: the founder DMs the CEO.
@@ -169,7 +169,7 @@ describe("interactive execution lane", () => {
     // Autonomous work that will trip the transient failure and park the provider.
     dispatchAgentTool({ db: connection.db, organization, chat }, {
       orgId, agent: { id: ceoId, modelProviderId: null, modelId: null },
-      taskProjectId: null, taskGoalId: null, workspace: null,
+      taskProjectId: null, taskGoalId: null, taskId: null, sourceThreadId: null, workspace: null,
     }, call("send_message", { to: "Dana", body: "Grind through the migration backlog." }));
 
     const stopWorker = startTaskQueueWorker({
@@ -232,7 +232,7 @@ describe("interactive execution lane", () => {
     const taskExecution = new TaskExecutionService(connection.db, providers);
     const wakeDana = () => dispatchAgentTool({ db: connection.db, organization, chat }, {
       orgId, agent: { id: ceoId, modelProviderId: null, modelId: null },
-      taskProjectId: null, taskGoalId: null, workspace: null,
+      taskProjectId: null, taskGoalId: null, taskId: null, sourceThreadId: null, workspace: null,
     }, call("send_message", { to: "Dana", body: "Grind through the migration backlog." }));
 
     wakeDana();

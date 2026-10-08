@@ -29,7 +29,7 @@ describe("agent messaging", () => {
     const deps = { db: connection.db, organization, chat: new ChatService(connection.db) };
     const ctx: AgentToolContext = {
       orgId, agent: { id: ceoId, modelProviderId: null, modelId: null },
-      taskProjectId: null, taskGoalId: null, workspace: null,
+      taskProjectId: null, taskGoalId: null, taskId: null, sourceThreadId: null, workspace: null,
     };
 
     const first = dispatchAgentTool(deps, ctx, call("send_message", { channel: "engineering", body: "Assigning the booking API to Dana." }));
@@ -85,7 +85,7 @@ describe("agent messaging", () => {
     const deps = { db: connection.db, organization, chat: new ChatService(connection.db) };
     const ctx: AgentToolContext = {
       orgId, agent: { id: ceoId, modelProviderId: null, modelId: null },
-      taskProjectId: null, taskGoalId: null, workspace: null,
+      taskProjectId: null, taskGoalId: null, taskId: null, sourceThreadId: null, workspace: null,
     };
 
     const result = dispatchAgentTool(deps, ctx, call("send_message", { channel: "engineering", body: "@Dana can you take this?" }));

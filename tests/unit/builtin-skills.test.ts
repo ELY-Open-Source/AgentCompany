@@ -162,7 +162,7 @@ describe("built-in skills", () => {
       orgId: h.orgId,
       agent: { id: ceoId, modelProviderId: providerId, modelId: "gpt-5.4" },
       taskProjectId: null,
-      taskGoalId: null,
+      taskGoalId: null, taskId: null, sourceThreadId: null,
       workspace: null,
     };
     const deps = { db: h.connection.db, organization: h.organization, chat: new ChatService(h.connection.db) };

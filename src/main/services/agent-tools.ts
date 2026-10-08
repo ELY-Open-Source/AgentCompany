@@ -2,6 +2,7 @@ import type { DatabaseSync } from "node:sqlite";
 import { RISK_LEVEL, TASK_PRIORITY, TASK_STATUS, type RiskLevel } from "../../shared/domain";
 import { ORGANIZATION_DEPARTMENTS } from "./org-governance-service";
 import type { OrganizationService } from "./organization-service";
+import { buildTaskHandoff, HANDOFF_TOOL_PROPERTIES } from "./agent-task-handoff";
 import type { ChatService } from "./chat-service";
 import { canonicalMentionHandle } from "../../shared/mention-handles";
 import { readMessagesTool } from "./agent-read-messages";
@@ -23,6 +24,9 @@ export interface AgentToolContext {
   agent: { id: string; modelProviderId: string | null; modelId: string | null };
   taskProjectId: string | null;
   taskGoalId: string | null;
+  /** The task this run executes. */
+  taskId: string | null;
+  sourceThreadId: string | null;
   /** writeAccess mirrors the task's approved filesystem grant (read_write mount) and gates run_command. */
   workspace: { id: string; localPath: string; writeAccess: boolean } | null;
 }
@@ -64,7 +68,7 @@ export const AGENT_TOOLS: ToolDefinition[] = [
   },
   {
     name: "create_task",
-    description: "Create a task for the team and optionally assign it to one of your reports by name.",
+    description: "Create a task for the team and optionally assign it to one of your reports by name. Hand over what you know: acceptance criteria, upstream file_ids, verified facts, and open questions.",
     parameters: {
       type: "object",
       additionalProperties: false,
@@ -77,6 +81,7 @@ export const AGENT_TOOLS: ToolDefinition[] = [
           type: "boolean",
           description: "Set true for engineering work that must change code or run commands (build, test) in the workspace. The assignee then gets run_command; the operator approves such tasks before they execute.",
         },
+        ...HANDOFF_TOOL_PROPERTIES,
       },
       required: ["title", "description"],
     },
@@ -306,6 +311,7 @@ function createTask(deps: AgentToolDeps, ctx: AgentToolContext, args: JsonRecord
   const description = requireString(args.description, "description");
   const assigneeName = optionalString(args.assignee_agent_name);
   const assignee = assigneeName ? requireRunnableAgentByName(deps.db, ctx.orgId, assigneeName) : null;
+  const handoff = buildTaskHandoff(deps.db, ctx.orgId, { taskId: ctx.taskId, threadId: ctx.sourceThreadId }, args);
   const create = () => {
     const taskId = deps.organization.createTask({
       orgId: ctx.orgId,
@@ -320,6 +326,7 @@ function createTask(deps: AgentToolDeps, ctx: AgentToolContext, args: JsonRecord
       priority: TASK_PRIORITY.NORMAL,
       requiresFilesystem: args.requires_filesystem === true,
     });
+    deps.db.prepare("update tasks set handoff_json = ? where id = ?").run(JSON.stringify(handoff), taskId);
     const assignmentThread = options.announceTaskAssignments !== false && assignee && assignee.id !== ctx.agent.id
       ? postAssignmentMessage(deps, ctx, { taskId, title, description, assignee })
       : null;

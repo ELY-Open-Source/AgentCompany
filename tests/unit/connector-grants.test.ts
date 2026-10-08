@@ -44,7 +44,7 @@ function harness(): Harness {
     orgId,
     agent: { id: agentId, modelProviderId: null, modelId: null },
     taskProjectId: null,
-    taskGoalId: null,
+    taskGoalId: null, taskId: null, sourceThreadId: null,
     workspace: null,
   });
   return {

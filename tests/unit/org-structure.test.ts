@@ -31,7 +31,7 @@ describe("org structure", () => {
       orgId,
       agent: { id: agentId, modelProviderId: providerId, modelId: "gpt-5.4" },
       taskProjectId: null,
-      taskGoalId: null,
+      taskGoalId: null, taskId: null, sourceThreadId: null,
       workspace: null,
     });
 

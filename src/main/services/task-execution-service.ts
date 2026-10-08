@@ -24,6 +24,7 @@ import {
   type TaskRunIsolation,
   type WorkspaceRow,
 } from "./task-prompts";
+import { renderTaskHandoff } from "./agent-task-handoff";
 import { loadComposioTools } from "./composio/composio-tool-bridge";
 import { connectorDisplayName } from "./composio/connector-brands";
 import { ConnectorGrantsService } from "./composio/connector-grants";
@@ -133,14 +134,16 @@ export class TaskExecutionService {
     let skillRuntimeSnapshot: SkillRuntimeSnapshotRow | null = null;
     try {
       skillRuntimeSnapshot = this.resolveSkillRuntimeSnapshot(orgId, agent.id, runId);
+      const chatContext = this.loadChatContext(orgId, isolation);
       const toolContext: AgentToolContext = {
         orgId,
         agent: { id: agent.id, modelProviderId: agent.model_provider_id, modelId: agent.model_id },
         taskProjectId: task.project_id,
         taskGoalId: task.goal_id,
+        taskId: task.id,
+        sourceThreadId: chatContext?.threadId ?? null,
         workspace: workspace ? { id: workspace.id, localPath: workspace.local_path, writeAccess: task.requires_filesystem === 1 } : null,
       };
-      const chatContext = this.loadChatContext(orgId, isolation);
       // The CEO is the c_suite role — the same predicate the grant system
       // enforces — not "has no manager", which any board hire can match.
       const isCeo = agent.role_level === "c_suite";
@@ -177,6 +180,7 @@ export class TaskExecutionService {
             hasReports,
             managerName: this.agentName(orgId, agent.manager_agent_id),
             chatContext,
+            handoffLines: renderTaskHandoff(this.db, orgId, task.handoff_json),
             priorCompletedRuns: this.completedRunCount(task.id, runId),
           }),
           toolContext,

@@ -50,7 +50,7 @@ describe("queue claim priority", () => {
     dispatchAgentTool(deps, {
       orgId: h.orgId,
       agent: { id: h.ceoId, modelProviderId: null, modelId: null },
-      taskProjectId: null, taskGoalId: null, workspace: null,
+      taskProjectId: null, taskGoalId: null, taskId: null, sourceThreadId: null, workspace: null,
     }, { id: `call_${randomUUID()}`, name: "send_message", arguments: { to: "Dana", body: "Status?" } });
     const danaRun = h.connection.db.prepare(
       "select id from task_runs where org_id = ? and agent_id = ? and trigger = 'chat_mention'",

@@ -57,7 +57,7 @@ function harness(options: { enableProvider: boolean }): Harness {
       orgId,
       agent: { id: ceoId, modelProviderId: null, modelId: null },
       taskProjectId: null,
-      taskGoalId: null,
+      taskGoalId: null, taskId: null, sourceThreadId: null,
       workspace: null,
     },
   };

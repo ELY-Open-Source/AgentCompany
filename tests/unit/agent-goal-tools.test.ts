@@ -70,7 +70,7 @@ function argsFor(h: Harness, agentId: string, auditor: Auditor, toolCall: ToolCa
     orgId: h.orgId,
     agent: { id: agentId, modelProviderId: h.providerId, modelId: "gpt-5.4" },
     taskProjectId: null,
-    taskGoalId: h.goalId,
+    taskGoalId: h.goalId, taskId: null, sourceThreadId: null,
     workspace: { id: "wsp_audit", localPath: workspaceRoot, writeAccess: true },
   };
   return { deps: h.deps, ctx, providers: { runToolTurn: auditor }, providerId: h.providerId, workspaceId: null, call: toolCall };
@@ -158,7 +158,7 @@ function toolCtx(h: Harness, agentId: string): AgentToolContext {
     orgId: h.orgId,
     agent: { id: agentId, modelProviderId: h.providerId, modelId: "gpt-5.4" },
     taskProjectId: null,
-    taskGoalId: null,
+    taskGoalId: null, taskId: null, sourceThreadId: null,
     workspace: null,
   };
 }

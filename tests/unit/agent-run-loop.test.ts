@@ -66,7 +66,7 @@ describe("agent run loop (real tool dispatch)", () => {
       orgId,
       agent: { id: ceoId, modelProviderId: providerId, modelId: "gpt-5.4" },
       taskProjectId: null,
-      taskGoalId: null,
+      taskGoalId: null, taskId: null, sourceThreadId: null,
       workspace: { id: workspaceId, localPath: workspaceRoot, writeAccess: true },
     };
 
@@ -139,7 +139,7 @@ describe("agent run loop (real tool dispatch)", () => {
     });
     const ctx: AgentToolContext = {
       orgId, agent: { id: ceoId, modelProviderId: providerId, modelId: "gpt-5.4" },
-      taskProjectId: null, taskGoalId: null, workspace: { id: "wsp", localPath: workspaceRoot, writeAccess: true },
+      taskProjectId: null, taskGoalId: null, taskId: null, sourceThreadId: null, workspace: { id: "wsp", localPath: workspaceRoot, writeAccess: true },
     };
     const script: ScriptedTurn[] = [
       { text: "escape", toolCalls: [call("write_deliverable", { path: "../escape.txt", content: "x" })] },
@@ -174,7 +174,7 @@ describe("agent run loop (real tool dispatch)", () => {
     });
     const ctx: AgentToolContext = {
       orgId, agent: { id: ceoId, modelProviderId: providerId, modelId: "gpt-5.4" },
-      taskProjectId: null, taskGoalId: null, workspace: null,
+      taskProjectId: null, taskGoalId: null, taskId: null, sourceThreadId: null, workspace: null,
     };
     const script: ScriptedTurn[] = [
       { text: "staff", toolCalls: [call("hire_agent", { name: "Alex Rivera", role: "Engineer", department: "Engineering" })] },
@@ -226,7 +226,7 @@ describe("agent run loop (real tool dispatch)", () => {
     });
     const ctx: AgentToolContext = {
       orgId, agent: { id: ceoId, modelProviderId: providerId, modelId: "gpt-5.4" },
-      taskProjectId: null, taskGoalId: null, workspace: null,
+      taskProjectId: null, taskGoalId: null, taskId: null, sourceThreadId: null, workspace: null,
     };
     await expect(runAgentLoop(
       { providers: fakeProvider([{ text: "", toolCalls: [] }], connection.db), tools: { db: connection.db, organization, chat: new ChatService(connection.db) } },

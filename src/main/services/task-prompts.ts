@@ -13,6 +13,7 @@ export interface TaskExecutionTaskRow {
   workspace_id: string | null;
   priority: string;
   requires_filesystem: number;
+  handoff_json: string | null;
 }
 
 export interface TaskExecutionAgentRow {
@@ -163,6 +164,7 @@ export function buildTaskPrompt(input: {
   hasReports: boolean;
   managerName: string | null;
   chatContext: ChatContextBlock | null;
+  handoffLines: string[];
   /** Completed runs this task already spent without reaching done. */
   priorCompletedRuns: number;
 }): string {
@@ -194,6 +196,7 @@ export function buildTaskPrompt(input: {
       `Mounts: ${input.isolation.workspaceMountJson}`,
     );
   }
+  lines.push(...input.handoffLines);
   lines.push("", `Secret scope: ${input.isolation.secretScopeJson}`);
   if (input.skillRuntimeSnapshot) {
     lines.push(

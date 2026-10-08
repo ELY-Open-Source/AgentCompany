@@ -45,7 +45,7 @@ describe("mention resolution", () => {
     const deps = { db: connection.db, organization, chat: new ChatService(connection.db) };
     const ctx: AgentToolContext = {
       orgId, agent: { id: ceoId, modelProviderId: providerId, modelId: "gpt-5.4" },
-      taskProjectId: null, taskGoalId: null, workspace: null,
+      taskProjectId: null, taskGoalId: null, taskId: null, sourceThreadId: null, workspace: null,
     };
 
     const result = dispatchAgentTool(deps, ctx, call("send_message", {
@@ -79,7 +79,7 @@ describe("mention resolution", () => {
     const deps = { db: connection.db, organization, chat: new ChatService(connection.db) };
     const ctx: AgentToolContext = {
       orgId, agent: { id: ceoId, modelProviderId: null, modelId: null },
-      taskProjectId: null, taskGoalId: null, workspace: null,
+      taskProjectId: null, taskGoalId: null, taskId: null, sourceThreadId: null, workspace: null,
     };
 
     dispatchAgentTool(deps, ctx, call("send_message", { channel: "general", body: "Hello team!" }));
@@ -113,14 +113,14 @@ describe("mention resolution", () => {
     const deps = { db: connection.db, organization, chat: new ChatService(connection.db) };
     const ceoCtx: AgentToolContext = {
       orgId, agent: { id: ceoId, modelProviderId: null, modelId: null },
-      taskProjectId: null, taskGoalId: null, workspace: null,
+      taskProjectId: null, taskGoalId: null, taskId: null, sourceThreadId: null, workspace: null,
     };
 
     dispatchAgentTool(deps, ceoCtx, call("send_message", { channel: "engineering", body: "@dana check the deployment" }));
 
     const danaCtx: AgentToolContext = {
       orgId, agent: { id: engineerId, modelProviderId: null, modelId: null },
-      taskProjectId: null, taskGoalId: null, workspace: null,
+      taskProjectId: null, taskGoalId: null, taskId: null, sourceThreadId: null, workspace: null,
     };
     const inbox = dispatchAgentTool(deps, danaCtx, call("read_messages", {}));
     expect(inbox).toContain("check the deployment");
