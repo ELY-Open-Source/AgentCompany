@@ -1,29 +1,27 @@
 import type { DatabaseSync } from "node:sqlite";
-import { RISK_LEVEL, TASK_STATUS, WRITING_MODE } from "../../shared/domain";
+import { APPROVAL_STATE, RISK_LEVEL, TASK_STATUS, WRITING_MODE } from "../../shared/domain";
 import { createId } from "../../shared/ids";
 import type { CreateAgentInput, CreateGoalInput, CreateOrganizationInput, CreateProjectInput, CreateTaskInput, CreateWorkspaceInput, DeleteTaskInput, UpdateAgentInput, UpdateEmployeeProfileInput, UpdateTaskInput } from "../../shared/commands";
 import { AuditService } from "./audit-service";
 import { ensureAgentHeartbeat, resolveGoalKickoff, type GoalKickoffPlan } from "./goal-kickoff";
 import { PolicyService } from "./policy-service";
-import { IdentityAccessService } from "./identity-access-service";
 import { OrgGovernanceService } from "./org-governance-service";
 import { assertUsableMentionName } from "../../shared/mention-handles";
 import { seedOrganization } from "./organization-seed";
 import { TaskMutations } from "./task-mutations";
 import { normalizeAvatarColor, normalizeAvatarImage } from "./avatar-values";
 import { approvalDecision, autonomy } from "./org-approvals";
+import { admitAgent } from "./agent-admission";
 
 export class OrganizationService {
   private readonly audit: AuditService;
   private readonly policy: PolicyService;
-  private readonly identityAccess: IdentityAccessService;
   private readonly governance: OrgGovernanceService;
   private readonly tasks: TaskMutations;
 
   constructor(private readonly db: DatabaseSync) {
     this.audit = new AuditService(db);
     this.policy = new PolicyService(db);
-    this.identityAccess = new IdentityAccessService(db);
     this.governance = new OrgGovernanceService(db);
     this.tasks = new TaskMutations(db, (input) => this.createTask(input));
   }
@@ -99,6 +97,10 @@ export class OrganizationService {
     const hiringPolicy = this.governance.enforceHiringPolicy(input);
     const id = createId("agt");
     const now = new Date().toISOString();
+    const autoApprove = autonomy(this.db, input.orgId).autoApproveHires;
+    const review = hiringPolicy.reviewRequired ? approvalDecision(this.db, input.orgId, autoApprove, now) : null;
+    // A hire waiting for review is not on staff: no runs, no channels, no service identity until approved.
+    const waitsForReview = review?.state === APPROVAL_STATE.PENDING;
     this.db.prepare(`
       insert into agents(
         id, org_id, name, role, department, model_provider_id, model_id,
@@ -121,7 +123,7 @@ export class OrganizationService {
       input.workspaceId ?? null,
       input.heartbeatEnabled === true ? 1 : 0,
       input.heartbeatIntervalSec ?? 0,
-      "active",
+      waitsForReview ? "pending_hire" : "active",
       now,
     );
     this.audit.record({
@@ -133,12 +135,10 @@ export class OrganizationService {
       action: "created",
       payload: { role: input.role, department: hiringPolicy.departmentName },
     });
-    this.addAgentToWorkspaceSpaces(input.orgId, id);
-    this.identityAccess.createAgentServiceIdentity(input.orgId, id, input.name, now);
-    if (hiringPolicy.reviewRequired) {
+    if (waitsForReview) console.info(`[hiring] ${input.name.trim()} (${id}) awaits hire approval`);
+    else admitAgent(this.db, input.orgId, id, input.name, now);
+    if (review) {
       const approvalId = createId("app");
-      const autoApprove = autonomy(this.db, input.orgId).autoApproveHires;
-      const decision = approvalDecision(this.db, input.orgId, autoApprove, now);
       this.db.prepare(`
         insert into approvals(
           id, org_id, kind, title, details, risk, requested_by_type,
@@ -155,10 +155,10 @@ export class OrganizationService {
         null,
         "agent",
         id,
-        decision.state,
-        decision.decidedBy,
+        review.state,
+        review.decidedBy,
         now,
-        decision.decidedAt,
+        review.decidedAt,
       );
       this.settleApproval(input.orgId, approvalId, "agent_hire", RISK_LEVEL.MEDIUM, autoApprove);
     }
@@ -341,22 +341,10 @@ export class OrganizationService {
   private assertAgentNameAvailable(orgId: string, name: string, exceptAgentId: string | null): void {
     const clash = this.db.prepare(`
       select id from agents
-      where org_id = ? and lifecycle = 'active' and lower(name) = lower(?) and (? is null or id <> ?)
+      where org_id = ? and lifecycle in ('active', 'pending_hire') and lower(name) = lower(?) and (? is null or id <> ?)
       limit 1
     `).get(orgId, name.trim(), exceptAgentId, exceptAgentId) as { id: string } | undefined;
-    if (clash) throw new Error(`An active agent named "${name.trim()}" already exists. Pick a different name.`);
-  }
-
-  private addAgentToWorkspaceSpaces(orgId: string, agentId: string): void {
-    const spaces = this.db.prepare("select id from chat_spaces where org_id = ? and visibility = ? and space_type <> ?")
-      .all(orgId, "workspace", "direct") as Array<{ id: string }>;
-    for (const space of spaces) {
-      this.db.prepare(`
-        insert into chat_memberships(space_id, principal_type, principal_id, role, mute_state)
-        values (?, ?, ?, ?, ?)
-        on conflict(space_id, principal_type, principal_id) do nothing
-      `).run(space.id, "agent", agentId, "member", "unmuted");
-    }
+    if (clash) throw new Error(`An agent named "${name.trim()}" is already on staff or awaiting approval. Pick a different name.`);
   }
 
   createGoal(input: CreateGoalInput): string {

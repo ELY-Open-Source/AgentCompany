@@ -337,6 +337,8 @@ function hireAgent(deps: AgentToolDeps, ctx: AgentToolContext, args: JsonRecord)
   const { granted, unknown } = bindSkillSlugs(deps, ctx.orgId, agentId, requestedSkills);
   const skillNote = granted.length > 0 ? ` They carry: ${granted.join(", ")} (plus the automatic humanizer house style).` : "";
   const unknownNote = unknown.length > 0 ? ` Unknown skills skipped: ${unknown.join(", ")} — run list_skills and grant_skill to fix.` : "";
+  const pending = (deps.db.prepare("select lifecycle from agents where id = ?").get(agentId) as { lifecycle: string }).lifecycle === "pending_hire";
+  if (pending) return `Requested ${name} as ${title} (${seniority}) in ${department} (agent_id=${agentId}); the hire awaits the board's approval, and they take no work until it is approved.${skillNote}${unknownNote}`;
   return `Hired ${name} as ${title} (${seniority}) in ${department}, reporting to you (agent_id=${agentId}).${skillNote}${unknownNote}`;
 }
 

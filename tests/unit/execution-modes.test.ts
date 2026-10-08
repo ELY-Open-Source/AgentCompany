@@ -7,6 +7,9 @@ import { DatabaseConnection } from "../../src/main/database/connection";
 import { OrganizationService } from "../../src/main/services/organization-service";
 import { ChatService } from "../../src/main/services/chat-service";
 import { dispatchAgentTool, type AgentToolContext } from "../../src/main/services/agent-tools";
+import { ApprovalService } from "../../src/main/services/approval-service";
+import { requireAssignedAgent } from "../../src/main/services/task-run-preparation";
+import type { TaskExecutionTaskRow } from "../../src/main/services/task-prompts";
 
 function call(name: string, args: Record<string, unknown>) {
   return { id: `call_${randomUUID()}`, name, arguments: args };
@@ -112,5 +115,42 @@ describe("execution modes", () => {
       "select state from approvals where org_id = ? and kind = 'agent_hire' and title like '%Ava%'",
     ).get(ceoMode.orgId) as { state: string };
     expect(cleared.state).toBe("approved");
+  });
+
+  test("a hire held for review is not on staff until approved, and a declined one never is", () => {
+    const h = harness("ai_cofounder");
+    const db = h.connection.db;
+    const providerId = (db.prepare("select id from providers where org_id = ? and provider_key = 'openai'").get(h.orgId) as { id: string }).id;
+    const hire = (name: string) => h.connection.transaction(() => h.deps.organization.createAgent({
+      orgId: h.orgId, name, role: "Designer", department: "Product",
+      modelProviderId: providerId, modelId: "gpt-5.4", budgetCents: 600000, managerAgentId: h.ceoId,
+    }));
+    const lifecycle = (id: string) => (db.prepare("select lifecycle from agents where id = ?").get(id) as { lifecycle: string }).lifecycle;
+    const identities = (id: string) => (db.prepare("select count(*) as n from service_identities where agent_id = ?").get(id) as { n: number }).n;
+    const memberships = (id: string) => (db.prepare("select count(*) as n from chat_memberships where principal_type = 'agent' and principal_id = ?").get(id) as { n: number }).n;
+    const runAs = (id: string) => requireAssignedAgent(db, h.orgId, { assignee_agent_id: id } as TaskExecutionTaskRow);
+    const approvalOf = (name: string) => (db.prepare("select id from approvals where org_id = ? and kind = 'agent_hire' and title = ?").get(h.orgId, `Review hire: ${name}`) as { id: string }).id;
+    const employeeId = (db.prepare("select id from employees where org_id = ?").get(h.orgId) as { id: string }).id;
+    const approvals = new ApprovalService(db);
+
+    const ava = hire("Ava");
+    expect([lifecycle(ava), identities(ava), memberships(ava)]).toEqual(["pending_hire", 0, 0]);
+    expect(() => runAs(ava)).toThrow("Ava is not hired yet: the hire awaits approval.");
+    expect(() => hire("ava")).toThrow('An agent named "ava" is already on staff or awaiting approval. Pick a different name.');
+    const channel = h.connection.transaction(() => h.deps.chat.createSpace({ orgId: h.orgId, name: "design", topic: "t", spaceType: "project", visibility: "workspace" }));
+    expect(memberships(ava)).toBe(0);
+    expect(() => h.connection.transaction(() => h.deps.chat.createSpace({ orgId: h.orgId, name: "ava-room", topic: "t", spaceType: "project", visibility: "restricted", memberAgentIds: [ava] })))
+      .toThrow("Ava is not on staff, so cannot join a channel.");
+    expect(channel).toBeTruthy();
+    h.connection.transaction(() => approvals.decide({ orgId: h.orgId, approvalId: approvalOf("Ava"), state: "approved", decidedByEmployeeId: employeeId }));
+    expect(lifecycle(ava)).toBe("active");
+    expect(identities(ava)).toBe(1);
+    expect(memberships(ava)).toBeGreaterThan(0);
+    expect(runAs(ava).id).toBe(ava);
+
+    const bo = hire("Bo");
+    h.connection.transaction(() => approvals.decide({ orgId: h.orgId, approvalId: approvalOf("Bo"), state: "declined", decidedByEmployeeId: employeeId }));
+    expect([lifecycle(bo), identities(bo), memberships(bo)]).toEqual(["declined", 0, 0]);
+    expect(() => runAs(bo)).toThrow("Bo's hire was declined; reassign the task.");
   });
 });

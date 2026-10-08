@@ -31,6 +31,10 @@ describe("staffing limits on edits", () => {
     connection.db.prepare("update hiring_policies set monthly_budget_limit_cents = 100 where org_id = ? and department_name = 'Sales'").run(orgId);
     edit("Sales", 2000);
     expect(connection.db.prepare("select department, budget_cents from agents where id = ?").get(sam)).toEqual({ department: "Sales", budget_cents: 2000 });
+    // A hire awaiting approval already holds its place in the department.
+    connection.db.prepare("update agents set department = 'Sales' where name = 'Dee'").run();
+    connection.db.prepare("insert into agents(id, org_id, name, role, department, budget_cents, lifecycle, created_at) values ('agt_pending', ?, 'Pat', 'Staff', 'Design', 1000, 'pending_hire', ?)").run(orgId, new Date().toISOString());
+    expect(() => edit("Design", 1000)).toThrow("Design is at its headcount limit (1).");
     connection.close();
   });
 });

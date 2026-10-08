@@ -472,7 +472,8 @@ export class ChatService {
 
   private resolveWorkspaceMembers(orgId: string): PrincipalRef[] {
     const employees = this.db.prepare("select id from employees where org_id = ?").all(orgId) as Array<{ id: string }>;
-    const agents = this.db.prepare("select id from agents where org_id = ?").all(orgId) as Array<{ id: string }>;
+    // Only agents on staff join: a hire awaiting approval, a declined hire or an erased agent does not.
+    const agents = this.db.prepare("select id from agents where org_id = ? and lifecycle = 'active'").all(orgId) as Array<{ id: string }>;
     return [
       ...employees.map((employee) => ({ type: "employee" as const, id: employee.id })),
       ...agents.map((agent) => ({ type: "agent" as const, id: agent.id })),
@@ -486,7 +487,9 @@ export class ChatService {
       members.push({ type: "employee", id });
     }
     for (const id of new Set(input.memberAgentIds ?? [])) {
-      this.requireOrgEntity("agents", id, input.orgId, "Chat member");
+      const agent = this.db.prepare("select name, lifecycle from agents where id = ? and org_id = ?").get(id, input.orgId) as { name: string; lifecycle: string } | undefined;
+      if (!agent) throw new Error("Chat member was not found.");
+      if (agent.lifecycle !== "active") throw new Error(`${agent.name} is not on staff, so cannot join a channel.`);
       members.push({ type: "agent", id });
     }
     return members;

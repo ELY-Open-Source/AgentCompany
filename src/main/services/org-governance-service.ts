@@ -53,8 +53,8 @@ export class OrgGovernanceService {
     const usage = this.db.prepare(`
       select count(*) as headcount, coalesce(sum(budget_cents), 0) as budget_cents
       from agents
-      where org_id = ? and department = ? and lifecycle = ?
-    `).get(input.orgId, departmentName, "active") as { headcount: number; budget_cents: number };
+      where org_id = ? and department = ? and lifecycle in ('active', 'pending_hire')
+    `).get(input.orgId, departmentName) as { headcount: number; budget_cents: number };
     if (usage.headcount >= policy.max_headcount) throw new Error("Department headcount limit has been reached.");
     if (usage.budget_cents + input.budgetCents > policy.monthly_budget_limit_cents) {
       throw new Error("Department monthly budget limit has been reached.");
@@ -69,7 +69,7 @@ export class OrgGovernanceService {
     if (!policy) throw new Error("Hiring policy is required for department.");
     const others = this.db.prepare(`
       select count(*) as headcount, coalesce(sum(budget_cents), 0) as budget_cents
-      from agents where org_id = ? and department = ? and lifecycle = 'active' and id <> ?
+      from agents where org_id = ? and department = ? and lifecycle in ('active', 'pending_hire') and id <> ?
     `).get(input.orgId, input.departmentName, input.agentId) as { headcount: number; budget_cents: number };
     const current = this.db.prepare("select department, budget_cents from agents where id = ? and org_id = ?").get(input.agentId, input.orgId) as { department: string; budget_cents: number };
     const moving = current.department !== input.departmentName;

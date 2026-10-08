@@ -74,12 +74,12 @@ describe("identity editing", () => {
     expect(() => h.organization.createAgent({
       orgId: h.orgId, name: "dana lee", role: "Designer", department: "Design",
       modelProviderId: null, modelId: null, budgetCents: 1000, managerAgentId: h.agentId,
-    })).toThrow("already exists");
+    })).toThrow("is already on staff or awaiting approval");
     // Renaming the CEO onto that name is equally ambiguous.
     expect(() => h.organization.updateAgent({
       orgId: h.orgId, agentId: h.agentId, name: "Dana Lee", role: "CEO", title: "CEO",
       roleLevel: "c_suite", department: "Executive", budgetCents: 25000, modelProviderId: null, modelId: null,
-    })).toThrow("already exists");
+    })).toThrow("is already on staff or awaiting approval");
     // Saving without changing the name stays legal.
     h.connection.transaction(() => h.organization.updateAgent({
       orgId: h.orgId, agentId: h.agentId, name: "CEO", role: "CEO", title: "CEO",

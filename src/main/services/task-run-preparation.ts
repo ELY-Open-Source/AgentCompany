@@ -25,11 +25,14 @@ export function requireTask(db: DatabaseSync, orgId: string, taskId: string): Ta
 export function requireAssignedAgent(db: DatabaseSync, orgId: string, task: TaskExecutionTaskRow): TaskExecutionAgentRow {
   if (!task.assignee_agent_id) throw new Error("Task requires an assigned agent.");
   const agent = db.prepare(`
-    select id, name, role, department, title, role_level, model_provider_id, model_id, manager_agent_id
+    select id, name, role, department, title, role_level, model_provider_id, model_id, manager_agent_id, lifecycle
     from agents
     where id = ? and org_id = ?
-  `).get(task.assignee_agent_id, orgId) as TaskExecutionAgentRow | undefined;
+  `).get(task.assignee_agent_id, orgId) as (TaskExecutionAgentRow & { lifecycle: string }) | undefined;
   if (!agent) throw new Error("Task assignee was not found.");
+  if (agent.lifecycle === "pending_hire") throw new Error(`${agent.name} is not hired yet: the hire awaits approval.`);
+  if (agent.lifecycle === "declined") throw new Error(`${agent.name}'s hire was declined; reassign the task.`);
+  if (agent.lifecycle !== "active") throw new Error(`${agent.name} is no longer on staff; reassign the task.`);
   return agent;
 }
 

@@ -3,6 +3,7 @@ import type { CreateApprovalInput, DecideApprovalInput } from "../../shared/comm
 import { APPROVAL_STATE, ROLE_KEY } from "../../shared/domain";
 import { createId } from "../../shared/ids";
 import { AuditService } from "./audit-service";
+import { settleHire } from "./agent-admission";
 import { IdentityAccessService } from "./identity-access-service";
 import { OrgGovernanceService } from "./org-governance-service";
 
@@ -86,6 +87,11 @@ export class ApprovalService {
       where id = ? and org_id = ? and state = ?
     `).run(input.state, input.decidedByEmployeeId, now, notes, input.approvalId, input.orgId, APPROVAL_STATE.PENDING);
     if (result.changes === 0) throw new Error("Pending approval was not found.");
+    const approval = this.db.prepare("select kind, source_entity_type, source_entity_id from approvals where id = ?")
+      .get(input.approvalId) as { kind: string; source_entity_type: string | null; source_entity_id: string | null };
+    if (approval.kind === "agent_hire" && approval.source_entity_type === "agent" && approval.source_entity_id) {
+      settleHire(this.db, input.orgId, approval.source_entity_id, input.state === APPROVAL_STATE.APPROVED);
+    }
     this.audit.record({
       orgId: input.orgId,
       entityType: "approval",

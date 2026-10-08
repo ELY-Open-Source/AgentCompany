@@ -771,7 +771,7 @@ describe("chat governance", () => {
       organization.createAgent({ orgId, name: "Ada", role: "Reviewer", department: "Engineering", modelProviderId: null, modelId: null, budgetCents: 10000, managerAgentId: null });
       // The front door refuses duplicate names outright...
       expect(() => organization.createAgent({ orgId, name: "ada", role: "Release lead", department: "Engineering", modelProviderId: null, modelId: null, budgetCents: 10000, managerAgentId: null }))
-        .toThrow("already exists");
+        .toThrow("is already on staff or awaiting approval");
       // ...but a legacy database may already carry duplicates; mentions must
       // still refuse to guess between them.
       const secondId = organization.createAgent({ orgId, name: "Ada Backup", role: "Release lead", department: "Engineering", modelProviderId: null, modelId: null, budgetCents: 10000, managerAgentId: null });
