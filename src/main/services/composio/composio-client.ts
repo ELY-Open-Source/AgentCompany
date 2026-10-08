@@ -30,6 +30,8 @@ export interface ComposioConnectedAccount {
 export type ComposioToolExecutionResult = { successful: true; data: unknown } | { successful: false; error: string };
 
 const MAX_RESPONSE_BYTES = 2_000_000;
+const REQUEST_TIMEOUT_MS = 30_000;
+const EXECUTE_TIMEOUT_MS = 120_000;
 
 export class ComposioClient {
   constructor(private readonly apiKey: string) {}
@@ -139,7 +141,7 @@ export class ComposioClient {
       arguments: input.arguments,
     };
     if (input.connectedAccountId) body.connected_account_id = input.connectedAccountId;
-    const response = await this.request("POST", url, body);
+    const response = await this.request("POST", url, body, { timeoutMs: EXECUTE_TIMEOUT_MS });
     if (typeof response.successful !== "boolean") throw new Error(`Composio returned no execution status for ${input.toolName}.`);
     if (response.successful) return { successful: true, data: response.data };
     return { successful: false, error: typeof response.error === "string" && response.error.trim() ? response.error.trim() : "Composio gave no reason." };
@@ -149,58 +151,71 @@ export class ComposioClient {
     method: string,
     url: string,
     body?: Record<string, unknown>,
-    options?: { tolerateNotFound?: boolean },
+    options?: { tolerateNotFound?: boolean; timeoutMs?: number },
   ): Promise<Record<string, unknown>> {
+    const timeoutMs = options?.timeoutMs ?? REQUEST_TIMEOUT_MS;
     return new Promise((resolve, reject) => {
-      const request = net.request({ method, url });
       const runSignal = currentRunSignal();
       if (runSignal?.aborted) {
         reject(new Error(stopReasonOf(runSignal)));
         return;
       }
-      runSignal?.addEventListener("abort", () => {
+      const request = net.request({ method, url });
+      let settled = false;
+      const finish = (error: Error | null, value: Record<string, unknown> = {}) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        runSignal?.removeEventListener("abort", onStop);
+        if (!error) {
+          resolve(value);
+          return;
+        }
         request.abort();
-        reject(new Error(stopReasonOf(runSignal)));
-      }, { once: true });
+        reject(error);
+      };
+      const onStop = () => finish(new Error(stopReasonOf(runSignal!)));
+      const timer = setTimeout(() => {
+        console.warn(`[connectors] ${method} ${url} gave no answer within ${timeoutMs / 1000}s`);
+        finish(new Error(`Composio API ${method} ${url} gave no answer within ${timeoutMs / 1000}s.`));
+      }, timeoutMs);
+      runSignal?.addEventListener("abort", onStop, { once: true });
       request.setHeader("x-api-key", this.apiKey);
       request.setHeader("Accept", "application/json");
       if (body) request.setHeader("Content-Type", "application/json");
 
       const chunks: Buffer[] = [];
       let received = 0;
-      let aborted = false;
       request.on("response", (response) => {
         response.on("data", (chunk) => {
-          if (aborted) return;
+          if (settled) return;
           received += chunk.length;
           if (received > MAX_RESPONSE_BYTES) {
-            aborted = true;
-            request.abort();
-            reject(new Error(`Composio API ${method} ${url} returned more than ${MAX_RESPONSE_BYTES} bytes; ask for fewer items or narrower fields.`));
+            finish(new Error(`Composio API ${method} ${url} returned more than ${MAX_RESPONSE_BYTES} bytes; ask for fewer items or narrower fields.`));
             return;
           }
           chunks.push(chunk);
         });
         response.on("end", () => {
-          if (aborted) return;
+          if (settled) return;
           const responseData = Buffer.concat(chunks).toString("utf8");
           if (response.statusCode === 404 && options?.tolerateNotFound) {
-            resolve({});
+            finish(null);
             return;
           }
           if (response.statusCode && response.statusCode >= 400) {
-            reject(new Error(`Composio API ${method} ${url} returned ${response.statusCode}: ${responseData.slice(0, 200)}`));
+            finish(new Error(`Composio API ${method} ${url} returned ${response.statusCode}: ${responseData.slice(0, 200)}`));
             return;
           }
           try {
-            resolve(JSON.parse(responseData) as Record<string, unknown>);
+            finish(null, JSON.parse(responseData) as Record<string, unknown>);
           } catch {
-            reject(new Error(`Composio API returned non-JSON response: ${responseData.slice(0, 200)}`));
+            finish(new Error(`Composio API returned non-JSON response: ${responseData.slice(0, 200)}`));
           }
         });
-        response.on("error", reject);
+        response.on("error", (error) => finish(error));
       });
-      request.on("error", reject);
+      request.on("error", (error) => finish(error));
       if (body) request.write(JSON.stringify(body));
       request.end();
     });

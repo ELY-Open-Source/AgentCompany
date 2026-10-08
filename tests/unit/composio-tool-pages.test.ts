@@ -8,6 +8,7 @@ const requested: string[] = [];
 const written: string[] = [];
 const pages = new Map<string, Record<string, unknown>>();
 const executions = new Map<string, Record<string, unknown>>();
+const aborted: string[] = [];
 
 vi.mock("electron", () => ({
   net: {
@@ -15,9 +16,10 @@ vi.mock("electron", () => ({
       const request = new EventEmitter() as EventEmitter & { setHeader: () => void; write: (body: string) => void; end: () => void; abort: () => void };
       request.setHeader = () => undefined;
       request.write = (body: string) => { written.push(`${url} ${body}`); };
-      request.abort = () => undefined;
+      request.abort = () => { aborted.push(url); };
       request.end = () => {
         requested.push(url);
+        if (url.includes("/tools/execute/GITHUB_HANG")) return;
         const query = new URL(url).searchParams;
         const page = url.includes("/tools/execute/") ? executions.get(url.split("/tools/execute/")[1]) ?? { data: { number: 42 }, error: null, successful: true } : pages.get(`${query.get("toolkit_slug")}:${query.get("cursor") ?? ""}`);
         const response = new EventEmitter() as EventEmitter & { statusCode: number };
@@ -51,6 +53,23 @@ describe("a toolkit's tools are all listed", () => {
     expect(tools).toHaveLength(102);
     expect(tools.map((schema) => schema.name)).toContain("GITHUB_CREATE_PULL_REQUEST");
     expect(requested.map((url) => new URL(url).searchParams.get("limit"))).toEqual(["100", "100", "100"]);
+  });
+});
+
+describe("a Composio call that never answers", () => {
+  test("is given up after its time limit and its request is aborted", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      const pending = new ComposioClient("ak_hang").executeTool({ toolName: "GITHUB_HANG", arguments: {}, userId: "u" });
+      const outcome = pending.then(() => "answered", (error: Error) => error.message);
+      await vi.advanceTimersByTimeAsync(119_000);
+      expect(aborted.some((url) => url.includes("GITHUB_HANG"))).toBe(false);
+      await vi.advanceTimersByTimeAsync(1_000);
+      expect(await outcome).toBe("Composio API POST https://backend.composio.dev/api/v3/tools/execute/GITHUB_HANG gave no answer within 120s.");
+      expect(aborted.some((url) => url.includes("GITHUB_HANG"))).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

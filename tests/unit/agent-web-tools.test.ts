@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import { executeWebTool, htmlToText, isWebTool, parseSearchResults, WEB_TOOLS, type WebFetcher } from "../../src/main/services/agent-web-tools";
 import type { ToolCall } from "../../src/main/services/provider-tool-turn";
+import { stopRun, withRunControl } from "../../src/main/services/run-control";
 
 function call(name: string, args: Record<string, unknown>): ToolCall {
   return { id: `call_${randomUUID()}`, name, arguments: args };
@@ -60,6 +61,44 @@ describe("agent web tools", () => {
     expect(output).toContain("From $9/mo");
     expect(output).not.toContain("alert(1)");
     expect(output).toContain("status 200");
+  });
+
+  /** A page that sends its first bytes and then never finishes, until the request is aborted. */
+  const tricklingFetcher: WebFetcher = async (_url, init) => new Response(new ReadableStream({
+    start(stream) {
+      stream.enqueue(new TextEncoder().encode("<p>first"));
+      init.signal.addEventListener("abort", () => stream.error(init.signal.reason));
+    },
+  }), { status: 200, headers: { "content-type": "text/html" } });
+
+  test("a page that never finishes is given up after the time limit", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      const outcome = executeWebTool(call("fetch_url", { url: "http://93.184.216.34/slow" }), tricklingFetcher);
+      await vi.advanceTimersByTimeAsync(30_000);
+      expect(await outcome).toBe("ERROR: Fetching 93.184.216.34 failed: no answer within 30s.");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test("a redirect whose body never finishes is still followed", async () => {
+    const requested: string[] = [];
+    const fetcher: WebFetcher = async (url, init) => {
+      requested.push(url);
+      if (requested.length === 2) return new Response("<p>landed</p>", { status: 200, headers: { "content-type": "text/html" } });
+      const stalled = await tricklingFetcher(url, init);
+      return new Response(stalled.body, { status: 302, headers: { location: "http://93.184.216.35/final" } });
+    };
+    expect(await executeWebTool(call("fetch_url", { url: "http://93.184.216.34/start" }), fetcher)).toContain("landed");
+  });
+
+  test("stopping the run stops a fetch in progress", async () => {
+    const runId = `run_${randomUUID()}`;
+    const outcome = withRunControl(runId, () => executeWebTool(call("fetch_url", { url: "http://93.184.216.34/slow" }), tricklingFetcher));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    stopRun(runId);
+    expect(await outcome).toBe("ERROR: Fetching 93.184.216.34 failed: Stopped by the operator.");
   });
 
   test("a page or search answered with an error status is a failed call, not data", async () => {

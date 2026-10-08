@@ -1,6 +1,7 @@
 import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
 import { requireString } from "./agent-tool-args";
+import { currentRunSignal, stopReasonOf } from "./run-control";
 import type { ToolCall, ToolDefinition } from "./provider-tool-turn";
 import { PAGE_TOOL_PROPERTIES, pageText, readPageArgs, type PageRequest } from "./text-paging";
 
@@ -107,26 +108,37 @@ async function guardedFetch(rawUrl: string, fetcher: WebFetcher): Promise<Guarde
   for (let hop = 0; hop <= MAX_REDIRECTS; hop += 1) {
     const url = parseHttpUrl(current);
     await assertPublicHost(url.hostname);
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+    // The limit covers headers and body; a stopped run aborts the fetch too.
+    const timeout = new AbortController();
+    const timer = setTimeout(() => timeout.abort(), FETCH_TIMEOUT_MS);
+    const runSignal = currentRunSignal();
+    const signal = runSignal ? AbortSignal.any([timeout.signal, runSignal]) : timeout.signal;
     let response: Response;
+    let text = "";
+    let redirect: string | null = null;
     try {
       response = await fetcher(url.toString(), {
         headers: { "user-agent": USER_AGENT, accept: "text/html,application/xhtml+xml,text/plain,*/*" },
         redirect: "manual",
-        signal: controller.signal,
+        signal,
       });
+      const location = response.headers.get("location");
+      if (response.status >= 300 && response.status < 400 && location) {
+        redirect = new URL(location, url).toString();
+        await response.body?.cancel();
+      } else {
+        text = await readBodyCapped(response);
+      }
     } catch (error) {
-      throw new Error(`Fetching ${url.hostname} failed: ${error instanceof Error ? error.message : String(error)}`);
+      const reason = runSignal?.aborted ? stopReasonOf(runSignal) : timeout.signal.aborted ? `no answer within ${FETCH_TIMEOUT_MS / 1000}s.` : error instanceof Error ? error.message : String(error);
+      throw new Error(`Fetching ${url.hostname} failed: ${reason}`);
     } finally {
       clearTimeout(timer);
     }
-    const location = response.headers.get("location");
-    if (response.status >= 300 && response.status < 400 && location) {
-      current = new URL(location, url).toString();
+    if (redirect) {
+      current = redirect;
       continue;
     }
-    const text = await readBodyCapped(response);
     if (response.status < 200 || response.status >= 300) {
       throw new Error(`${url.toString()} answered with status ${response.status}: ${statusExcerpt(response.headers.get("content-type") ?? "", text)}`);
     }
