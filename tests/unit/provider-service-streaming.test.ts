@@ -182,6 +182,52 @@ describe("provider service streaming", () => {
   });
 });
 
+describe("cancelled streams", () => {
+  test("a cancelled stream stays cancelled when later events and the final result arrive", async () => {
+    const connection = createConnection();
+    const organization = new OrganizationService(connection.db);
+    const emitted: string[] = [];
+    let cancel = async () => {};
+    async function* liveEvents(): AsyncIterable<ProviderStreamEvent> {
+      yield event("text_delta", "Hel", "delta-1", "resp_live_2");
+      await cancel();
+      yield event("text_delta", "lo", "delta-2", "resp_live_2");
+      yield event("message_stop", null, "completed", "resp_live_2");
+    }
+    const adapters: ProviderAdapterRegistry = {
+      ...providerAdapters,
+      openai: {
+        ...providerAdapters.openai,
+        parseAuthProfile: (secret) => ({ type: "api_key", apiKey: secret.trim() }),
+        checkHealth: async () => ({ checkedAt: new Date().toISOString(), rateLimitState: null }),
+        streamResponse: async () => ({ events: liveEvents(), rateLimitState: null }),
+        cancelResponse: async ({ responseId }) => ({ responseId, rawResponseJson: JSON.stringify({ id: responseId, status: "cancelled" }), rateLimitState: null }),
+      },
+    };
+    const providers = new ProviderService(connection.db, adapters, testVault);
+    let orgId = "";
+    let openAiProviderId = "";
+    connection.transaction(() => {
+      orgId = createOrganization(organization);
+      openAiProviderId = providerId(connection, orgId, "openai");
+      providers.saveCredential({ orgId, providerId: openAiProviderId, secret: "sk-live-provider", model: "gpt-5.4" });
+    });
+    cancel = async () => {
+      const live = connection.db.prepare("select id from provider_requests where state = 'streaming'").get() as { id: string };
+      await providers.cancelResponse({ orgId, requestId: live.id });
+    };
+    const requestId = await providers.streamResponse({
+      orgId, providerId: openAiProviderId, prompt: "Draft", instructions: null, executionMode: PROVIDER_EXECUTION_MODE.FOREGROUND,
+    }, (streamEvent) => emitted.push(streamEvent.responseText));
+
+    expect(connection.db.prepare("select state, response_text from provider_requests where id = ?").get(requestId))
+      .toEqual({ state: PROVIDER_REQUEST_STATE.CANCELLED, response_text: "Hel" });
+    expect(emitted).toEqual(["Hel"]);
+    expect(connection.db.prepare("select count(*) as n from provider_usage_windows where org_id = ? and output_char_count > 0").get(orgId)).toEqual({ n: 0 });
+    connection.close();
+  });
+});
+
 async function* streamEvents(events: ProviderStreamEvent[]): AsyncIterable<ProviderStreamEvent> {
   for (const item of events) yield item;
 }

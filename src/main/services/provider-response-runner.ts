@@ -187,7 +187,7 @@ export class ProviderResponseRunner {
         if (event.textDelta) textParts.push(event.textDelta);
         const responseText = textParts.join("");
         const streamEventCount = rawEvents.length;
-        this.deps.requestStore.markStreaming({
+        const stillOpen = this.deps.requestStore.markStreaming({
           orgId: input.orgId,
           requestId,
           responseText,
@@ -196,6 +196,10 @@ export class ProviderResponseRunner {
           streamEventCount,
           externalResponseId: providerResponseId,
         });
+        if (!stillOpen) {
+          console.info(`[provider-stream] request ${requestId} was cancelled; ignoring the rest of the stream`);
+          return requestId;
+        }
         onEvent({
           requestId,
           providerId: execution.provider.id,
@@ -210,7 +214,7 @@ export class ProviderResponseRunner {
         });
       }
       const responseText = requireStreamText(textParts);
-      this.deps.requestStore.markSucceeded({
+      const finished = this.deps.requestStore.markSucceeded({
         orgId: input.orgId,
         requestId,
         responseText,
@@ -219,6 +223,7 @@ export class ProviderResponseRunner {
         externalResponseId: providerResponseId,
         completedAt: new Date().toISOString(),
       });
+      if (!finished) return requestId;
       this.deps.responseObserver.recordSuccess({
         orgId: input.orgId,
         provider: execution.provider,

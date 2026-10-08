@@ -124,12 +124,13 @@ export class ProviderRequestStore {
     return requestId;
   }
 
-  markStreaming(input: ProviderRequestProgressInput): void {
-    this.db.prepare(`
+  /** Terminal states (succeeded, failed, cancelled) are final: these transitions return false once one is reached. */
+  markStreaming(input: ProviderRequestProgressInput): boolean {
+    return this.db.prepare(`
       update provider_requests
       set state = ?, response_text = ?, raw_response_json = ?, output_char_count = ?,
         stream_event_count = ?, external_response_id = coalesce(?, external_response_id)
-      where id = ? and org_id = ?
+      where id = ? and org_id = ? and state not in ('succeeded', 'failed', 'cancelled')
     `).run(
       PROVIDER_REQUEST_STATE.STREAMING,
       input.responseText,
@@ -139,21 +140,21 @@ export class ProviderRequestStore {
       input.externalResponseId,
       input.requestId,
       input.orgId,
-    );
+    ).changes === 1;
   }
 
-  markBackgroundAccepted(input: ProviderBackgroundAcceptedInput): void {
-    this.db.prepare(`
+  markBackgroundAccepted(input: ProviderBackgroundAcceptedInput): boolean {
+    return this.db.prepare(`
       update provider_requests
       set state = ?, raw_response_json = ?, external_response_id = ?
-      where id = ? and org_id = ?
+      where id = ? and org_id = ? and state not in ('succeeded', 'failed', 'cancelled')
     `).run(
       PROVIDER_REQUEST_STATE.PENDING,
       input.rawResponseJson,
       input.externalResponseId,
       input.requestId,
       input.orgId,
-    );
+    ).changes === 1;
   }
 
   /** Counts a failed status check on a background request and returns how many happened in a row. */
@@ -166,20 +167,20 @@ export class ProviderRequestStore {
     this.db.prepare("update provider_requests set poll_failures = 0, last_poll_error = null where id = ?").run(requestId);
   }
 
-  markBackgroundProgress(input: ProviderBackgroundProgressInput): void {
-    this.db.prepare(`
+  markBackgroundProgress(input: ProviderBackgroundProgressInput): boolean {
+    return this.db.prepare(`
       update provider_requests
       set state = ?, raw_response_json = ?, external_response_id = ?
-      where id = ? and org_id = ?
-    `).run(input.state, input.rawResponseJson, input.externalResponseId, input.requestId, input.orgId);
+      where id = ? and org_id = ? and state not in ('succeeded', 'failed', 'cancelled')
+    `).run(input.state, input.rawResponseJson, input.externalResponseId, input.requestId, input.orgId).changes === 1;
   }
 
-  markSucceeded(input: ProviderRequestResultInput): void {
-    this.db.prepare(`
+  markSucceeded(input: ProviderRequestResultInput): boolean {
+    return this.db.prepare(`
       update provider_requests
       set state = ?, response_text = ?, raw_response_json = ?, output_char_count = ?,
         external_response_id = coalesce(?, external_response_id), completed_at = ?
-      where id = ? and org_id = ?
+      where id = ? and org_id = ? and state not in ('succeeded', 'failed', 'cancelled')
     `).run(
       PROVIDER_REQUEST_STATE.SUCCEEDED,
       input.responseText,
@@ -189,15 +190,15 @@ export class ProviderRequestStore {
       input.completedAt,
       input.requestId,
       input.orgId,
-    );
+    ).changes === 1;
   }
 
-  markFailed(input: ProviderRequestFailureInput): void {
-    this.db.prepare(`
+  markFailed(input: ProviderRequestFailureInput): boolean {
+    return this.db.prepare(`
       update provider_requests
       set state = ?, error_message = ?, raw_response_json = coalesce(?, raw_response_json), completed_at = ?
-      where id = ? and org_id = ?
-    `).run(PROVIDER_REQUEST_STATE.FAILED, input.errorMessage, input.rawResponseJson ?? null, input.completedAt, input.requestId, input.orgId);
+      where id = ? and org_id = ? and state not in ('succeeded', 'failed', 'cancelled')
+    `).run(PROVIDER_REQUEST_STATE.FAILED, input.errorMessage, input.rawResponseJson ?? null, input.completedAt, input.requestId, input.orgId).changes === 1;
   }
 
   markCancelled(input: ProviderRequestCancellationInput): void {

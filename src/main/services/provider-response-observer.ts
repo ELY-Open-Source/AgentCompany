@@ -69,13 +69,15 @@ export class ProviderResponseObserver {
   recordFailure(input: ProviderResponseFailureInput): void {
     const message = input.error instanceof Error ? input.error.message : String(input.error);
     this.recordObservedRateLimit(input.orgId, input.provider, input.provider.model, providerRateLimitStateFromError(input.error));
-    this.requestStore.markFailed({
+    const failed = this.requestStore.markFailed({
       orgId: input.orgId,
       requestId: input.requestId,
       errorMessage: message,
       completedAt: new Date().toISOString(),
       rawResponseJson: input.rawResponseJson,
     });
+    // A late error on a request already cancelled or finished changes nothing.
+    if (!failed) return;
     this.requestStore.recordUsage(input.orgId, input.provider.id, input.inputCharCount, 0);
     this.recordProviderHealth(input.provider.id, input.orgId, HEALTH_STATE_FAILED, message);
     this.operations.recordSignal({

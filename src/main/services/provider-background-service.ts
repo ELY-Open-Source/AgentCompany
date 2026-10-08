@@ -152,7 +152,7 @@ export class ProviderBackgroundService {
       if (result.status === "completed") {
         const responseText = requireBackgroundText(result.text, provider.provider_key);
         this.requestStore.clearPollFailures(request.id);
-        this.requestStore.markSucceeded({
+        const finished = this.requestStore.markSucceeded({
           orgId: request.org_id,
           requestId: request.id,
           responseText,
@@ -161,6 +161,7 @@ export class ProviderBackgroundService {
           externalResponseId: result.responseId,
           completedAt: new Date().toISOString(),
         });
+        if (!finished) return;
         this.responseObserver.recordSuccess({
           orgId: request.org_id,
           provider,
