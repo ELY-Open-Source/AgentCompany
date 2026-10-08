@@ -41,9 +41,10 @@ export function holdDeliverable(
   db: DatabaseSync,
   input: { id: string; approvalId: string; orgId: string; agentId: string; taskId: string | null; goalId: string | null; projectId: string | null; target: HeldTarget; content: string },
 ): void {
-  const target = input.target;
-  // A file path that could never be written is refused now, not at approval.
-  if (target.kind === "file") resolveWorkspacePath(target.workspaceRoot, target.relativePath);
+  // A file path that could never be written is refused now, not at approval; one spelling of each path is kept.
+  const target = input.target.kind === "file"
+    ? { ...input.target, relativePath: resolveWorkspacePath(input.target.workspaceRoot, input.target.relativePath).relativePosix }
+    : input.target;
   db.prepare(`
     insert into held_deliverables(
       id, org_id, approval_id, kind, agent_id, task_id, goal_id, project_id, workspace_root, relative_path,
@@ -64,14 +65,15 @@ export function holdDeliverable(
   console.info(`[deliverables] held ${target.kind} ${input.id} for review ${input.approvalId}`);
 }
 
-/** Writes an approved deliverable where it was meant to go; a declined one is never written. */
-export function settleHeldDeliverable(db: DatabaseSync, heldId: string, approved: boolean): void {
+/** Writes an approved deliverable where it was meant to go; a declined one is never written. Returns the task it belongs to. */
+export function settleHeldDeliverable(db: DatabaseSync, heldId: string, approved: boolean): string | null {
   const row = db.prepare("select * from held_deliverables where id = ? and state = 'held'").get(heldId) as HeldRow | undefined;
   if (!row) throw new Error("The held deliverable of this review was not found.");
   db.prepare("update held_deliverables set state = ? where id = ?").run(approved ? "published" : "declined", heldId);
   // Publication is the last write, so a file reaches disk only once every database change before it has succeeded.
   if (approved) publish(db, row);
   console.info(`[deliverables] ${row.kind} ${heldId} ${approved ? "published" : "declined"}`);
+  return row.task_id;
 }
 
 function publish(db: DatabaseSync, row: HeldRow): void {

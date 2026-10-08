@@ -9,6 +9,9 @@ const READ_ONLY_TOOLS = new Set([
 ]);
 const JOURNAL_LINES = 40;
 const FIELD_CHARS = 160;
+const DECLINED_LINES = 5;
+/** What a held deliverable would become, over a `held_deliverables` row alias: one file, one existing document, or a new document by type and title. */
+const heldTarget = (row: string) => `(case ${row}.kind when 'file' then ${row}.workspace_root || '/' || ${row}.relative_path when 'document_update' then ${row}.document_id else ${row}.doc_type || ':' || ${row}.title end)`;
 
 /** Records a call that tried to change something, with its result, so later sessions build on it instead of repeating it. */
 export function recordRunAction(db: DatabaseSync, input: { orgId: string; runId: string; taskId: string; call: ToolCall; output: string }): void {
@@ -35,6 +38,17 @@ export function runJournalLines(db: DatabaseSync, taskId: string): string[] {
     lines.push("", "Earlier sessions on this task already made these calls; each shows its result. Do not redo the ones that succeeded; retry or fix only what failed:");
     for (const action of actions) lines.push(`- ${action.tool_name}(${action.arguments_excerpt}) -> ${action.result_excerpt}`);
   }
+  const declined = db.prepare(`
+    select coalesce(h.title, h.relative_path) as name, a.decision_notes as notes
+    from held_deliverables h join approvals a on a.id = h.approval_id
+    where h.task_id = ? and h.state = 'declined'
+      and not exists (
+        select 1 from held_deliverables later
+        where later.task_id = h.task_id and later.rowid > h.rowid and later.kind = h.kind and ${heldTarget("later")} = ${heldTarget("h")}
+      )
+    order by h.rowid desc limit ?
+  `).all(taskId, DECLINED_LINES) as Array<{ name: string; notes: string | null }>;
+  for (const row of declined) lines.push("", `The board declined ${row.name}${row.notes ? `: ${row.notes.trim().replace(/[.。!！]+$/, "")}` : ""}. Redo it before closing the task.`);
   if (lastFailure?.error_message) {
     lines.push("", `The last session on this task failed with: ${lastFailure.error_message}. Pick up from there instead of starting over.`);
   }

@@ -1,10 +1,11 @@
 import type { DatabaseSync } from "node:sqlite";
 import type { CreateApprovalInput, DecideApprovalInput } from "../../shared/commands";
-import { APPROVAL_STATE, ROLE_KEY } from "../../shared/domain";
+import { APPROVAL_STATE, ROLE_KEY, TASK_STATUS } from "../../shared/domain";
 import { createId } from "../../shared/ids";
 import { AuditService } from "./audit-service";
 import { settleHire } from "./agent-admission";
 import { settleHeldDeliverable } from "./held-deliverables";
+import { OrganizationService } from "./organization-service";
 import { IdentityAccessService } from "./identity-access-service";
 import { OrgGovernanceService } from "./org-governance-service";
 
@@ -104,8 +105,18 @@ export class ApprovalService {
     });
     // Last, so nothing after it can fail once a file is on disk.
     if (approval.source_entity_type === "held_deliverable" && approval.source_entity_id) {
-      settleHeldDeliverable(this.db, approval.source_entity_id, input.state === APPROVAL_STATE.APPROVED);
+      const approved = input.state === APPROVAL_STATE.APPROVED;
+      const taskId = settleHeldDeliverable(this.db, approval.source_entity_id, approved);
+      if (!approved && taskId) this.reopenForRework(input.orgId, taskId);
     }
+  }
+
+  /** Declined work goes back to its task's assignee: the task returns to in progress, wherever it had got to. */
+  private reopenForRework(orgId: string, taskId: string): void {
+    const task = this.db.prepare("select status from tasks where id = ? and org_id = ?").get(taskId, orgId) as { status: string } | undefined;
+    if (!task || task.status === TASK_STATUS.IN_PROGRESS) return;
+    new OrganizationService(this.db).updateTaskStatus(orgId, taskId, TASK_STATUS.IN_PROGRESS);
+    console.info(`[deliverables] task ${taskId} reopened for rework after a declined deliverable`);
   }
 
   private assertRequesterBelongsToOrg(input: CreateApprovalInput): void {

@@ -8,6 +8,7 @@ import { OrganizationService } from "../../src/main/services/organization-servic
 import { ChatService } from "../../src/main/services/chat-service";
 import { dispatchAgentTool, type AgentToolContext } from "../../src/main/services/agent-tools";
 import { ApprovalService } from "../../src/main/services/approval-service";
+import { runJournalLines } from "../../src/main/services/run-journal";
 import { executionApprovalProblem, requireAssignedAgent } from "../../src/main/services/task-run-preparation";
 import { TASK_PRIORITY } from "../../src/shared/domain";
 import type { TaskExecutionTaskRow } from "../../src/main/services/task-prompts";
@@ -112,6 +113,30 @@ describe("execution modes", () => {
     expect(existsSync(join(h.ctx.workspace!.localPath, "plan.md"))).toBe(false);
     expect(db.prepare("select state from held_deliverables").get()).toEqual({ state: "declined" });
     finish();
+  });
+
+  test("a declined deliverable sends its task back to work, with the board's reason in the next session", () => {
+    const h = harness("ai_cofounder");
+    const db = h.connection.db;
+    const employeeId = (db.prepare("select id from employees where org_id = ?").get(h.orgId) as { id: string }).id;
+    const taskId = h.connection.transaction(() => h.deps.organization.createTask({
+      orgId: h.orgId, title: "Write the plan", description: "d", status: "in_progress", assigneeAgentId: h.ceoId, risk: "low",
+      projectId: null, goalId: null, workspaceId: null, priority: TASK_PRIORITY.NORMAL, requiresFilesystem: false,
+    }));
+    dispatchAgentTool(h.deps, { ...h.ctx, taskId }, call("write_deliverable", { path: "plan.md", content: "draft" }));
+    // The operator closed the task while the draft waited; declining it still reopens the work.
+    h.connection.transaction(() => h.deps.organization.updateTaskStatus(h.orgId, taskId, "done"));
+    const review = (db.prepare("select id from approvals where org_id = ? and kind = 'deliverable_review'").get(h.orgId) as { id: string }).id;
+    h.connection.transaction(() => new ApprovalService(db).decide({ orgId: h.orgId, approvalId: review, state: "declined", decidedByEmployeeId: employeeId, notes: "Cite the market data." }));
+    expect(db.prepare("select status from tasks where id = ?").get(taskId)).toEqual({ status: "in_progress" });
+    expect(runJournalLines(db, taskId).join("\n")).toContain("The board declined plan.md: Cite the market data. Redo it before closing the task.");
+    // Another deliverable under the same name elsewhere does not answer the decline; a resubmission of the same one does.
+    const elsewhere = join(h.ctx.workspace!.localPath, "other");
+    mkdirSync(elsewhere);
+    dispatchAgentTool(h.deps, { ...h.ctx, taskId, workspace: { id: "wsp_other", localPath: elsewhere, writeAccess: true } }, call("write_deliverable", { path: "plan.md", content: "x" }));
+    expect(runJournalLines(db, taskId).join("\n")).toContain("The board declined plan.md");
+    dispatchAgentTool(h.deps, { ...h.ctx, taskId }, call("write_deliverable", { path: "./plan.md", content: "with data" }));
+    expect(runJournalLines(db, taskId).join("\n")).not.toContain("The board declined plan.md");
   });
 
   test("an approved file whose registration fails leaves the workspace as it was", () => {
