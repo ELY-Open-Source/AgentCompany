@@ -123,6 +123,21 @@ describe("reconnecting a connector keeps the working account until the new one i
     h.connection.close();
   });
 
+  test("several accounts made outside the app for one toolkit are each adopted, none folded into another", async () => {
+    const h = await connectedCompany();
+    for (const id of ["ca_slack_b", "ca_slack_a"]) remote.set(id, { id, toolkitSlug: "slack", status: "ACTIVE", authConfigId: "ac_slack", createdAt: new Date().toISOString() });
+    remote.set("ca_notion", { id: "ca_notion", toolkitSlug: "notion", status: "ACTIVE", authConfigId: "ac_notion", createdAt: new Date().toISOString() });
+    await h.service.refreshAccounts(h.orgId);
+    const rows = h.connection.db.prepare("select id, toolkit_slug as toolkit, label from connector_accounts where org_id = ? order by toolkit_slug, label").all(h.orgId);
+    expect(rows).toEqual([
+      { id: h.oldId, toolkit: "github", label: "main" },
+      { id: "ca_notion", toolkit: "notion", label: "main" },
+      { id: "ca_slack_a", toolkit: "slack", label: "ca_slack_a" },
+      { id: "ca_slack_b", toolkit: "slack", label: "ca_slack_b" },
+    ]);
+    h.connection.close();
+  });
+
   test("a reconnect that cannot start touches nothing", async () => {
     const h = await connectedCompany();
     failCreate = true;

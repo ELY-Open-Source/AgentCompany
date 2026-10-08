@@ -106,6 +106,7 @@ export class ComposioConnectionService {
     }
     const tracked = this.trackedIds(orgId);
     const toolkitsHere = new Set(localRows.filter((row) => liveIds.has(row.id)).map((row) => row.toolkit_slug));
+    const adoptable = new Map<string, ComposioConnectedAccount[]>();
     for (const account of accounts) {
       if (!account.toolkitSlug) continue;
       if (tracked.has(account.id)) {
@@ -115,11 +116,18 @@ export class ComposioConnectionService {
       }
       // Only a toolkit with no account here is adopted; other untracked accounts (a waiting reconnect, an orphan) never join.
       if (toolkitsHere.has(account.toolkitSlug)) continue;
-      toolkitsHere.add(account.toolkitSlug);
-      this.db.prepare(`
-        insert into connector_accounts(id, org_id, toolkit_slug, toolkit_name, label, auth_config_id, status, created_at, updated_at)
-        values (?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(account.id, orgId, account.toolkitSlug, connectorDisplayName(account.toolkitSlug), DEFAULT_ACCOUNT_LABEL, account.authConfigId, account.status, account.createdAt || now, now);
+      adoptable.set(account.toolkitSlug, [...(adoptable.get(account.toolkitSlug) ?? []), account]);
+    }
+    for (const [slug, found] of adoptable) {
+      for (const account of found) {
+        // A lone account is "main"; several each keep their own id as label, so none stands in for another.
+        const label = found.length === 1 ? DEFAULT_ACCOUNT_LABEL : normalizeAccountLabel(account.id);
+        this.db.prepare(`
+          insert into connector_accounts(id, org_id, toolkit_slug, toolkit_name, label, auth_config_id, status, created_at, updated_at)
+          values (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(account.id, orgId, slug, connectorDisplayName(slug), label, account.authConfigId, account.status, account.createdAt || now, now);
+      }
+      console.info(`[connectors] adopted ${found.length} ${slug} account(s) made outside the app`);
     }
   }
 
