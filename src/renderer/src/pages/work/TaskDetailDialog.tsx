@@ -13,7 +13,7 @@ import type {
 } from "../../../../shared/domain";
 import { TASK_STATUS } from "../../../../shared/domain";
 import { auditEventLabel, formatRelative } from "../types";
-import { nextStatus, prettyRunState, prettyStatus, providerFor, runBlocker, runsForTask, runTone } from "./task-helpers";
+import { descendantIds, nextStatus, prettyRunState, prettyStatus, providerFor, runBlocker, runsForTask, runTone } from "./task-helpers";
 import type { SnapshotActions } from "../../app/useSnapshot";
 import { t } from "../../i18n/i18n";
 
@@ -59,6 +59,7 @@ export function TaskDetailDialog({
 }) {
   const [tab, setTab] = useState<Tab>("overview");
   const [editing, setEditing] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
 
   if (!task) return null;
   const assignee = agents.find((a) => a.id === task.assigneeAgentId) ?? null;
@@ -76,6 +77,7 @@ export function TaskDetailDialog({
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     const val = (key: string) => String(form.get(key) ?? "").trim();
+    setEditError(null);
     void actions.run(() => window.agentCompany.updateTask({
       orgId,
       taskId: task.id,
@@ -85,7 +87,7 @@ export function TaskDetailDialog({
       risk: (val("risk") || "low") as "low" | "medium" | "high",
       priority: (val("priority") || "normal") as "low" | "normal" | "high",
       parentTaskId: val("parentTaskId") || null,
-    })).then((r) => { if (r) setEditing(false); });
+    })).then((r) => { if (r) setEditing(false); }, (error: unknown) => setEditError(error instanceof Error ? error.message : String(error)));
   };
 
   const deleteTask = () => {
@@ -99,7 +101,7 @@ export function TaskDetailDialog({
         <div className="row" style={{ alignItems: "flex-start", gap: 10, marginBottom: 8 }}>
           {task.priority === "high" && <span style={{ width: 3, height: 18, background: "var(--red)", borderRadius: 2, marginTop: 2, flexShrink: 0 }} />}
           <h2 className="modal-title" style={{ margin: 0, flex: 1 }}>{task.title}</h2>
-          <IconButton icon="edit" label={t("Edit")} onClick={() => setEditing(true)} />
+          <IconButton icon="edit" label={t("Edit")} onClick={() => { setEditError(null); setEditing(true); }} />
           <IconButton icon="x" label={t("Close")} onClick={onClose} />
         </div>
         <div className="row" style={{ flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
@@ -127,7 +129,7 @@ export function TaskDetailDialog({
           {advanceTo && <Button tone="primary" onClick={() => onAdvance(task)}><Icon name="check" size={16} /> {prettyStatus(advanceTo)}</Button>}
         </div>
 
-        {editing && <EditOverlay task={task} agents={agents} allTasks={allTasks} onSubmit={submitEdit} onCancel={() => setEditing(false)} />}
+        {editing && <EditOverlay task={task} agents={agents} allTasks={allTasks} error={editError} onSubmit={submitEdit} onCancel={() => { setEditing(false); setEditError(null); }} />}
       </div>
     </div>
   );
@@ -221,11 +223,12 @@ function ActivityTab({ audit, approvals }: { audit: AuditEventRecord[]; approval
   );
 }
 
-function EditOverlay({ task, agents, allTasks, onSubmit, onCancel }: {
-  task: TaskRecord; agents: AgentRecord[]; allTasks: TaskRecord[];
+function EditOverlay({ task, agents, allTasks, error, onSubmit, onCancel }: {
+  task: TaskRecord; agents: AgentRecord[]; allTasks: TaskRecord[]; error: string | null;
   onSubmit: (e: FormEvent<HTMLFormElement>) => void; onCancel: () => void;
 }) {
-  const otherTasks = allTasks.filter((t) => t.id !== task.id && t.orgId === task.orgId);
+  const beneath = descendantIds(task.id, allTasks);
+  const otherTasks = allTasks.filter((t) => t.id !== task.id && t.orgId === task.orgId && !beneath.has(t.id));
   return (
     <div style={{ position: "absolute", inset: 0, background: "var(--bg)", borderRadius: 14, padding: 24, overflow: "auto", zIndex: 2 }}>
       <form onSubmit={onSubmit}>
@@ -256,6 +259,7 @@ function EditOverlay({ task, agents, allTasks, onSubmit, onCancel }: {
             {otherTasks.map((t) => <option key={t.id} value={t.id}>{t.title}</option>)}
           </select>
         </Field>
+        {error && <div className="form-error" role="alert">{error}</div>}
         <div className="modal-actions">
           <Button onClick={onCancel}>{t("Cancel")}</Button>
           <Button tone="primary" type="submit">{t("Save")}</Button>

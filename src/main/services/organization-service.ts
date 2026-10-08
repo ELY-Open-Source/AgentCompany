@@ -492,10 +492,7 @@ export class OrganizationService {
   updateTask(input: UpdateTaskInput): void {
     const now = new Date().toISOString();
     if (input.assigneeAgentId) this.verifyOptionalOrgEntity("agents", input.assigneeAgentId, input.orgId, "Assignee agent");
-    if (input.parentTaskId) {
-      const parent = this.db.prepare("select id from tasks where id = ? and org_id = ?").get(input.parentTaskId, input.orgId);
-      if (!parent) throw new Error("Parent task was not found.");
-    }
+    if (input.parentTaskId) this.assertParentAllowed(input.orgId, input.taskId, input.parentTaskId, input.title.trim());
     const result = this.db.prepare(`
       update tasks set title = ?, description = ?, assignee_agent_id = ?, risk = ?, priority = ?, parent_task_id = ?, updated_at = ?
       where id = ? and org_id = ?
@@ -543,6 +540,20 @@ export class OrganizationService {
       action: "status_changed",
       payload: { status },
     });
+  }
+
+  private assertParentAllowed(orgId: string, taskId: string, parentTaskId: string, title: string): void {
+    if (parentTaskId === taskId) throw new Error(`"${title}" cannot be its own parent.`);
+    const parent = this.db.prepare("select title from tasks where id = ? and org_id = ?").get(parentTaskId, orgId) as { title: string } | undefined;
+    if (!parent) throw new Error("Parent task was not found.");
+    const loop = this.db.prepare(`
+      with recursive ancestors(id) as (
+        select parent_task_id from tasks where id = ?
+        union select t.parent_task_id from tasks t join ancestors a on t.id = a.id where t.parent_task_id is not null
+      )
+      select 1 from ancestors where id = ? limit 1
+    `).get(parentTaskId, taskId);
+    if (loop) throw new Error(`"${title}" cannot sit under "${parent.title}": "${parent.title}" is already beneath "${title}".`);
   }
 
   private assertNoOpenSubtasks(orgId: string, taskId: string): void {

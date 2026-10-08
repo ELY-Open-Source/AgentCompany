@@ -62,3 +62,19 @@ export function latestTaskRun(taskId: string, taskRuns: TaskRunRecord[]): TaskRu
 export function runsForTask(taskId: string, taskRuns: TaskRunRecord[]): TaskRunRecord[] {
   return taskRuns.filter((run) => run.taskId === taskId);
 }
+
+/** Every task beneath this one; none of them may become its parent. */
+export function descendantIds(taskId: string, tasks: TaskRecord[]): Set<string> {
+  const found = new Set<string>();
+  const frontier = [taskId];
+  while (frontier.length > 0) {
+    const current = frontier.pop();
+    for (const task of tasks) {
+      if (task.parentTaskId === current && !found.has(task.id)) {
+        found.add(task.id);
+        frontier.push(task.id);
+      }
+    }
+  }
+  return found;
+}
