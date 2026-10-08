@@ -11,6 +11,9 @@ import { SkillService } from "./services/skill-service";
 import { startProviderBackgroundWorker } from "./app/provider-background-worker";
 import { recoverInterruptedWork } from "./app/startup-recovery";
 import { startTaskQueueWorker } from "./app/task-queue-worker";
+import { stopAllRunsAndWait } from "./services/run-control";
+
+const QUIT_GRACE_MS = 10_000;
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -61,10 +64,21 @@ if (!app.requestSingleInstanceLock()) {
       win.focus();
     });
 
-    app.on("before-quit", () => {
+    let shutdown: "running" | "draining" | "drained" = "running";
+    app.on("before-quit", (event) => {
+      if (shutdown === "drained") return;
+      // Hold every exit request until running sessions are stopped and have recorded how they ended.
+      event.preventDefault();
+      if (shutdown === "draining") return;
+      shutdown = "draining";
       stopProviderBackgroundWorker();
       stopTaskQueueWorker();
-      connection.close();
+      void stopAllRunsAndWait("The app was closing.", QUIT_GRACE_MS).then((unsettled) => {
+        if (unsettled > 0) console.warn(`[quit] ${unsettled} run(s) did not settle within ${QUIT_GRACE_MS}ms; startup recovery will re-queue them.`);
+        connection.close();
+        shutdown = "drained";
+        app.quit();
+      });
     });
   });
 
