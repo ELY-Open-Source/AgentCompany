@@ -94,3 +94,35 @@ describe("structured task handoff", () => {
     h.connection.close();
   });
 });
+
+describe("delegation parentage", () => {
+  test("a task created inside real work becomes its subtask", () => {
+    const h = harness();
+    const result = dispatchAgentTool(h.deps, h.ctx, call("create_task", { title: "Child", description: "d" }));
+    const childId = /task_id=([^)\s]+)\)/.exec(result)![1];
+    expect(h.connection.db.prepare("select parent_task_id from tasks where id = ?").get(childId)).toEqual({ parent_task_id: h.sourceTaskId });
+    h.connection.close();
+  });
+
+  test("tasks created from a chat-wake vehicle keep no parent but record their source", () => {
+    const h = harness();
+    h.connection.db.prepare("update tasks set origin = 'chat_wake' where id = ?").run(h.sourceTaskId);
+    const result = dispatchAgentTool(h.deps, h.ctx, call("create_task", { title: "From chat", description: "d" }));
+    const childId = /task_id=([^)\s]+)\)/.exec(result)![1];
+    const row = h.connection.db.prepare("select parent_task_id, handoff_json from tasks where id = ?").get(childId) as { parent_task_id: string | null; handoff_json: string };
+    expect(row.parent_task_id).toBeNull();
+    expect(JSON.parse(row.handoff_json).sourceTaskId).toBe(h.sourceTaskId);
+    h.connection.close();
+  });
+});
+
+describe("delegation from a vanished task", () => {
+  test("fails before creating anything", () => {
+    const h = harness();
+    h.connection.db.prepare("delete from tasks where id = ?").run(h.sourceTaskId);
+    expect(dispatchAgentTool(h.deps, h.ctx, call("create_task", { title: "Orphan", description: "d" })))
+      .toBe(`ERROR: The task this run executes (${h.sourceTaskId}) no longer exists.`);
+    expect(h.connection.db.prepare("select count(*) as n from tasks where title = 'Orphan'").get()).toEqual({ n: 0 });
+    h.connection.close();
+  });
+});

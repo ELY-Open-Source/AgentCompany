@@ -30,3 +30,16 @@ export class DatabaseConnection {
     this.db.close();
   }
 }
+
+export function withSavepoint<T>(db: DatabaseSync, name: string, operation: () => T): T {
+  db.exec(`savepoint ${name}`);
+  try {
+    const result = operation();
+    db.exec(`release savepoint ${name}`);
+    return result;
+  } catch (error) {
+    db.exec(`rollback to savepoint ${name}`);
+    db.exec(`release savepoint ${name}`);
+    throw error;
+  }
+}
