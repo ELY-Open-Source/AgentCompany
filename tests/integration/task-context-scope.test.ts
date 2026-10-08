@@ -7,6 +7,7 @@ import { OnboardingService } from "../../src/main/services/onboarding-service";
 import { ProviderService } from "../../src/main/services/provider-service";
 import { providerAdapters } from "../../src/main/services/provider-adapters";
 import { TaskExecutionService } from "../../src/main/services/task-execution-service";
+import { KnowledgeService } from "../../src/main/services/knowledge-service";
 import { OrganizationService } from "../../src/main/services/organization-service";
 import { claimNextQueuedRun } from "../../src/main/app/task-queue-worker";
 import { canonicalMentionHandle } from "../../src/shared/mention-handles";
@@ -64,6 +65,8 @@ describe("task prompt scope", () => {
     await execution.executeRun(kickoff!.org_id, kickoff!.id);
 
     const task = connection.db.prepare("select id from tasks where org_id = ? and title = 'Build the booking API'").get(orgId) as { id: string };
+    new KnowledgeService(connection.db).create({ orgId, topic: "Booking storage", category: "decision", content: "Bookings live in Postgres.", importance: "high", sourceType: "employee", sourceId: null });
+    new KnowledgeService(connection.db).create({ orgId, topic: "Offsite venue", category: "fact", content: "Lisbon in May.", importance: "low", sourceType: "employee", sourceId: null });
     await execution.runTask({ orgId, taskId: task.id });
 
     const danaId = (connection.db.prepare("select id from agents where org_id = ? and name = 'Dana Lee'").get(orgId) as { id: string }).id;
@@ -74,6 +77,8 @@ describe("task prompt scope", () => {
     expect(connection.db.prepare("select count(*) as n from task_runs where task_id = ? and state = 'running'").get(busyTaskId)).toEqual({ n: 1 });
     expect(danaPrompts).toHaveLength(1);
     expect(danaPrompts[0]).toContain("Build the booking API");
+    expect(danaPrompts[0]).toContain("- Booking storage [decision, high");
+    expect(danaPrompts[0]).not.toContain("Offsite venue");
     expect(danaPrompts[0]).not.toContain(CHANNEL_NOTE);
     connection.close();
   });

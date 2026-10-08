@@ -24,6 +24,7 @@ import {
   type WorkspaceRow,
 } from "./task-prompts";
 import { renderTaskHandoff } from "./agent-task-handoff";
+import { relevantKnowledgeLines } from "./agent-knowledge-tools";
 import { createRunContextRecorder, createRunMessagePoller, loadChatWakeContext } from "./chat-wake-context";
 import { runningWorkspaceWriter } from "./workspace-write-lock";
 import { inputBudgetTokens, skillBudgetTokens } from "./context-budget";
@@ -204,6 +205,7 @@ export class TaskExecutionService {
             managerName: this.agentName(orgId, agent.manager_agent_id),
             chatContext,
             handoffLines: renderTaskHandoff(this.db, orgId, task.handoff_json),
+            knowledgeLines: relevantKnowledgeLines(this.db, orgId, `${task.title}\n${task.description}`),
             priorCompletedRuns: this.completedRunCount(task.id, runId),
           }),
           toolContext,

@@ -1,5 +1,5 @@
 import { attachmentNote } from "./agent-attachment-tools";
-import { optionalString } from "./agent-tool-args";
+import { optionalLimit, optionalString } from "./agent-tool-args";
 import type { AgentToolContext, AgentToolDeps } from "./agent-tools";
 import type { JsonRecord } from "./provider-http";
 
@@ -25,7 +25,7 @@ export function readMessagesTool(deps: AgentToolDeps, ctx: AgentToolContext, arg
   const filter: MessageFilter = {
     before: beforeCursor(deps, ctx.orgId, optionalString(args.before)),
     query: optionalString(args.query),
-    limit: Math.min(Math.max(Number(args.limit) || 10, 1), 30),
+    limit: optionalLimit(args.limit, "limit", 10, 30),
   };
   if (withTeammate) {
     const counterpart = deps.db.prepare(`

@@ -7,7 +7,7 @@ import { AuditService } from "./audit-service";
 import { OperationsService } from "./operations-service";
 import { copySkillRevision, recursiveSkillChecksum } from "./skill-artifacts";
 import { loadSkillManifest, type SkillManifest } from "./skill-manifest";
-import { orderByRelevance } from "./skill-relevance";
+import { orderByRelevance } from "./relevance";
 import { runManifestArtifactTest, verifyRevisionStructure, type SkillArtifactRow, type SkillTestRow } from "./skill-tests";
 import { estimateTokens } from "./context-budget";
 
