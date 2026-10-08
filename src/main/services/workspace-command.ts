@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { currentRunSignal } from "./run-control";
 
 const COMMAND_TIMEOUT_MS = 120_000;
@@ -43,31 +43,61 @@ function ownCopy(view: Buffer): Buffer {
   return copy;
 }
 
-export function runCommand(workspaceRoot: string, command: string): Promise<string> {
+export function runCommand(workspaceRoot: string, command: string, options: { timeoutMs?: number } = {}): Promise<string> {
+  const timeoutMs = options.timeoutMs ?? COMMAND_TIMEOUT_MS;
   return new Promise((resolvePromise) => {
-    const child = spawn(command, { shell: true, cwd: workspaceRoot, windowsHide: true });
+    // Its own process group on POSIX, so the whole tree can be killed at once.
+    const child = spawn(command, { shell: true, cwd: workspaceRoot, windowsHide: true, detached: process.platform !== "win32" });
     const output = new BoundedOutput();
-    let killedByTimeout = false;
+    let settled = false;
+    const runSignal = currentRunSignal();
+    const onStop = (): void => abandon("ERROR: the run was stopped and the command was killed.");
+    const finish = (text: string): void => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      runSignal?.removeEventListener("abort", onStop);
+      resolvePromise(text);
+    };
+    // Children can outlive the shell and keep the pipes open, so stop reading instead of waiting for close.
+    const abandon = (text: string): void => {
+      if (settled) return;
+      const killFailure = killProcessTree(child.pid);
+      child.stdout.destroy();
+      child.stderr.destroy();
+      finish(killFailure ? `${text} Killing it failed, so it may still be running: ${killFailure}` : text);
+    };
     const timer = setTimeout(() => {
-      killedByTimeout = true;
-      child.kill();
-    }, COMMAND_TIMEOUT_MS);
-    currentRunSignal()?.addEventListener("abort", () => child.kill(), { once: true });
+      abandon(`ERROR: command timed out after ${timeoutMs / 1000}s and was killed. Partial output:\n${output.text()}`);
+    }, timeoutMs);
+    runSignal?.addEventListener("abort", onStop, { once: true });
     const collect = (chunk: Buffer): void => output.push(chunk);
     child.stdout.on("data", collect);
     child.stderr.on("data", collect);
-    child.on("error", (error) => {
-      clearTimeout(timer);
-      resolvePromise(`ERROR: ${error.message}`);
-    });
+    child.on("error", (error) => finish(`ERROR: ${error.message}`));
     child.on("close", (code) => {
-      clearTimeout(timer);
-      const text = output.text();
-      if (killedByTimeout) {
-        resolvePromise(`ERROR: command timed out after ${COMMAND_TIMEOUT_MS / 1000}s and was killed. Partial output:\n${text}`);
-        return;
-      }
-      resolvePromise(`exit code ${code ?? 0}\n${text.trim() || "(no output)"}`);
+      finish(`exit code ${code ?? 0}\n${output.text().trim() || "(no output)"}`);
     });
   });
+}
+
+/** Kills a process and every process it started; returns why that failed, or null. */
+function killProcessTree(pid: number | undefined): string | null {
+  if (pid === undefined) return null;
+  console.warn(`[run_command] killing process tree ${pid}`);
+  if (process.platform === "win32") {
+    const result = spawnSync("taskkill", ["/pid", String(pid), "/T", "/F"], { windowsHide: true, encoding: "utf8" });
+    if (result.error) return result.error.message;
+    // 128: the process already exited.
+    if (result.status !== 0 && result.status !== 128) return (result.stderr || result.stdout || `taskkill exited ${result.status}`).trim();
+    return null;
+  }
+  try {
+    process.kill(-pid, "SIGKILL");
+    return null;
+  } catch (error) {
+    // ESRCH: the group already exited.
+    if ((error as NodeJS.ErrnoException).code === "ESRCH") return null;
+    return (error as Error).message;
+  }
 }

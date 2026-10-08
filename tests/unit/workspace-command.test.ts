@@ -1,6 +1,9 @@
+import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { describe, expect, test } from "vitest";
+import { join } from "node:path";
+import { describe, expect, test, vi } from "vitest";
 import { BoundedOutput, runCommand } from "../../src/main/services/workspace-command";
+import { stopRun, withRunControl } from "../../src/main/services/run-control";
 
 describe("bounded command output", () => {
   test("holds at most head and tail while counting what it drops", () => {
@@ -36,5 +39,30 @@ describe("bounded command output", () => {
     expect(result.endsWith("aaaFINISH")).toBe(true);
     expect(result).toContain("bytes of output dropped");
     expect(result.length).toBeLessThan(16_200);
+  });
+
+  test("a timeout kills the whole process tree, including children that hold the output pipes", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "ac-tree-"));
+    const pidFile = join(dir, "grandchild.pid").replaceAll("\\", "/");
+    const script = `const c=require('child_process').spawn(process.execPath,['-e','setInterval(()=>{},1000)'],{stdio:'inherit'});require('fs').writeFileSync('${pidFile}',String(c.pid));setInterval(()=>{},1000)`;
+    const started = Date.now();
+    const result = await runCommand(dir, `node -e "${script}"`, { timeoutMs: 1_500 });
+    expect(result).toMatch(/^ERROR: command timed out after 1\.5s and was killed/);
+    expect(Date.now() - started).toBeLessThan(10_000);
+    const grandchild = Number(readFileSync(pidFile, "utf8"));
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    expect(() => process.kill(grandchild, 0)).toThrow();
+  }, 20_000);
+});
+
+describe("run_command and run stops", () => {
+  test("a finished command is not killed again when its run is stopped later", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    await withRunControl("run_finished_cmd", async () => {
+      expect(await runCommand(tmpdir(), "node -e \"process.stdout.write('ok')\"")).toBe("exit code 0\nok");
+      stopRun("run_finished_cmd");
+    });
+    expect(warn.mock.calls.filter((call) => String(call[0]).startsWith("[run_command] killing"))).toEqual([]);
+    warn.mockRestore();
   });
 });
