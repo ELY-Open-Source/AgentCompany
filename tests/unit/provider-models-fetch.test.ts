@@ -1,8 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, expect, test } from "vitest";
-import { mapAnthropicModels, mapOpenAiModels } from "../../src/main/services/provider-models-fetch";
+import { afterEach, describe, expect, test, vi } from "vitest";
+import { fetchAnthropicModels, fetchOpenAiModels, mapAnthropicModels, mapOpenAiModels } from "../../src/main/services/provider-models-fetch";
 import { DatabaseConnection } from "../../src/main/database/connection";
 import { ProviderService } from "../../src/main/services/provider-service";
 import { providerAdapters } from "../../src/main/services/provider-adapters";
@@ -54,5 +54,42 @@ describe("ProviderService.listModels routing", () => {
     const service = new ProviderService(connection.db, providerAdapters, testVault);
     await expect(service.listModels({ providerKey: "openai" })).rejects.toThrow(/credential is required/);
     connection.close();
+  });
+});
+
+describe("live model lists follow every page", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  function pages(byCursor: Record<string, Record<string, unknown>>, seen: string[]) {
+    vi.stubGlobal("fetch", async (url: string) => {
+      seen.push(url);
+      const cursor = new URL(url).searchParams.get("after_id") ?? new URL(url).searchParams.get("after") ?? "";
+      return new Response(JSON.stringify(byCursor[cursor]), { status: 200, headers: { "content-type": "application/json" } });
+    });
+  }
+
+  test("Anthropic pages through after_id at the largest page size until has_more is false", async () => {
+    const seen: string[] = [];
+    pages({
+      "": { data: [{ id: "claude-a", display_name: "A" }], has_more: true, last_id: "claude-a" },
+      "claude-a": { data: [{ id: "claude-b", display_name: "B" }], has_more: false, last_id: "claude-b" },
+    }, seen);
+    expect((await fetchAnthropicModels("https://api.anthropic.com/v1/models", {})).map((model) => model.id)).toEqual(["claude-a", "claude-b"]);
+    expect(seen).toEqual(["https://api.anthropic.com/v1/models?limit=1000", "https://api.anthropic.com/v1/models?limit=1000&after_id=claude-a"]);
+  });
+
+  test("an OpenAI-style list that says has_more is followed through after; one without it is whole", async () => {
+    const seen: string[] = [];
+    pages({
+      "": { data: [{ id: "m1" }], has_more: true, last_id: "m1" },
+      m1: { data: [{ id: "m2" }], has_more: false },
+    }, seen);
+    expect((await fetchOpenAiModels("https://api.example.test/v1/models", {})).map((model) => model.id)).toEqual(["m1", "m2"]);
+    expect(seen).toEqual(["https://api.example.test/v1/models", "https://api.example.test/v1/models?after=m1"]);
+  });
+
+  test("a page that says has_more without a cursor fails instead of returning part of the list", async () => {
+    pages({ "": { data: [{ id: "claude-a" }], has_more: true, last_id: null } }, []);
+    await expect(fetchAnthropicModels("https://api.anthropic.com/v1/models", {})).rejects.toThrow("more models but no cursor");
   });
 });
