@@ -9,6 +9,7 @@ import { createHash } from "node:crypto";
 import { hostname, platform as osPlatform, release as osRelease, userInfo } from "node:os";
 import type { OAuthCredentials, OAuthFlow, OAuthLoginCallbacks } from "./oauth-types";
 import { httpFailure } from "../provider-http";
+import { oauthFetch } from "./oauth-fetch";
 
 // Published public client id of the official Kimi CLI; reused by third-party
 // coding agents per Kimi's device-flow integration guidance.
@@ -48,8 +49,8 @@ function deviceHeaders(): Record<string, string> {
   };
 }
 
-async function postForm(path: string, form: Record<string, string>): Promise<{ status: number; data: Record<string, unknown>; response: Response; text: string }> {
-  const response = await fetch(`${OAUTH_HOST}${path}`, {
+async function postForm(path: string, form: Record<string, string>, cancel?: AbortSignal): Promise<{ status: number; data: Record<string, unknown>; response: Response; text: string }> {
+  const { response, text } = await oauthFetch(`${OAUTH_HOST}${path}`, {
     method: "POST",
     headers: {
       Accept: "application/json",
@@ -57,8 +58,7 @@ async function postForm(path: string, form: Record<string, string>): Promise<{ s
       ...deviceHeaders(),
     },
     body: new URLSearchParams(form),
-  });
-  const text = await response.text();
+  }, cancel);
   let data: unknown;
   try {
     data = JSON.parse(text);
@@ -79,8 +79,8 @@ interface DeviceAuthorization {
   interval: number;
 }
 
-async function requestDeviceAuthorization(): Promise<DeviceAuthorization> {
-  const { status, data } = await postForm("/api/oauth/device_authorization", { client_id: CLIENT_ID });
+async function requestDeviceAuthorization(cancel?: AbortSignal): Promise<DeviceAuthorization> {
+  const { status, data } = await postForm("/api/oauth/device_authorization", { client_id: CLIENT_ID }, cancel);
   if (status !== 200) throw new Error(`Kimi device authorization failed: ${status} ${JSON.stringify(data)}`);
   const deviceCode = data.device_code;
   const userCode = data.user_code;
@@ -157,7 +157,7 @@ async function pollForToken(device: DeviceAuthorization, signal?: AbortSignal): 
       client_id: CLIENT_ID,
       device_code: device.device_code,
       grant_type: "urn:ietf:params:oauth:grant-type:device_code",
-    });
+    }, signal);
     const decision = interpretKimiPollResponse(status, data);
     if (decision.kind === "token") return decision.credentials;
     if (decision.kind === "expired") throw new Error("Kimi device code expired. Please try signing in again.");
@@ -180,7 +180,7 @@ export async function refreshKimiCode(refreshToken: string): Promise<OAuthCreden
 export const kimiCodeFlow: OAuthFlow = {
   providerKey: "kimi-code",
   async login(callbacks: OAuthLoginCallbacks): Promise<OAuthCredentials> {
-    const device = await requestDeviceAuthorization();
+    const device = await requestDeviceAuthorization(callbacks.signal);
     callbacks.onAuth({
       url: device.verification_uri_complete,
       instructions: `Approve code ${device.user_code} in your browser to link your Kimi plan.`,

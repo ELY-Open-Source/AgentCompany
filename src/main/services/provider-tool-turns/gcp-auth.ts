@@ -5,6 +5,7 @@
  */
 import { createSign } from "node:crypto";
 import { httpFailure } from "../provider-http";
+import { oauthFetch } from "../oauth/oauth-fetch";
 
 interface ServiceAccount {
   client_email: string;
@@ -43,12 +44,11 @@ export async function getGcpAccessToken(serviceAccountJson: string): Promise<str
   const signature = base64url(createSign("RSA-SHA256").update(signingInput).sign(account.private_key));
   const assertion = `${signingInput}.${signature}`;
 
-  const response = await fetch("https://oauth2.googleapis.com/token", {
+  const { response, text } = await oauthFetch("https://oauth2.googleapis.com/token", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({ grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer", assertion }),
   });
-  const text = await response.text();
   if (!response.ok) throw httpFailure(`Vertex authentication failed: ${response.status} ${text}`, response, text);
   const json = JSON.parse(text) as { access_token?: unknown; expires_in?: unknown };
   if (typeof json.access_token !== "string" || typeof json.expires_in !== "number") {

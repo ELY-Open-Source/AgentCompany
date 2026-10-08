@@ -31,6 +31,7 @@ import type { IntegrationKeyStore } from "../integration-key-store";
 import { refreshGitHubCopilotToken } from "../oauth/github-copilot-flow";
 import { refreshKimiCode } from "../oauth/kimi-code-flow";
 import { parseStoredOAuth, type StoredOAuth } from "../oauth/stored-oauth";
+import { untilStopped } from "../run-control";
 
 function refreshOAuth(providerKey: string, creds: StoredOAuth, keys: IntegrationKeyStore): Promise<OAuthCredentials> {
   switch (providerKey) {
@@ -101,7 +102,8 @@ export async function resolveTurnCredential(deps: {
   }
   const creds = parseStoredOAuth(deps.provider.provider_key, secret);
   if (Date.now() < creds.expires) return toTurnCredential(creds);
-  return toTurnCredential(await refreshOnce(deps, creds));
+  // Stopping this run ends its own wait; the shared refresh carries on for the other runs.
+  return toTurnCredential(await untilStopped(refreshOnce(deps, creds)));
 }
 
 /** Refreshes in flight, by stored credential: a rotating provider honours a refresh token once, so callers at once share one. */

@@ -8,6 +8,7 @@ import { startOAuthCallbackServer } from "./oauth-callback-server";
 import { generatePkce } from "./pkce";
 import type { OAuthCredentials, OAuthFlow, OAuthLoginCallbacks } from "./oauth-types";
 import { httpFailure } from "../provider-http";
+import { oauthFetch } from "./oauth-fetch";
 
 const CLIENT_ID = "app_EMoamEEZ73f0CkXaXp7hrann";
 const AUTHORIZE_URL = "https://auth.openai.com/oauth/authorize";
@@ -54,8 +55,8 @@ export function extractAccountId(accessToken: string): string | null {
   return null;
 }
 
-async function exchangeCode(code: string, verifier: string): Promise<{ access: string; refresh: string; expires: number }> {
-  const response = await fetch(TOKEN_URL, {
+async function exchangeCode(code: string, verifier: string, cancel?: AbortSignal): Promise<{ access: string; refresh: string; expires: number }> {
+  const { response, text } = await oauthFetch(TOKEN_URL, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
@@ -65,12 +66,9 @@ async function exchangeCode(code: string, verifier: string): Promise<{ access: s
       code_verifier: verifier,
       redirect_uri: REDIRECT_URI,
     }),
-  });
-  if (!response.ok) {
-    const text = await response.text().catch(() => "");
-    throw new Error(`Token exchange failed: ${response.status} ${text}`);
-  }
-  const json = (await response.json()) as { access_token?: unknown; refresh_token?: unknown; expires_in?: unknown };
+  }, cancel);
+  if (!response.ok) throw new Error(`Token exchange failed: ${response.status} ${text}`);
+  const json = JSON.parse(text) as { access_token?: unknown; refresh_token?: unknown; expires_in?: unknown };
   if (typeof json.access_token !== "string" || typeof json.refresh_token !== "string" || typeof json.expires_in !== "number") {
     throw new Error("Token response was missing required fields.");
   }
@@ -79,12 +77,11 @@ async function exchangeCode(code: string, verifier: string): Promise<{ access: s
 
 /** Refresh an expired Codex access token using the long-lived refresh token. */
 export async function refreshCodex(refreshToken: string): Promise<OAuthCredentials> {
-  const response = await fetch(TOKEN_URL, {
+  const { response, text } = await oauthFetch(TOKEN_URL, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({ grant_type: "refresh_token", refresh_token: refreshToken, client_id: CLIENT_ID }),
   });
-  const text = await response.text();
   if (!response.ok) throw httpFailure(`Codex token refresh failed: ${response.status} ${text}`, response, text);
   const json = JSON.parse(text) as { access_token?: unknown; refresh_token?: unknown; expires_in?: unknown };
   if (typeof json.access_token !== "string" || typeof json.refresh_token !== "string" || typeof json.expires_in !== "number") {
@@ -105,7 +102,7 @@ export const openaiCodexFlow: OAuthFlow = {
       callbacks.onAuth({ url: buildAuthorizeUrl(challenge, state), instructions: "Complete the ChatGPT sign-in in your browser." });
       const result = await server.waitForCode();
       if (result.state !== state) throw new Error("OAuth state mismatch.");
-      const tokens = await exchangeCode(result.code, verifier);
+      const tokens = await exchangeCode(result.code, verifier, callbacks.signal);
       const accountId = extractAccountId(tokens.access);
       if (!accountId) throw new Error("Could not read the ChatGPT account id from the token.");
       return { access: tokens.access, refresh: tokens.refresh, expires: tokens.expires, accountId };

@@ -7,6 +7,7 @@
 import { listProviderModels } from "../../../shared/provider-models";
 import type { OAuthCredentials, OAuthFlow, OAuthLoginCallbacks } from "./oauth-types";
 import { httpFailure } from "../provider-http";
+import { oauthFetch } from "./oauth-fetch";
 
 // Decoded from the published GitHub Copilot client id used by the official CLI.
 const CLIENT_ID = "Iv1.b507a08c87ecfe98";
@@ -44,13 +45,10 @@ function getUrls(domain: string): CopilotUrls {
   };
 }
 
-async function fetchJson(url: string, init: RequestInit): Promise<Record<string, unknown>> {
-  const response = await fetch(url, init);
-  if (!response.ok) {
-    const text = await response.text().catch(() => "");
-    throw httpFailure(`${response.status} ${response.statusText}: ${text}`, response, text);
-  }
-  return (await response.json()) as Record<string, unknown>;
+async function fetchJson(url: string, init: RequestInit, cancel?: AbortSignal): Promise<Record<string, unknown>> {
+  const { response, text } = await oauthFetch(url, init, cancel);
+  if (!response.ok) throw httpFailure(`${response.status} ${response.statusText}: ${text}`, response, text);
+  return JSON.parse(text) as Record<string, unknown>;
 }
 
 interface DeviceCode {
@@ -61,7 +59,7 @@ interface DeviceCode {
   expires_in: number;
 }
 
-async function startDeviceFlow(domain: string): Promise<DeviceCode> {
+async function startDeviceFlow(domain: string, cancel?: AbortSignal): Promise<DeviceCode> {
   const data = await fetchJson(getUrls(domain).deviceCodeUrl, {
     method: "POST",
     headers: {
@@ -70,7 +68,7 @@ async function startDeviceFlow(domain: string): Promise<DeviceCode> {
       "User-Agent": COPILOT_HEADERS["User-Agent"],
     },
     body: new URLSearchParams({ client_id: CLIENT_ID, scope: "read:user" }),
-  });
+  }, cancel);
   const deviceCode = data.device_code;
   const userCode = data.user_code;
   const verificationUri = data.verification_uri;
@@ -148,7 +146,7 @@ async function pollForGitHubAccessToken(domain: string, device: DeviceCode, sign
         device_code: device.device_code,
         grant_type: "urn:ietf:params:oauth:grant-type:device_code",
       }),
-    });
+    }, signal);
     const decision = interpretPollResponse(raw);
     if (decision.kind === "token") return decision.accessToken;
     if (decision.kind === "error") throw new Error(decision.message);
@@ -160,11 +158,11 @@ async function pollForGitHubAccessToken(domain: string, device: DeviceCode, sign
   throw new Error("Device flow timed out. Please try signing in again.");
 }
 
-export async function refreshGitHubCopilotToken(githubToken: string, enterpriseDomain?: string | null): Promise<OAuthCredentials> {
+export async function refreshGitHubCopilotToken(githubToken: string, enterpriseDomain?: string | null, cancel?: AbortSignal): Promise<OAuthCredentials> {
   const domain = enterpriseDomain || "github.com";
   const raw = await fetchJson(getUrls(domain).copilotTokenUrl, {
     headers: { Accept: "application/json", Authorization: `Bearer ${githubToken}`, ...COPILOT_HEADERS },
-  });
+  }, cancel);
   const token = raw.token;
   const expiresAt = raw.expires_at;
   if (typeof token !== "string" || typeof expiresAt !== "number") {
@@ -186,12 +184,12 @@ export function copilotBaseUrl(token: string, enterpriseDomain?: string | null):
 }
 
 /** Best-effort model policy enablement, matching the official client behaviour. */
-async function enableCopilotModels(token: string, enterpriseDomain?: string | null): Promise<void> {
+async function enableCopilotModels(token: string, enterpriseDomain?: string | null, cancel?: AbortSignal): Promise<void> {
   const baseUrl = copilotBaseUrl(token, enterpriseDomain);
   await Promise.all(
     listProviderModels("github-copilot").map(async (model) => {
       try {
-        await fetch(`${baseUrl}/models/${model.id}/policy`, {
+        await oauthFetch(`${baseUrl}/models/${model.id}/policy`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -201,9 +199,10 @@ async function enableCopilotModels(token: string, enterpriseDomain?: string | nu
             "x-interaction-type": "chat-policy",
           },
           body: JSON.stringify({ state: "enabled" }),
-        });
-      } catch {
-        // Per-model enablement is advisory; the model may already be enabled.
+        }, cancel);
+      } catch (error) {
+        // Per-model enablement is advisory (the model may already be enabled); a cancelled sign-in still ends here.
+        if (cancel?.aborted) throw error;
       }
     }),
   );
@@ -214,15 +213,15 @@ export const githubCopilotFlow: OAuthFlow = {
   async login(callbacks: OAuthLoginCallbacks): Promise<OAuthCredentials> {
     const enterpriseDomain = normalizeDomain(callbacks.enterpriseDomain);
     const domain = enterpriseDomain ?? "github.com";
-    const device = await startDeviceFlow(domain);
+    const device = await startDeviceFlow(domain, callbacks.signal);
     callbacks.onAuth({
       url: device.verification_uri,
       instructions: `Enter code ${device.user_code} at ${device.verification_uri}`,
     });
     const githubToken = await pollForGitHubAccessToken(domain, device, callbacks.signal);
-    const credentials = await refreshGitHubCopilotToken(githubToken, enterpriseDomain ?? undefined);
+    const credentials = await refreshGitHubCopilotToken(githubToken, enterpriseDomain ?? undefined, callbacks.signal);
     callbacks.onProgress?.("Enabling Copilot models");
-    await enableCopilotModels(credentials.access, enterpriseDomain ?? undefined);
+    await enableCopilotModels(credentials.access, enterpriseDomain ?? undefined, callbacks.signal);
     return credentials;
   },
 };

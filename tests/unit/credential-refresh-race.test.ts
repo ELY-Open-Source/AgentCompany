@@ -10,6 +10,7 @@ import { AuthBrokerService } from "../../src/main/services/auth-broker-service";
 import { IntegrationKeyStore } from "../../src/main/services/integration-key-store";
 import { loadConfiguredProvider } from "../../src/main/services/provider-internal";
 import { resolveTurnCredential } from "../../src/main/services/provider-tool-turns/credential-resolver";
+import { stopRun, withRunControl } from "../../src/main/services/run-control";
 
 const vault = { encryptSecret: (secret: string) => Buffer.from(secret, "utf8"), decryptSecret: (ciphertext: Buffer) => ciphertext.toString("utf8") };
 
@@ -53,6 +54,18 @@ describe("an expired sign-in is refreshed once, however many runs need it", () =
     const h = expiredClaudePro();
     const credentials = await Promise.all([h.resolve(), h.resolve(), h.resolve()]);
     expect(credentials.map((credential) => credential.accessToken)).toEqual(["access-1", "access-1", "access-1"]);
+    expect(calls).toEqual(["refresh-0"]);
+    h.connection.close();
+  });
+
+  test("stopping one run ends its wait on the shared refresh; the other run still gets the new sign-in", async () => {
+    const calls = rotatingTokenEndpoint();
+    const h = expiredClaudePro();
+    const stopped = withRunControl("run-stopped", () => h.resolve(), 60_000);
+    const other = withRunControl("run-other", () => h.resolve(), 60_000);
+    stopRun("run-stopped", "Stopped by the operator.");
+    await expect(stopped).rejects.toThrow("Stopped by the operator.");
+    expect((await other).accessToken).toBe("access-1");
     expect(calls).toEqual(["refresh-0"]);
     h.connection.close();
   });

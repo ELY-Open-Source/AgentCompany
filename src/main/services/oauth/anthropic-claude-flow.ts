@@ -9,6 +9,7 @@ import { startOAuthCallbackServer } from "./oauth-callback-server";
 import { generatePkce } from "./pkce";
 import type { OAuthCredentials, OAuthFlow, OAuthLoginCallbacks } from "./oauth-types";
 import { httpFailure } from "../provider-http";
+import { oauthFetch } from "./oauth-fetch";
 
 const CLIENT_ID = "9d1c250a-e61b-44d9-88ed-5944d1962f5e";
 const AUTHORIZE_URL = "https://claude.ai/oauth/authorize";
@@ -32,8 +33,8 @@ function buildAuthorizeUrl(challenge: string, state: string): string {
   return `${AUTHORIZE_URL}?${params.toString()}`;
 }
 
-async function exchangeCode(code: string, state: string, verifier: string): Promise<OAuthCredentials> {
-  const response = await fetch(TOKEN_URL, {
+async function exchangeCode(code: string, state: string, verifier: string, cancel?: AbortSignal): Promise<OAuthCredentials> {
+  const { response, text } = await oauthFetch(TOKEN_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "application/json" },
     body: JSON.stringify({
@@ -44,8 +45,7 @@ async function exchangeCode(code: string, state: string, verifier: string): Prom
       redirect_uri: REDIRECT_URI,
       code_verifier: verifier,
     }),
-  });
-  const text = await response.text();
+  }, cancel);
   if (!response.ok) throw new Error(`Token exchange failed: ${response.status} ${text}`);
   const json = JSON.parse(text) as { access_token?: unknown; refresh_token?: unknown; expires_in?: unknown };
   if (typeof json.access_token !== "string" || typeof json.refresh_token !== "string" || typeof json.expires_in !== "number") {
@@ -56,12 +56,11 @@ async function exchangeCode(code: string, state: string, verifier: string): Prom
 
 /** Refresh an expired Claude Pro/Max access token. */
 export async function refreshClaudePro(refreshToken: string): Promise<OAuthCredentials> {
-  const response = await fetch(TOKEN_URL, {
+  const { response, text } = await oauthFetch(TOKEN_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "application/json" },
     body: JSON.stringify({ grant_type: "refresh_token", client_id: CLIENT_ID, refresh_token: refreshToken }),
   });
-  const text = await response.text();
   if (!response.ok) throw httpFailure(`Claude token refresh failed: ${response.status} ${text}`, response, text);
   const json = JSON.parse(text) as { access_token?: unknown; refresh_token?: unknown; expires_in?: unknown };
   if (typeof json.access_token !== "string" || typeof json.refresh_token !== "string" || typeof json.expires_in !== "number") {
@@ -79,7 +78,7 @@ export const anthropicClaudeFlow: OAuthFlow = {
       callbacks.onAuth({ url: buildAuthorizeUrl(challenge, verifier), instructions: "Complete the Claude sign-in in your browser." });
       const result = await server.waitForCode();
       if (result.state !== verifier) throw new Error("OAuth state mismatch.");
-      return await exchangeCode(result.code, result.state, verifier);
+      return await exchangeCode(result.code, result.state, verifier, callbacks.signal);
     } finally {
       server.close();
     }

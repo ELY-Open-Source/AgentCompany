@@ -8,6 +8,7 @@ import { startOAuthCallbackServer } from "./oauth-callback-server";
 import { generatePkce } from "./pkce";
 import type { OAuthCredentials, OAuthFlow, OAuthLoginCallbacks } from "./oauth-types";
 import { httpFailure } from "../provider-http";
+import { oauthFetch } from "./oauth-fetch";
 
 const CLIENT_ID = "1071006060591-tmhssin2h21lcre235vtolojh4g403ep.apps.googleusercontent.com";
 const CALLBACK_PORT = 51121;
@@ -44,8 +45,8 @@ function buildAuthorizeUrl(challenge: string, state: string): string {
   return `${AUTH_URL}?${params.toString()}`;
 }
 
-async function exchangeCode(code: string, verifier: string, clientSecret: string): Promise<{ access: string; refresh: string; expires: number }> {
-  const response = await fetch(TOKEN_URL, {
+async function exchangeCode(code: string, verifier: string, clientSecret: string, cancel?: AbortSignal): Promise<{ access: string; refresh: string; expires: number }> {
+  const { response, text } = await oauthFetch(TOKEN_URL, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
@@ -56,12 +57,9 @@ async function exchangeCode(code: string, verifier: string, clientSecret: string
       redirect_uri: REDIRECT_URI,
       code_verifier: verifier,
     }),
-  });
-  if (!response.ok) {
-    const text = await response.text().catch(() => "");
-    throw new Error(`Token exchange failed: ${response.status} ${text}`);
-  }
-  const json = (await response.json()) as { access_token?: unknown; refresh_token?: unknown; expires_in?: unknown };
+  }, cancel);
+  if (!response.ok) throw new Error(`Token exchange failed: ${response.status} ${text}`);
+  const json = JSON.parse(text) as { access_token?: unknown; refresh_token?: unknown; expires_in?: unknown };
   if (typeof json.access_token !== "string" || typeof json.refresh_token !== "string" || typeof json.expires_in !== "number") {
     throw new Error("Token response was missing required fields.");
   }
@@ -79,7 +77,7 @@ export function readProjectId(payload: Record<string, unknown>): string | null {
   return null;
 }
 
-async function discoverProject(accessToken: string): Promise<string> {
+async function discoverProject(accessToken: string, cancel?: AbortSignal): Promise<string> {
   const headers = {
     Authorization: `Bearer ${accessToken}`,
     "Content-Type": "application/json",
@@ -87,17 +85,18 @@ async function discoverProject(accessToken: string): Promise<string> {
   };
   for (const endpoint of CODE_ASSIST_ENDPOINTS) {
     try {
-      const response = await fetch(`${endpoint}/v1internal:loadCodeAssist`, {
+      const { response, text } = await oauthFetch(`${endpoint}/v1internal:loadCodeAssist`, {
         method: "POST",
         headers,
         body: JSON.stringify({ metadata: { ideType: "IDE_UNSPECIFIED", platform: "PLATFORM_UNSPECIFIED", pluginType: "GEMINI" } }),
-      });
+      }, cancel);
       if (response.ok) {
-        const projectId = readProjectId((await response.json()) as Record<string, unknown>);
+        const projectId = readProjectId(JSON.parse(text) as Record<string, unknown>);
         if (projectId) return projectId;
       }
-    } catch {
-      // Try the next endpoint.
+    } catch (error) {
+      // A cancelled sign-in ends here; any other failure moves on to the next endpoint.
+      if (cancel?.aborted) throw error;
     }
   }
   throw new Error("Antigravity project discovery failed.");
@@ -105,7 +104,7 @@ async function discoverProject(accessToken: string): Promise<string> {
 
 /** Refresh an expired Antigravity access token, retaining the project id. */
 export async function refreshAntigravity(refreshToken: string, projectId: string, clientSecret: string): Promise<OAuthCredentials> {
-  const response = await fetch(TOKEN_URL, {
+  const { response, text } = await oauthFetch(TOKEN_URL, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
@@ -115,7 +114,6 @@ export async function refreshAntigravity(refreshToken: string, projectId: string
       grant_type: "refresh_token",
     }),
   });
-  const text = await response.text();
   if (!response.ok) throw httpFailure(`Antigravity token refresh failed: ${response.status} ${text}`, response, text);
   const json = JSON.parse(text) as { access_token?: unknown; refresh_token?: unknown; expires_in?: unknown };
   if (typeof json.access_token !== "string" || typeof json.expires_in !== "number") {
@@ -135,9 +133,9 @@ export const antigravityFlow: OAuthFlow = {
       callbacks.onAuth({ url: buildAuthorizeUrl(challenge, verifier), instructions: "Complete the Google sign-in in your browser." });
       const result = await server.waitForCode();
       if (result.state !== verifier) throw new Error("OAuth state mismatch.");
-      const tokens = await exchangeCode(result.code, verifier, clientSecret);
+      const tokens = await exchangeCode(result.code, verifier, clientSecret, callbacks.signal);
       callbacks.onProgress?.("Resolving project");
-      const projectId = await discoverProject(tokens.access);
+      const projectId = await discoverProject(tokens.access, callbacks.signal);
       return { access: tokens.access, refresh: tokens.refresh, expires: tokens.expires, projectId };
     } finally {
       server.close();
