@@ -13,7 +13,7 @@ import { runAgentLoop, runTools } from "./agent-run-loop";
 import type { RunModel } from "./skill-runtime";
 import { combineMidRunPolls, createGoalChangePoller } from "./goal-change-poller";
 import { recordRunAction, runJournalLines } from "./run-journal";
-import { currentRunSignal, RUN_STOPPED_MESSAGE, withRunControl } from "./run-control";
+import { runStopReason, withRunControl } from "./run-control";
 import type { AgentToolContext } from "./agent-tools";
 import {
   buildAgentInstructions,
@@ -283,9 +283,10 @@ export class TaskExecutionService {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       // A stop wins over whatever error the interrupted step raised.
-      if (currentRunSignal()?.aborted) {
-        this.markStopped(orgId, runId, providerRequestId, { taskId: task.id, agentId: agent.id, providerId: provider.id });
-        throw error;
+      const stopReason = runStopReason();
+      if (stopReason) {
+        this.markStopped(orgId, runId, providerRequestId, stopReason, { taskId: task.id, agentId: agent.id, providerId: provider.id });
+        throw new Error(stopReason);
       }
       this.failRun(orgId, runId, providerRequestId, message);
       if (isTransientProviderFailure(message)) this.cooldowns.park(provider, message);
@@ -423,13 +424,13 @@ export class TaskExecutionService {
   }
 
   /** The operator stopped the run: not a failure, no retry budget spent, no memory recorded. */
-  private markStopped(orgId: string, runId: string, providerRequestId: string | null, payload: { taskId: string; agentId: string; providerId: string }): void {
+  private markStopped(orgId: string, runId: string, providerRequestId: string | null, reason: string, payload: { taskId: string; agentId: string; providerId: string }): void {
     this.db.prepare(`
       update task_runs set state = ?, provider_request_id = coalesce(?, provider_request_id), completed_at = ?, error_message = ?
       where id = ? and org_id = ?
-    `).run(TASK_RUN_STATE.STOPPED, providerRequestId, new Date().toISOString(), RUN_STOPPED_MESSAGE, runId, orgId);
+    `).run(TASK_RUN_STATE.STOPPED, providerRequestId, new Date().toISOString(), reason, runId, orgId);
     this.closeChatWakeTask(orgId, runId);
-    this.audit.record({ orgId, entityType: "task_run", entityId: runId, actorType: "employee", actorId: null, action: "stopped", payload });
+    this.audit.record({ orgId, entityType: "task_run", entityId: runId, actorType: "system", actorId: null, action: "stopped", payload: { ...payload, reason } });
   }
 
   /** Closes a queued run that no longer matches its task; it is not a failure and spends no retry budget. */

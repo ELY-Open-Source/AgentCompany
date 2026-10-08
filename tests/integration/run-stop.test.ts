@@ -93,6 +93,21 @@ describe("stopping runs", () => {
     failing.connection.close();
   });
 
+  test("disconnecting a provider stops its running sessions, even when the turn ends with a final answer", async () => {
+    let revoke = () => {};
+    const { connection, execution, orgId, claim } = company(async () => {
+      revoke();
+      return { text: "All done.", toolCalls: [], rawResponseJson: "{}" };
+    });
+    const runId = claim();
+    const providerId = (connection.db.prepare("select provider_id from task_runs where id = ?").get(runId) as { provider_id: string }).provider_id;
+    const providers = new ProviderService(connection.db, providerAdapters, testVault);
+    revoke = () => providers.revokeCredential({ orgId, providerId });
+    await expect(execution.executeRun(orgId, runId)).rejects.toThrow("OpenAI was disconnected.");
+    expect(connection.db.prepare("select state, error_message from task_runs where id = ?").get(runId)).toEqual({ state: "stopped", error_message: "OpenAI was disconnected." });
+    connection.close();
+  });
+
   test("stopping a run aborts its provider request in flight", async () => {
     const server = createServer(() => { /* never answers */ });
     await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));

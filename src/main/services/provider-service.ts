@@ -17,6 +17,7 @@ import { ProviderRequestStore } from "./provider-request-store";
 import { ProviderResponseRunner, type ProviderResponseCreateInput } from "./provider-response-runner";
 import { launchProviderSignInWindow, type LaunchProviderSignInWindowInput } from "./provider-sign-in-window";
 import type { ToolTurnFn } from "./provider-tool-turn";
+import { stopRun } from "./run-control";
 import {
   AUTH_STATE_CONFIGURED,
   AUTH_STATE_REVOKED,
@@ -157,6 +158,10 @@ export class ProviderService {
       set credential_id = null, enabled = 0, auth_state = ?, health_state = ?, last_error = null, last_checked_at = null
       where id = ? and org_id = ?
     `).run(AUTH_STATE_REVOKED, HEALTH_STATE_UNCHECKED, input.providerId, input.orgId);
+    // Sessions mid-turn on this provider stop now instead of finishing on a revoked account.
+    const label = (this.db.prepare("select label from providers where id = ?").get(input.providerId) as { label: string }).label;
+    const running = this.db.prepare("select id from task_runs where provider_id = ? and state = 'running'").all(input.providerId) as Array<{ id: string }>;
+    for (const run of running) stopRun(run.id, `${label} was disconnected.`);
     this.audit.record({
       orgId: input.orgId,
       entityType: "provider",

@@ -1,5 +1,5 @@
 import { net } from "electron";
-import { currentRunSignal, RUN_STOPPED_MESSAGE } from "../run-control";
+import { currentRunSignal, RUN_STOPPED_MESSAGE, runStopReason } from "../run-control";
 
 const BASE_URL = "https://backend.composio.dev/api/v3";
 
@@ -156,12 +156,12 @@ export class ComposioClient {
       const request = net.request({ method, url });
       const runSignal = currentRunSignal();
       if (runSignal?.aborted) {
-        reject(new Error(RUN_STOPPED_MESSAGE));
+        reject(new Error(runStopReason() ?? RUN_STOPPED_MESSAGE));
         return;
       }
       runSignal?.addEventListener("abort", () => {
         request.abort();
-        reject(new Error(RUN_STOPPED_MESSAGE));
+        reject(new Error(runStopReason() ?? RUN_STOPPED_MESSAGE));
       }, { once: true });
       request.setHeader("x-api-key", this.apiKey);
       request.setHeader("Accept", "application/json");
