@@ -39,7 +39,8 @@ describe("knowledge revisions", () => {
     expect(run("revise_knowledge", { id, content: "x" })).toBe('ERROR: "reason" is required.');
     expect(run("revise_knowledge", { id: "kne_missing", reason: "r" })).toBe('ERROR: No knowledge entry with id "kne_missing".');
 
-    new KnowledgeService(connection.db).delete({ orgId, entryId: id });
+    const employeeId = (connection.db.prepare("select id from employees where org_id = ?").get(orgId) as { id: string }).id;
+    new KnowledgeService(connection.db).delete({ orgId, entryId: id, deletedByEmployeeId: employeeId });
     expect(run("search_knowledge", { id })).toContain(`Knowledge entry ${id} (deleted), 2 revision(s):`);
     connection.close();
   });

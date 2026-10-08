@@ -48,8 +48,9 @@ export class DocumentService {
   update(input: UpdateDocumentInput): number {
     const reason = input.reason.trim();
     if (!reason) throw new Error("A document update needs a reason.");
-    const current = this.db.prepare("select version from documents where id = ? and org_id = ?")
-      .get(input.documentId, input.orgId) as { version: number } | undefined;
+    this.audit.requireActor(input.orgId, input.changedByType, input.changedById);
+    const current = this.db.prepare("select version, title, status from documents where id = ? and org_id = ?")
+      .get(input.documentId, input.orgId) as { version: number; title: string; status: string } | undefined;
     if (!current) throw new Error("Document was not found.");
     const version = current.version + 1;
     const now = new Date().toISOString();
@@ -59,6 +60,15 @@ export class DocumentService {
     this.writeVersion({
       orgId: input.orgId, documentId: input.documentId, version, title: input.title.trim(), content: input.content, status: input.status,
       changedByType: input.changedByType, changedById: input.changedById, reason, at: now,
+    });
+    this.audit.record({
+      orgId: input.orgId,
+      entityType: "document",
+      entityId: input.documentId,
+      actorType: input.changedByType,
+      actorId: input.changedById,
+      action: "revised",
+      payload: { version, reason, title: input.title.trim(), status: input.status, previousTitle: current.title, previousStatus: current.status },
     });
     return version;
   }
@@ -71,8 +81,20 @@ export class DocumentService {
   }
 
   delete(input: DeleteDocumentInput): void {
-    const result = this.db.prepare("delete from documents where id = ? and org_id = ?").run(input.documentId, input.orgId);
-    if (result.changes === 0) throw new Error("Document was not found.");
+    this.audit.requireActor(input.orgId, "employee", input.deletedByEmployeeId);
+    const doc = this.db.prepare("select title, doc_type, status, version, content from documents where id = ? and org_id = ?")
+      .get(input.documentId, input.orgId) as { title: string; doc_type: string; status: string; version: number; content: string } | undefined;
+    if (!doc) throw new Error("Document was not found.");
+    this.db.prepare("delete from documents where id = ? and org_id = ?").run(input.documentId, input.orgId);
+    this.audit.record({
+      orgId: input.orgId,
+      entityType: "document",
+      entityId: input.documentId,
+      actorType: "employee",
+      actorId: input.deletedByEmployeeId,
+      action: "deleted",
+      payload: { title: doc.title, docType: doc.doc_type, status: doc.status, version: doc.version, content: doc.content },
+    });
   }
 
   private writeVersion(input: {

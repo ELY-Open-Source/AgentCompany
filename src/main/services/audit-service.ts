@@ -59,6 +59,14 @@ export class AuditService {
     );
   }
 
+  /** Content changes name a real member of the organization as the actor. */
+  requireActor(orgId: string, actorType: "employee" | "agent", actorId: string): void {
+    const table = { employee: "employees", agent: "agents" }[actorType];
+    if (!table) throw new Error(`Unknown actor type "${actorType}".`);
+    const actor = this.db.prepare(`select id from ${table} where id = ? and org_id = ?`).get(actorId, orgId);
+    if (!actor) throw new Error(`No ${actorType} "${actorId}" in this organization.`);
+  }
+
   createThreadReplay(input: CreateAuditReplayInput): string {
     const thread = this.requireThread(input.orgId, input.threadId);
     this.requireEmployee(input.orgId, input.createdByEmployeeId);

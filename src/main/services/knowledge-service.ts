@@ -87,6 +87,7 @@ export class KnowledgeService {
   update(input: UpdateKnowledgeEntryInput): number {
     const reason = input.reason.trim();
     if (!reason) throw new Error("A knowledge correction needs a reason.");
+    this.audit.requireActor(input.orgId, input.changedByType, input.changedById);
     const now = new Date().toISOString();
     const result = this.db.prepare(`
       update knowledge_entries set topic = ?, category = ?, content = ?, importance = ?, updated_at = ?
@@ -104,7 +105,7 @@ export class KnowledgeService {
       orgId: input.orgId,
       entityType: "knowledge_entry",
       entityId: input.entryId,
-      actorType: input.changedByType === "agent" ? "agent" : "employee",
+      actorType: input.changedByType,
       actorId: input.changedById,
       action: "revised",
       payload: { revision, reason },
@@ -120,8 +121,28 @@ export class KnowledgeService {
   }
 
   delete(input: DeleteKnowledgeEntryInput): void {
-    const result = this.db.prepare("delete from knowledge_entries where id = ? and org_id = ?").run(input.entryId, input.orgId);
-    if (result.changes === 0) throw new Error("Knowledge entry was not found.");
+    this.audit.requireActor(input.orgId, "employee", input.deletedByEmployeeId);
+    const entry = this.db.prepare(`
+      select topic, category, content, importance, scope_type, scope_id,
+        (select max(revision) from knowledge_revisions where entry_id = knowledge_entries.id) as revision
+      from knowledge_entries where id = ? and org_id = ?
+    `).get(input.entryId, input.orgId) as {
+      topic: string; category: string; content: string; importance: string; scope_type: string; scope_id: string | null; revision: number;
+    } | undefined;
+    if (!entry) throw new Error("Knowledge entry was not found.");
+    this.db.prepare("delete from knowledge_entries where id = ? and org_id = ?").run(input.entryId, input.orgId);
+    this.audit.record({
+      orgId: input.orgId,
+      entityType: "knowledge_entry",
+      entityId: input.entryId,
+      actorType: "employee",
+      actorId: input.deletedByEmployeeId,
+      action: "deleted",
+      payload: {
+        topic: entry.topic, category: entry.category, content: entry.content, importance: entry.importance,
+        scopeType: entry.scope_type, scopeId: entry.scope_id, revision: entry.revision,
+      },
+    });
   }
 
   private writeRevision(input: {

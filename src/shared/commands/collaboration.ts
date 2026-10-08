@@ -19,12 +19,13 @@ export interface UpdateDocumentInput {
   /** Why it changed; kept with the new version. */
   reason: string;
   changedByType: "employee" | "agent";
-  changedById: string | null;
+  changedById: string;
 }
 
 export interface DeleteDocumentInput {
   orgId: string;
   documentId: string;
+  deletedByEmployeeId: string;
 }
 
 export type KnowledgeScopeType = "organization" | "project" | "goal" | "task" | "agent";
@@ -55,8 +56,8 @@ export interface UpdateKnowledgeEntryInput {
   importance: string;
   /** Why it changed; kept in the revision history. */
   reason: string;
-  changedByType: string;
-  changedById: string | null;
+  changedByType: "employee" | "agent";
+  changedById: string;
 }
 
 export interface DocumentVersionRecord {
@@ -95,6 +96,7 @@ export interface ListKnowledgeRevisionsInput {
 export interface DeleteKnowledgeEntryInput {
   orgId: string;
   entryId: string;
+  deletedByEmployeeId: string;
 }
 
 export interface CreateAutomationRuleInput {

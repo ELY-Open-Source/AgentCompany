@@ -202,7 +202,7 @@ export function KnowledgePanel({
           onClose={() => setDialog(null)}
           onSubmit={(event) => {
             event.preventDefault();
-            perform(() => actions.run(() => window.agentCompany.deleteKnowledgeEntry({ orgId, entryId: selected.id })), () => {
+            perform(() => actions.run(() => window.agentCompany.deleteKnowledgeEntry({ orgId, entryId: selected.id, deletedByEmployeeId: employeeId })), () => {
               setDialog(null);
               setSelectedId(null);
             });

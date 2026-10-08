@@ -140,7 +140,7 @@ export function DocumentsPanel({
           onClose={() => setConfirmDelete(false)}
           onSubmit={(event) => {
             event.preventDefault();
-            void perform(() => actions.run(() => window.agentCompany.deleteDocument({ orgId, documentId: selected.id })), () => {
+            void perform(() => actions.run(() => window.agentCompany.deleteDocument({ orgId, documentId: selected.id, deletedByEmployeeId: employeeId })), () => {
               setConfirmDelete(false);
               setSelectedId(null);
             });

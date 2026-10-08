@@ -16,16 +16,17 @@ describe("document versions", () => {
       orgId = new OrganizationService(connection.db).createOrganization({ organizationName: "V", employeeName: "Y", mission: "m", goal: "g" });
     });
     const documents = new DocumentService(connection.db);
+    const employeeId = (connection.db.prepare("select id from employees where org_id = ?").get(orgId) as { id: string }).id;
     const id = documents.create({ orgId, title: "Spec", docType: "spec", content: "v1 body", authorAgentId: null, reviewerAgentId: null, projectId: null, goalId: null, taskId: null });
-    expect(documents.update({ orgId, documentId: id, title: "Spec", content: "v2 body", status: "review", reason: "Added API", changedByType: "employee", changedById: null })).toBe(2);
-    expect(() => documents.update({ orgId, documentId: id, title: "Spec", content: "v3", status: "review", reason: " ", changedByType: "employee", changedById: null }))
+    expect(documents.update({ orgId, documentId: id, title: "Spec", content: "v2 body", status: "review", reason: "Added API", changedByType: "employee", changedById: employeeId })).toBe(2);
+    expect(() => documents.update({ orgId, documentId: id, title: "Spec", content: "v3", status: "review", reason: " ", changedByType: "employee", changedById: employeeId }))
       .toThrow("A document update needs a reason.");
     expect(documents.versions(orgId, id).map((v) => [v.version, v.content, v.status, v.reason])).toEqual([
       [1, "v1 body", "draft", "created"],
       [2, "v2 body", "review", "Added API"],
     ]);
     expect(connection.db.prepare("select version, content from documents where id = ?").get(id)).toEqual({ version: 2, content: "v2 body" });
-    documents.delete({ orgId, documentId: id });
+    documents.delete({ orgId, documentId: id, deletedByEmployeeId: employeeId });
     expect(documents.versions(orgId, id)).toHaveLength(2);
     connection.close();
   });
