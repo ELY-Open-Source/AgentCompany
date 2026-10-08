@@ -1,3 +1,4 @@
+import type { ApprovalDrift } from "./approval-pin";
 import type { DesktopResult } from "./result";
 import type { AppSnapshot, SearchResultRecord } from "./domain";
 import type { ProviderModelEntry } from "./provider-models";
@@ -203,6 +204,8 @@ export interface DesktopApi {
   disconnectComposioToolkit(input: DisconnectComposioToolkitInput): Promise<DesktopResult<AppSnapshot>>;
   refreshComposioAccounts(input: RefreshComposioAccountsInput): Promise<DesktopResult<AppSnapshot>>;
   grantConnector(input: GrantConnectorInput): Promise<DesktopResult<AppSnapshot>>;
+  /** Approved deliverables whose content changed or vanished since approval, checked on disk now. */
+  approvalDrifts(input: { orgId: string }): Promise<DesktopResult<Record<string, ApprovalDrift>>>;
   revokeConnector(input: RevokeConnectorInput): Promise<DesktopResult<AppSnapshot>>;
   search(input: SearchInput): Promise<DesktopResult<SearchResultRecord[]>>;
   subscribe(callback: (event: RendererEvent) => void): () => void;

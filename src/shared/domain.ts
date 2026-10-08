@@ -179,6 +179,8 @@ export interface ApprovalRecord {
   requestedById: string | null;
   sourceEntityType: string | null;
   sourceEntityId: string | null;
+  /** JSON of what the approval covers: a task snapshot, or the pin of an approved deliverable. */
+  subjectSnapshot: string | null;
   state: ApprovalState;
   decisionNotes: string | null;
   decidedByEmployeeId: string | null;

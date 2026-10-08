@@ -29,6 +29,7 @@ import { MeetingService } from "../services/meeting-service";
 import { SprintService } from "../services/sprint-service";
 import { ComposioConnectionService } from "../services/composio/composio-connection-service";
 import { ConnectorGrantsService } from "../services/composio/connector-grants";
+import { approvalDrifts } from "../services/approval-drift";
 import { IntegrationKeyStore } from "../services/integration-key-store";
 import { importStagedSkills, stageBuiltinSkillsLibrary } from "../services/builtin-skills";
 import { coalesce } from "./coalesce";
@@ -417,6 +418,13 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     }
   });
   ipcMain.handle(IPC_CHANNELS.grantConnector, (_event, input) => mutate(() => new ConnectorGrantsService(deps.connection.db).grantFromBoard(input)));
+  ipcMain.handle(IPC_CHANNELS.approvalDrifts, (_event, input) => {
+    try {
+      return ok(approvalDrifts(deps.connection.db, input.orgId));
+    } catch (error) {
+      return fail("approval_drift_failed", error instanceof Error ? error.message : String(error));
+    }
+  });
   ipcMain.handle(IPC_CHANNELS.revokeConnector, (_event, input) => mutate(() => new ConnectorGrantsService(deps.connection.db).revoke(input)));
   ipcMain.handle(IPC_CHANNELS.refreshComposioAccounts, async (_event, input) => {
     try {

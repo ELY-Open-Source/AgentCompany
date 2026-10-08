@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, test } from "vitest";
@@ -9,6 +9,8 @@ import { ChatService } from "../../src/main/services/chat-service";
 import { dispatchAgentTool, type AgentToolContext } from "../../src/main/services/agent-tools";
 import { ApprovalService } from "../../src/main/services/approval-service";
 import { runJournalLines } from "../../src/main/services/run-journal";
+import { DocumentService } from "../../src/main/services/document-service";
+import { approvalDrifts } from "../../src/main/services/approval-drift";
 import { executionApprovalProblem, requireAssignedAgent } from "../../src/main/services/task-run-preparation";
 import { TASK_PRIORITY } from "../../src/shared/domain";
 import type { TaskExecutionTaskRow } from "../../src/main/services/task-prompts";
@@ -94,6 +96,16 @@ describe("execution modes", () => {
     }
     expect(readFileSync(join(root, "plan", "business-plan.md"), "utf8")).toBe("# Plan");
     expect(db.prepare("select title, content from documents where org_id = ?").all(h.orgId)).toEqual([{ title: "Launch memo", content: "Ship it." }]);
+
+    // Each approval pins what was approved; content changed or removed later, even outside the app, shows against it.
+    expect(approvalDrifts(db, h.orgId)).toEqual({});
+    const [fileReview, docReview] = reviews.map((review) => review.id);
+    writeFileSync(join(root, "plan", "business-plan.md"), "# Edited by hand");
+    expect(approvalDrifts(db, h.orgId)).toEqual({ [fileReview]: "changed" });
+    rmSync(join(root, "plan", "business-plan.md"));
+    const docId = (db.prepare("select id from documents where org_id = ?").get(h.orgId) as { id: string }).id;
+    h.connection.transaction(() => new DocumentService(db).update({ orgId: h.orgId, documentId: docId, title: "Launch memo", content: "Ship it later.", status: "draft", reason: "edit", changedByType: "employee", changedById: employeeId }));
+    expect(approvalDrifts(db, h.orgId)).toEqual({ [fileReview]: "removed", [docReview]: "changed" });
   });
 
   test("a declined deliverable is never written, and held work keeps its task open", () => {

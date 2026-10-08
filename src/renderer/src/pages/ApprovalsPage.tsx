@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Avatar, Button, Icon, IconButton, Pill } from "../shared/ui";
 import { TopbarActions } from "../shared/TopbarActions";
 import type {
@@ -7,6 +7,7 @@ import type {
   EmployeeRecord,
   RiskLevel,
 } from "../../../shared/domain";
+import type { ApprovalDrift } from "../../../shared/approval-pin";
 import { APPROVAL_STATE, RISK_LEVEL } from "../../../shared/domain";
 import type { PageProps } from "./types";
 import { activeOrgId, formatRelative, requireActiveEmployee } from "./types";
@@ -46,6 +47,25 @@ export function ApprovalsPage({ snapshot, actions }: PageProps) {
   const medianTime = computeMedianMinutes(weeklyDecided);
 
   const editing = editingId ? approvals.find((approval) => approval.id === editingId) ?? null : null;
+
+  // Drift is read from disk in the main process, again whenever the approvals change.
+  const [drifts, setDrifts] = useState<Record<string, ApprovalDrift>>({});
+  const [driftError, setDriftError] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    void window.agentCompany.approvalDrifts({ orgId }).then((result) => {
+      if (cancelled) return;
+      if (result.ok) {
+        setDrifts(result.data);
+        setDriftError(null);
+      } else {
+        setDriftError(result.error.message);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [orgId, approvals]);
 
   const decide = (approval: ApprovalRecord, state: "approved" | "declined", notes?: string) => {
     setEditingId(null);
@@ -97,11 +117,13 @@ export function ApprovalsPage({ snapshot, actions }: PageProps) {
       {decided.length > 0 && (
         <>
           <div className="section-label" style={{ margin: "32px 0 10px" }}>{t("Recently decided")}</div>
+          {driftError && <div style={{ color: "var(--red)", fontSize: 13, marginBottom: 8 }}>{t("Could not check approved content: {message}", { message: driftError })}</div>}
           <div className="card" style={{ padding: 0, overflow: "hidden" }}>
             {decided.slice(0, 24).map((approval, index) => (
               <DecidedRow
                 key={approval.id}
                 approval={approval}
+                drift={drifts[approval.id] ?? null}
                 requester={resolveRequester(approval, employees, agents)}
                 decider={resolveDecider(approval, employees)}
                 last={index === Math.min(decided.length, 24) - 1}
@@ -266,11 +288,13 @@ function ApprovalRow({
 
 function DecidedRow({
   approval,
+  drift,
   requester,
   decider,
   last,
 }: {
   approval: ApprovalRecord;
+  drift: ApprovalDrift | null;
   requester: string;
   decider: string;
   last: boolean;
@@ -290,6 +314,7 @@ function DecidedRow({
     >
       <Icon name={approved ? "check" : "x"} size={14} color={approved ? "var(--green)" : superseded ? "var(--text-3)" : "var(--red)"} />
       <div style={{ flex: 1, fontWeight: 480, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{approval.title}</div>
+      {drift && <Pill tone="amber">{drift === "changed" ? t("Changed since approval") : t("Removed since approval")}</Pill>}
       <Avatar name={requester} size="sm" bot />
       <div style={{ fontSize: 12, color: "var(--text-3)", width: 180, textAlign: "right", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
         {decidedLabel} · {formatRelative(approval.decidedAt ?? approval.createdAt)}{superseded ? "" : ` · ${decider.split(" ")[0]}`}

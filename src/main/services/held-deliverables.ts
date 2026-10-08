@@ -1,5 +1,7 @@
+import { createHash } from "node:crypto";
 import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import type { DatabaseSync } from "node:sqlite";
+import type { ApprovalPin } from "../../shared/approval-pin";
 import { writeDeliverable } from "./deliverable-writer";
 import { DocumentService } from "./document-service";
 import { recordWorkspaceFile } from "./files/file-object-store";
@@ -14,6 +16,7 @@ export type HeldTarget =
 interface HeldRow {
   id: string;
   org_id: string;
+  approval_id: string;
   kind: HeldTarget["kind"];
   agent_id: string | null;
   task_id: string | null;
@@ -79,6 +82,8 @@ export function settleHeldDeliverable(db: DatabaseSync, heldId: string, approved
 function publish(db: DatabaseSync, row: HeldRow): void {
   if (row.kind === "file") {
     const { absolute } = resolveWorkspacePath(row.workspace_root!, row.relative_path!);
+    // The file's pin is known before it is written, so it is recorded first and the disk write stays last.
+    pinApproval(db, row, { kind: "file", storagePath: absolute, sha256: createHash("sha256").update(row.content, "utf8").digest("hex") });
     const previous = existsSync(absolute) ? readFileSync(absolute) : null;
     try {
       const written = writeDeliverable({ workspaceRoot: row.workspace_root!, relativePath: row.relative_path!, content: row.content });
@@ -93,10 +98,11 @@ function publish(db: DatabaseSync, row: HeldRow): void {
   }
   const documents = new DocumentService(db);
   if (row.kind === "document_create") {
-    documents.create({
+    const documentId = documents.create({
       orgId: row.org_id, title: row.title!, docType: row.doc_type!, content: row.content, authorAgentId: row.agent_id,
       reviewerAgentId: null, projectId: row.project_id, goalId: row.goal_id, taskId: row.task_id,
     });
+    pinApproval(db, row, { kind: "document", documentId, version: 1 });
     return;
   }
   const current = db.prepare("select version, status from documents where id = ? and org_id = ?").get(row.document_id, row.org_id) as { version: number; status: string } | undefined;
@@ -104,10 +110,16 @@ function publish(db: DatabaseSync, row: HeldRow): void {
   if (current.version !== row.base_version) {
     throw new Error(`The document moved from v${row.base_version} to v${current.version} after this draft was held; decline the review and ask for a fresh draft.`);
   }
-  documents.update({
+  const version = documents.update({
     orgId: row.org_id, documentId: row.document_id!, title: row.title!, content: row.content, status: current.status,
     reason: row.reason!, changedByType: "agent", changedById: row.agent_id!,
   });
+  pinApproval(db, row, { kind: "document", documentId: row.document_id!, version });
+}
+
+/** Records on the approval exactly what it approved, so later changes in place show against it. */
+function pinApproval(db: DatabaseSync, row: HeldRow, pin: ApprovalPin): void {
+  db.prepare("update approvals set subject_snapshot = ? where id = ?").run(JSON.stringify(pin), row.approval_id);
 }
 
 /** Held work of a task or goal still waiting for review, by title; done and achieved wait for it. */
