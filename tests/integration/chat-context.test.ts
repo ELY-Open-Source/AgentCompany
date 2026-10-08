@@ -73,7 +73,11 @@ async function founderLine() {
     connection.db.prepare("update task_runs set state = 'failed' where id = ?").run(wake.id);
     await execution.runTask({ orgId, taskId: wake.task_id });
   };
-  return { connection, wakePrompts, wakeInputs, say, runWake, runManually, edit, onWakeTurn };
+  const remove = (bodyMd: string) => {
+    const row = connection.db.prepare("select id from chat_messages where body_md = ?").get(bodyMd) as { id: string };
+    chat.deleteMessage({ orgId, messageId: row.id, actorType: "employee", actorId: founderId });
+  };
+  return { connection, wakePrompts, wakeInputs, say, runWake, runManually, edit, remove, onWakeTurn };
 }
 
 describe("chat wake context", () => {
@@ -222,6 +226,35 @@ describe("chat wake context", () => {
     await h.runManually();
     expect(h.wakePrompts).toHaveLength(1);
     expect(h.wakePrompts[0]).toContain("Please draft the Q3 hiring plan.");
+    h.connection.close();
+  });
+
+  test("deleted messages never reach the model", async () => {
+    const h = await founderLine();
+    const threadId = h.say("Old plan: launch in March.", null);
+    await h.runWake();
+    h.remove("Old plan: launch in March.");
+    h.say("Wrong number, ignore it: 4242.", threadId);
+    h.remove("Wrong number, ignore it: 4242.");
+    h.say("What is the launch date now?", threadId);
+    await h.runWake();
+    const prompt = h.wakePrompts[1];
+    expect(prompt).toContain("What is the launch date now?");
+    expect(prompt).not.toContain("Old plan: launch in March.");
+    expect(prompt).not.toContain("4242");
+    h.connection.close();
+  });
+
+  test("a deleted /agent command leaves no trace in the task or the prompt", async () => {
+    const h = await founderLine();
+    const threadId = h.say("/agent @ceo wire the payroll to account 99-1234", null);
+    h.remove("/agent @ceo wire the payroll to account 99-1234");
+    h.say("Never mind that. How is hiring going?", threadId);
+    await h.runWake();
+    const prompt = h.wakePrompts[0];
+    expect(prompt).toContain("How is hiring going?");
+    expect(prompt).not.toContain("99-1234");
+    expect(h.connection.db.prepare("select count(*) as n from tasks where title like '%99-1234%' or description like '%99-1234%'").get()).toEqual({ n: 0 });
     h.connection.close();
   });
 });

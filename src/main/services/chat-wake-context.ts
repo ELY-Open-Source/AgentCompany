@@ -30,15 +30,16 @@ export function loadChatWakeContext(db: DatabaseSync, orgId: string, agentId: st
   if (!thread) throw new Error(`Chat wake thread ${scope.sourceThreadId} no longer exists.`);
   const lastReplyAt = (db.prepare(`
     select coalesce(max(created_at), '') as at from chat_messages
-    where thread_id = ? and org_id = ? and sender_type = 'agent' and sender_id = ?
+    where thread_id = ? and org_id = ? and sender_type = 'agent' and sender_id = ? and deleted_at is null
   `).get(scope.sourceThreadId, orgId, agentId) as { at: string }).at;
   const isFresh = `not (m.sender_type = 'agent' and m.sender_id = ?) and (m.created_at > ? or coalesce(m.edited_at, '') > ?)`;
+  const inThread = "m.thread_id = ? and m.org_id = ? and m.deleted_at is null";
   const args = [scope.sourceThreadId, orgId, agentId, lastReplyAt, lastReplyAt];
-  const fresh = db.prepare(`${MESSAGE_SELECT} where m.thread_id = ? and m.org_id = ? and ${isFresh} order by m.created_at asc`)
+  const fresh = db.prepare(`${MESSAGE_SELECT} where ${inThread} and ${isFresh} order by m.created_at asc`)
     .all(...args) as unknown as ThreadMessageRow[];
-  const history = (db.prepare(`${MESSAGE_SELECT} where m.thread_id = ? and m.org_id = ? and not (${isFresh}) order by m.created_at desc limit ?`)
+  const history = (db.prepare(`${MESSAGE_SELECT} where ${inThread} and not (${isFresh}) order by m.created_at desc limit ?`)
     .all(...args, HISTORY_LIMIT) as unknown as ThreadMessageRow[]).reverse();
-  const historyTotal = (db.prepare(`select count(*) as n from chat_messages m where m.thread_id = ? and m.org_id = ? and not (${isFresh})`)
+  const historyTotal = (db.prepare(`select count(*) as n from chat_messages m where ${inThread} and not (${isFresh})`)
     .get(...args) as { n: number }).n;
   if (fresh.length === 0 && history.length === 0) return null;
   const omitted = historyTotal - history.length;

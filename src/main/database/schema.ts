@@ -58,6 +58,7 @@ import { kimiProvidersSchema } from "./migrations/056-kimi-providers";
 import { kimiCodeProviderSchema } from "./migrations/057-kimi-code-provider";
 import { integrationKeysSchema } from "./migrations/058-integration-keys";
 import { taskHandoffSchema } from "./migrations/059-task-handoff";
+import { chatWakeTextPurgeSchema } from "./migrations/060-chat-wake-text-purge";
 
 interface Migration {
   version: number;
@@ -125,6 +126,7 @@ const MIGRATIONS: Migration[] = [
   { version: 57, name: "kimi_code_provider", sql: kimiCodeProviderSchema },
   { version: 58, name: "integration_keys", sql: integrationKeysSchema },
   { version: 59, name: "task_handoff", sql: taskHandoffSchema },
+  { version: 60, name: "chat_wake_text_purge", sql: chatWakeTextPurgeSchema },
 ];
 
 const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;

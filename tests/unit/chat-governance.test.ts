@@ -328,7 +328,8 @@ describe("chat governance", () => {
     expect(slashByMessage.get(fileMessageId)).toMatchObject({ command: "file", resultRef: fileId });
     expect(slashByMessage.get(runbookMessageId)).toMatchObject({ command: "runbook", resultRef: runbookMessageId });
     expect(slashByMessage.get(handoffMessageId)).toMatchObject({ command: "handoff", resultRef: fileId });
-    const agentTask = state.tasks.find((item) => item.assigneeAgentId === agentId && item.title === "Chat mention: review the gate");
+    const wakeTaskId = (connection.db.prepare("select id from tasks where assignee_agent_id = ? and origin = 'chat_wake'").get(agentId) as { id: string }).id;
+    const agentTask = state.tasks.find((item) => item.id === wakeTaskId);
     expect(agentTask).toMatchObject({
       orgId,
       assigneeAgentId: agentId,
@@ -337,7 +338,9 @@ describe("chat governance", () => {
       priority: "high",
       requiresFilesystem: false,
     });
-    expect(agentTask?.description).toContain(`Source message: ${agentMessageId}`);
+    expect(agentTask?.title).toMatch(/^Reply to /);
+    expect(agentTask?.description).toContain("their full message is in the thread below");
+    expect(agentTask?.description).not.toContain("review the gate");
     const agentRun = state.taskRuns.find((item) => item.taskId === agentTask?.id);
     expect(agentRun).toMatchObject({
       orgId,

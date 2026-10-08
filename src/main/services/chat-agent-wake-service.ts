@@ -150,10 +150,13 @@ export class ChatAgentWakeService {
     const targetId = this.requireAgentMention(mentions);
     const agent = this.requireRunnableAgent(input.orgId, targetId, "Slash command /agent");
     const workspace = this.workspaceForAgent(input.orgId, agent.workspace_id);
+    const from = this.principalName(input.orgId, input.senderType, input.senderId);
+    const space = this.spaceRow(input.orgId, input.spaceId);
+    const direct = space.space_type === "direct";
     const taskId = this.organization.createTask({
       orgId: input.orgId,
-      title: this.taskTitle(agent.name, slash),
-      description: this.taskDescription(input, slash, messageId, threadId),
+      title: direct ? `Reply to ${from}` : `Reply to ${from} in #${space.name}`,
+      description: this.mentionTaskDescription(from, space.name, direct),
       status: TASK_STATUS.BACKLOG,
       assigneeAgentId: agent.id,
       risk: RISK_LEVEL.LOW,
@@ -290,12 +293,6 @@ export class ChatAgentWakeService {
     `).run("agent", agentId, "thinking", slash.args.trim().slice(0, 160), now);
   }
 
-  private taskTitle(agentName: string, slash: SlashInvocation): string {
-    const details = slash.args.replace(/^@[^\s]+\s*/, "").trim();
-    const title = details || `reply as ${agentName}`;
-    return `Chat mention: ${title.length > 64 ? `${title.slice(0, 61)}...` : title}`;
-  }
-
   private mentionTaskDescription(from: string, channel: string, direct: boolean): string {
     const where = direct
       ? `${from} messaged you directly; their full message is in the thread below.`
@@ -327,17 +324,5 @@ export class ChatAgentWakeService {
       .get(spaceId, orgId) as { name: string; space_type: string } | undefined;
     if (!row) throw new Error("Chat space was not found.");
     return row;
-  }
-
-  private taskDescription(input: SendMessageInput, slash: SlashInvocation, messageId: string, threadId: string): string {
-    return [
-      `Chat command: /agent ${slash.args.trim()}`,
-      `Source message: ${messageId}`,
-      `Source thread: ${threadId}`,
-      `Source space: ${input.spaceId}`,
-      `Sender: ${input.senderType}${input.senderId ? `:${input.senderId}` : ""}`,
-      "",
-      "Reply in the source thread with send_message and pass the thread_id above.",
-    ].join("\n");
   }
 }
