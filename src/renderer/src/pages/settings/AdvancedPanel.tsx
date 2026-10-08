@@ -1,3 +1,4 @@
+import type { ProviderRateLimitStateRecord } from "../../../../shared/provider-runtime-domain";
 import type {
   AgentRecord,
   HiringPolicyRecord,
@@ -19,6 +20,7 @@ export function AdvancedPanel({
   catalog,
   workspaces,
   providerRequests,
+  providerRateLimits,
   hiringPolicies,
   actions,
 }: {
@@ -28,6 +30,7 @@ export function AdvancedPanel({
   catalog: ProviderCatalogEntry[];
   workspaces: WorkspaceRecord[];
   providerRequests: ProviderRequestRecord[];
+  providerRateLimits: ProviderRateLimitStateRecord[];
   hiringPolicies: HiringPolicyRecord[];
   actions: SnapshotActions;
 }) {
@@ -50,7 +53,7 @@ export function AdvancedPanel({
       )}
 
       <div style={{ marginTop: 28 }}>
-        <BillingPanel agents={agents} providers={providers} providerRequests={providerRequests} hiringPolicies={hiringPolicies} />
+        <BillingPanel agents={agents} providers={providers} providerRequests={providerRequests} providerRateLimits={providerRateLimits} hiringPolicies={hiringPolicies} />
       </div>
     </div>
   );

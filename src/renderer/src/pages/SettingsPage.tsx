@@ -67,6 +67,7 @@ export function SettingsPage({ snapshot, actions }: PageProps) {
               catalog={snapshot.providerCatalog}
               workspaces={workspaces}
               providerRequests={providerRequests}
+              providerRateLimits={providerRateLimits}
               hiringPolicies={hiringPolicies}
               actions={actions}
             />

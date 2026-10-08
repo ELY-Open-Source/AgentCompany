@@ -10,6 +10,12 @@ export interface ProviderRateLimitStateRecord {
   outputCharCount: number;
   remainingRequestCount: number;
   exhausted: boolean;
+  /** This month's provider-reported spend and tokens; calls without usage or prices are counted, not guessed. */
+  costCents: number;
+  inputTokens: number;
+  outputTokens: number;
+  requestsWithoutUsage: number;
+  unpricedRequests: number;
 }
 
 export interface ProviderObservedRateLimitState {

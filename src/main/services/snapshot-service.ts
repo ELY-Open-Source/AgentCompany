@@ -8,6 +8,7 @@ type Row = Record<string, unknown>;
 type ProviderUsageWindowRow = Pick<
   AppSnapshot["providerRateLimits"][number],
   "orgId" | "providerId" | "windowStart" | "windowEnd" | "requestCount" | "inputCharCount" | "outputCharCount"
+  | "costCents" | "inputTokens" | "outputTokens" | "requestsWithoutUsage" | "unpricedRequests"
 >;
 
 function all<T>(statement: StatementSync): T[] {
@@ -224,6 +225,11 @@ function buildProviderRateLimits(
       outputCharCount,
       remainingRequestCount,
       exhausted: remainingRequestCount === 0,
+      costCents: usage?.costCents ?? 0,
+      inputTokens: usage?.inputTokens ?? 0,
+      outputTokens: usage?.outputTokens ?? 0,
+      requestsWithoutUsage: usage?.requestsWithoutUsage ?? 0,
+      unpricedRequests: usage?.unpricedRequests ?? 0,
     };
   });
 }

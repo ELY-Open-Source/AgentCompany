@@ -5,6 +5,7 @@ import { describe, expect, test } from "vitest";
 import { DatabaseConnection } from "../../src/main/database/connection";
 import { OrganizationService } from "../../src/main/services/organization-service";
 import { ProviderRequestStore } from "../../src/main/services/provider-request-store";
+import { SnapshotService } from "../../src/main/services/snapshot-service";
 import { PROVIDER_EXECUTION_MODE } from "../../src/shared/domain";
 
 describe("usage settlement", () => {
@@ -39,6 +40,9 @@ describe("usage settlement", () => {
     `).get(provider.id)).toEqual({
       request_count: 2, input_tokens: 1_000_000, output_tokens: 100_000, cached_input_tokens: 400_000, cost_cents: 342, requests_without_usage: 1, unpriced_requests: 0,
     });
+    // The month's spend reaches the renderer from these totals, not from the capped list of recent requests.
+    const limits = new SnapshotService(connection.db).load().providerRateLimits.find((item) => item.providerId === provider.id);
+    expect(limits).toMatchObject({ costCents: 342, inputTokens: 1_000_000, outputTokens: 100_000, requestsWithoutUsage: 1, unpricedRequests: 0 });
     connection.close();
   });
 });

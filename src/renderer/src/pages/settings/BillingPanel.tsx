@@ -2,19 +2,25 @@ import { Avatar, Pill } from "../../shared/ui";
 import type { AgentRecord, HiringPolicyRecord, ProviderRecord, ProviderRequestRecord } from "../../../../shared/domain";
 import { money } from "../types";
 import { buildAgentSpend } from "./billing-helpers";
+import type { ProviderRateLimitStateRecord } from "../../../../shared/provider-runtime-domain";
 import { t } from "../../i18n/i18n";
 
 export function BillingPanel({
   agents,
   providers,
   providerRequests,
+  providerRateLimits,
   hiringPolicies,
 }: {
   agents: AgentRecord[];
   providers: ProviderRecord[];
   providerRequests: ProviderRequestRecord[];
+  providerRateLimits: ProviderRateLimitStateRecord[];
   hiringPolicies: HiringPolicyRecord[];
 }) {
+  // Month to date, from the provider totals: every call counts, not only the ones loaded into the snapshot.
+  const spentCents = providerRateLimits.reduce((s, usage) => s + usage.costCents, 0);
+  const unpricedCalls = providerRateLimits.reduce((s, usage) => s + usage.unpricedRequests + usage.requestsWithoutUsage, 0);
   const totalBudget = agents.reduce((sum, a) => sum + a.budgetCents, 0);
   const totalCap = hiringPolicies.reduce((sum, p) => sum + p.monthlyBudgetLimitCents, 0);
   const monthRequests = providerRequests.filter((r) => withinDays(r.createdAt, 30));
@@ -50,12 +56,16 @@ export function BillingPanel({
           </div>
         </div>
         <div className="card" style={{ padding: 14 }}>
-          <div className="card-label" style={{ marginBottom: 8 }}>{t("Budget utilization")}</div>
+          <div className="card-label" style={{ marginBottom: 8 }}>{t("Spent this month")}</div>
           <div style={{ height: 6, background: "var(--panel-3)", borderRadius: 3, overflow: "hidden", marginBottom: 8 }}>
-            <div style={{ width: `${totalCap > 0 ? Math.min(100, Math.round((totalBudget / totalCap) * 100)) : 0}%`, height: "100%", background: "var(--accent)" }} />
+            <div style={{ width: `${totalBudget > 0 ? Math.min(100, Math.round((spentCents / totalBudget) * 100)) : 0}%`, height: "100%", background: "var(--accent)" }} />
           </div>
           <div style={{ fontSize: 12, color: "var(--text-3)" }}>
-            {totalCap > 0 ? t("{percent}% of cap", { percent: Math.round((totalBudget / totalCap) * 100) }) : t("No budget cap set")}
+            {t("${spent} of ${allocated} allocated to agents", { spent: (spentCents / 100).toFixed(2), allocated: (totalBudget / 100).toFixed(2) })}
+            {unpricedCalls > 0 && <> · {t("{count} calls not priced", { count: unpricedCalls })}</>}
+          </div>
+          <div style={{ fontSize: 12, color: "var(--text-3)", marginTop: 4 }}>
+            {totalCap > 0 ? t("Allocations use {percent}% of department caps", { percent: Math.round((totalBudget / totalCap) * 100) }) : t("No budget cap set")}
           </div>
         </div>
       </div>
