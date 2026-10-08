@@ -186,7 +186,7 @@ describe("domain services", () => {
       skills.bind({ orgId, agentId, skillId: skill.id, revisionId });
       rmSync(skillDir, { recursive: true, force: true });
       skills.runTests({ orgId, revisionId });
-      skills.resolveRuntimeSnapshot({ orgId, agentId, runId: "run-review-1", maxTokens: 44_800, taskText: "" });
+      skills.resolveRuntimeSnapshot({ orgId, agentId, runId: "run-review-1", maxTokens: 44_800, taskText: "", runModel: { providerKey: "openai", model: "gpt-5.4" } });
     });
 
     // Catalogue metadata ships in the snapshot; skill internals stay in the
@@ -247,10 +247,10 @@ describe("domain services", () => {
         .get(orgA, "review-routes") as { id: string }).id;
       expect(() => skills.bind({ orgId: orgA, agentId: agentB, skillId, revisionId })).toThrow("Agent was not found.");
       skills.bind({ orgId: orgA, agentId: agentA, skillId, revisionId });
-      const firstResolve = skills.resolveRuntimeSnapshot({ orgId: orgA, agentId: agentA, runId: "run-review-1", maxTokens: 44_800, taskText: "" });
+      const firstResolve = skills.resolveRuntimeSnapshot({ orgId: orgA, agentId: agentA, runId: "run-review-1", maxTokens: 44_800, taskText: "", runModel: { providerKey: "openai", model: "gpt-5.4" } });
       // Idempotent per run: a recovered run reuses its frozen snapshot
       // instead of failing on the uniqueness guard.
-      expect(skills.resolveRuntimeSnapshot({ orgId: orgA, agentId: agentA, runId: "run-review-1", maxTokens: 44_800, taskText: "" })).toBe(firstResolve);
+      expect(skills.resolveRuntimeSnapshot({ orgId: orgA, agentId: agentA, runId: "run-review-1", maxTokens: 44_800, taskText: "", runModel: { providerKey: "openai", model: "gpt-5.4" } })).toBe(firstResolve);
       expect(connection.db.prepare("select count(*) as n from skill_runtime_snapshots where run_id = 'run-review-1'").get())
         .toEqual({ n: 1 });
     });

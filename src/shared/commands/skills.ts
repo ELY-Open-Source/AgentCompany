@@ -23,6 +23,8 @@ export interface ResolveAgentSkillsInput {
   maxTokens: number;
   /** Task title and description, to rank bound skills by relevance. */
   taskText: string;
+  /** The run's provider and model, matched against each skill's compatible_models. */
+  runModel: { providerKey: string; model: string | null };
 }
 
 export interface RunSkillTestsInput {

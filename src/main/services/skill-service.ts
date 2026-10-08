@@ -10,6 +10,7 @@ import { loadSkillManifest, type SkillManifest } from "./skill-manifest";
 import { orderByRelevance } from "./relevance";
 import { runManifestArtifactTest, verifyRevisionStructure, type SkillArtifactRow, type SkillTestRow } from "./skill-tests";
 import { estimateTokens } from "./context-budget";
+import { modelCompatible, runModelLabel, skillPart } from "./skill-runtime";
 
 function slugify(value: string): string {
   return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
@@ -280,14 +281,6 @@ export class SkillService {
     return [];
   }
 
-  private carriesRetiredSkill(revisionIds: string[]): boolean {
-    if (revisionIds.length === 0) return false;
-    return Boolean(this.db.prepare(`
-      select 1 from skill_revisions sr join skill_definitions sd on sd.id = sr.skill_id
-      where sd.status <> 'active' and sr.id in (${revisionIds.map(() => "?").join(", ")}) limit 1
-    `).get(...revisionIds));
-  }
-
   private appLanguage(): string {
     const row = this.db.prepare("select language from app_state where id = 1").get() as { language: string } | undefined;
     return row?.language === "zh" ? "zh" : "en";
@@ -301,13 +294,6 @@ export class SkillService {
    * prompt instead of silently overflowing the model's context.
    */
   resolveRuntimeSnapshot(input: ResolveAgentSkillsInput): string {
-    // Idempotent per run: a re-queued run reuses its frozen skill set unless a skill in it was retired since.
-    const existingSnapshot = this.db.prepare("select id, source_revision_ids from skill_runtime_snapshots where agent_id = ? and run_id = ?")
-      .get(input.agentId, input.runId) as { id: string; source_revision_ids: string } | undefined;
-    if (existingSnapshot) {
-      if (!this.carriesRetiredSkill(JSON.parse(existingSnapshot.source_revision_ids) as string[])) return existingSnapshot.id;
-      this.db.prepare("delete from skill_runtime_snapshots where id = ?").run(existingSnapshot.id);
-    }
     const forcedRows = this.forcedSkillRows(input.orgId);
     const boundRows = this.db.prepare(`
       select
@@ -340,15 +326,16 @@ export class SkillService {
     const tools = new Set<string>();
     const revisionIds: string[] = [];
     const omitted: string[] = [];
+    const incompatible: string[] = [];
     let compiledTokens = 0;
     for (const row of rows) {
       if (!existsSync(row.object_key)) throw new Error(`Skill artifact is missing: ${row.object_key}`);
       const manifest = JSON.parse(row.manifest_json) as SkillManifest;
-      const part = [
-        `# Skill: ${manifest.name}`,
-        `Version: ${row.version_semver}`,
-        readFileSync(row.object_key, "utf8").trim(),
-      ].join("\n\n");
+      if (!modelCompatible(manifest.compatibleModels, input.runModel)) {
+        incompatible.push(`${manifest.name} (${manifest.compatibleModels.join(", ")})`);
+        continue;
+      }
+      const part = skillPart(manifest, row.version_semver, readFileSync(row.object_key, "utf8").trim());
       const partTokens = estimateTokens(part);
       if (compiledTokens + partTokens > input.maxTokens) {
         omitted.push(manifest.name);
@@ -359,12 +346,24 @@ export class SkillService {
       compiledParts.push(part);
       compiledTokens += partTokens;
     }
+    if (incompatible.length > 0) {
+      console.warn(`[skills] run ${input.runId}: skipped skills incompatible with ${runModelLabel(input.runModel)}: ${incompatible.join("; ")}`);
+      compiledParts.push(
+        `# Skills not loaded\n\nThese granted skills do not support this run's model (${runModelLabel(input.runModel)}): ${incompatible.join("; ")}.`,
+      );
+    }
     if (omitted.length > 0) {
       compiledParts.push(
         `# Skills omitted for size\n\nThese granted skills did not fit this run's prompt budget: ${omitted.join(", ")}. Ask the CEO to trim grants if they are essential.`,
       );
     }
 
+    const compiledPrompt = compiledParts.join("\n\n---\n\n");
+    // Idempotent per run: a re-queued run keeps its snapshot while the resolved skill set is unchanged.
+    const existing = this.db.prepare("select id, compiled_prompt from skill_runtime_snapshots where agent_id = ? and run_id = ?")
+      .get(input.agentId, input.runId) as { id: string; compiled_prompt: string } | undefined;
+    if (existing?.compiled_prompt === compiledPrompt) return existing.id;
+    if (existing) this.db.prepare("delete from skill_runtime_snapshots where id = ?").run(existing.id);
     const snapshotId = createId("srs");
     this.db.prepare(`
       insert into skill_runtime_snapshots(
@@ -375,7 +374,7 @@ export class SkillService {
       snapshotId,
       input.agentId,
       input.runId,
-      compiledParts.join("\n\n---\n\n"),
+      compiledPrompt,
       JSON.stringify({ requiredTools: [...tools].sort() }),
       JSON.stringify(revisionIds),
       new Date().toISOString(),

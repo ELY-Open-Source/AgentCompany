@@ -10,6 +10,7 @@ import { ChatService } from "./chat-service";
 import { deliverChatReplyIfMissing } from "./chat-agent-wake-service";
 import { SkillService } from "./skill-service";
 import { runAgentLoop, runTools } from "./agent-run-loop";
+import type { RunModel } from "./skill-runtime";
 import type { AgentToolContext } from "./agent-tools";
 import {
   buildAgentInstructions,
@@ -147,7 +148,7 @@ export class TaskExecutionService {
     let providerRequestId: string | null = null;
     let skillRuntimeSnapshot: SkillRuntimeSnapshotRow | null = null;
     try {
-      skillRuntimeSnapshot = this.resolveSkillRuntimeSnapshot(orgId, agent.id, runId, skillBudgetTokens(provider.context_window_tokens), `${task.title}\n${task.description}`);
+      skillRuntimeSnapshot = this.resolveSkillRuntimeSnapshot(orgId, agent.id, runId, skillBudgetTokens(provider.context_window_tokens), `${task.title}\n${task.description}`, { providerKey: provider.provider_key, model: provider.model });
       // Watermark for reply delivery and mid-run message polling.
       const runStartedAt = new Date().toISOString();
       const chatContext = loadChatWakeContext(this.db, orgId, agent.id, isolation.secretScopeJson);
@@ -390,9 +391,9 @@ export class TaskExecutionService {
     `).run(TASK_RUN_STATE.FAILED, providerRequestId, new Date().toISOString(), errorMessage, runId, orgId);
   }
 
-  private resolveSkillRuntimeSnapshot(orgId: string, agentId: string, runId: string, maxTokens: number, taskText: string): SkillRuntimeSnapshotRow | null {
+  private resolveSkillRuntimeSnapshot(orgId: string, agentId: string, runId: string, maxTokens: number, taskText: string, runModel: RunModel): SkillRuntimeSnapshotRow | null {
     if (!this.skills.hasRuntimeSkills(orgId, agentId)) return null;
-    const snapshotId = this.skills.resolveRuntimeSnapshot({ orgId, agentId, runId, maxTokens, taskText });
+    const snapshotId = this.skills.resolveRuntimeSnapshot({ orgId, agentId, runId, maxTokens, taskText, runModel });
     const snapshot = this.db.prepare(`
       select id, compiled_prompt, tools_manifest, source_revision_ids
       from skill_runtime_snapshots
