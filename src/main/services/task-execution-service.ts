@@ -25,6 +25,7 @@ import {
 } from "./task-prompts";
 import { renderTaskHandoff } from "./agent-task-handoff";
 import { createRunMessagePoller, loadChatWakeContext } from "./chat-wake-context";
+import { runningWorkspaceWriter } from "./workspace-write-lock";
 import { loadComposioTools } from "./composio/composio-tool-bridge";
 import { connectorDisplayName } from "./composio/connector-brands";
 import { ConnectorGrantsService } from "./composio/connector-grants";
@@ -321,6 +322,8 @@ export class TaskExecutionService {
     const busy = this.db.prepare("select t.title from task_runs r join tasks t on t.id = r.task_id where r.agent_id = ? and r.state = 'running' limit 1")
       .get(agentId) as { title: string } | undefined;
     if (busy) throw new Error(`This agent is already working on "${busy.title}"; run again when that session ends.`);
+    const writer = runningWorkspaceWriter(this.db, taskId);
+    if (writer !== null) throw new Error(`"${writer.title}" is changing this workspace right now; run again when it finishes.`);
     const runId = createId("run");
     const now = new Date().toISOString();
     this.db.prepare(`

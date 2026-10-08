@@ -5,6 +5,7 @@ import { expireStaleChatWakes } from "../services/chat-agent-wake-service";
 import { OrganizationService } from "../services/organization-service";
 import { spawnGoalReviews } from "../services/goal-review-service";
 import { TaskExecutionService } from "../services/task-execution-service";
+import { runningWorkspaceWriter } from "../services/workspace-write-lock";
 
 const DEFAULT_INTERVAL_MS = 5_000;
 
@@ -48,6 +49,7 @@ export function isAutonomousPaused(connection: DatabaseConnection): boolean {
  * autonomous work; within each lane, first come first served. Non-chat runs
  * carry no sourceSenderType and fall into the autonomous lane. An agent
  * runs one session at a time: its queued runs wait while one is running.
+ * A workspace takes one writing run at a time: write-granted runs wait.
  */
 export function claimNextQueuedRun(connection: DatabaseConnection, excludedProviderIds: string[] = [], lane: ClaimLane = "any"): QueuedRun | null {
   return connection.transaction(() => {
@@ -57,17 +59,18 @@ export function claimNextQueuedRun(connection: DatabaseConnection, excludedProvi
     const laneFilter = lane === "interactive"
       ? "and json_extract(secret_scope_json, '$.sourceSenderType') in ('employee', 'board')"
       : "";
-    const row = connection.db
+    const candidates = connection.db
       .prepare(`
-        select id, org_id, provider_id from task_runs where state = 'queued' ${exclusion} ${laneFilter}
+        select id, org_id, provider_id, task_id from task_runs where state = 'queued' ${exclusion} ${laneFilter}
           and not exists (select 1 from task_runs busy where busy.state = 'running' and busy.agent_id = task_runs.agent_id)
         order by
           case when json_extract(secret_scope_json, '$.sourceSenderType') in ('employee', 'board') then 0 else 1 end asc,
           created_at asc
-        limit 1
       `)
-      .get(...excludedProviderIds) as QueuedRun | undefined;
-    if (!row) return null;
+      .all(...excludedProviderIds) as unknown as Array<QueuedRun & { task_id: string }>;
+    const candidate = candidates.find((run) => runningWorkspaceWriter(connection.db, run.task_id) === null);
+    if (!candidate) return null;
+    const row: QueuedRun = { id: candidate.id, org_id: candidate.org_id, provider_id: candidate.provider_id };
     const result = connection.db
       .prepare("update task_runs set state = 'running', started_at = coalesce(started_at, ?) where id = ? and state = 'queued'")
       .run(new Date().toISOString(), row.id);

@@ -10,6 +10,7 @@ import { TaskExecutionService } from "../../src/main/services/task-execution-ser
 import { OrganizationService } from "../../src/main/services/organization-service";
 import { claimNextQueuedRun } from "../../src/main/app/task-queue-worker";
 import { canonicalMentionHandle } from "../../src/shared/mention-handles";
+import { RISK_LEVEL, TASK_PRIORITY, TASK_STATUS } from "../../src/shared/domain";
 import type { AgentTurnResult, ProviderToolTurnInput, ToolCall } from "../../src/main/services/provider-tool-turn";
 
 const testVault = {
@@ -112,6 +113,51 @@ describe("task prompt scope", () => {
     await expect(execution.executeRun(orgId, kickoff.id)).rejects.toThrow("Task was reassigned after this run was queued");
     expect(connection.db.prepare("select state from task_runs where id = ?").get(kickoff.id)).toEqual({ state: "failed" });
     expect(calls).toBe(0);
+    connection.close();
+  });
+
+  test("a manual write run waits while another run is changing the same workspace", async () => {
+    const connection = new DatabaseConnection(join(tmpdir(), `ac-wsplock-${randomUUID()}.db`));
+    const turn = async (): Promise<AgentTurnResult> => ({ text: "done", toolCalls: [], rawResponseJson: "{}" });
+    const providers = new ProviderService(connection.db, providerAdapters, testVault, undefined, turn);
+    const onboarding = new OnboardingService({ db: connection.db, saveProviderCredential: (input) => providers.saveCredential(input) });
+    const organization = new OrganizationService(connection.db);
+    const execution = new TaskExecutionService(connection.db, providers);
+    let orgId = "";
+    let ceoId = "";
+    connection.transaction(() => {
+      const summary = onboarding.bootstrap({
+        companyName: "OrbitOps AI", companyDescription: "Ops.", employeeName: "Yang", workspacePath: "",
+        executionMode: "ai_ceo", autoApproveHires: true, reviewDeliverables: false,
+        goalTitle: "Stand up a service business.", goalDescription: "Win customers.",
+        providerKey: "openai", providerSecret: "sk-test-key", providerModel: "gpt-5.4",
+      });
+      orgId = summary.orgId;
+      ceoId = summary.ceoAgentId;
+    });
+    const providerId = (connection.db.prepare("select model_provider_id as id from agents where id = ?").get(ceoId) as { id: string }).id;
+    let busyTask = "";
+    let waitingTask = "";
+    connection.transaction(() => {
+      const workspaceId = organization.createWorkspace({ orgId, name: "repo", localPath: tmpdir(), projectId: null });
+      const engineerId = organization.createAgent({
+        orgId, name: "Builder", role: "Engineer", department: "Engineering",
+        modelProviderId: providerId, modelId: "gpt-5.4", budgetCents: 1000, managerAgentId: ceoId,
+      });
+      const make = (title: string, assignee: string) => organization.createTask({
+        orgId, title, description: "d", status: TASK_STATUS.BACKLOG, assigneeAgentId: assignee,
+        risk: RISK_LEVEL.LOW, projectId: null, goalId: null, workspaceId, priority: TASK_PRIORITY.NORMAL, requiresFilesystem: true,
+      });
+      busyTask = make("Refactor storage", engineerId);
+      waitingTask = make("Bump deps", ceoId);
+    });
+    const kickoff = claimNextQueuedRun(connection)!;
+    connection.db.prepare("update task_runs set task_id = ?, agent_id = (select assignee_agent_id from tasks where id = ?) where id = ?")
+      .run(busyTask, busyTask, kickoff.id);
+
+    await expect(execution.runTask({ orgId, taskId: waitingTask })).rejects.toThrow('"Refactor storage" is changing this workspace right now');
+    connection.db.prepare("update tasks set title = '' where id = ?").run(busyTask);
+    await expect(execution.runTask({ orgId, taskId: waitingTask })).rejects.toThrow("is changing this workspace right now");
     connection.close();
   });
 });
