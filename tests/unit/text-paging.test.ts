@@ -53,6 +53,8 @@ describe("text paging", () => {
   test("bad ranges fail loudly", () => {
     expect(() => readPageArgs({ start_line: 0 })).toThrow('"start_line" must be a positive whole number.');
     expect(() => readPageArgs({ line_count: 2.5 })).toThrow('"line_count" must be a positive whole number.');
+    expect(() => readPageArgs({ search: 123 })).toThrow('"search" is required.');
+    expect(() => readPageArgs({ search: "  " })).toThrow('"search" is required.');
     expect(() => pageText("a.md", "one", readPageArgs({ start_line: 3 }))).toThrow("a.md has only 1 lines.");
   });
 });

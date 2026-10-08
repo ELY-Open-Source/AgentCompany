@@ -12,6 +12,7 @@ import { createDocumentTool, writeDeliverableTool } from "./agent-deliverable-to
 import { companyStatusTool, GOAL_TOOLS, updateGoalTool } from "./agent-goal-tools";
 import { ATTACHMENT_TOOLS, readAttachmentTool } from "./agent-attachment-tools";
 import { KNOWLEDGE_TOOLS, recordKnowledgeTool, reviseKnowledgeTool, searchKnowledgeTool } from "./agent-knowledge-tools";
+import { DOCUMENT_TOOLS, DOCUMENT_TYPES, listDocumentsTool, readDocumentTool, updateDocumentTool } from "./agent-document-tools";
 import { sendMessageTool } from "./agent-send-message";
 import { withSavepoint } from "../database/connection";
 import { optionalString, optionalStringArray, requireString } from "./agent-tool-args";
@@ -160,7 +161,7 @@ export const AGENT_TOOLS: ToolDefinition[] = [
       additionalProperties: false,
       properties: {
         title: { type: "string" },
-        doc_type: { type: "string", enum: ["prd", "spec", "memo", "report", "runbook", "proposal", "policy", "guide"] },
+        doc_type: { type: "string", enum: [...DOCUMENT_TYPES] },
         content: { type: "string", description: "Full document content in markdown." },
       },
       required: ["title", "doc_type", "content"],
@@ -231,6 +232,7 @@ export const AGENT_TOOLS: ToolDefinition[] = [
   ...GOAL_TOOLS,
   ...ATTACHMENT_TOOLS,
   ...KNOWLEDGE_TOOLS,
+  ...DOCUMENT_TOOLS,
 ];
 
 export function dispatchAgentTool(
@@ -255,6 +257,12 @@ export function dispatchAgentTool(
         return readMessagesTool(deps, ctx, call.arguments);
       case "create_document":
         return createDocumentTool(deps, ctx, call.arguments);
+      case "list_documents":
+        return listDocumentsTool(deps, ctx, call.arguments);
+      case "read_document":
+        return readDocumentTool(deps, ctx, call.arguments);
+      case "update_document":
+        return updateDocumentTool(deps, ctx, call.arguments);
       case "list_connectors":
         return listConnectorsTool(deps, ctx);
       case "grant_connector":

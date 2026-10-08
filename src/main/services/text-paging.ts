@@ -1,3 +1,4 @@
+import { optionalText } from "./agent-tool-args";
 import type { JsonRecord } from "./provider-http";
 
 const PAGE_CHAR_LIMIT = 24_000;
@@ -18,7 +19,7 @@ export const PAGE_TOOL_PROPERTIES = {
 } as const;
 
 export function readPageArgs(args: JsonRecord): PageRequest {
-  const search = typeof args.search === "string" && args.search.trim() ? args.search.trim() : null;
+  const search = optionalText(args.search, "search");
   return {
     startLine: positiveInteger(args.start_line, "start_line") ?? 1,
     startColumn: positiveInteger(args.start_column, "start_column") ?? 1,

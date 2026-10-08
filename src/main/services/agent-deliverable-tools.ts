@@ -58,7 +58,7 @@ export function createDocumentTool(deps: AgentToolDeps, ctx: AgentToolContext, a
  * every deliverable and document lands in the Approvals queue. AI CEO mode
  * ships without review — that autonomy is the mode's contract.
  */
-function requestDeliverableReview(
+export function requestDeliverableReview(
   deps: AgentToolDeps,
   ctx: AgentToolContext,
   input: { title: string; details: string; sourceEntityType: "file" | "document"; sourceEntityId: string },
