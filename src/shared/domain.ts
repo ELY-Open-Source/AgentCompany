@@ -406,6 +406,7 @@ export interface DocumentRecord {
   projectId: string | null;
   goalId: string | null;
   taskId: string | null;
+  version: number;
   createdAt: string;
   updatedAt: string;
 }

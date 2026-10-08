@@ -16,6 +16,10 @@ export interface UpdateDocumentInput {
   title: string;
   content: string;
   status: string;
+  /** Why it changed; kept with the new version. */
+  reason: string;
+  changedByType: "employee" | "agent";
+  changedById: string | null;
 }
 
 export interface DeleteDocumentInput {

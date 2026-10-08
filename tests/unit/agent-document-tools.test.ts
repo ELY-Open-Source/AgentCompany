@@ -62,21 +62,32 @@ describe("agent document tools", () => {
     const docId = /doc_id=(doc_\w+)/.exec(created)![1];
     h.run("create_document", { title: "Q3 Report", doc_type: "report", content: "Revenue grew." });
 
-    expect(h.run("list_documents", { query: "booking" })).toMatch(new RegExp(`^Booking PRD \\(doc_id=${docId}, prd, draft, \\d+ chars`));
+    expect(h.run("list_documents", { query: "booking" })).toMatch(new RegExp(`^Booking PRD \\(doc_id=${docId}, prd, draft, v1, \\d+ chars`));
     expect(h.run("list_documents", { doc_type: "report" })).toMatch(/^Q3 Report \(doc_id=doc_\w+, report/);
     expect(h.run("list_documents", { query: "kubernetes" })).toBe('No documents match "kubernetes".');
 
     const page = h.run("read_document", { doc_id: docId });
-    expect(page.startsWith("Booking PRD (prd, draft)\n\n[lines 1-")).toBe(true);
+    expect(page.startsWith("Booking PRD (prd, draft, v1 of 1)\n\n[lines 1-")).toBe(true);
     expect(page).toContain("[more: pass start_line=");
     expect(h.run("read_document", { doc_id: docId, search: "Requirement 2999:" })).toContain("2999: Requirement 2999: booking flow");
 
-    expect(h.run("update_document", { doc_id: docId, content: "Requirement 1: rebooking", reason: "Scope cut" })).toBe(`Updated document "Booking PRD" (doc_id=${docId}).`);
-    expect(h.run("read_document", { doc_id: docId })).toBe("Booking PRD (prd, draft)\n\nRequirement 1: rebooking");
+    expect(h.run("update_document", { doc_id: docId, content: "Requirement 1: rebooking", reason: "Scope cut" })).toBe(`Updated document "Booking PRD" to v2 (doc_id=${docId}).`);
+    expect(h.run("read_document", { doc_id: docId })).toBe("Booking PRD (prd, draft, v2 of 2)\n\nRequirement 1: rebooking");
+    expect(h.run("read_document", { doc_id: docId, version: 1, search: "Requirement 2999:" })).toContain("v1 of 2");
+    expect(h.run("read_document", { doc_id: docId, version: 1, search: "Requirement 2999:" })).toContain("2999: Requirement 2999: booking flow");
+    expect(h.run("read_document", { doc_id: docId, history: true })).toMatch(/^v1 .* by agent agt_\w+ — created \(\d+ chars\)\nv2 .* by agent agt_\w+ — Scope cut \(24 chars\)$/);
+    expect(h.run("read_document", { doc_id: docId, version: 3 })).toBe('ERROR: "version" must be a whole number from 1 to 2.');
+    expect(h.run("read_document", { doc_id: docId, history: "yes" })).toBe('ERROR: "history" must be true or false.');
+    expect(h.run("read_document", { doc_id: docId, history: true, version: 0 })).toBe("ERROR: history=true lists versions; it takes no version or paging arguments.");
+    expect(h.run("read_document", { doc_id: docId, history: true, search: 123 })).toBe('ERROR: "search" is required.');
     expect(h.run("update_document", { doc_id: docId, content: "x" })).toBe('ERROR: "reason" is required.');
     expect(h.run("read_document", { doc_id: "doc_missing" })).toBe('ERROR: No document with doc_id "doc_missing".');
     expect(h.run("read_document", { doc_id: docId, search: 123 })).toBe('ERROR: "search" is required.');
     expect(h.run("list_documents", { doc_type: "novel" })).toBe('ERROR: "doc_type" must be one of: prd, spec, memo, report, runbook, proposal, policy, guide.');
+
+    h.connection.db.prepare("delete from documents where id = ?").run(docId);
+    expect(h.run("read_document", { doc_id: docId, history: true }).split("\n")).toHaveLength(2);
+    expect(h.run("read_document", { doc_id: docId, version: 1, line_count: 1 })).toMatch(/^Booking PRD \(deleted, draft, v1 of 2\)/);
     h.connection.close();
   });
 
