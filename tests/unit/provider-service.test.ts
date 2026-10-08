@@ -623,7 +623,7 @@ describe("provider service", () => {
       providerId: customOpenAiProviderId,
       secret: JSON.stringify({ baseUrl: "http://api.example.com/v1", secret: "key" }),
       model: "gpt-5",
-    }))).toThrow("Base URL must use HTTPS.");
+    }))).toThrow("Base URL must use HTTPS unless it is on this computer or the local network.");
     connection.close();
   });
 });

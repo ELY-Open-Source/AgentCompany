@@ -187,7 +187,9 @@ export async function runCustomOpenAiTurn(input: ProviderToolTurnInput): Promise
     stream: false,
     // No output cap: whatever serves a custom endpoint decides which cap field, if any, it accepts.
   };
-  const response = await postJson(`${input.credential.baseUrl}/chat/completions`, { authorization: `Bearer ${requireApiKey(input.credential, "Custom OpenAI-compatible provider")}` }, body, WHOLE_RESPONSE_WAIT);
+  // A local server may need no key; send none rather than an empty one.
+  const auth: Record<string, string> = input.credential.apiKey ? { authorization: `Bearer ${input.credential.apiKey}` } : {};
+  const response = await postJson(`${input.credential.baseUrl}/chat/completions`, auth, body, WHOLE_RESPONSE_WAIT);
   const parsed = parseChatChoice(response.data);
   return { ...parsed, rawResponseJson: JSON.stringify(response.data), rateLimitState: response.rateLimitState };
 }
@@ -203,7 +205,8 @@ export async function runCustomAnthropicTurn(input: ProviderToolTurnInput): Prom
     messages: toAnthropicMessages(input.messages),
     ...(input.instructions ? { system: input.instructions } : {}),
   };
-  const response = await postJson(`${input.credential.baseUrl}/v1/messages`, { "x-api-key": requireApiKey(input.credential, "Custom Anthropic-compatible provider"), "anthropic-version": "2023-06-01" }, body, WHOLE_RESPONSE_WAIT);
+  const auth: Record<string, string> = input.credential.apiKey ? { "x-api-key": input.credential.apiKey } : {};
+  const response = await postJson(`${input.credential.baseUrl}/v1/messages`, { ...auth, "anthropic-version": "2023-06-01" }, body, WHOLE_RESPONSE_WAIT);
   const parsed = parseAnthropicContent(response.data);
   return { ...parsed, rawResponseJson: JSON.stringify(response.data), rateLimitState: response.rateLimitState };
 }

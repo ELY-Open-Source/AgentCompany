@@ -92,7 +92,7 @@ describe("provider contracts", () => {
       expect(() => providerAdapters[providerKey].parseAuthProfile(JSON.stringify({
         baseUrl: "http://api.example.com/v1",
         secret: "sk-custom",
-      }))).toThrow("Base URL must use HTTPS.");
+      }))).toThrow("Base URL must use HTTPS unless it is on this computer or the local network.");
       expect(() => providerAdapters[providerKey].parseAuthProfile(JSON.stringify({
         baseUrl: "https://user:token@api.example.com/v1",
         secret: "sk-custom",

@@ -162,7 +162,7 @@ const RAW_CATALOG: Omit<ProviderCatalogEntry, "models" | "supportsLiveModels">[]
     defaultModel: null,
     capabilityTags: ["custom", "openai-compatible"],
     signInUrl: null,
-    credentialHelp: "Set the base URL (ending in /v1) and an API key for any OpenAI Chat Completions–compatible endpoint, then enter the model id.",
+    credentialHelp: "Set the base URL (ending in /v1) of any OpenAI Chat Completions–compatible endpoint, then enter the model id. A server on this computer or your local network may use http:// and needs a key only if it asks for one.",
     customEndpoint: "openai",
   },
   {
@@ -172,7 +172,7 @@ const RAW_CATALOG: Omit<ProviderCatalogEntry, "models" | "supportsLiveModels">[]
     defaultModel: null,
     capabilityTags: ["custom", "anthropic-compatible"],
     signInUrl: null,
-    credentialHelp: "Set the base URL and an API key for any Anthropic Messages–compatible endpoint, then enter the model id.",
+    credentialHelp: "Set the base URL of any Anthropic Messages–compatible endpoint, then enter the model id. A server on this computer or your local network may use http:// and needs a key only if it asks for one.",
     customEndpoint: "anthropic",
   },
 ];

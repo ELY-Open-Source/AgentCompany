@@ -76,11 +76,11 @@ function resolveCloudCredential(providerKey: string, secret: string): TurnCreden
   switch (providerKey) {
     case "custom-openai": {
       const profile = requireOpenAiCompatProfile(parseOpenAiCompatProfile(secret));
-      return { apiKey: profile.apiKey, baseUrl: profile.baseUrl };
+      return { baseUrl: profile.baseUrl, ...(profile.apiKey ? { apiKey: profile.apiKey } : {}) };
     }
     case "custom-anthropic": {
       const profile = requireAnthropicCompatProfile(parseAnthropicCompatProfile(secret));
-      return { apiKey: profile.apiKey, baseUrl: profile.baseUrl };
+      return { baseUrl: profile.baseUrl, ...(profile.apiKey ? { apiKey: profile.apiKey } : {}) };
     }
     case "azure-openai": {
       const profile = requireAzureProfile(parseAzureProfile(secret));

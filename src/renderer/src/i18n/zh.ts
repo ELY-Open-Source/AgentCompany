@@ -32,6 +32,7 @@ export const zh: Record<string, string> = {
   "superseded": "已被取代",
   "stalled": "已停滞",
   "Resume": "恢复",
+  "API key (if the server asks for one)": "API 密钥（服务需要时填写）",
   "Checking...": "检查中...",
   "Check for agent work": "检查能否胜任 Agent 工作",
   "This model follows instructions and calls tools.": "该模型能遵循指令并调用工具。",

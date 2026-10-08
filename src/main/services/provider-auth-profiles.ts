@@ -8,8 +8,8 @@ export type ProviderAuthProfile =
   | { type: "azure_openai"; baseUrl: string; deployment: string; apiKey: string }
   | { type: "aws_bedrock"; region: string; accessKeyId: string; secretAccessKey: string; sessionToken: string | null }
   | { type: "vertex_ai"; projectId: string; region: string; serviceAccountJson: string }
-  | { type: "openai_compat"; baseUrl: string; apiKey: string }
-  | { type: "anthropic_compat"; baseUrl: string; apiKey: string };
+  | { type: "openai_compat"; baseUrl: string; apiKey: string | null }
+  | { type: "anthropic_compat"; baseUrl: string; apiKey: string | null };
 
 export function parseApiKey(secret: string): ProviderAuthProfile {
   return { type: "api_key", apiKey: nonEmptySecret(secret, "API key") };
@@ -75,12 +75,12 @@ export function parseVertexProfile(secret: string): ProviderAuthProfile {
 
 export function parseOpenAiCompatProfile(secret: string): ProviderAuthProfile {
   const parsed = parseCloudSecret(secret);
-  return { type: "openai_compat", baseUrl: normalizedHttpsUrl(requiredString(parsed.baseUrl, "Base URL"), "Base URL"), apiKey: requiredString(parsed.secret, "API key") };
+  return { type: "openai_compat", baseUrl: customEndpointUrl(requiredString(parsed.baseUrl, "Base URL")), apiKey: optionalSecret(parsed.secret) };
 }
 
 export function parseAnthropicCompatProfile(secret: string): ProviderAuthProfile {
   const parsed = parseCloudSecret(secret);
-  return { type: "anthropic_compat", baseUrl: normalizedHttpsUrl(requiredString(parsed.baseUrl, "Base URL"), "Base URL"), apiKey: requiredString(parsed.secret, "API key") };
+  return { type: "anthropic_compat", baseUrl: customEndpointUrl(requiredString(parsed.baseUrl, "Base URL")), apiKey: optionalSecret(parsed.secret) };
 }
 
 export function requireOpenAiCompatProfile(profile: ProviderAuthProfile): Extract<ProviderAuthProfile, { type: "openai_compat" }> {
@@ -159,6 +159,35 @@ function nonEmptySecret(secret: string, label: string): string {
 function normalizedHttpsUrl(value: string, label: string): string {
   const url = new URL(value);
   if (url.protocol !== "https:") throw new Error(`${label} must use HTTPS.`);
+  return normalizedUrl(url, label);
+}
+
+/** A custom endpoint may use plain HTTP only on this computer or the local network, where no key or prompt crosses the internet. */
+function customEndpointUrl(value: string): string {
+  const url = new URL(value);
+  const plainLocal = url.protocol === "http:" && isLocalNetworkHost(url.hostname);
+  if (url.protocol !== "https:" && !plainLocal) throw new Error("Base URL must use HTTPS unless it is on this computer or the local network.");
+  return normalizedUrl(url, "Base URL");
+}
+
+/** Loopback, private IPv4, IPv6 loopback or unique-local, and mDNS `.local` names. */
+function isLocalNetworkHost(hostname: string): boolean {
+  const host = hostname.replace(/^\[|\]$/g, "").toLowerCase();
+  if (host === "localhost" || host.endsWith(".localhost") || host.endsWith(".local")) return true;
+  if (host === "::1" || /^f[cd][0-9a-f]{2}:/.test(host)) return true;
+  if (!/^\d{1,3}(\.\d{1,3}){3}$/.test(host)) return false;
+  const [a, b] = host.split(".").map(Number);
+  return a === 127 || a === 10 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168);
+}
+
+/** Local servers often need no key; an empty one means none, anything else must be text. */
+function optionalSecret(value: unknown): string | null {
+  if (value === undefined || value === null) return null;
+  if (typeof value !== "string") throw new Error("API key must be text.");
+  return value.trim() || null;
+}
+
+function normalizedUrl(url: URL, label: string): string {
   if (url.username || url.password) throw new Error(`${label} must not include credentials.`);
   if (url.search || url.hash) throw new Error(`${label} must not include query strings or fragments.`);
   return url.toString().replace(/\/+$/, "");

@@ -88,7 +88,7 @@ function CompatFieldsForm({ entry, provider }: { entry: ProviderCatalogEntry; pr
           onChange={(event) => setBaseUrl(event.target.value)}
         />
       </Field>
-      <Field label={t("API key")}><input className="input" name="secret" type="password" required /></Field>
+      <Field label={t("API key (if the server asks for one)")}><input className="input" name="secret" type="password" /></Field>
       <ModelPicker entry={entry} provider={provider} />
     </>
   );

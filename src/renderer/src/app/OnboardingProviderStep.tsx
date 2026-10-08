@@ -78,7 +78,7 @@ function ProviderCredentialFields({
   const hasCredential = isOAuthLike
     ? Boolean(draft.providerSecret.trim())
     : isCustom
-      ? Boolean(draft.providerBaseUrl.trim() && draft.providerSecret.trim())
+      ? Boolean(draft.providerBaseUrl.trim())
       : Boolean(draft.providerSecret.trim());
 
   const loadModels = async (secret: string) => {
@@ -133,7 +133,7 @@ function ProviderCredentialFields({
               onChange={(event) => onChange({ providerBaseUrl: event.target.value })}
             />
           </Field>
-          <Field label={t("API key")}>
+          <Field label={t("API key (if the server asks for one)")}>
             <input
               className="input"
               type="password"

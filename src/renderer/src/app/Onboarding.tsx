@@ -384,8 +384,9 @@ function validateProvider(draft: Draft, providers: ProviderCatalogEntry[]): stri
   const selected = providers.find((entry) => entry.key === draft.providerKey);
   if (!selected) return t("Provider is no longer available.");
   if (selected.customEndpoint && !draft.providerBaseUrl.trim()) return t("Base URL is required.");
-  if (!draft.providerSecret.trim()) {
-    return selected.authType === "api_key" || selected.customEndpoint ? t("API key is required.") : t("Access token is required.");
+  // A custom endpoint may be a local server that takes no key.
+  if (!draft.providerSecret.trim() && !selected.customEndpoint) {
+    return selected.authType === "api_key" ? t("API key is required.") : t("Access token is required.");
   }
   if (!draft.providerModel.trim()) return t("Model is required.");
   return null;
