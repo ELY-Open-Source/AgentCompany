@@ -201,6 +201,8 @@ export function buildTaskPrompt(input: {
   knowledgeLines: string[];
   /** Completed runs this task already spent without reaching done. */
   priorCompletedRuns: number;
+  /** What earlier sessions on this task already did, and where the last one failed. */
+  journalLines: string[];
   /** Names of the tools the model can call this run. */
   availableToolNames: string[];
   /** Subtasks this task delegated; autonomously it only runs again once they are all done. */
@@ -277,6 +279,7 @@ export function buildTaskPrompt(input: {
       `The subtasks you delegated from this task are all done: ${input.subtasks.map((subtask) => subtask.title).join(", ")}. Check their results (read_messages, list_files, list_documents) against what this task needs, then close it, or create the follow-up work that is still missing.`,
     );
   }
+  lines.push(...input.journalLines);
   if (input.priorCompletedRuns > 0) {
     lines.push(
       "",

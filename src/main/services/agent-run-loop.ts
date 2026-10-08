@@ -4,7 +4,7 @@ import { completeGoalTool } from "./agent-goal-tools";
 import { executeWebTool, isWebTool, WEB_TOOLS } from "./agent-web-tools";
 import { executeWorkspaceTool, isWorkspaceTool, WORKSPACE_TOOLS } from "./agent-workspace-tools";
 import { canonicalMentionHandle } from "../../shared/mention-handles";
-import type { AgentTurnMessage, ToolDefinition } from "./provider-tool-turn";
+import type { AgentTurnMessage, ToolCall, ToolDefinition } from "./provider-tool-turn";
 import { isComposioTool, executeComposioTool } from "./composio/composio-tool-bridge";
 import { capToolOutput, compactToolHistory } from "./run-context-compaction";
 import { fitContextBudget } from "./context-budget";
@@ -23,6 +23,8 @@ export interface AgentRunLoopInput {
   pollNewMessages?: () => string | null;
   /** Called after each model turn the provider answered. */
   onModelTurn?: () => void;
+  /** Called with every executed tool call and its full output. */
+  onToolCompleted?: (call: ToolCall, output: string) => void;
   /** Input tokens the provider's context window leaves after the output reserve. */
   inputBudgetTokens: number;
 }
@@ -119,6 +121,7 @@ export async function runAgentLoop(deps: AgentRunLoopDeps, input: AgentRunLoopIn
           announceTaskAssignments: shouldAnnounceTaskAssignment(call, turn.toolCalls),
         });
       }
+      input.onToolCompleted?.(call, output);
       results.push({ toolCallId: call.id, toolName: call.name, output: capToolOutput(call.name, output) });
     }
     const followUp = input.pollNewMessages?.();

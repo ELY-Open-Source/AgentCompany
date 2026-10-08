@@ -12,6 +12,7 @@ import { SkillService } from "./skill-service";
 import { runAgentLoop, runTools } from "./agent-run-loop";
 import type { RunModel } from "./skill-runtime";
 import { combineMidRunPolls, createGoalChangePoller } from "./goal-change-poller";
+import { recordRunAction, runJournalLines } from "./run-journal";
 import type { AgentToolContext } from "./agent-tools";
 import {
   buildAgentInstructions,
@@ -222,6 +223,7 @@ export class TaskExecutionService {
             handoffLines: renderTaskHandoff(this.db, orgId, task.handoff_json),
             knowledgeLines: relevantKnowledgeLines(this.db, { orgId, agentId: agent.id, projectId: task.project_id, goalId: task.goal_id, taskId: task.id }, `${task.title}\n${task.description}`),
             priorCompletedRuns: this.completedRunCount(task.id, runId),
+            journalLines: runJournalLines(this.db, task.id),
             subtasks: (this.db.prepare("select title, status = 'done' as done from tasks where parent_task_id = ? order by created_at").all(task.id) as Array<{ title: string; done: number }>)
               .map((row) => ({ title: row.title, done: row.done === 1 })),
             availableToolNames: runTools(externalTools).map((tool) => tool.name),
@@ -229,6 +231,7 @@ export class TaskExecutionService {
           toolContext,
           externalTools,
           onModelTurn: contextRecorder.commit,
+          onToolCompleted: (call, output) => recordRunAction(this.db, { orgId, runId, taskId: task.id, call, output }),
           inputBudgetTokens: inputBudgetTokens(provider.context_window_tokens),
           pollNewMessages: combineMidRunPolls(
             goalChanges,
