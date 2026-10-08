@@ -258,4 +258,44 @@ describe("agent run loop (real tool dispatch)", () => {
     expect(result).toMatchObject({ iterations: 12, toolCallCount: 12, hitStepLimit: true, finalText: "Still building." });
     connection.close();
   });
+
+  test("a session is bounded in tool calls per turn and in goal audits", async () => {
+    const connection = new DatabaseConnection(join(tmpdir(), `ac-loop5-${randomUUID()}.db`));
+    const organization = new OrganizationService(connection.db);
+    let orgId = "";
+    let ceoId = "";
+    let providerId = "";
+    connection.transaction(() => {
+      orgId = organization.createOrganization({ organizationName: "OrbitOps", employeeName: "Yang", mission: "m", goal: "g" });
+      providerId = (connection.db.prepare("select id from providers where org_id = ? and provider_key = 'openai'").get(orgId) as { id: string }).id;
+      ceoId = organization.createAgent({ orgId, name: "CEO", role: "CEO", department: "Executive", modelProviderId: providerId, modelId: "gpt-5.4", budgetCents: 25000, managerAgentId: null });
+    });
+    const ctx: AgentToolContext = {
+      orgId, agent: { id: ceoId, modelProviderId: providerId, modelId: "gpt-5.4" },
+      taskProjectId: null, taskGoalId: null, taskId: null, sourceThreadId: null, workspace: null,
+    };
+    const tools = { db: connection.db, organization, chat: new ChatService(connection.db) };
+    const loopInput = { orgId, providerId, inputBudgetTokens: 112_000, workspaceId: null, instructions: "i", initialUserTurn: "u", toolContext: ctx };
+
+    // 20 calls in one turn: 16 run, the rest are refused by name.
+    const flood = [{ text: "Many reads.", toolCalls: Array.from({ length: 20 }, () => call("read_messages", {})) }];
+    let lastToolMessage: unknown = null;
+    const watching = fakeProvider(flood, connection.db);
+    const recorded = await runAgentLoop({ ...{ providers: { ...watching, runToolTurn: async (input: { messages: unknown[] }) => { lastToolMessage = input.messages.at(-1); return watching.runToolTurn(); } } }, tools } as never, loopInput);
+    expect(recorded.toolCallCount).toBe(16);
+    const results = (lastToolMessage as { results: Array<{ output: string }> }).results;
+    expect(results.filter((result) => result.output.startsWith("ERROR: not run: this turn asked for 20 tool calls; the limit is 16"))).toHaveLength(4);
+
+    // A third goal audit in one session is refused before it runs.
+    const audits = [{ text: "Closing.", toolCalls: [call("complete_goal", { evidence: "a" }), call("complete_goal", { evidence: "b" }), call("complete_goal", { evidence: "c" })] }];
+    let auditResults: Array<{ output: string }> = [];
+    const auditing = fakeProvider(audits, connection.db);
+    await runAgentLoop({ providers: { ...auditing, runToolTurn: async (input: { messages: Array<{ role: string; results?: Array<{ output: string }> }> }) => {
+      const last = input.messages.at(-1);
+      if (last?.role === "tool") auditResults = last.results ?? [];
+      return auditing.runToolTurn();
+    } }, tools } as never, loopInput);
+    expect(auditResults.map((result) => result.output.startsWith("ERROR: this session already ran 2 goal audits"))).toEqual([false, false, true]);
+    connection.close();
+  });
 });

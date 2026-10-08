@@ -2,20 +2,30 @@ import { AsyncLocalStorage } from "node:async_hooks";
 
 /** The error message a run ends with when the operator stops it. */
 export const RUN_STOPPED_MESSAGE = "Stopped by the operator.";
+/** The reason a session hits its wall-clock budget; it ends as a checkpoint, not a failure. */
+export const SESSION_TIME_LIMIT_MESSAGE = "The session reached its time limit.";
+export const SESSION_TIME_LIMIT_MS = 30 * 60_000;
+/** Tool calls one model turn may run, in a session or a nested audit. */
+export const MAX_TOOL_CALLS_PER_TURN = 16;
 
 const runScope = new AsyncLocalStorage<{ runId: string; signal: AbortSignal }>();
 const controllers = new Map<string, AbortController>();
 const settling = new Map<string, Promise<unknown>>();
 
-/** Runs a session under a stop signal that every provider request and tool inside it observes. */
-export async function withRunControl<T>(runId: string, operation: () => Promise<T>): Promise<T> {
+/** Runs a session under a stop signal that every provider request and tool inside it observes; the signal also fires at the session's deadline. */
+export async function withRunControl<T>(runId: string, operation: () => Promise<T>, timeLimitMs: number = SESSION_TIME_LIMIT_MS): Promise<T> {
   const controller = new AbortController();
   controllers.set(runId, controller);
+  const deadline = setTimeout(() => {
+    console.info(`[run-control] run ${runId} reached its ${timeLimitMs / 60_000}-minute limit`);
+    controller.abort(new Error(SESSION_TIME_LIMIT_MESSAGE));
+  }, timeLimitMs);
   const running = runScope.run({ runId, signal: controller.signal }, operation);
   settling.set(runId, running.catch(() => undefined));
   try {
     return await running;
   } finally {
+    clearTimeout(deadline);
     controllers.delete(runId);
     settling.delete(runId);
   }

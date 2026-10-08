@@ -6,7 +6,7 @@ import type { AgentToolContext, AgentToolDeps } from "./agent-tools";
 import type { JsonRecord } from "./provider-http";
 import type { ProviderService } from "./provider-service";
 import type { AgentTurnMessage, ToolCall, ToolDefinition } from "./provider-tool-turn";
-import { throwIfRunStopped } from "./run-control";
+import { MAX_TOOL_CALLS_PER_TURN, throwIfRunStopped, untilStopped } from "./run-control";
 
 const AUDIT_MAX_ITERATIONS = 6;
 const STATUS_TASK_LINES = 8;
@@ -134,19 +134,24 @@ async function auditGoalCompletion(
 
   for (let iteration = 1; iteration <= AUDIT_MAX_ITERATIONS; iteration += 1) {
     fitContextBudget(instructions, messages, auditTools, args.inputBudgetTokens, iteration);
-    const turn = await args.providers.runToolTurn({
+    throwIfRunStopped();
+    const turn = await untilStopped(args.providers.runToolTurn({
       orgId: args.ctx.orgId,
       providerId: args.providerId,
       workspaceId: args.workspaceId,
       instructions,
       messages,
       tools: auditTools,
-    });
+    }));
     if (turn.toolCalls.length === 0) return parseVerdict(turn.text);
     messages.push({ role: "assistant", text: turn.text, toolCalls: turn.toolCalls });
     const results: Array<{ toolCallId: string; toolName: string; output: string }> = [];
-    for (const toolCall of turn.toolCalls) {
-      results.push({ toolCallId: toolCall.id, toolName: toolCall.name, output: await executeWorkspaceTool(auditCtx, toolCall) });
+    for (const [index, toolCall] of turn.toolCalls.entries()) {
+      throwIfRunStopped();
+      const output = index < MAX_TOOL_CALLS_PER_TURN
+        ? await untilStopped(executeWorkspaceTool(auditCtx, toolCall))
+        : `ERROR: not run: this turn asked for ${turn.toolCalls.length} tool calls; the limit is ${MAX_TOOL_CALLS_PER_TURN}.`;
+      results.push({ toolCallId: toolCall.id, toolName: toolCall.name, output });
     }
     messages.push({ role: "tool", results });
   }

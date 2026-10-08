@@ -108,6 +108,32 @@ describe("stopping runs", () => {
     connection.close();
   });
 
+  test("a session that runs out of time ends as a checkpoint, even mid-request", async () => {
+    let stalls = true;
+    const turn = async (): Promise<AgentTurnResult> => {
+      if (stalls) await new Promise<never>(() => {});
+      return { text: "done", toolCalls: [], rawResponseJson: "{}" };
+    };
+    const connection = new DatabaseConnection(join(tmpdir(), `ac-deadline-${randomUUID()}.db`));
+    const providers = new ProviderService(connection.db, providerAdapters, testVault, undefined, turn);
+    const onboarding = new OnboardingService({ db: connection.db, saveProviderCredential: (input) => providers.saveCredential(input) });
+    const execution = new TaskExecutionService(connection.db, providers, undefined, undefined, undefined, 200);
+    let orgId = "";
+    connection.transaction(() => {
+      orgId = onboarding.bootstrap({
+        companyName: "FlowPilot", companyDescription: "CSM analytics.", employeeName: "Yang", workspacePath: "",
+        executionMode: "ai_ceo", autoApproveHires: true, reviewDeliverables: false,
+        goalTitle: "Ship the MVP.", goalDescription: "A working product.",
+        providerKey: "openai", providerSecret: "sk-test-key", providerModel: "gpt-5.4",
+      }).orgId;
+    });
+    const runId = claimNextQueuedRun(connection)!.id;
+    await expect(execution.executeRun(orgId, runId)).resolves.toBe(runId);
+    expect(connection.db.prepare("select state, error_message from task_runs where id = ?").get(runId)).toEqual({ state: "completed", error_message: null });
+    stalls = false;
+    connection.close();
+  });
+
   test("stopping a run aborts its provider request in flight", async () => {
     const server = createServer(() => { /* never answers */ });
     await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));

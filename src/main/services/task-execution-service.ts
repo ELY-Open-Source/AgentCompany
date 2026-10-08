@@ -13,7 +13,7 @@ import { runAgentLoop, runTools } from "./agent-run-loop";
 import type { RunModel } from "./skill-runtime";
 import { combineMidRunPolls, createGoalChangePoller } from "./goal-change-poller";
 import { recordRunAction, runJournalLines } from "./run-journal";
-import { runStopReason, withRunControl } from "./run-control";
+import { runStopReason, SESSION_TIME_LIMIT_MESSAGE, SESSION_TIME_LIMIT_MS, withRunControl } from "./run-control";
 import type { AgentToolContext } from "./agent-tools";
 import {
   buildAgentInstructions,
@@ -77,6 +77,8 @@ export class TaskExecutionService {
     private readonly notifyDataChanged: () => void = () => undefined,
     /** Injectable clock so tests can walk providers out of cooldown. */
     now: () => number = () => Date.now(),
+    /** Wall-clock budget of one session. */
+    private readonly sessionTimeLimitMs: number = SESSION_TIME_LIMIT_MS,
   ) {
     this.audit = new AuditService(db);
     this.organization = new OrganizationService(db);
@@ -99,7 +101,7 @@ export class TaskExecutionService {
     const workspace = loadWorkspace(this.db, task.workspace_id);
     const isolation = createIsolationContext(this.db, input.orgId, task, agent, provider, workspace);
     const runId = this.createRun(input.orgId, task.id, agent.id, provider.id, isolation);
-    return withRunControl(runId, () => this.executeAgentRun({ orgId: input.orgId, runId, task, agent, provider, workspace, isolation }));
+    return withRunControl(runId, () => this.executeAgentRun({ orgId: input.orgId, runId, task, agent, provider, workspace, isolation }), this.sessionTimeLimitMs);
   }
 
   /** Executes a claimed run after re-checking that the task still matches it; a mismatch supersedes the run. */
@@ -157,7 +159,7 @@ export class TaskExecutionService {
       if (task && task.origin === null) recordRunMemory(this.db, { orgId, runId, projectId: task.project_id, taskTitle: task.title, outcome: "failed", text: message });
       throw error;
     }
-    return withRunControl(runId, () => this.executeAgentRun(prepared));
+    return withRunControl(runId, () => this.executeAgentRun(prepared), this.sessionTimeLimitMs);
   }
 
   private async executeAgentRun(args: {
@@ -286,6 +288,12 @@ export class TaskExecutionService {
       const message = error instanceof Error ? error.message : String(error);
       // A stop wins over whatever error the interrupted step raised.
       const stopReason = runStopReason();
+      // Out of time is not a failure: the session ends as a checkpoint and the next one continues from the journal.
+      if (stopReason === SESSION_TIME_LIMIT_MESSAGE) {
+        this.completeRun(orgId, runId, providerRequestId, true);
+        this.audit.record({ orgId, entityType: "task_run", entityId: runId, actorType: "system", actorId: null, action: "completed", payload: { taskId: task.id, agentId: agent.id, timeLimit: true } });
+        return runId;
+      }
       if (stopReason) {
         this.markStopped(orgId, runId, providerRequestId, stopReason, { taskId: task.id, agentId: agent.id, providerId: provider.id });
         throw new Error(stopReason);
@@ -400,10 +408,10 @@ export class TaskExecutionService {
     return row?.language === "zh" ? "zh" : "en";
   }
 
-  private completeRun(orgId: string, runId: string, providerRequestId: string, checkpoint: boolean): void {
+  private completeRun(orgId: string, runId: string, providerRequestId: string | null, checkpoint: boolean): void {
     this.db.prepare(`
       update task_runs
-      set state = ?, provider_request_id = ?, completed_at = ?, error_message = null
+      set state = ?, provider_request_id = coalesce(?, provider_request_id), completed_at = ?, error_message = null
       where id = ? and org_id = ?
     `).run(TASK_RUN_STATE.COMPLETED, providerRequestId, new Date().toISOString(), runId, orgId);
     if (!checkpoint) this.closeChatWakeTask(orgId, runId);
