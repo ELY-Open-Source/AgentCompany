@@ -121,7 +121,7 @@ describe("founder⇄CEO chat", () => {
 
     // The CEO's prompt names the human principal, not just another teammate.
     expect(capturedWakePrompts).toHaveLength(1);
-    expect(capturedWakePrompts[0]).toContain("[Yang (founder)]: How are we tracking against the MVP?");
+    expect(capturedWakePrompts[0]).toMatch(/\] Yang \(employee, Board Chair\): How are we tracking against the MVP\?/);
 
     // The reply landed in the SAME pinned conversation and thread — to="Yang"
     // resolves the employee and ensureDirectSpace reuses the founder's line.

@@ -71,7 +71,10 @@ export interface ChatContextBlock {
   threadId: string;
   /** The space the thread lives in — where the run's reply must land. */
   spaceId: string;
-  transcript: string;
+  /** Messages up to and including the agent's last reply. */
+  history: string;
+  /** Messages after it: what this run answers. */
+  fresh: string;
 }
 
 export interface AgentInstructionContext {
@@ -211,8 +214,11 @@ export function buildTaskPrompt(input: {
   if (input.chatContext) {
     lines.push(
       "",
-      "The conversation in this thread so far:",
-      input.chatContext.transcript,
+      "Earlier in this thread (context only — newer messages override it):",
+      input.chatContext.history || "(nothing before)",
+      "",
+      "New since your last reply in this thread — this is what you are answering:",
+      input.chatContext.fresh || "(nothing new since your last reply)",
       "",
       `You have been brought into this thread. Reply to the people here in your own voice — answer what they asked, give your honest take, push back if you disagree, or hand work over. Stay in the thread by passing thread_id="${input.chatContext.threadId}" to send_message. This is a conversation between colleagues, not a status report; only change a task's status if the work itself actually moved.`,
     );

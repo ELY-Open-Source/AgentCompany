@@ -14,7 +14,6 @@ import type { AgentToolContext } from "./agent-tools";
 import {
   buildAgentInstructions,
   buildTaskPrompt,
-  type ChatContextBlock,
   type GoalRow,
   type ProjectRow,
   type SkillRuntimeSnapshotRow,
@@ -25,6 +24,7 @@ import {
   type WorkspaceRow,
 } from "./task-prompts";
 import { renderTaskHandoff } from "./agent-task-handoff";
+import { loadChatWakeContext } from "./chat-wake-context";
 import { loadComposioTools } from "./composio/composio-tool-bridge";
 import { connectorDisplayName } from "./composio/connector-brands";
 import { ConnectorGrantsService } from "./composio/connector-grants";
@@ -134,7 +134,7 @@ export class TaskExecutionService {
     let skillRuntimeSnapshot: SkillRuntimeSnapshotRow | null = null;
     try {
       skillRuntimeSnapshot = this.resolveSkillRuntimeSnapshot(orgId, agent.id, runId);
-      const chatContext = this.loadChatContext(orgId, isolation);
+      const chatContext = loadChatWakeContext(this.db, orgId, agent.id, isolation.secretScopeJson);
       const toolContext: AgentToolContext = {
         orgId,
         agent: { id: agent.id, modelProviderId: agent.model_provider_id, modelId: agent.model_id },
@@ -521,39 +521,6 @@ export class TaskExecutionService {
       now,
     );
     return runId;
-  }
-
-  private loadChatContext(orgId: string, isolation: TaskRunIsolation): ChatContextBlock | null {
-    let scope: { sourceMessageId?: string; sourceThreadId?: string };
-    try {
-      scope = JSON.parse(isolation.secretScopeJson);
-    } catch {
-      return null;
-    }
-    if (!scope.sourceThreadId) return null;
-    const thread = this.db.prepare("select space_id from chat_threads where id = ? and org_id = ?")
-      .get(scope.sourceThreadId, orgId) as { space_id: string } | undefined;
-    if (!thread) return null;
-    const messages = this.db.prepare(`
-      select m.body_md, m.sender_type, m.sender_id,
-             coalesce(a.name, e.display_name, m.sender_type) as sender_name
-      from chat_messages m
-      left join agents a on a.id = m.sender_id and m.sender_type = 'agent'
-      left join employees e on e.id = m.sender_id and m.sender_type = 'employee'
-      where m.thread_id = ? and m.org_id = ?
-      order by m.created_at asc
-      limit 20
-    `).all(scope.sourceThreadId, orgId) as Array<{ body_md: string; sender_type: string; sender_name: string }>;
-    if (messages.length === 0) return null;
-    // Human principals are marked as the founder: an agent replying to its
-    // boss must know it is not talking to another agent.
-    const label = (m: { sender_type: string; sender_name: string }) =>
-      m.sender_type === "employee" || m.sender_type === "board" ? `${m.sender_name} (founder)` : m.sender_name;
-    return {
-      threadId: scope.sourceThreadId,
-      spaceId: thread.space_id,
-      transcript: messages.map((m) => `[${label(m)}]: ${m.body_md}`).join("\n"),
-    };
   }
 
   private completedRunCount(taskId: string, excludingRunId: string): number {
