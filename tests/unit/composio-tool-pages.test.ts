@@ -109,4 +109,28 @@ describe("agents reach every action through search and run", () => {
     expect(h.connection.db.prepare("select count(*) as n from run_actions").get()).toEqual({ n: 0 });
     h.connection.close();
   });
+
+  test("an action's input schema reaches the agent whole: references, combinations and limits included", async () => {
+    const input = {
+      type: "object",
+      $defs: { Reviewer: { type: "object", properties: { login: { type: "string" } }, required: ["login"] } },
+      properties: {
+        title: { type: "string", maxLength: 256 },
+        reviewers: { type: "array", items: { $ref: "#/$defs/Reviewer" } },
+        base: { anyOf: [{ type: "string" }, { type: "null" }] },
+      },
+      required: ["title"],
+      additionalProperties: false,
+      oneOf: [{ required: ["base"] }, { required: ["reviewers"] }],
+    };
+    pages.set("github:", { items: [{ ...tool("GITHUB_CREATE_A_PULL_REQUEST"), description: "Create a pull request", input_parameters: input }], next_cursor: null });
+    const h = company("ak_schema");
+    const found = JSON.parse(await h.call("composio_find_actions", { query: "pull request" })) as { matches: Array<{ input: unknown }> };
+    expect(found.matches[0].input).toEqual(input);
+    pages.set("github:", { items: [{ ...tool("GITHUB_BROKEN"), input_parameters: null }], next_cursor: null });
+    const broken = company("ak_schema_null");
+    expect(await broken.call("composio_find_actions", { query: "broken" })).toBe("ERROR: Composio action GITHUB_BROKEN has an input schema that is not an object.");
+    broken.connection.close();
+    h.connection.close();
+  });
 });

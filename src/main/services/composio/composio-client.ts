@@ -7,11 +7,8 @@ export interface ComposioToolSchema {
   name: string;
   description: string;
   toolkitSlug: string | null;
-  parameters: {
-    type: string;
-    properties: Record<string, unknown>;
-    required?: string[];
-  };
+  /** The action's input JSON Schema exactly as Composio validates it ($defs, combinations and limits kept). */
+  parameters: Record<string, unknown>;
 }
 
 export interface ComposioAuthConfigSummary {
@@ -214,17 +211,16 @@ export class ComposioClient {
 }
 
 function normalizeToolSchema(raw: Record<string, unknown>): ComposioToolSchema {
-  const params = raw.input_parameters ?? raw.parameters ?? raw.inputSchema ?? {};
-  const schema = typeof params === "object" && params !== null ? params as Record<string, unknown> : {};
+  const name = String(raw.slug ?? raw.name ?? "");
+  const field = ["input_parameters", "parameters", "inputSchema"].find((key) => key in raw);
+  const params = field === undefined ? undefined : raw[field];
+  // An action without an input schema takes no input; anything else must be a schema object, passed on unchanged.
+  if (params !== undefined && (typeof params !== "object" || params === null || Array.isArray(params))) throw new Error(`Composio action ${name} has an input schema that is not an object.`);
   const toolkit = (raw.toolkit ?? {}) as Record<string, unknown>;
   return {
-    name: String(raw.slug ?? raw.name ?? ""),
+    name,
     description: String(raw.description ?? "").slice(0, 300),
     toolkitSlug: typeof toolkit.slug === "string" ? toolkit.slug : null,
-    parameters: {
-      type: "object",
-      properties: (schema.properties ?? {}) as Record<string, unknown>,
-      required: Array.isArray(schema.required) ? schema.required as string[] : [],
-    },
+    parameters: params === undefined ? { type: "object", properties: {} } : params as Record<string, unknown>,
   };
 }
