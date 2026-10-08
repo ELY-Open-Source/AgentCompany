@@ -1,4 +1,5 @@
 import { WRITING_MODE, type WritingMode } from "../../shared/domain";
+import { CEO_FIRST_HIRES, firstHiresFor, leadsPeople } from "./org-building";
 import { canonicalMentionHandle } from "../../shared/mention-handles";
 
 const RECORD_LEARNINGS_INSTRUCTION =
@@ -152,12 +153,14 @@ function roleVoice(input: AgentInstructionContext): string {
   if (input.isCeo) {
     return [
       "You run this company. Think in outcomes, make the call when it is yours to make, and put the right person on each piece instead of doing everything yourself — then tell the team the why, not just the what.",
-      "Build a real organization, the way OKR-run companies do: the company goal is your objective; hire chief officers for the functions it needs (hire_agent with seniority \"director\" and a title like CTO, CFO, CMO, COO — 2-4 of them, not a flat pool of ICs), hand each officer their department's objective as a task, and let them hire their own managers (seniority \"lead\") and staff. You manage the officers; they manage their departments.",
+      `Build a real organization, the way OKR-run companies do: the company goal is your objective; ${CEO_FIRST_HIRES}. Hand each officer their department's objective as a task, and let them hire their own managers (seniority "lead") and staff. You manage the officers; they manage their departments.`,
       "The goal closes on evidence, not paperwork: if it promises a product, the finish line is working code in the workspace that builds and passes its tests. Plans and specs are how work starts — make sure implementation lands as requires_filesystem tasks so the builders can actually build.",
     ].join(" ");
   }
-  if (input.hasReports) {
-    return "You lead a department. Break your objective into key results your team can own: hire the managers (seniority \"lead\") and staff your department needs with hire_agent, assign each report concrete tasks with create_task, and hold the line on quality. Delegate implementation with requires_filesystem: true so your engineers can change code and run tests — an objective that promises software is not done until it builds and passes in the workspace. Clear the path for your reports, give them specific direction instead of 'looks good', raise blockers to your manager early, and report progress up the chain.";
+  if (leadsPeople(input.agent.role_level, input.hasReports)) {
+    const unit = input.agent.role_level === "director" ? "department" : "team";
+    const emptyNote = input.hasReports ? "" : `Your ${unit} has no one in it yet: ${firstHiresFor(input.agent.role_level)} before you take on the work yourself. `;
+    return `${emptyNote}You lead a ${unit}. Break your objective into key results your team can own: hire the people your ${unit} needs with hire_agent, assign each report concrete tasks with create_task, and hold the line on quality. Delegate implementation with requires_filesystem: true so your engineers can change code and run tests — an objective that promises software is not done until it builds and passes in the workspace. Clear the path for your reports, give them specific direction instead of 'looks good', raise blockers to your manager early, and report progress up the chain.`;
   }
   return "You own your craft. Ask the question early instead of guessing, do the work properly, and when you are stuck for more than a few minutes say so in the thread instead of spinning in place.";
 }
@@ -269,10 +272,13 @@ export function buildTaskPrompt(input: {
       `This task already spent ${input.priorCompletedRuns} completed run(s) without being closed. Check read_messages and the existing deliverables first, continue from where the last run stopped instead of redoing finished work, and if the work is actually complete just close the task.`,
     );
   }
-  if (input.isManager && !input.hasReports) {
+  if (leadsPeople(input.agent.role_level, input.hasReports) && !input.hasReports) {
+    const announce = input.isManager
+      ? `Post one company-wide kickoff to the #general channel. Then close this kickoff with update_task_status(task_id="${input.task.id}", status="done") and summarize.`
+      : `Tell your manager the plan in a direct message. Then close this task with update_task_status(task_id="${input.task.id}", status="done") if hiring and delegating was the work, or move it to "in_progress" and say what remains.`;
     lines.push(
       "",
-      `Your team is currently empty. Hire 3-5 direct reports for the roles this goal needs (hire_agent), create and assign their first tasks (create_task), and write the initial operating plan into the workspace (write_deliverable). Then use send_message with /handoff @Name and attachment_file_ids to pass the operating plan to the relevant report. Brief EACH report in a direct message (send_message with to="Their Name") about the work you assigned them — note the thread_id each returns so you can follow up in the same conversation. Post one company-wide kickoff to the #general channel. Then close this kickoff with update_task_status(task_id="${input.task.id}", status="done") and summarize.`,
+      `Your team is currently empty. First ${firstHiresFor(input.agent.role_level)}, create and assign their first tasks (create_task), and write the initial operating plan into the workspace (write_deliverable). Then use send_message with /handoff @Name and attachment_file_ids to pass the operating plan to the relevant report. Brief EACH report in a direct message (send_message with to="Their Name") about the work you assigned them — note the thread_id each returns so you can follow up in the same conversation. ${announce}`,
     );
   } else {
     const manager = input.managerName ?? "your manager";

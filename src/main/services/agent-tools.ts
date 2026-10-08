@@ -16,6 +16,7 @@ import { DOCUMENT_TOOLS, DOCUMENT_TYPES, listDocumentsTool, readDocumentTool, up
 import { sendMessageTool } from "./agent-send-message";
 import { withSavepoint } from "../database/connection";
 import { optionalEnum, optionalString, optionalStringArray, requireString } from "./agent-tool-args";
+import { CEO_FIRST_HIRES } from "./org-building";
 import type { JsonRecord } from "./provider-http";
 import type { ToolCall, ToolDefinition } from "./provider-tool-turn";
 
@@ -50,7 +51,7 @@ export const AGENT_TOOLS: ToolDefinition[] = [
   {
     name: "hire_agent",
     description:
-      "Add one direct report to your org. Hires report to YOU, so build a real company: the CEO hires chief officers (seniority \"director\", title like 'CTO' or 'CFO') and delegates department building to them; officers hire their own managers (seniority \"lead\") and staff. Staff every hire with the library skills their role needs (check list_skills; several are fine) — those skills become mandatory practice in the hire's runs.",
+      `Add one direct report to your org. Hires report to YOU, so build a real company: as CEO, ${CEO_FIRST_HIRES}, and delegate department building to them; officers hire their own managers (seniority "lead") and staff. Staff every hire with the library skills their role needs (check list_skills; several are fine) — those skills become mandatory practice in the hire's runs.`,
     parameters: {
       type: "object",
       additionalProperties: false,

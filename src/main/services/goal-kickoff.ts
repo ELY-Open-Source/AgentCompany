@@ -1,4 +1,5 @@
 import type { DatabaseSync } from "node:sqlite";
+import { firstHiresFor, leadsPeople } from "./org-building";
 
 export interface GoalKickoffPlan {
   assigneeAgentId: string;
@@ -24,24 +25,42 @@ export function resolveGoalKickoff(db: DatabaseSync, input: {
   if (!assigneeAgentId) return null;
   const organization = db.prepare("select name from organizations where id = ?")
     .get(input.orgId) as { name: string };
+  const owner = db.prepare(`
+    select role_level, exists(select 1 from agents r where r.manager_agent_id = a.id and r.lifecycle = 'active') as has_reports
+    from agents a where a.id = ?
+  `).get(assigneeAgentId) as { role_level: string; has_reports: number };
   return {
     assigneeAgentId,
     workspaceId: primaryWorkspaceId(db, input.orgId),
     title: goalKickoffTitle(input.goalTitle),
-    description: goalKickoffDescription(organization.name, input.goalTitle, input.goalDescription),
+    description: goalKickoffDescription(organization.name, input.goalTitle, input.goalDescription, { roleLevel: owner.role_level, hasReports: owner.has_reports === 1 }),
   };
+}
+
+function kickoffDirection(owner: { roleLevel: string; hasReports: boolean }): string {
+  const groundwork = "Read the bound workspace, create the first operating plan, and route decisions through approvals and messages.";
+  if (owner.roleLevel === "c_suite") {
+    return `Treat this goal as the company objective and build the organization that can deliver it: ${firstHiresFor(owner.roleLevel)}. Give each officer their department objective as a task, and let them build and run their own teams. ${groundwork}`;
+  }
+  if (leadsPeople(owner.roleLevel, owner.hasReports)) {
+    const staffing = owner.hasReports ? "Give each report their part of it as a task" : `Build the team that can deliver it: ${firstHiresFor(owner.roleLevel)}, then give each report their part as a task`;
+    return `Treat this goal as your objective. ${staffing}. ${groundwork}`;
+  }
+  return `Treat this goal as your objective: plan the work, do it, and tell your manager early if it needs more people. ${groundwork}`;
 }
 
 export function goalKickoffTitle(goalTitle: string): string {
   return `Operationalize goal: ${goalTitle.trim()}`;
 }
 
-export function goalKickoffDescription(companyName: string, goalTitle: string, goalDescription: string): string {
+export function goalKickoffDescription(
+  companyName: string, goalTitle: string, goalDescription: string, owner: { roleLevel: string; hasReports: boolean },
+): string {
   return [
     `Company: ${companyName.trim()}`,
     `Goal: ${goalTitle.trim()}`,
     goalDescription.trim(),
-    "Treat this goal as the company objective and build the organization that can deliver it: hire chief officers (hire_agent, seniority \"director\", titles like CTO/CFO/CMO/COO) for the functions the goal needs, give each officer their department objective as a task, and let them build and run their own teams. Read the bound workspace, create the first operating plan, and route decisions through approvals and messages.",
+    kickoffDirection(owner),
   ].filter((line) => line.length > 0).join("\n\n");
 }
 

@@ -80,7 +80,7 @@ export class OnboardingService {
     const taskId = this.organization.createTask({
       orgId,
       title: goalKickoffTitle(input.goalTitle),
-      description: goalKickoffDescription(input.companyName, input.goalTitle, input.goalDescription),
+      description: goalKickoffDescription(input.companyName, input.goalTitle, input.goalDescription, { roleLevel: "c_suite", hasReports: false }),
       status: TASK_STATUS.BACKLOG,
       assigneeAgentId: ceoAgentId,
       risk: RISK_LEVEL.MEDIUM,
