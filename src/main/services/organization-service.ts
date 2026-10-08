@@ -1,5 +1,5 @@
 import type { DatabaseSync } from "node:sqlite";
-import { APPROVAL_STATE, RISK_LEVEL, TASK_STATUS, type ApprovalState } from "../../shared/domain";
+import { APPROVAL_STATE, RISK_LEVEL, TASK_STATUS, WRITING_MODE, type ApprovalState } from "../../shared/domain";
 import { createId } from "../../shared/ids";
 import type { CreateAgentInput, CreateGoalInput, CreateOrganizationInput, CreateProjectInput, CreateTaskInput, CreateWorkspaceInput, DeleteTaskInput, UpdateAgentInput, UpdateEmployeeProfileInput, UpdateTaskInput } from "../../shared/commands";
 import { AuditService } from "./audit-service";
@@ -234,9 +234,9 @@ export class OrganizationService {
     this.db.prepare(`
       insert into tasks(
         id, org_id, title, description, status, assignee_agent_id, risk,
-        project_id, goal_id, workspace_id, priority, requires_filesystem, origin, created_at, updated_at
+        project_id, goal_id, workspace_id, priority, requires_filesystem, writing_mode, origin, created_at, updated_at
       )
-      values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       id,
       input.orgId,
@@ -250,6 +250,7 @@ export class OrganizationService {
       input.workspaceId,
       input.priority,
       input.requiresFilesystem ? 1 : 0,
+      input.writingMode ?? WRITING_MODE.CONVERSATIONAL,
       input.origin ?? null,
       now,
       now,

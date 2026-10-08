@@ -1,4 +1,4 @@
-import type { ApprovalState, IdentitySource, PrincipalType, RiskLevel, RoleKey, TaskPriority, TaskStatus, UiLanguage, UiTheme } from "../domain";
+import type { ApprovalState, IdentitySource, PrincipalType, RiskLevel, RoleKey, TaskPriority, TaskStatus, UiLanguage, UiTheme, WritingMode } from "../domain";
 
 export interface SetActiveOrganizationInput {
   orgId: string;
@@ -86,6 +86,8 @@ export interface CreateTaskInput {
   workspaceId: string | null;
   priority: TaskPriority;
   requiresFilesystem: boolean;
+  /** Defaults to conversational. */
+  writingMode?: WritingMode;
   /** Provenance: 'chat_wake' for mention-wake vehicles, 'goal_review' for CEO goal checkpoints, omitted for plain work. */
   origin?: "chat_wake" | "goal_review";
 }

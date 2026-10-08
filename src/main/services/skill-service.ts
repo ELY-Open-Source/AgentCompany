@@ -244,8 +244,8 @@ export class SkillService {
    * agent carries the forced house-style skill once the catalogue holds a
    * language variant, plus whatever bindings the CEO granted.
    */
-  hasRuntimeSkills(orgId: string, agentId: string): boolean {
-    if (this.forcedSkillRows(orgId).length > 0) return true;
+  hasRuntimeSkills(orgId: string, agentId: string, houseStyle: boolean): boolean {
+    if (houseStyle && this.forcedSkillRows(orgId).length > 0) return true;
     return Boolean(this.db.prepare(`
       select sb.id from skill_bindings sb join skill_definitions sd on sd.id = sb.skill_id and sd.status = 'active'
       where sb.org_id = ? and sb.agent_id = ? and sb.enabled = 1 limit 1
@@ -294,7 +294,7 @@ export class SkillService {
    * prompt instead of silently overflowing the model's context.
    */
   resolveRuntimeSnapshot(input: ResolveAgentSkillsInput): string {
-    const forcedRows = this.forcedSkillRows(input.orgId);
+    const forcedRows = input.houseStyle ? this.forcedSkillRows(input.orgId) : [];
     const boundRows = this.db.prepare(`
       select
         sb.skill_id as skill_id,

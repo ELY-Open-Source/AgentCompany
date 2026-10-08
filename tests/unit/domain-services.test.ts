@@ -24,7 +24,7 @@ describe("domain services", () => {
     const connection = createConnection();
 
     const rows = connection.db.prepare("select version from schema_migrations order by version asc").all() as Array<{ version: number }>;
-    expect(rows.map((row) => row.version)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65]);
+    expect(rows.map((row) => row.version)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66]);
     connection.close();
   });
 
@@ -186,7 +186,7 @@ describe("domain services", () => {
       skills.bind({ orgId, agentId, skillId: skill.id, revisionId });
       rmSync(skillDir, { recursive: true, force: true });
       skills.runTests({ orgId, revisionId });
-      skills.resolveRuntimeSnapshot({ orgId, agentId, runId: "run-review-1", maxTokens: 44_800, taskText: "", runModel: { providerKey: "openai", model: "gpt-5.4" } });
+      skills.resolveRuntimeSnapshot({ orgId, agentId, runId: "run-review-1", maxTokens: 44_800, taskText: "", runModel: { providerKey: "openai", model: "gpt-5.4" }, houseStyle: true });
     });
 
     // Catalogue metadata ships in the snapshot; skill internals stay in the
@@ -247,10 +247,10 @@ describe("domain services", () => {
         .get(orgA, "review-routes") as { id: string }).id;
       expect(() => skills.bind({ orgId: orgA, agentId: agentB, skillId, revisionId })).toThrow("Agent was not found.");
       skills.bind({ orgId: orgA, agentId: agentA, skillId, revisionId });
-      const firstResolve = skills.resolveRuntimeSnapshot({ orgId: orgA, agentId: agentA, runId: "run-review-1", maxTokens: 44_800, taskText: "", runModel: { providerKey: "openai", model: "gpt-5.4" } });
+      const firstResolve = skills.resolveRuntimeSnapshot({ orgId: orgA, agentId: agentA, runId: "run-review-1", maxTokens: 44_800, taskText: "", runModel: { providerKey: "openai", model: "gpt-5.4" }, houseStyle: true });
       // Idempotent per run: a recovered run reuses its frozen snapshot
       // instead of failing on the uniqueness guard.
-      expect(skills.resolveRuntimeSnapshot({ orgId: orgA, agentId: agentA, runId: "run-review-1", maxTokens: 44_800, taskText: "", runModel: { providerKey: "openai", model: "gpt-5.4" } })).toBe(firstResolve);
+      expect(skills.resolveRuntimeSnapshot({ orgId: orgA, agentId: agentA, runId: "run-review-1", maxTokens: 44_800, taskText: "", runModel: { providerKey: "openai", model: "gpt-5.4" }, houseStyle: true })).toBe(firstResolve);
       expect(connection.db.prepare("select count(*) as n from skill_runtime_snapshots where run_id = 'run-review-1'").get())
         .toEqual({ n: 1 });
     });

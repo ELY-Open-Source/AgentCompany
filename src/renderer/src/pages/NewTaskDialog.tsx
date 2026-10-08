@@ -1,8 +1,8 @@
 import type { FormEvent } from "react";
 import { Dialog } from "../shared/Dialog";
 import { Field } from "../shared/ui";
-import type { AppSnapshot, RiskLevel, TaskPriority } from "../../../shared/domain";
-import { RISK_LEVEL, TASK_PRIORITY, TASK_STATUS } from "../../../shared/domain";
+import type { AppSnapshot, RiskLevel, TaskPriority, WritingMode } from "../../../shared/domain";
+import { RISK_LEVEL, TASK_PRIORITY, TASK_STATUS, WRITING_MODE } from "../../../shared/domain";
 import type { SnapshotActions } from "../app/useSnapshot";
 import { t } from "../i18n/i18n";
 
@@ -16,6 +16,12 @@ const PRIORITY_OPTIONS: ReadonlyArray<{ value: TaskPriority; label: string }> = 
   { value: TASK_PRIORITY.LOW, label: t("Low") },
   { value: TASK_PRIORITY.NORMAL, label: t("Normal") },
   { value: TASK_PRIORITY.HIGH, label: t("High") },
+];
+
+const WRITING_OPTIONS: ReadonlyArray<{ value: WritingMode; label: string }> = [
+  { value: WRITING_MODE.CONVERSATIONAL, label: t("Conversational (house style)") },
+  { value: WRITING_MODE.TECHNICAL, label: t("Technical spec") },
+  { value: WRITING_MODE.STRUCTURED, label: t("Structured output") },
 ];
 
 function value(form: FormData, key: string): string {
@@ -59,6 +65,7 @@ export function NewTaskDialog({
       workspaceId: optional(form, "workspaceId"),
       priority: value(form, "priority") as TaskPriority,
       requiresFilesystem: form.get("requiresFilesystem") === "on",
+      writingMode: value(form, "writingMode") as WritingMode,
     })).then((result) => {
       if (result) onClose();
     });
@@ -100,6 +107,11 @@ export function NewTaskDialog({
       <Field label={t("Priority")}>
         <select className="input" name="priority" defaultValue={TASK_PRIORITY.NORMAL}>
           {PRIORITY_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+        </select>
+      </Field>
+      <Field label={t("Writing")}>
+        <select className="input" name="writingMode" defaultValue={WRITING_MODE.CONVERSATIONAL}>
+          {WRITING_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
         </select>
       </Field>
       <label className="checkbox-row">

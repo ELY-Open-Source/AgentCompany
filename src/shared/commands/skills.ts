@@ -25,6 +25,8 @@ export interface ResolveAgentSkillsInput {
   taskText: string;
   /** The run's provider and model, matched against each skill's compatible_models. */
   runModel: { providerKey: string; model: string | null };
+  /** False on technical and structured tasks, which skip the house-style skill. */
+  houseStyle: boolean;
 }
 
 export interface RunSkillTestsInput {

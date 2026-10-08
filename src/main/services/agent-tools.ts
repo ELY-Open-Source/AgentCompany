@@ -1,5 +1,5 @@
 import type { DatabaseSync } from "node:sqlite";
-import { RISK_LEVEL, TASK_PRIORITY, TASK_STATUS, type RiskLevel } from "../../shared/domain";
+import { RISK_LEVEL, TASK_PRIORITY, TASK_STATUS, WRITING_MODE, type RiskLevel, type WritingMode } from "../../shared/domain";
 import { ORGANIZATION_DEPARTMENTS } from "./org-governance-service";
 import type { OrganizationService } from "./organization-service";
 import { buildTaskHandoff, HANDOFF_TOOL_PROPERTIES } from "./agent-task-handoff";
@@ -15,7 +15,7 @@ import { KNOWLEDGE_TOOLS, recordKnowledgeTool, reviseKnowledgeTool, searchKnowle
 import { DOCUMENT_TOOLS, DOCUMENT_TYPES, listDocumentsTool, readDocumentTool, updateDocumentTool } from "./agent-document-tools";
 import { sendMessageTool } from "./agent-send-message";
 import { withSavepoint } from "../database/connection";
-import { optionalString, optionalStringArray, requireString } from "./agent-tool-args";
+import { optionalEnum, optionalString, optionalStringArray, requireString } from "./agent-tool-args";
 import type { JsonRecord } from "./provider-http";
 import type { ToolCall, ToolDefinition } from "./provider-tool-turn";
 
@@ -84,6 +84,11 @@ export const AGENT_TOOLS: ToolDefinition[] = [
         requires_filesystem: {
           type: "boolean",
           description: "Set true for engineering work that must change code or run commands (build, test) in the workspace. The assignee then gets run_command; the operator approves such tasks before they execute.",
+        },
+        writing_mode: {
+          type: "string",
+          enum: ["conversational", "technical", "structured"],
+          description: "How the output reads. conversational (default): plain human prose in house style. technical: specs, API docs, code reviews; precise, no house style. structured: output must match an exact format (JSON, table, template).",
         },
         ...HANDOFF_TOOL_PROPERTIES,
       },
@@ -337,6 +342,7 @@ function createTask(deps: AgentToolDeps, ctx: AgentToolContext, args: JsonRecord
   const assignee = assigneeName ? requireRunnableAgentByName(deps.db, ctx.orgId, assigneeName) : null;
   const handoff = buildTaskHandoff(deps.db, ctx.orgId, { taskId: ctx.taskId, threadId: ctx.sourceThreadId }, args);
   const parentTaskId = delegationParent(deps.db, ctx);
+  const writingMode = optionalEnum(args.writing_mode, "writing_mode", Object.values(WRITING_MODE), WRITING_MODE.CONVERSATIONAL) as WritingMode;
   const create = () => {
     const taskId = deps.organization.createTask({
       orgId: ctx.orgId,
@@ -350,6 +356,7 @@ function createTask(deps: AgentToolDeps, ctx: AgentToolContext, args: JsonRecord
       workspaceId: ctx.workspace?.id ?? null,
       priority: TASK_PRIORITY.NORMAL,
       requiresFilesystem: args.requires_filesystem === true,
+      writingMode,
     });
     deps.db.prepare("update tasks set handoff_json = ?, parent_task_id = ? where id = ?")
       .run(JSON.stringify(handoff), parentTaskId, taskId);

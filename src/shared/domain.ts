@@ -19,11 +19,14 @@ export const TASK_STATUS = { BACKLOG: "backlog", IN_PROGRESS: "in_progress", REV
 export const APPROVAL_STATE = { PENDING: "pending", APPROVED: "approved", DECLINED: "declined" } as const;
 export const RISK_LEVEL = { LOW: "low", MEDIUM: "medium", HIGH: "high" } as const;
 export const TASK_PRIORITY = { LOW: "low", NORMAL: "normal", HIGH: "high" } as const;
+/** How a task's output should read: conversational prose carries house style; technical and structured do not. */
+export const WRITING_MODE = { CONVERSATIONAL: "conversational", TECHNICAL: "technical", STRUCTURED: "structured" } as const;
 export const PROVIDER_AUTH_TYPE = { API_KEY: "api_key", OAUTH_PKCE: "oauth_pkce", ACCOUNT_SUBSCRIPTION: "account_subscription", CLOUD: "cloud" } as const;
 export const SOCIAL_PLATFORM = { X: "x", LINKEDIN: "linkedin", YOUTUBE: "youtube", INSTAGRAM: "instagram" } as const;
 export const FILE_SCAN_STATE = { APPROVED: "approved", BLOCKED: "blocked" } as const;
 
 export type ValueOf<T> = T[keyof T];
+export type WritingMode = ValueOf<typeof WRITING_MODE>;
 export type TaskStatus = ValueOf<typeof TASK_STATUS>;
 export type ApprovalState = ValueOf<typeof APPROVAL_STATE>;
 export type RiskLevel = ValueOf<typeof RISK_LEVEL>;
@@ -94,6 +97,7 @@ export interface TaskRecord {
   priority: TaskPriority;
   parentTaskId: string | null;
   requiresFilesystem: boolean;
+  writingMode: WritingMode;
   createdAt: string;
   updatedAt: string;
 }

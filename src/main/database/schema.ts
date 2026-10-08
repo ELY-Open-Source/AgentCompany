@@ -64,6 +64,7 @@ import { providerContextWindowSchema } from "./migrations/062-provider-context-w
 import { knowledgeScopeSchema } from "./migrations/063-knowledge-scope";
 import { knowledgeRevisionsSchema } from "./migrations/064-knowledge-revisions";
 import { documentVersionsSchema } from "./migrations/065-document-versions";
+import { taskWritingModeSchema } from "./migrations/066-task-writing-mode";
 
 interface Migration {
   version: number;
@@ -137,6 +138,7 @@ const MIGRATIONS: Migration[] = [
   { version: 63, name: "knowledge_scope", sql: knowledgeScopeSchema },
   { version: 64, name: "knowledge_revisions", sql: knowledgeRevisionsSchema },
   { version: 65, name: "document_versions", sql: documentVersionsSchema },
+  { version: 66, name: "task_writing_mode", sql: taskWritingModeSchema },
 ];
 
 const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;

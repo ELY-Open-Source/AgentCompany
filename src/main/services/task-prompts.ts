@@ -1,3 +1,4 @@
+import { WRITING_MODE, type WritingMode } from "../../shared/domain";
 import { canonicalMentionHandle } from "../../shared/mention-handles";
 
 const RECORD_LEARNINGS_INSTRUCTION =
@@ -16,6 +17,7 @@ export interface TaskExecutionTaskRow {
   workspace_id: string | null;
   priority: string;
   requires_filesystem: number;
+  writing_mode: WritingMode;
   handoff_json: string | null;
   origin: string | null;
 }
@@ -132,7 +134,7 @@ function capabilityBriefing(input: AgentInstructionContext): string {
   );
   if (input.isCeo) {
     lines.push(
-      "You are the CEO: you automatically carry every connected service, and access for everyone else is yours to manage — when you delegate work that needs an external service, grant it first with grant_connector and take it back with revoke_connector when done. The company also ships a built-in skill library: staff every hire with the skills their role needs by passing skills to hire_agent (several per person is normal), and adjust later with grant_skill / revoke_skill. You run only with skills granted to you too: grant yourself a playbook before you rely on it. A teammate without the grant cannot use the tool or skill, so grant before you assign. The humanizer skill is company house style — every agent, you included, carries it automatically and must write like a person, not like an AI.",
+      "You are the CEO: you automatically carry every connected service, and access for everyone else is yours to manage — when you delegate work that needs an external service, grant it first with grant_connector and take it back with revoke_connector when done. The company also ships a built-in skill library: staff every hire with the skills their role needs by passing skills to hire_agent (several per person is normal), and adjust later with grant_skill / revoke_skill. You run only with skills granted to you too: grant yourself a playbook before you rely on it. A teammate without the grant cannot use the tool or skill, so grant before you assign. The humanizer skill is company house style — every agent, you included, carries it on conversational work and must write like a person, not like an AI. For specs and API docs pass writing_mode technical to create_task; for output in an exact format pass structured; both skip house style.",
     );
   } else if (input.connectorNames.length === 0) {
     lines.push(
@@ -158,6 +160,17 @@ function roleVoice(input: AgentInstructionContext): string {
     return "You lead a department. Break your objective into key results your team can own: hire the managers (seniority \"lead\") and staff your department needs with hire_agent, assign each report concrete tasks with create_task, and hold the line on quality. Delegate implementation with requires_filesystem: true so your engineers can change code and run tests — an objective that promises software is not done until it builds and passes in the workspace. Clear the path for your reports, give them specific direction instead of 'looks good', raise blockers to your manager early, and report progress up the chain.";
   }
   return "You own your craft. Ask the question early instead of guessing, do the work properly, and when you are stuck for more than a few minutes say so in the thread instead of spinning in place.";
+}
+
+/** The writing rule for technical and structured tasks, which run without house style. */
+export function writingModeLines(mode: WritingMode): string[] {
+  if (mode === WRITING_MODE.TECHNICAL) {
+    return ["", "Technical writing: this task's output is a spec or technical document. Be exact and complete: define terms, name types, units and edge cases, prefer lists and tables over prose, and never trade precision for tone."];
+  }
+  if (mode === WRITING_MODE.STRUCTURED) {
+    return ["", "Structured output: the deliverable must match the requested format exactly (JSON, table, template). No prose around it, no extra fields, no commentary inside it."];
+  }
+  return [];
 }
 
 function skillToolLines(toolsManifest: string, available: string[]): string[] {
@@ -216,6 +229,7 @@ export function buildTaskPrompt(input: {
       `Mounts: ${input.isolation.workspaceMountJson}`,
     );
   }
+  lines.push(...writingModeLines(input.task.writing_mode));
   lines.push(...input.handoffLines);
   lines.push(...input.knowledgeLines);
   lines.push("", `Secret scope: ${input.isolation.secretScopeJson}`);

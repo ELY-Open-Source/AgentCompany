@@ -98,7 +98,7 @@ describe("collaboration integration flow", () => {
       revisionId = skills.importDirectory({ orgId, directoryPath: createSkillDirectory(), versionSemver: "1.0.0" });
       skillId = (connection.db.prepare("select skill_id from skill_revisions where id = ?").get(revisionId) as { skill_id: string }).skill_id;
       skills.bind({ orgId, agentId, skillId, revisionId });
-      skills.resolveRuntimeSnapshot({ orgId, agentId, runId: `run_${randomUUID().replaceAll("-", "")}`, maxTokens: 44_800, taskText: "", runModel: { providerKey: "openai", model: "gpt-5.4" } });
+      skills.resolveRuntimeSnapshot({ orgId, agentId, runId: `run_${randomUUID().replaceAll("-", "")}`, maxTokens: 44_800, taskText: "", runModel: { providerKey: "openai", model: "gpt-5.4" }, houseStyle: true });
       suiteId = (connection.db.prepare("select id from eval_suites where org_id = ? and key = ?")
         .get(orgId, EVAL_SUITE_KEY.INTEGRATION) as { id: string }).id;
       evalRunId = sdlc.runEvalSuite({ orgId, suiteId });
