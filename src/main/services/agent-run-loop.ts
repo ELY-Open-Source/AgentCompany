@@ -7,6 +7,7 @@ import { canonicalMentionHandle } from "../../shared/mention-handles";
 import type { AgentTurnMessage, ToolDefinition } from "./provider-tool-turn";
 import { isComposioTool, executeComposioTool } from "./composio/composio-tool-bridge";
 import { compactToolHistory } from "./run-context-compaction";
+import { fitContextBudget } from "./context-budget";
 
 const MAX_ITERATIONS = 12;
 
@@ -22,6 +23,8 @@ export interface AgentRunLoopInput {
   pollNewMessages?: () => string | null;
   /** Called after each model turn the provider answered. */
   onModelTurn?: () => void;
+  /** Input tokens the provider's context window leaves after the output reserve. */
+  inputBudgetTokens: number;
 }
 
 export interface AgentRunLoopResult {
@@ -56,6 +59,7 @@ export async function runAgentLoop(deps: AgentRunLoopDeps, input: AgentRunLoopIn
       messages.splice(0, messages.length, ...compaction.messages);
       console.info(`[run-loop] iteration ${iteration}: elided ${compaction.elided} earlier tool result(s)`);
     }
+    fitContextBudget(input.instructions, messages, allTools, input.inputBudgetTokens, iteration);
     const turn = await deps.providers.runToolTurn({
       orgId: input.orgId,
       providerId: input.providerId,
@@ -102,6 +106,7 @@ export async function runAgentLoop(deps: AgentRunLoopDeps, input: AgentRunLoopIn
           providers: deps.providers,
           providerId: input.providerId,
           workspaceId: input.workspaceId,
+          inputBudgetTokens: input.inputBudgetTokens,
           call,
         });
       } else {

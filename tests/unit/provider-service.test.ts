@@ -448,7 +448,7 @@ describe("provider service", () => {
         dataPolicy: PROVIDER_DATA_POLICY.STANDARD,
         backgroundEnabled: false,
         monthlyRequestLimit: 1,
-        workspaceScope: "organization",
+        workspaceScope: "organization", contextWindowTokens: 128_000,
       });
     });
     await providers.createResponse({
@@ -524,7 +524,7 @@ describe("provider service", () => {
         dataPolicy: PROVIDER_DATA_POLICY.STANDARD,
         backgroundEnabled: false,
         monthlyRequestLimit: 10,
-        workspaceScope: "workspace",
+        workspaceScope: "workspace", contextWindowTokens: 128_000,
       });
     });
 
@@ -582,7 +582,7 @@ describe("provider service", () => {
         dataPolicy: PROVIDER_DATA_POLICY.ZERO_DATA_RETENTION,
         backgroundEnabled: false,
         monthlyRequestLimit: 10,
-        workspaceScope: "organization",
+        workspaceScope: "organization", contextWindowTokens: 128_000,
       });
     });
 

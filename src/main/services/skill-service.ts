@@ -1,3 +1,4 @@
+import { estimateTokens } from "./context-budget";
 import { existsSync, readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { normalize } from "node:path";
@@ -33,13 +34,6 @@ export const FORCED_SKILL_SLUGS = [HUMANIZER_SLUG_EN, HUMANIZER_SLUG_ZH] as cons
 export function forcedSkillSlugCandidates(language: string): string[] {
   return language === "zh" ? [HUMANIZER_SLUG_ZH, HUMANIZER_SLUG_EN] : [HUMANIZER_SLUG_EN, HUMANIZER_SLUG_ZH];
 }
-
-/**
- * Compiled skill prompts stop packing past this size so one over-granted
- * agent cannot overflow the model's context window. Skills pack whole, forced
- * skills first, and anything omitted is named in the prompt.
- */
-export const MAX_COMPILED_PROMPT_CHARS = 200_000;
 
 export class SkillService {
   private readonly audit: AuditService;
@@ -243,8 +237,8 @@ export class SkillService {
    * Freezes the exact skill set this run carries: forced house-style skills
    * first (identical for everyone, CEO included), then the agent's enabled
    * bindings in priority order, deduplicated per skill. Skills pack whole
-   * until MAX_COMPILED_PROMPT_CHARS; whatever does not fit is named in the
-   * compiled prompt instead of silently overflowing the model's context.
+   * until input.maxTokens; whatever does not fit is named in the compiled
+   * prompt instead of silently overflowing the model's context.
    */
   resolveRuntimeSnapshot(input: ResolveAgentSkillsInput): string {
     // Idempotent per run: a run interrupted after resolving (crash, quit) is
@@ -280,7 +274,7 @@ export class SkillService {
     const tools = new Set<string>();
     const revisionIds: string[] = [];
     const omitted: string[] = [];
-    let compiledLength = 0;
+    let compiledTokens = 0;
     for (const row of rows) {
       if (!existsSync(row.object_key)) throw new Error(`Skill artifact is missing: ${row.object_key}`);
       const manifest = JSON.parse(row.manifest_json) as SkillManifest;
@@ -289,14 +283,15 @@ export class SkillService {
         `Version: ${row.version_semver}`,
         readFileSync(row.object_key, "utf8").trim(),
       ].join("\n\n");
-      if (compiledParts.length > 0 && compiledLength + part.length > MAX_COMPILED_PROMPT_CHARS) {
+      const partTokens = estimateTokens(part);
+      if (compiledParts.length > 0 && compiledTokens + partTokens > input.maxTokens) {
         omitted.push(manifest.name);
         continue;
       }
       for (const tool of manifest.requiredTools) tools.add(tool);
       revisionIds.push(row.revision_id);
       compiledParts.push(part);
-      compiledLength += part.length;
+      compiledTokens += partTokens;
     }
     if (omitted.length > 0) {
       compiledParts.push(

@@ -60,6 +60,7 @@ import { integrationKeysSchema } from "./migrations/058-integration-keys";
 import { taskHandoffSchema } from "./migrations/059-task-handoff";
 import { chatWakeTextPurgeSchema } from "./migrations/060-chat-wake-text-purge";
 import { taskRunContextSchema } from "./migrations/061-task-run-context";
+import { providerContextWindowSchema } from "./migrations/062-provider-context-window";
 
 interface Migration {
   version: number;
@@ -129,6 +130,7 @@ const MIGRATIONS: Migration[] = [
   { version: 59, name: "task_handoff", sql: taskHandoffSchema },
   { version: 60, name: "chat_wake_text_purge", sql: chatWakeTextPurgeSchema },
   { version: 61, name: "task_run_context", sql: taskRunContextSchema },
+  { version: 62, name: "provider_context_window", sql: providerContextWindowSchema },
 ];
 
 const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;

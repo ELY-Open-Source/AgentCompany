@@ -26,6 +26,7 @@ import {
 import { renderTaskHandoff } from "./agent-task-handoff";
 import { createRunContextRecorder, createRunMessagePoller, loadChatWakeContext } from "./chat-wake-context";
 import { runningWorkspaceWriter } from "./workspace-write-lock";
+import { inputBudgetTokens, skillBudgetTokens } from "./context-budget";
 import { loadComposioTools } from "./composio/composio-tool-bridge";
 import { connectorDisplayName } from "./composio/connector-brands";
 import { ConnectorGrantsService } from "./composio/connector-grants";
@@ -155,7 +156,7 @@ export class TaskExecutionService {
     let providerRequestId: string | null = null;
     let skillRuntimeSnapshot: SkillRuntimeSnapshotRow | null = null;
     try {
-      skillRuntimeSnapshot = this.resolveSkillRuntimeSnapshot(orgId, agent.id, runId);
+      skillRuntimeSnapshot = this.resolveSkillRuntimeSnapshot(orgId, agent.id, runId, skillBudgetTokens(provider.context_window_tokens));
       // Watermark for reply delivery and mid-run message polling.
       const runStartedAt = new Date().toISOString();
       const chatContext = loadChatWakeContext(this.db, orgId, agent.id, isolation.secretScopeJson);
@@ -208,6 +209,7 @@ export class TaskExecutionService {
           toolContext,
           externalTools,
           onModelTurn: contextRecorder.commit,
+          inputBudgetTokens: inputBudgetTokens(provider.context_window_tokens),
           pollNewMessages: createRunMessagePoller(this.db, { orgId, onInjected: contextRecorder.addMidRun, agentId: agent.id, sourceThreadId: chatContext?.threadId ?? null, runStartedAt }),
         },
       );
@@ -312,7 +314,7 @@ export class TaskExecutionService {
   private requireAgentProvider(orgId: string, agent: TaskExecutionAgentRow): TaskExecutionProviderRow {
     if (!agent.model_provider_id) throw new Error("Task assignee requires a model provider.");
     const provider = this.db.prepare(`
-      select id, label, provider_key, model
+      select id, label, provider_key, model, context_window_tokens
       from providers
       where id = ? and org_id = ?
     `).get(agent.model_provider_id, orgId) as TaskExecutionProviderRow | undefined;
@@ -614,9 +616,9 @@ export class TaskExecutionService {
     `).run(TASK_RUN_STATE.FAILED, providerRequestId, new Date().toISOString(), errorMessage, runId, orgId);
   }
 
-  private resolveSkillRuntimeSnapshot(orgId: string, agentId: string, runId: string): SkillRuntimeSnapshotRow | null {
+  private resolveSkillRuntimeSnapshot(orgId: string, agentId: string, runId: string, maxTokens: number): SkillRuntimeSnapshotRow | null {
     if (!this.skills.hasRuntimeSkills(orgId, agentId)) return null;
-    const snapshotId = this.skills.resolveRuntimeSnapshot({ orgId, agentId, runId });
+    const snapshotId = this.skills.resolveRuntimeSnapshot({ orgId, agentId, runId, maxTokens });
     const snapshot = this.db.prepare(`
       select id, compiled_prompt, tools_manifest, source_revision_ids
       from skill_runtime_snapshots

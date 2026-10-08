@@ -284,6 +284,8 @@ export interface ProviderRecord {
   backgroundEnabled: boolean;
   monthlyRequestLimit: number;
   workspaceScope: string;
+  /** Model context window the run budget is computed against. */
+  contextWindowTokens: number;
   createdAt: string;
 }
 

@@ -1,3 +1,4 @@
+import { fitContextBudget } from "./context-budget";
 import { AuditService } from "./audit-service";
 import { executeWorkspaceTool, WORKSPACE_TOOLS } from "./agent-workspace-tools";
 import { optionalString, requireString } from "./agent-tool-args";
@@ -54,6 +55,7 @@ export interface GoalCompletionArgs {
   providers: Pick<ProviderService, "runToolTurn">;
   providerId: string;
   workspaceId: string | null;
+  inputBudgetTokens: number;
   call: ToolCall;
 }
 
@@ -129,6 +131,7 @@ async function auditGoalCompletion(
   const instructions = "You are the independent completion auditor. You did not do the work and owe its author nothing; your only loyalty is to what actually exists. Be strict: an unverifiable claim is a false claim.";
 
   for (let iteration = 1; iteration <= AUDIT_MAX_ITERATIONS; iteration += 1) {
+    fitContextBudget(instructions, messages, auditTools, args.inputBudgetTokens, iteration);
     const turn = await args.providers.runToolTurn({
       orgId: args.ctx.orgId,
       providerId: args.providerId,

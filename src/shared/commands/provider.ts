@@ -61,6 +61,7 @@ export interface UpdateProviderPolicyInput {
   backgroundEnabled: boolean;
   monthlyRequestLimit: number;
   workspaceScope: "organization" | "workspace";
+  contextWindowTokens: number;
 }
 
 export interface CreateProviderResponseInput {

@@ -36,6 +36,9 @@ export type { ProviderResponseCreateInput };
 
 const AUTH_SESSION_TTL_MS = 15 * 60 * 1000;
 
+/** Room for instructions, the output reserve, and some history. */
+const MIN_CONTEXT_WINDOW_TOKENS = 24_000;
+
 export class ProviderService {
   private readonly audit: AuditService;
   private readonly authBroker: AuthBrokerService;
@@ -254,6 +257,10 @@ export class ProviderService {
   updatePolicy(input: UpdateProviderPolicyInput): void {
     const monthlyRequestLimit = Math.trunc(input.monthlyRequestLimit);
     if (monthlyRequestLimit < 1) throw new Error("Monthly request limit must be at least 1.");
+    const contextWindowTokens = Math.trunc(input.contextWindowTokens);
+    if (!(contextWindowTokens >= MIN_CONTEXT_WINDOW_TOKENS)) {
+      throw new Error(`Context window must be at least ${MIN_CONTEXT_WINDOW_TOKENS} tokens.`);
+    }
     if (!Object.values(PROVIDER_DATA_POLICY).includes(input.dataPolicy)) throw new Error("Provider data policy is invalid.");
     if (!WORKSPACE_SCOPES.has(input.workspaceScope)) throw new Error("Provider workspace scope is invalid.");
     if (input.dataPolicy === PROVIDER_DATA_POLICY.ZERO_DATA_RETENTION && input.backgroundEnabled) {
@@ -265,9 +272,9 @@ export class ProviderService {
 
     this.db.prepare(`
       update providers
-      set data_policy = ?, background_enabled = ?, monthly_request_limit = ?, workspace_scope = ?
+      set data_policy = ?, background_enabled = ?, monthly_request_limit = ?, workspace_scope = ?, context_window_tokens = ?
       where id = ? and org_id = ?
-    `).run(input.dataPolicy, input.backgroundEnabled ? 1 : 0, monthlyRequestLimit, input.workspaceScope, input.providerId, input.orgId);
+    `).run(input.dataPolicy, input.backgroundEnabled ? 1 : 0, monthlyRequestLimit, input.workspaceScope, contextWindowTokens, input.providerId, input.orgId);
     this.audit.record({
       orgId: input.orgId,
       entityType: "provider",
@@ -281,6 +288,7 @@ export class ProviderService {
         backgroundEnabled: input.backgroundEnabled,
         monthlyRequestLimit,
         workspaceScope: input.workspaceScope,
+        contextWindowTokens,
       },
     });
   }

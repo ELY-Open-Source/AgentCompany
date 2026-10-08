@@ -72,7 +72,7 @@ describe("tool history compaction", () => {
         tools: { db: connection.db, organization, chat },
       },
       {
-        orgId, providerId: "p", workspaceId: null, instructions: "i", initialUserTurn: "go",
+        orgId, providerId: "p", inputBudgetTokens: 112_000, workspaceId: null, instructions: "i", initialUserTurn: "go",
         toolContext: { orgId, agent: { id: agentId, modelProviderId: null, modelId: null }, taskProjectId: null, taskGoalId: null, taskId: null, sourceThreadId: null, workspace: null },
       },
     );

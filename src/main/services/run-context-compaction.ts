@@ -5,10 +5,10 @@ const ELIDE_ABOVE_CHARS = 600;
 const PREVIEW_CHARS = 300;
 
 /** Older tool results shrink to a preview; the latest turns stay verbatim. */
-export function compactToolHistory(messages: AgentTurnMessage[]): { messages: AgentTurnMessage[]; elided: number } {
+export function compactToolHistory(messages: AgentTurnMessage[], keepRecent = KEEP_RECENT_TOOL_TURNS): { messages: AgentTurnMessage[]; elided: number } {
   const toolTurnIndexes = messages.flatMap((message, index) => (message.role === "tool" ? [index] : []));
-  const compactBefore = toolTurnIndexes.length > KEEP_RECENT_TOOL_TURNS
-    ? toolTurnIndexes[toolTurnIndexes.length - KEEP_RECENT_TOOL_TURNS]
+  const compactBefore = toolTurnIndexes.length > keepRecent
+    ? toolTurnIndexes[toolTurnIndexes.length - keepRecent]
     : 0;
   let elided = 0;
   const compacted = messages.map((message, index) => {

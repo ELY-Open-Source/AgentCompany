@@ -34,6 +34,7 @@ export interface TaskExecutionProviderRow {
   label: string;
   provider_key: string;
   model: string | null;
+  context_window_tokens: number;
 }
 
 export interface ProjectRow {

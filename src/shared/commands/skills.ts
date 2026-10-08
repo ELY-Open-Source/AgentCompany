@@ -19,6 +19,8 @@ export interface ResolveAgentSkillsInput {
   orgId: string;
   agentId: string;
   runId: string;
+  /** Token budget for the compiled skills. */
+  maxTokens: number;
 }
 
 export interface RunSkillTestsInput {

@@ -65,7 +65,7 @@ function call(args: Record<string, unknown>): ToolCall {
   return { id: `call_${randomUUID()}`, name: "complete_goal", arguments: args };
 }
 
-function argsFor(h: Harness, agentId: string, auditor: Auditor, toolCall: ToolCall): GoalCompletionArgs {
+function argsFor(h: Harness, agentId: string, auditor: Auditor, toolCall: ToolCall, inputBudgetTokens = 112_000): GoalCompletionArgs {
   const ctx: AgentToolContext = {
     orgId: h.orgId,
     agent: { id: agentId, modelProviderId: h.providerId, modelId: "gpt-5.4" },
@@ -73,7 +73,7 @@ function argsFor(h: Harness, agentId: string, auditor: Auditor, toolCall: ToolCa
     taskGoalId: h.goalId, taskId: null, sourceThreadId: null,
     workspace: { id: "wsp_audit", localPath: workspaceRoot, writeAccess: true },
   };
-  return { deps: h.deps, ctx, providers: { runToolTurn: auditor }, providerId: h.providerId, workspaceId: null, call: toolCall };
+  return { deps: h.deps, ctx, providers: { runToolTurn: auditor }, providerId: h.providerId, workspaceId: null, inputBudgetTokens, call: toolCall };
 }
 
 function goalStatus(h: Harness): string {
@@ -263,6 +263,20 @@ describe("company_status", () => {
     const output = dispatch(h, h.staffId, "company_status", {});
     expect(output).toContain("ERROR");
     expect(output).toContain("Ask the CEO");
+    h.connection.close();
+  });
+
+  test("an audit that outgrows the context budget fails as an error instead of sending an oversized request", async () => {
+    const h = createHarness();
+    let calls = 0;
+    const auditor = async (): Promise<AuditorTurn> => {
+      calls += 1;
+      return { text: "", toolCalls: [], rawResponseJson: "{}", requestId: "r" };
+    };
+    const output = await completeGoalTool(argsFor(h, h.ceoId, auditor, call({ evidence: "证".repeat(5_000) }), 3_000));
+    expect(output).toMatch(/^ERROR: This run needs ~\d+ input tokens but the provider's context window leaves 3000/);
+    expect(calls).toBe(0);
+    expect(goalStatus(h)).toBe("active");
     h.connection.close();
   });
 });

@@ -26,7 +26,7 @@ interface ProvidersPanelProps {
   actions: SnapshotActions;
 }
 
-const POLICY_GRID = "minmax(150px, 1.2fr) minmax(118px, 0.8fr) minmax(140px, 1fr) 112px 124px 92px";
+const POLICY_GRID = "minmax(150px, 1.2fr) minmax(118px, 0.8fr) minmax(140px, 1fr) 112px 124px 124px 92px";
 type WorkspaceScope = "organization" | "workspace";
 
 export function ProvidersPanel({ orgId, employeeId, providers, authProfiles, catalog, agents, providerRateLimits, actions }: ProvidersPanelProps) {
@@ -138,9 +138,9 @@ function ProviderPolicyTable({
       <div className="card" style={{ padding: 0, overflowX: "auto", marginBottom: 28 }}>
         <div
           className="table-row head"
-          style={{ gridTemplateColumns: POLICY_GRID, minWidth: 780 }}
+          style={{ gridTemplateColumns: POLICY_GRID, minWidth: 900 }}
         >
-          <div>{t("Provider")}</div><div>{t("Scope")}</div><div>{t("Data policy")}</div><div>{t("Background")}</div><div>{t("Monthly limit")}</div><div>{t("Usage")}</div>
+          <div>{t("Provider")}</div><div>{t("Scope")}</div><div>{t("Data policy")}</div><div>{t("Background")}</div><div>{t("Monthly limit")}</div><div>{t("Context window (tokens)")}</div><div>{t("Usage")}</div>
         </div>
         {providers.map((provider, index) => {
           const rateLimit = requireProviderRateLimit(provider, providerRateLimits);
@@ -176,6 +176,7 @@ function ProviderPolicyRow({
   const [dataPolicy, setDataPolicy] = useState(provider.dataPolicy);
   const [backgroundEnabled, setBackgroundEnabled] = useState(provider.backgroundEnabled);
   const [monthlyRequestLimit, setMonthlyRequestLimit] = useState(String(provider.monthlyRequestLimit));
+  const [contextWindowTokens, setContextWindowTokens] = useState(String(provider.contextWindowTokens));
   const [workspaceScope, setWorkspaceScope] = useState<WorkspaceScope>(provider.workspaceScope === "workspace" ? "workspace" : "organization");
 
   const savePolicy = () => {
@@ -186,6 +187,7 @@ function ProviderPolicyRow({
       backgroundEnabled,
       monthlyRequestLimit: Number(monthlyRequestLimit),
       workspaceScope,
+      contextWindowTokens: Number(contextWindowTokens),
     }));
   };
 
@@ -199,7 +201,7 @@ function ProviderPolicyRow({
       className="table-row"
       style={{
         gridTemplateColumns: POLICY_GRID,
-        minWidth: 780,
+        minWidth: 900,
         borderBottom: last ? "none" : "1px solid var(--border-soft)",
       }}
     >
@@ -241,6 +243,16 @@ function ProviderPolicyRow({
         min={1}
         value={monthlyRequestLimit}
         onChange={(event) => setMonthlyRequestLimit(event.target.value)}
+      />
+      <input
+        className="input"
+        aria-label={t("{label} context window", { label: provider.label })}
+        title={t("The model's context window. Runs keep prompts, skills, history, and tool results inside it.")}
+        type="number"
+        min={24000}
+        step={1000}
+        value={contextWindowTokens}
+        onChange={(event) => setContextWindowTokens(event.target.value)}
       />
       <div>
         <div className="num mono">{rateLimit.requestCount} / {rateLimit.monthlyRequestLimit}</div>

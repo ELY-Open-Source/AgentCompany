@@ -52,7 +52,7 @@ describe("provider background service", () => {
         dataPolicy: PROVIDER_DATA_POLICY.STANDARD,
         backgroundEnabled: true,
         monthlyRequestLimit: 10,
-        workspaceScope: "organization",
+        workspaceScope: "organization", contextWindowTokens: 128_000,
       });
     });
 
@@ -115,7 +115,7 @@ describe("provider background service", () => {
         dataPolicy: PROVIDER_DATA_POLICY.STANDARD,
         backgroundEnabled: true,
         monthlyRequestLimit: 10,
-        workspaceScope: "organization",
+        workspaceScope: "organization", contextWindowTokens: 128_000,
       });
     });
 
@@ -152,7 +152,7 @@ describe("provider background service", () => {
         dataPolicy: PROVIDER_DATA_POLICY.STANDARD,
         backgroundEnabled: true,
         monthlyRequestLimit: 10,
-        workspaceScope: "organization",
+        workspaceScope: "organization", contextWindowTokens: 128_000,
       });
     });
 

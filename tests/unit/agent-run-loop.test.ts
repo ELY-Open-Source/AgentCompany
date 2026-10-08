@@ -92,7 +92,7 @@ describe("agent run loop (real tool dispatch)", () => {
         tools: { db: connection.db, organization, chat: new ChatService(connection.db) },
         onToolResults: () => { toolResultNotifications += 1; },
       },
-      { orgId, providerId, workspaceId, instructions: "You are the CEO.", initialUserTurn: "Start the company.", toolContext },
+      { orgId, providerId, inputBudgetTokens: 112_000, workspaceId, instructions: "You are the CEO.", initialUserTurn: "Start the company.", toolContext },
     );
 
     expect(result.iterations).toBe(4);
@@ -147,7 +147,7 @@ describe("agent run loop (real tool dispatch)", () => {
     ];
     const result = await runAgentLoop(
       { providers: fakeProvider(script, connection.db), tools: { db: connection.db, organization, chat: new ChatService(connection.db) } },
-      { orgId, providerId, workspaceId: null, instructions: "i", initialUserTurn: "u", toolContext: ctx },
+      { orgId, providerId, inputBudgetTokens: 112_000, workspaceId: null, instructions: "i", initialUserTurn: "u", toolContext: ctx },
     );
     // The tool returns an error string to the model; nothing is written outside the root.
     expect(existsSync(join(workspaceRoot, "..", "escape.txt"))).toBe(false);
@@ -184,7 +184,7 @@ describe("agent run loop (real tool dispatch)", () => {
 
     await runAgentLoop(
       { providers: fakeProvider(script, connection.db), tools: { db: connection.db, organization, chat: new ChatService(connection.db) } },
-      { orgId, providerId, workspaceId: null, instructions: "i", initialUserTurn: "u", toolContext: ctx },
+      { orgId, providerId, inputBudgetTokens: 112_000, workspaceId: null, instructions: "i", initialUserTurn: "u", toolContext: ctx },
     );
 
     const alex = connection.db.prepare("select id from agents where org_id = ? and name = 'Alex Rivera'").get(orgId) as { id: string };
@@ -230,7 +230,7 @@ describe("agent run loop (real tool dispatch)", () => {
     };
     await expect(runAgentLoop(
       { providers: fakeProvider([{ text: "", toolCalls: [] }], connection.db), tools: { db: connection.db, organization, chat: new ChatService(connection.db) } },
-      { orgId, providerId, workspaceId: null, instructions: "i", initialUserTurn: "u", toolContext: ctx },
+      { orgId, providerId, inputBudgetTokens: 112_000, workspaceId: null, instructions: "i", initialUserTurn: "u", toolContext: ctx },
     )).rejects.toThrow(/empty turn/);
     connection.close();
   });

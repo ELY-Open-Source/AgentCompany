@@ -6,7 +6,10 @@ import { describe, expect, test } from "vitest";
 import { DatabaseConnection } from "../../src/main/database/connection";
 import { OrganizationService } from "../../src/main/services/organization-service";
 import { ChatService } from "../../src/main/services/chat-service";
-import { SkillService, MAX_COMPILED_PROMPT_CHARS } from "../../src/main/services/skill-service";
+import { SkillService } from "../../src/main/services/skill-service";
+import { skillBudgetTokens } from "../../src/main/services/context-budget";
+
+const SKILL_TOKENS = skillBudgetTokens(128_000);
 import { importStagedSkills, parseFrontmatter, stageBuiltinSkillsLibrary } from "../../src/main/services/builtin-skills";
 import { dispatchAgentTool, type AgentToolContext } from "../../src/main/services/agent-tools";
 
@@ -141,7 +144,7 @@ describe("built-in skills", () => {
     // A third, oversized flat skill to prove the compiled-prompt cap.
     writeFileSync(
       join(h.sourceRoot, "engineering", "engineering-epic-novelist.md"),
-      `---\nname: Epic Novelist\ndescription: too big to pack\n---\n\n${"x".repeat(MAX_COMPILED_PROMPT_CHARS + 10)}\n`,
+      `---\nname: Epic Novelist\ndescription: too big to pack\n---\n\n${"x".repeat(SKILL_TOKENS * 3 + 30)}\n`,
       "utf8",
     );
     const staged = stageBuiltinSkillsLibrary(h.sourceRoot, h.libraryRoot);
@@ -175,17 +178,17 @@ describe("built-in skills", () => {
     expect(hired).toContain("Unknown skills skipped: no-such-skill");
 
     const danaId = (h.connection.db.prepare("select id from agents where org_id = ? and name = 'Dana Lee'").get(h.orgId) as { id: string }).id;
-    const danaSnapshot = h.connection.transaction(() => h.skills.resolveRuntimeSnapshot({ orgId: h.orgId, agentId: danaId, runId: "run_dana" }));
+    const danaSnapshot = h.connection.transaction(() => h.skills.resolveRuntimeSnapshot({ orgId: h.orgId, agentId: danaId, runId: "run_dana", maxTokens: SKILL_TOKENS }));
     const danaPrompt = (h.connection.db.prepare("select compiled_prompt from skill_runtime_snapshots where id = ?").get(danaSnapshot) as { compiled_prompt: string }).compiled_prompt;
     expect(danaPrompt.indexOf("# Skill: humanizer")).toBe(0);
     expect(danaPrompt).toContain("# Skill: Backend Architect");
     expect(danaPrompt).toContain("Skills omitted for size");
     expect(danaPrompt).toContain("Epic Novelist");
-    expect(danaPrompt.length).toBeLessThan(MAX_COMPILED_PROMPT_CHARS + 5_000);
+    expect(danaPrompt.length).toBeLessThan(SKILL_TOKENS * 3 + 5_000);
 
     // The CEO carries humanizer too - forced by resolution, not by binding.
     expect(h.skills.hasRuntimeSkills(h.orgId, ceoId)).toBe(true);
-    const ceoSnapshot = h.connection.transaction(() => h.skills.resolveRuntimeSnapshot({ orgId: h.orgId, agentId: ceoId, runId: "run_ceo" }));
+    const ceoSnapshot = h.connection.transaction(() => h.skills.resolveRuntimeSnapshot({ orgId: h.orgId, agentId: ceoId, runId: "run_ceo", maxTokens: SKILL_TOKENS }));
     const ceoPrompt = (h.connection.db.prepare("select compiled_prompt from skill_runtime_snapshots where id = ?").get(ceoSnapshot) as { compiled_prompt: string }).compiled_prompt;
     expect(ceoPrompt).toContain("# Skill: humanizer");
     expect(ceoPrompt).not.toContain("# Skill: Backend Architect");
@@ -210,7 +213,7 @@ describe("built-in skills", () => {
       });
     });
     const promptFor = (runId: string) => {
-      const snapshotId = h.connection.transaction(() => h.skills.resolveRuntimeSnapshot({ orgId: h.orgId, agentId, runId }));
+      const snapshotId = h.connection.transaction(() => h.skills.resolveRuntimeSnapshot({ orgId: h.orgId, agentId, runId, maxTokens: SKILL_TOKENS }));
       return (h.connection.db.prepare("select compiled_prompt from skill_runtime_snapshots where id = ?").get(snapshotId) as { compiled_prompt: string }).compiled_prompt;
     };
 

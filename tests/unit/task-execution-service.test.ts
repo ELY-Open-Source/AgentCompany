@@ -408,7 +408,7 @@ describe("task execution service", () => {
         dataPolicy: PROVIDER_DATA_POLICY.STANDARD,
         backgroundEnabled: false,
         monthlyRequestLimit: 5,
-        workspaceScope: "organization",
+        workspaceScope: "organization", contextWindowTokens: 128_000,
       });
       const agentId = organization.createAgent({
         orgId,
@@ -452,7 +452,7 @@ describe("task execution service", () => {
       dataPolicy: PROVIDER_DATA_POLICY.STANDARD,
       backgroundEnabled: false,
       monthlyRequestLimit: 50,
-      workspaceScope: "organization",
+      workspaceScope: "organization", contextWindowTokens: 128_000,
     }));
     const enqueued = connection.transaction(() => execution.enqueueHeartbeatRuns());
     expect(enqueued).toHaveLength(1);
