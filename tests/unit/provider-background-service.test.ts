@@ -88,11 +88,11 @@ describe("provider background service", () => {
       state: PROVIDER_REQUEST_STATE.SUCCEEDED,
       response_text: "Background analysis complete.",
       external_response_id: "resp_bg_1",
-      input_char_count: 17,
+      input_char_count: "Run long research".length + "Use verified citations.".length,
       output_char_count: 29,
     });
     expect(JSON.parse(request.raw_response_json)).toMatchObject({ id: "resp_bg_1", status: "completed" });
-    expect(usage).toEqual({ request_count: 1, input_char_count: 17, output_char_count: 29 });
+    expect(usage).toEqual({ request_count: 1, input_char_count: 40, output_char_count: 29 });
     expect(signal).toEqual({ success: 1 });
     connection.close();
   });

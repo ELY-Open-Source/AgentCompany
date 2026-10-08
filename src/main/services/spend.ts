@@ -50,6 +50,11 @@ export function providerPrices(db: DatabaseSync, providerId: string): TokenPrice
   return { inputCentsPerMtok: row.input_cents_per_mtok, cachedInputCentsPerMtok: row.cached_input_cents_per_mtok, outputCentsPerMtok: row.output_cents_per_mtok };
 }
 
+/** Characters a call sends: the instructions count as much as the prompt. */
+export function promptChars(prompt: string, instructions: string | null): number {
+  return prompt.length + (instructions?.length ?? 0);
+}
+
 export function monthStartIso(now: Date): string {
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
 }

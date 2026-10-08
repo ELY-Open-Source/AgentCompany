@@ -17,7 +17,7 @@ import { type AgentTurnMessage, type AgentTurnResult, type ToolDefinition, type 
 import { selectToolTurn, supportsToolTurn } from "./provider-tool-turns/router";
 import { resolveTurnCredential } from "./provider-tool-turns/credential-resolver";
 import { currentRunId } from "./run-control";
-import { budgetBlock, isPriced, providerPrices } from "./spend";
+import { budgetBlock, isPriced, promptChars, providerPrices } from "./spend";
 import {
   HEALTH_STATE_HEALTHY,
   WORKSPACE_SCOPES,
@@ -86,7 +86,7 @@ export class ProviderResponseRunner {
       });
       this.deps.requestStore.settleUsage({
         orgId: input.orgId, requestId, provider: execution.provider, rawResponseJson: result.rawResponseJson,
-        inputCharCount: execution.prompt.length, outputCharCount: result.text.length,
+        inputCharCount: promptChars(execution.prompt, execution.instructions), outputCharCount: result.text.length,
       });
       return requestId;
     } catch (error) {
@@ -96,7 +96,7 @@ export class ProviderResponseRunner {
         requestId,
         executionMode: execution.executionMode,
         startedAt,
-        inputCharCount: execution.prompt.length,
+        inputCharCount: promptChars(execution.prompt, execution.instructions),
         error,
       });
       throw error;
@@ -129,7 +129,8 @@ export class ProviderResponseRunner {
     const blocked = agent ? budgetBlock(this.deps.db, agent.id, isPriced(providerPrices(this.deps.db, provider.id)), new Date()) : null;
     if (blocked) throw new Error(blocked);
     const credential = await resolveTurnCredential({ authBroker: this.deps.authBroker, integrationKeys: this.deps.integrationKeys, orgId: input.orgId, provider });
-    const promptChars = JSON.stringify(input.messages).length;
+    // Everything the model reads: instructions, the conversation, and the tool definitions.
+    const turnInputChars = (input.instructions?.length ?? 0) + JSON.stringify(input.messages).length + JSON.stringify(input.tools).length;
     const requestId = this.deps.requestStore.create({
       agentId: agent?.id ?? null,
       taskRunId,
@@ -139,19 +140,21 @@ export class ProviderResponseRunner {
       model,
       workspaceId,
       promptSha256: hashPrompt(JSON.stringify(input.messages)),
-      inputCharCount: promptChars,
+      inputCharCount: turnInputChars,
       executionMode: PROVIDER_EXECUTION_MODE.FOREGROUND,
       createdAt: new Date().toISOString(),
     });
     const startedAt = Date.now();
     try {
       const result = await turn({ credential, model, instructions: input.instructions, messages: input.messages, tools: input.tools });
+      // Tool calls are output the model wrote, as much as its text.
+      const outputChars = result.text.length + (result.toolCalls.length > 0 ? JSON.stringify(result.toolCalls).length : 0);
       this.deps.requestStore.markSucceeded({
         orgId: input.orgId,
         requestId,
         responseText: result.text,
         rawResponseJson: result.rawResponseJson,
-        outputCharCount: result.text.length,
+        outputCharCount: outputChars,
         externalResponseId: readProviderResponseId(result.rawResponseJson),
         completedAt: new Date().toISOString(),
       });
@@ -165,7 +168,7 @@ export class ProviderResponseRunner {
       });
       this.deps.requestStore.settleUsage({
         orgId: input.orgId, requestId, provider: owner, rawResponseJson: result.rawResponseJson,
-        inputCharCount: promptChars, outputCharCount: result.text.length,
+        inputCharCount: turnInputChars, outputCharCount: outputChars,
       });
       return { ...result, requestId };
     } catch (error) {
@@ -175,7 +178,7 @@ export class ProviderResponseRunner {
         requestId,
         executionMode: PROVIDER_EXECUTION_MODE.FOREGROUND,
         startedAt,
-        inputCharCount: promptChars,
+        inputCharCount: turnInputChars,
         error,
       });
       throw error;
@@ -253,7 +256,7 @@ export class ProviderResponseRunner {
       });
       this.deps.requestStore.settleUsage({
         orgId: input.orgId, requestId, provider: execution.provider, rawResponseJson: JSON.stringify(rawEvents),
-        inputCharCount: execution.prompt.length, outputCharCount: responseText.length,
+        inputCharCount: promptChars(execution.prompt, execution.instructions), outputCharCount: responseText.length,
       });
       return requestId;
     } catch (error) {
@@ -263,7 +266,7 @@ export class ProviderResponseRunner {
         requestId,
         executionMode: execution.executionMode,
         startedAt,
-        inputCharCount: execution.prompt.length,
+        inputCharCount: promptChars(execution.prompt, execution.instructions),
         error,
       });
       throw error;
@@ -332,7 +335,7 @@ export class ProviderResponseRunner {
       model: execution.provider.model,
       workspaceId: execution.workspaceId,
       promptSha256: hashPrompt(execution.prompt),
-      inputCharCount: execution.prompt.length,
+      inputCharCount: promptChars(execution.prompt, execution.instructions),
       executionMode: execution.executionMode,
       createdAt: new Date().toISOString(),
     });

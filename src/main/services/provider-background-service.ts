@@ -19,6 +19,7 @@ import { ProviderRateLimitRegistry } from "./provider-rate-limit-registry";
 import { ProviderRequestStore, type ProviderBackgroundRequestRow } from "./provider-request-store";
 import { ProviderResponseObserver } from "./provider-response-observer";
 import { hashPrompt, readProviderFailureMessage, requireBackgroundText } from "./provider-response-utils";
+import { promptChars } from "./spend";
 
 const AUTH_STATE_CONFIGURED = "configured";
 const HEALTH_STATE_HEALTHY = "healthy";
@@ -60,7 +61,7 @@ export class ProviderBackgroundService {
       model: execution.provider.model,
       workspaceId: execution.workspaceId,
       promptSha256: hashPrompt(execution.prompt),
-      inputCharCount: execution.prompt.length,
+      inputCharCount: promptChars(execution.prompt, execution.instructions),
       executionMode: PROVIDER_EXECUTION_MODE.BACKGROUND,
       createdAt: new Date().toISOString(),
     });
@@ -99,7 +100,7 @@ export class ProviderBackgroundService {
         requestId,
         executionMode: PROVIDER_EXECUTION_MODE.BACKGROUND,
         startedAt,
-        inputCharCount: execution.prompt.length,
+        inputCharCount: promptChars(execution.prompt, execution.instructions),
         error,
       });
       throw error;
