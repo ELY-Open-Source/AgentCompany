@@ -23,6 +23,7 @@ import {
 } from "./task-prompts";
 import { renderTaskHandoff } from "./agent-task-handoff";
 import { relevantKnowledgeLines } from "./agent-knowledge-tools";
+import { recordRunMemory } from "./run-memory";
 import { createRunContextRecorder, createRunMessagePoller, loadChatWakeContext } from "./chat-wake-context";
 import { runningWorkspaceWriter } from "./workspace-write-lock";
 import { inputBudgetTokens, skillBudgetTokens } from "./context-budget";
@@ -126,6 +127,8 @@ export class TaskExecutionService {
         action: "failed",
         payload: { taskId: run.task_id, agentId: run.agent_id, providerId: run.provider_id, stage: "preparation", errorMessage: message },
       });
+      const task = this.db.prepare("select title, origin from tasks where id = ?").get(run.task_id) as { title: string; origin: string | null } | undefined;
+      if (task && task.origin === null) recordRunMemory(this.db, { orgId, runId, taskTitle: task.title, outcome: "failed", text: message });
       throw error;
     }
     return this.executeAgentRun(prepared);
@@ -220,6 +223,7 @@ export class TaskExecutionService {
       }
       this.completeRun(orgId, runId, result.lastRequestId);
       this.cooldowns.clear(provider);
+      if (task.origin === null) recordRunMemory(this.db, { orgId, runId, taskTitle: task.title, outcome: "completed", text: result.finalText });
       this.audit.record({
         orgId,
         entityType: "task_run",
@@ -244,6 +248,7 @@ export class TaskExecutionService {
       const message = error instanceof Error ? error.message : String(error);
       this.failRun(orgId, runId, providerRequestId, message);
       if (isTransientProviderFailure(message)) this.cooldowns.park(provider, message);
+      else if (task.origin === null) recordRunMemory(this.db, { orgId, runId, taskTitle: task.title, outcome: "failed", text: message });
       this.audit.record({
         orgId,
         entityType: "task_run",

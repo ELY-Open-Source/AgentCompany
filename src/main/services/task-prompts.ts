@@ -1,5 +1,8 @@
 import { canonicalMentionHandle } from "../../shared/mention-handles";
 
+const RECORD_LEARNINGS_INSTRUCTION =
+  "Before you finish, record anything the company should remember — decisions, preferences, why something failed, conclusions you verified — with record_knowledge.";
+
 export interface TaskExecutionTaskRow {
   id: string;
   org_id: string;
@@ -226,6 +229,8 @@ export function buildTaskPrompt(input: {
       input.chatContext.fresh || "(nothing new since your last reply)",
       "",
       `You have been brought into this thread. Reply to the people here in your own voice — answer what they asked, give your honest take, push back if you disagree, or hand work over. Stay in the thread by passing thread_id="${input.chatContext.threadId}" to send_message. This is a conversation between colleagues, not a status report; only change a task's status if the work itself actually moved.`,
+      "",
+      RECORD_LEARNINGS_INSTRUCTION,
     );
     return lines.join("\n");
   }
@@ -254,6 +259,7 @@ export function buildTaskPrompt(input: {
       `First, read_messages to check if anyone has said something you should respond to — reply to them like a colleague, not a report. Then do the work: write real output with write_deliverable, raise decisions and blockers with ${managerReference} in a direct message (send_message with to=), and keep team-wide topics in channels. Hand files over with /handoff and attachment_file_ids. Keep conversation going — ask questions, share your thinking, push back if something seems wrong. Before you finish: if the work is genuinely done, call update_task_status(task_id="${input.task.id}", status="done"); if it needs another session, move it to "in_progress" and say in the thread what remains — an open task will be run again.`,
     );
   }
+  lines.push("", RECORD_LEARNINGS_INSTRUCTION);
   return lines.join("\n");
 }
 
