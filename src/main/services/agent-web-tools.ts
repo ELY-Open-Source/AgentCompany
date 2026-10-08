@@ -2,11 +2,11 @@ import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
 import { requireString } from "./agent-tool-args";
 import type { ToolCall, ToolDefinition } from "./provider-tool-turn";
+import { PAGE_TOOL_PROPERTIES, pageText, readPageArgs, type PageRequest } from "./text-paging";
 
 const FETCH_TIMEOUT_MS = 30_000;
 const MAX_REDIRECTS = 3;
 const MAX_RESPONSE_BYTES = 2_000_000;
-const PAGE_CHAR_LIMIT = 20_000;
 const SEARCH_RESULT_LIMIT = 8;
 const USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AgentCompany/1.0";
 
@@ -39,12 +39,13 @@ export const WEB_TOOLS: ToolDefinition[] = [
   },
   {
     name: "fetch_url",
-    description: "Fetch a public web page and return its readable text. Use after web_search, or on any URL you were given. Only public hosts are reachable.",
+    description: "Fetch a public web page and return its readable text — whole, a range of lines, or only the lines matching a search. A long page tells you which start_line continues it. Use after web_search, or on any URL you were given. Only public hosts are reachable.",
     parameters: {
       type: "object",
       additionalProperties: false,
       properties: {
         url: { type: "string", description: "Absolute http(s) URL to fetch." },
+        ...PAGE_TOOL_PROPERTIES,
       },
       required: ["url"],
     },
@@ -63,7 +64,7 @@ export async function executeWebTool(call: ToolCall, fetcher: WebFetcher = fetch
       case "web_search":
         return await webSearch(requireString(call.arguments.query, "query"), fetcher);
       case "fetch_url":
-        return await fetchUrl(requireString(call.arguments.url, "url"), fetcher);
+        return await fetchUrl(requireString(call.arguments.url, "url"), readPageArgs(call.arguments), fetcher);
       default:
         throw new Error(`Unknown web tool "${call.name}".`);
     }
@@ -85,14 +86,11 @@ async function webSearch(query: string, fetcher: WebFetcher): Promise<string> {
     .join("\n\n");
 }
 
-async function fetchUrl(rawUrl: string, fetcher: WebFetcher): Promise<string> {
+async function fetchUrl(rawUrl: string, page: PageRequest, fetcher: WebFetcher): Promise<string> {
   const body = await guardedFetch(rawUrl, fetcher);
   const text = looksLikeHtml(body.contentType, body.text) ? htmlToText(body.text) : body.text.trim();
   if (!text) return `${body.finalUrl} returned an empty page (status ${body.status}).`;
-  const truncated = text.length > PAGE_CHAR_LIMIT
-    ? `${text.slice(0, PAGE_CHAR_LIMIT)}\n\n[truncated: showing the first ${PAGE_CHAR_LIMIT} of ${text.length} characters]`
-    : text;
-  return `${body.finalUrl} (status ${body.status})\n\n${truncated}`;
+  return `${body.finalUrl} (status ${body.status})\n\n${pageText(body.finalUrl, text, page)}`;
 }
 
 interface GuardedResponse {

@@ -79,10 +79,19 @@ describe("agent web tools", () => {
     expect(bounced.requested).toHaveLength(1);
   });
 
-  test("fetch_url truncates oversized pages with an honest note", async () => {
-    const { fetcher } = fetcherReturning([{ body: `<p>${"word ".repeat(9000)}</p>` }]);
-    const output = await executeWebTool(call("fetch_url", { url: "http://93.184.216.34/big" }), fetcher);
-    expect(output).toContain("[truncated: showing the first");
+  test("fetch_url pages long pages and continues where the last page stopped", async () => {
+    const paragraphs = Array.from({ length: 900 }, (_, index) => `<p>Paragraph ${index + 1} ${"word ".repeat(20)}</p>`).join("");
+    const first = await executeWebTool(call("fetch_url", { url: "http://93.184.216.34/big" }), fetcherReturning([{ body: paragraphs }]).fetcher);
+    const next = /\[more: pass start_line=(\d+) to continue\]/.exec(first);
+    expect(next).not.toBeNull();
+    expect(first).not.toContain("Paragraph 900 ");
+    const rest = await executeWebTool(
+      call("fetch_url", { url: "http://93.184.216.34/big", start_line: Number(next![1]), line_count: 5000 }),
+      fetcherReturning([{ body: paragraphs }]).fetcher,
+    );
+    expect(rest).toMatch(/\[lines \d+-\d+ of \d+ in http:\/\/93\.184\.216\.34\/big\]/);
+    const searched = await executeWebTool(call("fetch_url", { url: "http://93.184.216.34/big", search: "Paragraph 900 " }), fetcherReturning([{ body: paragraphs }]).fetcher);
+    expect(searched).toContain("[1 matching lines for \"Paragraph 900\" in http://93.184.216.34/big]\n900: Paragraph 900 word");
   });
 
   test("web_search parses DuckDuckGo results and unwraps redirect hrefs", async () => {
