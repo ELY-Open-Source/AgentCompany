@@ -7,6 +7,7 @@ import { OrganizationService } from "../../src/main/services/organization-servic
 import { ProviderService } from "../../src/main/services/provider-service";
 import { providerAdapters } from "../../src/main/services/provider-adapters";
 import type { AgentTurnResult, ToolDefinition } from "../../src/main/services/provider-tool-turn";
+import { markModelChecked } from "../helpers/model-check";
 
 const testVault = {
   encryptSecret: (secret: string) => Buffer.from(secret, "utf8"),
@@ -25,6 +26,7 @@ describe("character accounting", () => {
       orgId = new OrganizationService(connection.db).createOrganization({ organizationName: "Acme", employeeName: "Dana", mission: "m", goal: "g" });
       providerId = (connection.db.prepare("select id from providers where org_id = ? and provider_key = 'openai'").get(orgId) as { id: string }).id;
       providers.saveCredential({ orgId, providerId, secret: "sk-test", model: "gpt-5.4" });
+      markModelChecked(connection.db, providerId, "gpt-5.4");
     });
     const instructions = "You run this company.";
     const messages = [{ role: "user" as const, text: "Kick off the launch." }];

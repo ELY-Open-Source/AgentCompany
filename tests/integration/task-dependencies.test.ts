@@ -13,6 +13,7 @@ import { dispatchAgentTool } from "../../src/main/services/agent-tools";
 import { claimNextQueuedRun } from "../../src/main/app/task-queue-worker";
 import { RISK_LEVEL, TASK_PRIORITY, TASK_STATUS } from "../../src/shared/domain";
 import type { AgentTurnResult, ProviderToolTurnInput } from "../../src/main/services/provider-tool-turn";
+import { answeringModelCheck } from "../helpers/model-check";
 
 const testVault = {
   encryptSecret: (secret: string) => Buffer.from(secret, "utf8"),
@@ -28,7 +29,7 @@ function company() {
     prompts.push(first.text);
     return { text: "done", toolCalls: [], rawResponseJson: "{}" };
   };
-  const providers = new ProviderService(connection.db, providerAdapters, testVault, undefined, turn);
+  const providers = new ProviderService(connection.db, providerAdapters, testVault, undefined, answeringModelCheck(turn));
   const onboarding = new OnboardingService({ db: connection.db, saveProviderCredential: (input) => providers.saveCredential(input) });
   const execution = new TaskExecutionService(connection.db, providers);
   const organization = new OrganizationService(connection.db);

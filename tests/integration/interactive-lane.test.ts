@@ -12,6 +12,7 @@ import { TaskExecutionService } from "../../src/main/services/task-execution-ser
 import { dispatchAgentTool } from "../../src/main/services/agent-tools";
 import { claimNextQueuedRun, startTaskQueueWorker } from "../../src/main/app/task-queue-worker";
 import type { AgentTurnResult, ProviderToolTurnInput, ToolCall } from "../../src/main/services/provider-tool-turn";
+import { answeringModelCheck } from "../helpers/model-check";
 
 const testVault = {
   encryptSecret: (secret: string) => Buffer.from(secret, "utf8"),
@@ -75,7 +76,7 @@ describe("interactive execution lane", () => {
       }
       return turn("done");
     };
-    const providers = new ProviderService(connection.db, providerAdapters, testVault, undefined, script);
+    const providers = new ProviderService(connection.db, providerAdapters, testVault, undefined, answeringModelCheck(script));
     providers.saveCredential({ orgId, providerId, secret: "sk-test-key", model: "gpt-5.4" });
     const taskExecution = new TaskExecutionService(connection.db, providers);
 
@@ -162,7 +163,7 @@ describe("interactive execution lane", () => {
       }
       return turn("done");
     };
-    const providers = new ProviderService(connection.db, providerAdapters, testVault, undefined, script);
+    const providers = new ProviderService(connection.db, providerAdapters, testVault, undefined, answeringModelCheck(script));
     providers.saveCredential({ orgId, providerId, secret: "sk-test-key", model: "gpt-5.4" });
     const taskExecution = new TaskExecutionService(connection.db, providers);
 
@@ -227,7 +228,7 @@ describe("interactive execution lane", () => {
     const alwaysOverloaded = async (): Promise<AgentTurnResult> => {
       throw new Error("The engine is currently overloaded, please try again later");
     };
-    const providers = new ProviderService(connection.db, providerAdapters, testVault, undefined, alwaysOverloaded);
+    const providers = new ProviderService(connection.db, providerAdapters, testVault, undefined, answeringModelCheck(alwaysOverloaded));
     providers.saveCredential({ orgId, providerId, secret: "sk-test-key", model: "gpt-5.4" });
     const taskExecution = new TaskExecutionService(connection.db, providers);
     const wakeDana = () => dispatchAgentTool({ db: connection.db, organization, chat }, {

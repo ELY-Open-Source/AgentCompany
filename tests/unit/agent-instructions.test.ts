@@ -14,6 +14,7 @@ import { buildAgentInstructions, type TaskExecutionAgentRow } from "../../src/ma
 import { AGENT_TOOLS } from "../../src/main/services/agent-tools";
 import { goalKickoffDescription } from "../../src/main/services/goal-kickoff";
 import { CEO_FIRST_HIRES } from "../../src/main/services/org-building";
+import { answeringModelCheck } from "../helpers/model-check";
 
 function agentRow(overrides: Partial<TaskExecutionAgentRow>): TaskExecutionAgentRow {
   return {
@@ -134,7 +135,7 @@ describe("agent instruction wiring", () => {
       capturedInstructions = input.instructions ?? "";
       return { text: "done", toolCalls: [], rawResponseJson: JSON.stringify({ id: "resp-1" }) };
     };
-    const providers = new ProviderService(connection.db, providerAdapters, testVault, undefined, fakeToolTurn);
+    const providers = new ProviderService(connection.db, providerAdapters, testVault, undefined, answeringModelCheck(fakeToolTurn));
     const execution = new TaskExecutionService(connection.db, providers);
 
     let orgId = "";
@@ -189,7 +190,7 @@ describe("agent instruction wiring", () => {
       capturedPrompt = first.text;
       return { text: "done", toolCalls: [], rawResponseJson: JSON.stringify({ id: "resp-1" }) };
     };
-    const providers = new ProviderService(connection.db, providerAdapters, testVault, undefined, fakeToolTurn);
+    const providers = new ProviderService(connection.db, providerAdapters, testVault, undefined, answeringModelCheck(fakeToolTurn));
     const execution = new TaskExecutionService(connection.db, providers);
     let orgId = "";
     let taskId = "";

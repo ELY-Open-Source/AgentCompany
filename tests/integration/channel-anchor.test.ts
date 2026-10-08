@@ -10,6 +10,7 @@ import { providerAdapters } from "../../src/main/services/provider-adapters";
 import { TaskExecutionService } from "../../src/main/services/task-execution-service";
 import { canonicalMentionHandle } from "../../src/shared/mention-handles";
 import type { AgentTurnResult, ProviderToolTurnInput, ToolCall } from "../../src/main/services/provider-tool-turn";
+import { answeringModelCheck } from "../helpers/model-check";
 
 const testVault = {
   encryptSecret: (secret: string) => Buffer.from(secret, "utf8"),
@@ -37,7 +38,7 @@ function scriptedCeoReply(): (input: ProviderToolTurnInput) => Promise<AgentTurn
 describe("channel anchor wake", () => {
   test("a plain user message in a channel wakes the most senior member, who replies", async () => {
     const connection = new DatabaseConnection(join(tmpdir(), `ac-anchor-${randomUUID()}.db`));
-    const providers = new ProviderService(connection.db, providerAdapters, testVault, undefined, scriptedCeoReply());
+    const providers = new ProviderService(connection.db, providerAdapters, testVault, undefined, answeringModelCheck(scriptedCeoReply()));
     const onboarding = new OnboardingService({ db: connection.db, saveProviderCredential: (input) => providers.saveCredential(input) });
     const taskExecution = new TaskExecutionService(connection.db, providers);
     const chat = new ChatService(connection.db);

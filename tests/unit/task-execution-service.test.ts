@@ -14,6 +14,7 @@ import { SnapshotService } from "../../src/main/services/snapshot-service";
 import { TaskExecutionService } from "../../src/main/services/task-execution-service";
 import { APPROVAL_STATE, PROVIDER_DATA_POLICY, RISK_LEVEL, TASK_PRIORITY, TASK_STATUS } from "../../src/shared/domain";
 import { currentProviderUsageWindow, PROVIDER_MONTHLY_LIMIT_MESSAGE } from "../../src/shared/provider-runtime-domain";
+import { answeringModelCheck } from "../helpers/model-check";
 
 function createConnection(): DatabaseConnection {
   return new DatabaseConnection(join(tmpdir(), `agentcompany-new-task-execution-${randomUUID()}.db`));
@@ -40,7 +41,7 @@ describe("task execution service", () => {
       if (first?.role === "user") capturedPrompt = first.text;
       return { text: "executed:gpt-5.4", toolCalls: [], rawResponseJson: JSON.stringify({ id: "resp-task-1" }) };
     };
-    const providers = new ProviderService(connection.db, providerAdapters, testVault, undefined, fakeToolTurn);
+    const providers = new ProviderService(connection.db, providerAdapters, testVault, undefined, answeringModelCheck(fakeToolTurn));
     const skills = new SkillService(connection.db, join(tmpdir(), `agentcompany-task-skills-${randomUUID()}`));
     const execution = new TaskExecutionService(connection.db, providers);
     const skillDir = join(tmpdir(), `agentcompany-task-skill-${randomUUID()}`);
@@ -152,7 +153,7 @@ describe("task execution service", () => {
       toolCalls: [],
       rawResponseJson: JSON.stringify({ id: "resp-task-approved" }),
     });
-    const providers = new ProviderService(connection.db, providerAdapters, testVault, undefined, fakeToolTurn);
+    const providers = new ProviderService(connection.db, providerAdapters, testVault, undefined, answeringModelCheck(fakeToolTurn));
     const execution = new TaskExecutionService(connection.db, providers);
     let orgId = "";
     let employeeId = "";
@@ -291,7 +292,7 @@ describe("task execution service", () => {
     const fakeToolTurn = async (): Promise<AgentTurnResult> => {
       throw new Error("provider rejected task");
     };
-    const providers = new ProviderService(connection.db, providerAdapters, testVault, undefined, fakeToolTurn);
+    const providers = new ProviderService(connection.db, providerAdapters, testVault, undefined, answeringModelCheck(fakeToolTurn));
     const execution = new TaskExecutionService(connection.db, providers);
     let orgId = "";
     let taskId = "";
@@ -349,7 +350,7 @@ describe("task execution service", () => {
       turns += 1;
       return { text: "done", toolCalls: [], rawResponseJson: JSON.stringify({ id: `resp-${turns}` }) };
     };
-    const providers = new ProviderService(connection.db, providerAdapters, testVault, undefined, fakeToolTurn);
+    const providers = new ProviderService(connection.db, providerAdapters, testVault, undefined, answeringModelCheck(fakeToolTurn));
     const execution = new TaskExecutionService(connection.db, providers);
     let orgId = "";
     let taskId = "";
@@ -848,7 +849,7 @@ describe("task execution service", () => {
     const fakeToolTurn = async (): Promise<AgentTurnResult> => {
       throw new Error("The usage limit has been reached");
     };
-    const providers = new ProviderService(connection.db, providerAdapters, testVault, undefined, fakeToolTurn);
+    const providers = new ProviderService(connection.db, providerAdapters, testVault, undefined, answeringModelCheck(fakeToolTurn));
     let nowMs = Date.now();
     const execution = new TaskExecutionService(connection.db, providers, undefined, undefined, () => nowMs);
     let orgId = "";

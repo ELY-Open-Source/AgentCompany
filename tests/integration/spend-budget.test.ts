@@ -9,6 +9,7 @@ import { providerAdapters } from "../../src/main/services/provider-adapters";
 import { TaskExecutionService } from "../../src/main/services/task-execution-service";
 import { claimNextQueuedRun } from "../../src/main/app/task-queue-worker";
 import type { AgentTurnResult } from "../../src/main/services/provider-tool-turn";
+import { markModelChecked } from "../helpers/model-check";
 
 const testVault = {
   encryptSecret: (secret: string) => Buffer.from(secret, "utf8"),
@@ -39,6 +40,7 @@ describe("money budgets", () => {
       ceoId = summary.ceoAgentId;
     });
     const providerId = (connection.db.prepare("select model_provider_id as id from agents where id = ?").get(ceoId) as { id: string }).id;
+    markModelChecked(connection.db, providerId, "gpt-5.4");
     providers.setPrices({ orgId, providerId, inputDollarsPerMtok: 2.5, cachedInputDollarsPerMtok: null, outputDollarsPerMtok: 10 });
     connection.db.prepare("update agents set budget_cents = 2000 where id = ?").run(ceoId);
 

@@ -14,6 +14,7 @@ import { dispatchAgentTool, type AgentToolContext } from "../../src/main/service
 import { ensureCeoDirectSpace } from "../../src/main/services/ceo-direct-space";
 import { claimNextQueuedRun } from "../../src/main/app/task-queue-worker";
 import type { AgentTurnResult, ProviderToolTurnInput } from "../../src/main/services/provider-tool-turn";
+import { answeringModelCheck } from "../helpers/model-check";
 
 const testVault = {
   encryptSecret: (secret: string) => Buffer.from(secret, "utf8"),
@@ -34,7 +35,7 @@ async function founderLine() {
     return { text: `Reply ${wakePrompts.length}.`, toolCalls: [], rawResponseJson: "{}" };
   };
   const connection = new DatabaseConnection(join(tmpdir(), `ac-chatctx-${randomUUID()}.db`));
-  const providers = new ProviderService(connection.db, providerAdapters, testVault, undefined, turn);
+  const providers = new ProviderService(connection.db, providerAdapters, testVault, undefined, answeringModelCheck(turn));
   const onboarding = new OnboardingService({ db: connection.db, saveProviderCredential: (input) => providers.saveCredential(input) });
   const execution = new TaskExecutionService(connection.db, providers);
   const chat = new ChatService(connection.db);
@@ -153,7 +154,7 @@ describe("chat wake context", () => {
       }
       return { text: "Switching to Postgres.", toolCalls: [], rawResponseJson: "{}" };
     };
-    const providers = new ProviderService(connection.db, providerAdapters, testVault, undefined, turn);
+    const providers = new ProviderService(connection.db, providerAdapters, testVault, undefined, answeringModelCheck(turn));
     const onboarding = new OnboardingService({ db: connection.db, saveProviderCredential: (input) => providers.saveCredential(input) });
     const execution = new TaskExecutionService(connection.db, providers);
     let ceoId = "";

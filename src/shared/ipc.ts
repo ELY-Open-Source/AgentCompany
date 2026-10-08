@@ -33,6 +33,7 @@ export const IPC_CHANNELS = {
   cancelProviderOAuth: "agentcompany:cancel-provider-oauth",
   checkProviderHealth: "agentcompany:check-provider-health",
   listProviderModels: "agentcompany:list-provider-models",
+  checkProviderModel: "agentcompany:check-provider-model",
   updateProviderPolicy: "agentcompany:update-provider-policy",
   setProviderPrices: "agentcompany:set-provider-prices",
   openExternalUrl: "agentcompany:open-external-url",

@@ -9,6 +9,7 @@ import { providerAdapters } from "../../src/main/services/provider-adapters";
 import { TaskExecutionService } from "../../src/main/services/task-execution-service";
 import { claimNextQueuedRun } from "../../src/main/app/task-queue-worker";
 import type { AgentTurnResult, ProviderToolTurnInput } from "../../src/main/services/provider-tool-turn";
+import { answeringModelCheck } from "../helpers/model-check";
 
 const testVault = {
   encryptSecret: (secret: string) => Buffer.from(secret, "utf8"),
@@ -17,7 +18,7 @@ const testVault = {
 
 function company(turn: (input: ProviderToolTurnInput, db: DatabaseConnection["db"]) => AgentTurnResult) {
   const connection = new DatabaseConnection(join(tmpdir(), `ac-goalchg-${randomUUID()}.db`));
-  const providers = new ProviderService(connection.db, providerAdapters, testVault, undefined, async (input) => turn(input, connection.db));
+  const providers = new ProviderService(connection.db, providerAdapters, testVault, undefined, answeringModelCheck(async (input) => turn(input, connection.db)));
   const onboarding = new OnboardingService({ db: connection.db, saveProviderCredential: (input) => providers.saveCredential(input) });
   const execution = new TaskExecutionService(connection.db, providers);
   let orgId = "";

@@ -9,6 +9,7 @@ import { providerAdapters } from "../../src/main/services/provider-adapters";
 import { TaskExecutionService } from "../../src/main/services/task-execution-service";
 import { RISK_LEVEL, TASK_PRIORITY, TASK_STATUS } from "../../src/shared/domain";
 import type { AgentTurnResult, ProviderToolTurnInput } from "../../src/main/services/provider-tool-turn";
+import { answeringModelCheck } from "../helpers/model-check";
 
 const testVault = {
   encryptSecret: (secret: string) => Buffer.from(secret, "utf8"),
@@ -27,7 +28,7 @@ describe("agent model", () => {
     };
     const connection = new DatabaseConnection(join(tmpdir(), `ac-model-${randomUUID()}.db`));
     const organization = new OrganizationService(connection.db);
-    const providers = new ProviderService(connection.db, providerAdapters, testVault, undefined, turn);
+    const providers = new ProviderService(connection.db, providerAdapters, testVault, undefined, answeringModelCheck(turn));
     const execution = new TaskExecutionService(connection.db, providers);
     let orgId = "";
     const tasks: Record<string, string> = {};
@@ -53,7 +54,7 @@ describe("agent model", () => {
     const turn = async (): Promise<AgentTurnResult> => ({ text: "done", toolCalls: [], rawResponseJson: "{}" });
     const connection = new DatabaseConnection(join(tmpdir(), `ac-model-az-${randomUUID()}.db`));
     const organization = new OrganizationService(connection.db);
-    const providers = new ProviderService(connection.db, providerAdapters, testVault, undefined, turn);
+    const providers = new ProviderService(connection.db, providerAdapters, testVault, undefined, answeringModelCheck(turn));
     const execution = new TaskExecutionService(connection.db, providers);
     let orgId = "";
     let taskId = "";
@@ -83,7 +84,7 @@ describe("agent model", () => {
     };
     const connection = new DatabaseConnection(join(tmpdir(), `ac-model-pin-${randomUUID()}.db`));
     const organization = new OrganizationService(connection.db);
-    const providers = new ProviderService(connection.db, providerAdapters, testVault, undefined, turn);
+    const providers = new ProviderService(connection.db, providerAdapters, testVault, undefined, answeringModelCheck(turn));
     const execution = new TaskExecutionService(connection.db, providers);
     let orgId = "";
     let taskId = "";

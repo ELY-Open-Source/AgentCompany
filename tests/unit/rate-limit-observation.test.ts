@@ -10,6 +10,7 @@ import { TaskExecutionService } from "../../src/main/services/task-execution-ser
 import { RISK_LEVEL, TASK_PRIORITY, TASK_STATUS } from "../../src/shared/domain";
 import type { AgentTurnResult } from "../../src/main/services/provider-tool-turn";
 import { claimNextQueuedRun } from "../../src/main/app/task-queue-worker";
+import { markModelChecked } from "../helpers/model-check";
 
 const testVault = {
   encryptSecret: (secret: string) => Buffer.from(secret, "utf8"),
@@ -33,6 +34,7 @@ describe("rate limits seen on successful calls", () => {
       orgId = organization.createOrganization({ organizationName: "Acme", employeeName: "Dana", mission: "m", goal: "g" });
       providerId = (connection.db.prepare("select id from providers where org_id = ? and provider_key = 'openai'").get(orgId) as { id: string }).id;
       providers.saveCredential({ orgId, providerId, secret: "sk-test", model: "gpt-5.4" });
+      markModelChecked(connection.db, providerId, "gpt-5.4");
       const agentId = organization.createAgent({ orgId, name: "Ada", role: "Engineer", department: "Engineering", modelProviderId: providerId, modelId: "gpt-5.4", budgetCents: 1000, managerAgentId: null, heartbeatEnabled: true });
       organization.createTask({ orgId, title: "Work", description: "d", status: TASK_STATUS.BACKLOG, assigneeAgentId: agentId, risk: RISK_LEVEL.LOW, projectId: null, goalId: null, workspaceId: null, priority: TASK_PRIORITY.NORMAL, requiresFilesystem: false });
     });

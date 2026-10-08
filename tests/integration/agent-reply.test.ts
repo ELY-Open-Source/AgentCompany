@@ -11,6 +11,7 @@ import { SnapshotService } from "../../src/main/services/snapshot-service";
 import { claimNextQueuedRun } from "../../src/main/app/task-queue-worker";
 import { canonicalMentionHandle } from "../../src/shared/mention-handles";
 import type { AgentTurnResult, ProviderToolTurnInput, ToolCall } from "../../src/main/services/provider-tool-turn";
+import { answeringModelCheck } from "../helpers/model-check";
 
 const testVault = {
   encryptSecret: (secret: string) => Buffer.from(secret, "utf8"),
@@ -59,7 +60,7 @@ function scriptedTeam(): (input: ProviderToolTurnInput) => Promise<AgentTurnResu
 describe("inter-agent reply", () => {
   test("an @mention wakes the teammate, who replies in the same thread", async () => {
     const connection = new DatabaseConnection(join(tmpdir(), `ac-reply-${randomUUID()}.db`));
-    const providers = new ProviderService(connection.db, providerAdapters, testVault, undefined, scriptedTeam());
+    const providers = new ProviderService(connection.db, providerAdapters, testVault, undefined, answeringModelCheck(scriptedTeam()));
     const onboarding = new OnboardingService({ db: connection.db, saveProviderCredential: (input) => providers.saveCredential(input) });
     const taskExecution = new TaskExecutionService(connection.db, providers);
     const snapshot = new SnapshotService(connection.db);

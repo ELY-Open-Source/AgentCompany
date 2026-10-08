@@ -3,6 +3,7 @@ import type { ProviderCatalogEntry, ProviderRecord } from "../../../../shared/do
 import { ProviderOAuthConnect } from "../../shared/ProviderOAuthConnect";
 import { Field } from "../../shared/ui";
 import { t } from "../../i18n/i18n";
+import type { ModelCheckResult } from "../../../../shared/desktop-api";
 
 interface CloudFields {
   baseUrl: string;
@@ -97,8 +98,10 @@ function ModelPicker({ entry, provider }: { entry: ProviderCatalogEntry; provide
   const [fetched, setFetched] = useState<ProviderCatalogEntry["models"] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [checks, setChecks] = useState<Record<string, ModelCheckResult | "running">>({});
   const [value, setValue] = useState(provider.model ?? entry.defaultModel ?? entry.models[0]?.id ?? "");
   const models = fetched ?? entry.models;
+  const check = checks[value];
   const connected = entry.supportsLiveModels && Boolean(provider.credentialId) && provider.enabled && provider.authState === "configured";
 
   const refresh = async () => {
@@ -112,6 +115,20 @@ function ModelPicker({ entry, provider }: { entry: ProviderCatalogEntry; provide
     }
     setFetched(result.data);
     if (result.data[0] && !result.data.some((model) => model.id === value)) setValue(result.data[0].id);
+  };
+
+  const runCheck = async () => {
+    // A verdict belongs to the model it was asked about, whatever is selected when it arrives.
+    const model = value;
+    setChecks((current) => ({ ...current, [model]: "running" }));
+    const result = await window.agentCompany.checkProviderModel({ orgId: provider.orgId, providerId: provider.id, model });
+    setChecks((current) => {
+      const next = { ...current };
+      if (result.ok) next[model] = result.data;
+      else delete next[model];
+      return next;
+    });
+    if (!result.ok) setError(result.error.message);
   };
 
   return (
@@ -130,6 +147,13 @@ function ModelPicker({ entry, provider }: { entry: ProviderCatalogEntry; provide
           {loading ? t("Loading models...") : t("Refresh models")}
         </button>
       )}
+      {provider.credentialId && provider.authState === "configured" && (
+        <button type="button" className="button ghost" style={{ marginTop: 6 }} disabled={check === "running" || !value} onClick={runCheck}>
+          {check === "running" ? t("Checking...") : t("Check for agent work")}
+        </button>
+      )}
+      {typeof check === "object" && check.passed && <div style={{ color: "var(--green)", fontSize: 12, marginTop: 4 }}>{t("This model follows instructions and calls tools.")}</div>}
+      {typeof check === "object" && !check.passed && <div style={{ color: "var(--red)", fontSize: 12, marginTop: 4 }}>{t("This model cannot do agent work here: {detail}", { detail: check.detail })}</div>}
       {error && <div style={{ color: "var(--red)", fontSize: 12, marginTop: 4 }}>{error}</div>}
     </Field>
   );

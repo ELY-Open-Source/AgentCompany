@@ -12,6 +12,7 @@ import { TaskExecutionService } from "../../src/main/services/task-execution-ser
 import { SnapshotService } from "../../src/main/services/snapshot-service";
 import { claimNextQueuedRun } from "../../src/main/app/task-queue-worker";
 import type { AgentTurnMessage, AgentTurnResult, ProviderToolTurnInput, ToolCall } from "../../src/main/services/provider-tool-turn";
+import { answeringModelCheck } from "../helpers/model-check";
 
 const testVault = {
   encryptSecret: (secret: string) => Buffer.from(secret, "utf8"),
@@ -89,7 +90,7 @@ describe("autonomous bootstrap run", () => {
     const workspacePath = join(tmpdir(), `ac-auto-ws-${randomUUID()}`);
     mkdirSync(workspacePath, { recursive: true });
 
-    const providers = new ProviderService(connection.db, providerAdapters, testVault, undefined, scriptedCeo());
+    const providers = new ProviderService(connection.db, providerAdapters, testVault, undefined, answeringModelCheck(scriptedCeo()));
     const onboarding = new OnboardingService({ db: connection.db, saveProviderCredential: (input) => providers.saveCredential(input) });
     const snapshot = new SnapshotService(connection.db);
 
@@ -183,7 +184,7 @@ describe("autonomous bootstrap run", () => {
   test("a goal created after onboarding reaches the CEO and runs autonomously", async () => {
     const connection = new DatabaseConnection(join(tmpdir(), `ac-goal-${randomUUID()}.db`));
     // A minimal well-behaved agent: does its session, closes its task, then stops.
-    const providers = new ProviderService(connection.db, providerAdapters, testVault, undefined, async (input: ProviderToolTurnInput) => {
+    const providers = new ProviderService(connection.db, providerAdapters, testVault, undefined, answeringModelCheck(async (input: ProviderToolTurnInput) => {
       const firstUser = input.messages.find((message) => message.role === "user");
       const taskId = firstUser && firstUser.role === "user" ? /Task id: (\S+)/.exec(firstUser.text)?.[1] : undefined;
       const alreadyClosed = input.messages.some(
@@ -201,7 +202,7 @@ describe("autonomous bootstrap run", () => {
         toolCalls: [],
         rawResponseJson: JSON.stringify({ id: "resp_goal" }),
       };
-    });
+    }));
     const onboarding = new OnboardingService({ db: connection.db, saveProviderCredential: (input) => providers.saveCredential(input) });
     const organization = new OrganizationService(connection.db);
     const taskExecution = new TaskExecutionService(connection.db, providers);

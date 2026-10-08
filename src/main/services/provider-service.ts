@@ -18,6 +18,7 @@ import { ProviderResponseRunner, type ProviderResponseCreateInput } from "./prov
 import { launchProviderSignInWindow, type LaunchProviderSignInWindowInput } from "./provider-sign-in-window";
 import type { ToolTurnFn } from "./provider-tool-turn";
 import { stopRun } from "./run-control";
+import type { ModelCheckResult } from "../../shared/desktop-api";
 import {
   AUTH_STATE_CONFIGURED,
   AUTH_STATE_REVOKED,
@@ -192,6 +193,10 @@ export class ProviderService {
     const credential = loadCredential(this.authBroker, input.orgId, provider);
     const authProfile = adapter.parseAuthProfile(credential.secret);
     return adapter.listModels({ authProfile, model: provider.model });
+  }
+
+  checkModel(input: { orgId: string; providerId: string; model: string }): Promise<ModelCheckResult> {
+    return this.runner.checkModel(input);
   }
 
   async checkHealth(orgId: string, providerId: string): Promise<void> {

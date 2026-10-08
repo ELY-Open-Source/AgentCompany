@@ -18,6 +18,8 @@ import { resolveTurnCredential } from "./provider-tool-turns/credential-resolver
 import { currentRunId } from "./run-control";
 import { budgetBlock, isPriced, promptChars, providerPrices } from "./spend";
 import { assertModelSelectable, effectiveModel } from "./task-run-preparation";
+import { modelCheckFailure, modelCheckProblem, modelCheckTurn, readModelCheck, recordModelCheck } from "./model-check";
+import type { ModelCheckResult } from "../../shared/desktop-api";
 import {
   HEALTH_STATE_HEALTHY,
   WORKSPACE_SCOPES,
@@ -113,7 +115,6 @@ export class ProviderResponseRunner {
   }): Promise<AgentTurnResult & { requestId: string }> {
     const provider = loadConfiguredProvider(this.deps.db, input.orgId, input.providerId);
     const workspaceId = this.normalizeWorkspaceId(input.orgId, input.workspaceId ?? null);
-    this.enforcePolicy(input.orgId, provider, PROVIDER_EXECUTION_MODE.FOREGROUND, workspaceId);
     if (!supportsToolTurn(provider.provider_key)) {
       throw new Error("Agent execution is not available for this provider; assign the agent an OpenAI, Anthropic, xAI, Groq, Mistral, Cerebras, OpenRouter, GPT account, GitHub Copilot, Google Antigravity, or Claude Pro provider.");
     }
@@ -134,32 +135,67 @@ export class ProviderResponseRunner {
     if (!model) throw new Error("Provider model is required.");
     const owner: ProviderRow & { model: string } = { ...provider, model };
     const turn = this.deps.toolTurn ?? selectToolTurn(provider.provider_key);
-    const blocked = agent ? budgetBlock(this.deps.db, agent.id, isPriced(providerPrices(this.deps.db, provider.id)), new Date()) : null;
+    const caller = { orgId: input.orgId, owner, workspaceId, agent, taskRunId, turn };
+    const known = readModelCheck(this.deps.db, provider.id, model, requireCredentialId(provider));
+    const problem = known ? (known.passed ? null : known.detail) : await this.probeModel(caller);
+    if (problem) throw new Error(modelCheckFailure(provider.provider_key, model, problem));
+    return this.callTurn(caller, { instructions: input.instructions, messages: input.messages, tools: input.tools });
+  }
+
+  /** Probes a model for agent work and remembers the verdict; a request that fails records nothing. */
+  private async probeModel(caller: TurnCaller): Promise<string | null> {
+    const probe = modelCheckTurn();
+    const problem = modelCheckProblem(await this.callTurn(caller, probe), probe.code);
+    const { owner } = caller;
+    recordModelCheck(this.deps.db, { orgId: caller.orgId, providerId: owner.id, model: owner.model, credentialId: requireCredentialId(owner), problem, now: new Date() });
+    console.info(`[model-check] ${owner.provider_key} ${owner.model}: ${problem ?? "passed"}`);
+    return problem;
+  }
+
+  /** Runs the agent check of a provider's model now, replacing any earlier result. */
+  async checkModel(input: { orgId: string; providerId: string; model: string }): Promise<ModelCheckResult> {
+    const provider = loadConfiguredProvider(this.deps.db, input.orgId, input.providerId);
+    if (!supportsToolTurn(provider.provider_key)) throw new Error("Agent execution is not available for this provider.");
+    const model = input.model.trim();
+    if (!model) throw new Error("A model is required.");
+    assertModelSelectable(provider.provider_key, model, provider.model);
+    const owner = { ...provider, model };
+    const turn = this.deps.toolTurn ?? selectToolTurn(provider.provider_key);
+    const problem = await this.probeModel({ orgId: input.orgId, owner, workspaceId: null, agent: null, taskRunId: null, turn });
+    return problem === null ? { passed: true } : { passed: false, detail: problem };
+  }
+
+  private async callTurn(caller: TurnCaller, request: { instructions: string | null; messages: AgentTurnMessage[]; tools: ToolDefinition[] }): Promise<AgentTurnResult & { requestId: string }> {
+    const { orgId, owner, workspaceId, agent, taskRunId, turn } = caller;
+    const model = owner.model;
+    // Every request, a probe or the work, passes the provider's policy and quota and the agent's budget.
+    this.enforcePolicy(orgId, owner, PROVIDER_EXECUTION_MODE.FOREGROUND, workspaceId);
+    const blocked = agent ? budgetBlock(this.deps.db, agent.id, isPriced(providerPrices(this.deps.db, owner.id)), new Date()) : null;
     if (blocked) throw new Error(blocked);
     // Everything the model reads: instructions, the conversation, and the tool definitions.
-    const turnInputChars = (input.instructions?.length ?? 0) + JSON.stringify(input.messages).length + JSON.stringify(input.tools).length;
+    const turnInputChars = (request.instructions?.length ?? 0) + JSON.stringify(request.messages).length + JSON.stringify(request.tools).length;
     const requestId = this.deps.requestStore.create({
       agentId: agent?.id ?? null,
       taskRunId,
       department: agent?.department ?? null,
-      orgId: input.orgId,
+      orgId,
       provider: owner,
       model,
       workspaceId,
-      promptSha256: hashPrompt(JSON.stringify(input.messages)),
+      promptSha256: hashPrompt(JSON.stringify(request.messages)),
       inputCharCount: turnInputChars,
       executionMode: PROVIDER_EXECUTION_MODE.FOREGROUND,
       createdAt: new Date().toISOString(),
     });
     const startedAt = Date.now();
     try {
-      const credential = await resolveTurnCredential({ authBroker: this.deps.authBroker, integrationKeys: this.deps.integrationKeys, orgId: input.orgId, provider });
-      const result = await turn({ credential, model, instructions: input.instructions, messages: input.messages, tools: input.tools });
-      recordObservedRateLimit(this.deps.rateLimitRegistry, input.orgId, owner, model, result.rateLimitState ?? null);
+      const credential = await resolveTurnCredential({ authBroker: this.deps.authBroker, integrationKeys: this.deps.integrationKeys, orgId, provider: owner });
+      const result = await turn({ credential, model, instructions: request.instructions, messages: request.messages, tools: request.tools });
+      recordObservedRateLimit(this.deps.rateLimitRegistry, orgId, owner, model, result.rateLimitState ?? null);
       // Tool calls are output the model wrote, as much as its text.
       const outputChars = result.text.length + (result.toolCalls.length > 0 ? JSON.stringify(result.toolCalls).length : 0);
       this.deps.requestStore.markSucceeded({
-        orgId: input.orgId,
+        orgId,
         requestId,
         responseText: result.text,
         rawResponseJson: result.rawResponseJson,
@@ -168,7 +204,7 @@ export class ProviderResponseRunner {
         completedAt: new Date().toISOString(),
       });
       this.deps.responseObserver.recordSuccess({
-        orgId: input.orgId,
+        orgId,
         provider: owner,
         requestId,
         executionMode: PROVIDER_EXECUTION_MODE.FOREGROUND,
@@ -176,13 +212,13 @@ export class ProviderResponseRunner {
         action: "response_created",
       });
       this.deps.requestStore.settleUsage({
-        orgId: input.orgId, requestId, provider: owner, rawResponseJson: result.rawResponseJson,
+        orgId, requestId, provider: owner, rawResponseJson: result.rawResponseJson,
         inputCharCount: turnInputChars, outputCharCount: outputChars,
       });
       return { ...result, requestId };
     } catch (error) {
       this.deps.responseObserver.recordFailure({
-        orgId: input.orgId,
+        orgId,
         provider: owner,
         requestId,
         executionMode: PROVIDER_EXECUTION_MODE.FOREGROUND,
@@ -390,4 +426,18 @@ interface PreparedProviderExecution {
   provider: ProviderRow & { model: string };
   adapter: ProviderAdapterRegistry[string];
   credential: { secret: string };
+}
+
+interface TurnCaller {
+  orgId: string;
+  owner: ProviderRow & { model: string };
+  workspaceId: string | null;
+  agent: { id: string; department: string } | null;
+  taskRunId: string | null;
+  turn: ToolTurnFn;
+}
+
+function requireCredentialId(provider: ProviderRow): string {
+  if (!provider.credential_id) throw new Error("Provider credential is required.");
+  return provider.credential_id;
 }

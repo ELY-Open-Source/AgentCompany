@@ -9,6 +9,7 @@ import { providerAdapters } from "../../src/main/services/provider-adapters";
 import { PROVIDER_MONTHLY_LIMIT_MESSAGE } from "../../src/shared/provider-runtime-domain";
 import { PROVIDER_DATA_POLICY } from "../../src/shared/domain";
 import type { AgentTurnResult } from "../../src/main/services/provider-tool-turn";
+import { markModelChecked } from "../helpers/model-check";
 
 const testVault = {
   encryptSecret: (secret: string) => Buffer.from(secret, "utf8"),
@@ -33,6 +34,7 @@ describe("monthly quota reservation", () => {
       orgId = new OrganizationService(connection.db).createOrganization({ organizationName: "Acme", employeeName: "Dana", mission: "m", goal: "g" });
       providerId = (connection.db.prepare("select id from providers where org_id = ? and provider_key = 'openai'").get(orgId) as { id: string }).id;
       providers.saveCredential({ orgId, providerId, secret: "sk-test", model: "gpt-5.4" });
+      markModelChecked(connection.db, providerId, "gpt-5.4");
       providers.updatePolicy({ orgId, providerId, dataPolicy: PROVIDER_DATA_POLICY.STANDARD, backgroundEnabled: false, monthlyRequestLimit: 1, workspaceScope: "organization", contextWindowTokens: 128_000 });
     });
     const call = () => providers.runToolTurn({ orgId, providerId, workspaceId: null, instructions: "i", messages: [{ role: "user", text: "u" }], tools: [] });

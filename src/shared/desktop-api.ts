@@ -110,6 +110,9 @@ export type RendererEvent =
   | { type: "provider-response-stream"; event: ProviderStreamRendererEvent }
   | ProviderOAuthEvent;
 
+/** The verdict of a model's agent check. */
+export type ModelCheckResult = { passed: true } | { passed: false; detail: string };
+
 export interface DesktopApi {
   loadSnapshot(): Promise<DesktopResult<AppSnapshot>>;
   bootstrapOnboarding(input: BootstrapOnboardingInput): Promise<DesktopResult<BootstrapOnboardingSummary>>;
@@ -164,6 +167,8 @@ export interface DesktopApi {
   cancelProviderOAuth(input: CancelProviderOAuthInput): Promise<DesktopResult<null>>;
   checkProviderHealth(input: CheckProviderHealthInput): Promise<DesktopResult<AppSnapshot>>;
   listProviderModels(input: ListProviderModelsInput): Promise<DesktopResult<ProviderModelEntry[]>>;
+  /** Runs the agent check of a model: one turn that must follow system instructions and call a tool. */
+  checkProviderModel(input: { orgId: string; providerId: string; model: string }): Promise<DesktopResult<ModelCheckResult>>;
   updateProviderPolicy(input: UpdateProviderPolicyInput): Promise<DesktopResult<AppSnapshot>>;
   setProviderPrices(input: SetProviderPricesInput): Promise<DesktopResult<AppSnapshot>>;
   openExternalUrl(url: string): Promise<DesktopResult<null>>;
