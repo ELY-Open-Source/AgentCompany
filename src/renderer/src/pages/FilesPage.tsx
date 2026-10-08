@@ -24,7 +24,8 @@ export function FilesPage({ snapshot, actions }: PageProps) {
   const orgId = activeOrgId(snapshot);
   const employees = snapshot.employees.filter((employee) => employee.orgId === orgId);
   const agents = snapshot.agents.filter((agent) => agent.orgId === orgId);
-  const files = useMemo(() => snapshot.files.filter((file) => file.orgId === orgId), [snapshot.files, orgId]);
+  // Older contents of a rewritten file stay attachable by id but are not listed.
+  const files = useMemo(() => snapshot.files.filter((file) => file.orgId === orgId && !file.supersededAt), [snapshot.files, orgId]);
   const fileAccessGrants = useMemo(
     () => snapshot.fileAccessGrants.filter((grant) => grant.orgId === orgId),
     [snapshot.fileAccessGrants, orgId],

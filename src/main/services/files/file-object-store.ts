@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
-import { basename, extname } from "node:path";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { basename, dirname, extname, isAbsolute, join, relative } from "node:path";
 import type { DatabaseSync } from "node:sqlite";
 import { FILE_SCAN_STATE, type FileScanState } from "../../../shared/domain";
 import { createId } from "../../../shared/ids";
@@ -73,27 +73,34 @@ export interface FileObjectInput {
   kind: string;
   sizeBytes: number;
   sha256: string;
+  /** Where the bytes of this id live, never rewritten: a content-addressed copy, or an imported file's own copy. */
   storagePath: string;
+  /** The path the file came from; one id per content of it, the newest current and older ones superseded. */
+  sourcePath: string;
   ownerType: string;
   ownerId: string | null;
   scan: FileScanResult;
   now: string;
 }
 
-/**
- * Inserts (or refreshes, keyed on org_id + storage_path) a file object and, on
- * first insert, grants the workspace org-group read/manage access so the file
- * surfaces on the Files page and can be attached in chat. Re-writing the same
- * path updates the existing row instead of creating a duplicate.
- */
+/** One id per content of a source path, granted to the workspace on first insert; recording it makes it the path's current version. */
 export function upsertFileObject(db: DatabaseSync, input: FileObjectInput): string {
-  const existing = db.prepare("select id from file_objects where org_id = ? and storage_path = ?")
-    .get(input.orgId, input.storagePath) as { id: string } | undefined;
+  const id = writeFileObject(db, input);
+  // Earlier contents of the same path stay readable under their own ids, marked as no longer current.
+  db.prepare("update file_objects set superseded_at = ? where org_id = ? and source_path = ? and id <> ? and superseded_at is null")
+    .run(input.now, input.orgId, input.sourcePath, id);
+  db.prepare("update file_objects set superseded_at = null where id = ?").run(id);
+  return id;
+}
+
+function writeFileObject(db: DatabaseSync, input: FileObjectInput): string {
+  const existing = db.prepare("select id from file_objects where org_id = ? and source_path = ? and sha256 = ?")
+    .get(input.orgId, input.sourcePath, input.sha256) as { id: string } | undefined;
   const labelsJson = JSON.stringify(input.scan.labels);
   if (existing) {
     db.prepare(`
       update file_objects
-      set name = ?, kind = ?, size_bytes = ?, sha256 = ?, owner_type = ?, owner_id = ?,
+      set name = ?, kind = ?, size_bytes = ?, sha256 = ?, storage_path = ?, owner_type = ?, owner_id = ?,
           scan_state = ?, scan_labels_json = ?, scanned_at = ?, updated_at = ?
       where id = ?
     `).run(
@@ -101,6 +108,7 @@ export function upsertFileObject(db: DatabaseSync, input: FileObjectInput): stri
       input.kind,
       input.sizeBytes,
       input.sha256,
+      input.storagePath,
       input.ownerType,
       input.ownerId,
       input.scan.state,
@@ -114,10 +122,10 @@ export function upsertFileObject(db: DatabaseSync, input: FileObjectInput): stri
   const id = input.id ?? createId("fil");
   db.prepare(`
     insert into file_objects(
-      id, org_id, name, kind, size_bytes, sha256, storage_path,
+      id, org_id, name, kind, size_bytes, sha256, storage_path, source_path,
       owner_type, owner_id, space_id, pinned, scan_state, scan_labels_json, scanned_at, created_at, updated_at
     )
-    values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     id,
     input.orgId,
@@ -126,6 +134,7 @@ export function upsertFileObject(db: DatabaseSync, input: FileObjectInput): stri
     input.sizeBytes,
     input.sha256,
     input.storagePath,
+    input.sourcePath,
     input.ownerType,
     input.ownerId,
     null,
@@ -156,19 +165,55 @@ export function recordWorkspaceFile(db: DatabaseSync, input: {
   const name = basename(input.relativePath);
   const scan = scanFileContent(name, bytes);
   const now = new Date().toISOString();
+  const sha256 = createHash("sha256").update(bytes).digest("hex");
+  // The id keeps exactly these bytes: a content-addressed copy the workspace file can be rewritten without touching.
+  const copy = keepCopy(input.workspaceRoot, absolute, sha256, bytes);
   // A savepoint, not a transaction: an approved deliverable is recorded inside the approval's own transaction.
   return withSavepoint(db, "record_workspace_file", () => upsertFileObject(db, {
     orgId: input.orgId,
     name,
     kind: fileKind(name),
     sizeBytes: bytes.byteLength,
-    sha256: createHash("sha256").update(bytes).digest("hex"),
-    storagePath: absolute,
+    sha256,
+    storagePath: copy,
+    sourcePath: absolute,
     ownerType: input.ownerType,
     ownerId: input.ownerId,
     scan,
     now,
   }));
+}
+
+/** The content-addressed copy of a workspace file, written once; it keeps the extension so the file still opens with its app. */
+function keepCopy(workspaceRoot: string, source: string, sha256: string, bytes: Buffer): string {
+  const copy = join(workspaceRoot, ".agentcompany", "files", `${sha256}${extname(source)}`);
+  if (!existsSync(copy)) {
+    mkdirSync(dirname(copy), { recursive: true });
+    writeFileSync(copy, bytes);
+  }
+  return copy;
+}
+
+/** Ids recorded before copies existed still point at the live file; those whose bytes are unchanged get their copy now. */
+export function preserveRecordedFiles(db: DatabaseSync): void {
+  const workspaces = db.prepare("select org_id, local_path from workspaces").all() as Array<{ org_id: string; local_path: string }>;
+  const rows = db.prepare("select id, org_id, sha256, storage_path from file_objects where storage_path = source_path")
+    .all() as Array<{ id: string; org_id: string; sha256: string; storage_path: string }>;
+  for (const row of rows) {
+    const workspace = workspaces.find((candidate) => candidate.org_id === row.org_id && isInside(candidate.local_path, row.storage_path));
+    if (!workspace || !existsSync(row.storage_path)) continue;
+    const bytes = readFileSync(row.storage_path);
+    if (createHash("sha256").update(bytes).digest("hex") !== row.sha256) {
+      console.warn(`[files] ${row.id} was rewritten before its bytes could be kept; it opens the current file`);
+      continue;
+    }
+    db.prepare("update file_objects set storage_path = ? where id = ?").run(keepCopy(workspace.local_path, row.storage_path, row.sha256, bytes), row.id);
+  }
+}
+
+function isInside(root: string, path: string): boolean {
+  const rel = relative(root, path);
+  return rel !== "" && !rel.startsWith("..") && !isAbsolute(rel);
 }
 
 function grantWorkspaceAccess(db: DatabaseSync, orgId: string, fileId: string, now: string): void {

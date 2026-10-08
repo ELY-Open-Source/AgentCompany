@@ -87,6 +87,7 @@ import { approvalSubjectSnapshotSchema } from "./migrations/085-approval-subject
 import { heldDeliverablesSchema } from "./migrations/086-held-deliverables";
 import { goalAuditorSchema } from "./migrations/087-goal-auditor";
 import { hostAccessNoteSchema } from "./migrations/088-host-access-note";
+import { fileVersionsSchema } from "./migrations/089-file-versions";
 
 interface Migration {
   version: number;
@@ -183,6 +184,7 @@ const MIGRATIONS: Migration[] = [
   { version: 86, name: "held_deliverables", sql: heldDeliverablesSchema },
   { version: 87, name: "goal_auditor", sql: goalAuditorSchema },
   { version: 88, name: "host_access_note", sql: hostAccessNoteSchema },
+  { version: 89, name: "file_versions", sql: fileVersionsSchema },
 ];
 
 const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;

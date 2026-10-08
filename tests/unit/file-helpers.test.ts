@@ -14,7 +14,7 @@ function agent(id: string, department: string): AgentRecord {
 
 function file(id: string, ownerType: FileObjectRecord["ownerType"], ownerId: string | null): FileObjectRecord {
   return {
-    id, orgId: "org", name: id, kind: "doc", sizeBytes: 1, sha256: "x", storagePath: `/tmp/${id}`,
+    id, orgId: "org", name: id, kind: "doc", sizeBytes: 1, sha256: "x", storagePath: `/tmp/${id}`, sourcePath: null, supersededAt: null,
     ownerType, ownerId, spaceId: null, pinned: false, scanState: "approved", scanLabelsJson: "[]",
     scannedAt: null, createdAt: "2026-01-01", updatedAt: null,
   };

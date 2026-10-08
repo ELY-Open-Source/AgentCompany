@@ -9,7 +9,7 @@ import { PAGE_TOOL_PROPERTIES, pageText, readPageArgs, type PageRequest } from "
 
 const LIST_FILES_LIMIT = 400;
 /** Dependency and VCS internals: huge, machine-managed, never what an agent is looking for. */
-export const LIST_SKIPPED_DIRECTORIES = new Set([".git", "node_modules", ".pnpm-store", "out", "dist"]);
+export const LIST_SKIPPED_DIRECTORIES = new Set([".git", "node_modules", ".pnpm-store", "out", "dist", ".agentcompany"]);
 
 /**
  * The workspace tools turn agents from document writers into workers: they can

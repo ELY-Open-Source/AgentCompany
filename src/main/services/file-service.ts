@@ -52,6 +52,7 @@ export class FileService {
         sizeBytes: stats.size,
         sha256: hash,
         storagePath: target,
+        sourcePath: target,
         ownerType: "system",
         ownerId: null,
         scan,

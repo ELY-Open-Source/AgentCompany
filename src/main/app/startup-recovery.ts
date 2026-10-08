@@ -1,5 +1,6 @@
 import type { DatabaseSync } from "node:sqlite";
 import { AuditService } from "../services/audit-service";
+import { preserveRecordedFiles } from "../services/files/file-object-store";
 
 const INTERRUPTED_MESSAGE = "Interrupted by application shutdown before completion.";
 
@@ -14,6 +15,7 @@ const INTERRUPTED_MESSAGE = "Interrupted by application shutdown before completi
  * provider background worker needs to resume them.
  */
 export function recoverInterruptedWork(db: DatabaseSync): void {
+  preserveRecordedFiles(db);
   const now = new Date().toISOString();
   const audit = new AuditService(db);
   const runs = db.prepare("select id, org_id, task_id from task_runs where state = 'running'")

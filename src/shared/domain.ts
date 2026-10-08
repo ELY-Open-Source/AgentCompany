@@ -229,6 +229,10 @@ export interface FileObjectRecord {
   sizeBytes: number;
   sha256: string;
   storagePath: string;
+  /** The path the content came from; several ids share it when the file was rewritten. */
+  sourcePath: string | null;
+  /** Set once a newer content of the same path was recorded; the id still opens its own bytes. */
+  supersededAt: string | null;
   ownerType: "employee" | "agent" | "system";
   ownerId: string | null;
   spaceId: string | null;
