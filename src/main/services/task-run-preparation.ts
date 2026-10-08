@@ -67,6 +67,11 @@ export function sameWorkspaceAccess(mountJson: string, current: Array<{ workspac
   return JSON.stringify(recorded) === JSON.stringify(current);
 }
 
+/** The model a run calls: the agent's own choice, or else its provider's default. */
+export function effectiveModel(agentModelId: string | null, providerModel: string | null): string | null {
+  return agentModelId?.trim() || providerModel;
+}
+
 export function requireAgentProvider(db: DatabaseSync, orgId: string, agent: TaskExecutionAgentRow): TaskExecutionProviderRow {
   if (!agent.model_provider_id) throw new Error("Task assignee requires a model provider.");
   const provider = db.prepare(`

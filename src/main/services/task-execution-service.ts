@@ -37,7 +37,7 @@ import { ConnectorGrantsService } from "./composio/connector-grants";
 import { ProviderCooldowns } from "./provider-cooldowns";
 import { HeartbeatScheduler } from "./heartbeat-scheduler";
 import {
-  assertExecutionApproval, createIsolationContext, executionApprovalProblem, loadGoal, loadProject, loadWorkspace,
+  assertExecutionApproval, createIsolationContext, effectiveModel, executionApprovalProblem, loadGoal, loadProject, loadWorkspace,
   requireAgentProvider, requireAssignedAgent, requireTask, sameWorkspaceAccess, workspaceAccess,
 } from "./task-run-preparation";
 
@@ -175,7 +175,7 @@ export class TaskExecutionService {
     let providerRequestId: string | null = null;
     let skillRuntimeSnapshot: SkillRuntimeSnapshotRow | null = null;
     try {
-      skillRuntimeSnapshot = this.resolveSkillRuntimeSnapshot(orgId, agent.id, runId, skillBudgetTokens(provider.context_window_tokens), `${task.title}\n${task.description}`, { providerKey: provider.provider_key, model: provider.model }, task.writing_mode === WRITING_MODE.CONVERSATIONAL);
+      skillRuntimeSnapshot = this.resolveSkillRuntimeSnapshot(orgId, agent.id, runId, skillBudgetTokens(provider.context_window_tokens), `${task.title}\n${task.description}`, { providerKey: provider.provider_key, model: effectiveModel(agent.model_id, provider.model) }, task.writing_mode === WRITING_MODE.CONVERSATIONAL);
       // Watermark for reply delivery and mid-run message polling.
       const runStartedAt = new Date().toISOString();
       const chatContext = loadChatWakeContext(this.db, orgId, agent.id, isolation.secretScopeJson);

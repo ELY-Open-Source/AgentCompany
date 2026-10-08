@@ -17,6 +17,7 @@ import { selectToolTurn, supportsToolTurn } from "./provider-tool-turns/router";
 import { resolveTurnCredential } from "./provider-tool-turns/credential-resolver";
 import { currentRunId } from "./run-control";
 import { budgetBlock, isPriced, promptChars, providerPrices } from "./spend";
+import { effectiveModel } from "./task-run-preparation";
 import {
   HEALTH_STATE_HEALTHY,
   WORKSPACE_SCOPES,
@@ -116,15 +117,19 @@ export class ProviderResponseRunner {
     if (!supportsToolTurn(provider.provider_key)) {
       throw new Error("Agent execution is not available for this provider; assign the agent an OpenAI, Anthropic, xAI, Groq, Mistral, Cerebras, OpenRouter, GPT account, GitHub Copilot, Google Antigravity, or Claude Pro provider.");
     }
-    const model = provider.model;
+    // A call made for a run works for its agent: the agent's model, its budget, its attribution.
+    const taskRunId = currentRunId();
+    const agent = taskRunId
+      ? this.deps.db.prepare("select a.id, a.department, a.model_id from task_runs r join agents a on a.id = r.agent_id where r.id = ?").get(taskRunId) as { id: string; department: string; model_id: string | null }
+      : null;
+    // Azure calls the deployment stored with its credential, so an agent there cannot pick another model.
+    if (provider.provider_key === "azure-openai" && agent?.model_id && agent.model_id !== provider.model) {
+      throw new Error(`Azure OpenAI calls the deployment configured on the provider; this agent asks for "${agent.model_id}". Clear the agent's model or set it to "${provider.model}".`);
+    }
+    const model = effectiveModel(agent?.model_id ?? null, provider.model);
     if (!model) throw new Error("Provider model is required.");
     const owner: ProviderRow & { model: string } = { ...provider, model };
     const turn = this.deps.toolTurn ?? selectToolTurn(provider.provider_key);
-    // A call made for a run is spent by its agent: refuse before calling once its budget is gone.
-    const taskRunId = currentRunId();
-    const agent = taskRunId
-      ? this.deps.db.prepare("select a.id, a.department from task_runs r join agents a on a.id = r.agent_id where r.id = ?").get(taskRunId) as { id: string; department: string }
-      : null;
     const blocked = agent ? budgetBlock(this.deps.db, agent.id, isPriced(providerPrices(this.deps.db, provider.id)), new Date()) : null;
     if (blocked) throw new Error(blocked);
     // Everything the model reads: instructions, the conversation, and the tool definitions.

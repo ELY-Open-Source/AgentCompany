@@ -1,5 +1,6 @@
 import { WRITING_MODE, type WritingMode } from "../../shared/domain";
 import { CEO_FIRST_HIRES, firstHiresFor, leadsPeople } from "./org-building";
+import { effectiveModel } from "./task-run-preparation";
 import { canonicalMentionHandle } from "../../shared/mention-handles";
 
 const RECORD_LEARNINGS_INSTRUCTION =
@@ -220,7 +221,7 @@ export function buildTaskPrompt(input: {
     `Requires filesystem: ${input.task.requires_filesystem === 1 ? "yes" : "no"}`,
     `Assignee: ${input.agent.name} (${input.agent.role})`,
     ...(input.managerName ? [`Reports to: ${input.managerName}`] : []),
-    `Provider: ${input.provider.label} ${input.provider.model ?? input.agent.model_id ?? ""}`.trim(),
+    `Provider: ${input.provider.label} ${effectiveModel(input.agent.model_id, input.provider.model) ?? ""}`.trim(),
     `Execution context: ${input.isolation.executionContextId}`,
     `Service identity: ${input.isolation.serviceIdentityId}`,
   ];
