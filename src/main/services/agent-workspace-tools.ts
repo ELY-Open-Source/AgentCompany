@@ -1,15 +1,13 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
-import { spawn } from "node:child_process";
 import { join } from "node:path";
 import { resolveWorkspacePath } from "./files/workspace-path";
+import { runCommand } from "./workspace-command";
 import { optionalString, requireString } from "./agent-tool-args";
 import type { AgentToolContext } from "./agent-tools";
 import type { ToolCall, ToolDefinition } from "./provider-tool-turn";
 import { PAGE_TOOL_PROPERTIES, pageText, readPageArgs, type PageRequest } from "./text-paging";
 
 const LIST_FILES_LIMIT = 400;
-const COMMAND_TIMEOUT_MS = 120_000;
-const COMMAND_OUTPUT_CHAR_LIMIT = 16_000;
 /** Dependency and VCS internals: huge, machine-managed, never what an agent is looking for. */
 const LIST_SKIPPED_DIRECTORIES = new Set([".git", "node_modules", ".pnpm-store", "out", "dist"]);
 
@@ -114,36 +112,4 @@ function readFile(workspaceRoot: string, relativePath: string, page: PageRequest
   const stats = statSync(absolute);
   if (!stats.isFile()) throw new Error(`${relativePosix} is not a file.`);
   return pageText(relativePosix, readFileSync(absolute, "utf8"), page);
-}
-
-function runCommand(workspaceRoot: string, command: string): Promise<string> {
-  return new Promise((resolvePromise) => {
-    const child = spawn(command, { shell: true, cwd: workspaceRoot, windowsHide: true });
-    let output = "";
-    let killedByTimeout = false;
-    const timer = setTimeout(() => {
-      killedByTimeout = true;
-      child.kill();
-    }, COMMAND_TIMEOUT_MS);
-    const collect = (chunk: Buffer): void => {
-      output += chunk.toString("utf8");
-    };
-    child.stdout.on("data", collect);
-    child.stderr.on("data", collect);
-    child.on("error", (error) => {
-      clearTimeout(timer);
-      resolvePromise(`ERROR: ${error.message}`);
-    });
-    child.on("close", (code) => {
-      clearTimeout(timer);
-      const trimmed = output.length > COMMAND_OUTPUT_CHAR_LIMIT
-        ? `${output.slice(0, COMMAND_OUTPUT_CHAR_LIMIT / 2)}\n[... output truncated ...]\n${output.slice(-COMMAND_OUTPUT_CHAR_LIMIT / 2)}`
-        : output;
-      if (killedByTimeout) {
-        resolvePromise(`ERROR: command timed out after ${COMMAND_TIMEOUT_MS / 1000}s and was killed. Partial output:\n${trimmed}`);
-        return;
-      }
-      resolvePromise(`exit code ${code ?? 0}\n${trimmed.trim() || "(no output)"}`);
-    });
-  });
 }
