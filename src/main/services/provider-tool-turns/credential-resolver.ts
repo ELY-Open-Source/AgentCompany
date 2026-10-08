@@ -101,15 +101,26 @@ export async function resolveTurnCredential(deps: {
   }
   const creds = parseStoredOAuth(deps.provider.provider_key, secret);
   if (Date.now() < creds.expires) return toTurnCredential(creds);
-  if (!deps.provider.credential_id) throw new Error("Provider credential id is missing; reconnect the provider.");
-  const refreshed = await refreshOAuth(deps.provider.provider_key, creds, deps.integrationKeys);
-  deps.authBroker.updateProviderSecret({
-    orgId: deps.orgId,
-    providerKey: deps.provider.provider_key,
-    credentialId: deps.provider.credential_id,
-    secret: JSON.stringify(refreshed),
-  });
-  return toTurnCredential(refreshed);
+  return toTurnCredential(await refreshOnce(deps, creds));
+}
+
+/** Refreshes in flight, by stored credential: a rotating provider honours a refresh token once, so callers at once share one. */
+const refreshing = new Map<string, Promise<OAuthCredentials>>();
+
+function refreshOnce(deps: { authBroker: AuthBrokerService; integrationKeys: IntegrationKeyStore; orgId: string; provider: ProviderRow }, creds: StoredOAuth): Promise<OAuthCredentials> {
+  const credentialId = deps.provider.credential_id;
+  if (!credentialId) throw new Error("Provider credential id is missing; reconnect the provider.");
+  const running = refreshing.get(credentialId);
+  if (running) return running;
+  console.info(`[credentials] refreshing the ${deps.provider.provider_key} sign-in`);
+  const refresh = refreshOAuth(deps.provider.provider_key, creds, deps.integrationKeys)
+    .then((refreshed) => {
+      deps.authBroker.updateProviderSecret({ orgId: deps.orgId, providerKey: deps.provider.provider_key, credentialId, secret: JSON.stringify(refreshed) });
+      return refreshed;
+    })
+    .finally(() => refreshing.delete(credentialId));
+  refreshing.set(credentialId, refresh);
+  return refresh;
 }
 
 function requireProjectId(creds: StoredOAuth): string {
