@@ -1,6 +1,7 @@
 import type { DatabaseSync } from "node:sqlite";
 import type { ToolDefinition, ToolCall } from "../provider-tool-turn";
-import { ComposioClient, type ComposioToolSchema } from "./composio-client";
+import { ComposioClient, ComposioHttpError, type ComposioToolExecutionResult, type ComposioToolSchema } from "./composio-client";
+import { beginConnectorExecution, settleConnectorExecution } from "./connector-executions";
 import type { IntegrationKeyStore } from "../integration-key-store";
 import { ConnectorGrantsService } from "./connector-grants";
 import { currentRunId } from "../run-control";
@@ -48,6 +49,7 @@ export function loadComposioTools(db: DatabaseSync, keys: IntegrationKeyStore, o
         properties: {
           action: { type: "string", description: "The action's name exactly as found, e.g. GITHUB_CREATE_A_PULL_REQUEST." },
           arguments: { type: "object", description: "The action's input, following the schema the search returned." },
+          confirm_not_done: { type: "boolean", description: "Only after an identical call's reply was lost and you checked in the service that it did not take effect." },
         },
         required: ["action", "arguments"],
       },
@@ -113,11 +115,31 @@ async function runAction(db: DatabaseSync, apiKey: string, orgId: string, agentI
   if (!account) return `ERROR: The "${toolkit}" connector is no longer connected. Ask the board to reconnect it on the Connectors page.`;
   const input = typeof args.arguments === "object" && args.arguments !== null && !Array.isArray(args.arguments) ? args.arguments as Record<string, unknown> : null;
   if (!input) return "ERROR: arguments must be an object matching the action's input.";
-  const result = await new ComposioClient(apiKey).executeTool({ toolName: action.name, arguments: input, userId: getComposioUserId(db, orgId), connectedAccountId: account.id });
+  if (args.confirm_not_done !== undefined && typeof args.confirm_not_done !== "boolean") return "ERROR: confirm_not_done must be true or false.";
+  const started = beginConnectorExecution(db, { orgId, agentId, runId: currentRunId(), action: action.name, args: input, confirmedNotDone: args.confirm_not_done === true });
+  if ("blockedBy" in started) {
+    const lost = started.blockedBy.detail ? `: ${started.blockedBy.detail}` : "";
+    return `ERROR: An identical ${action.name} call at ${started.blockedBy.createdAt} may already have run; its reply was lost${lost}. Check in ${toolkit} whether it took effect. If it did not, call again with confirm_not_done: true.`;
+  }
+  let result: ComposioToolExecutionResult;
+  try {
+    result = await new ComposioClient(apiKey).executeTool({ toolName: action.name, arguments: input, userId: getComposioUserId(db, orgId), connectedAccountId: account.id });
+  } catch (error) {
+    const reason = (error instanceof Error ? error.message : String(error)).replace(/\s+/g, " ").replace(/\.$/, "");
+    if (error instanceof ComposioHttpError && error.status < 500) {
+      settleConnectorExecution(db, started.id, "failed", reason);
+      throw error;
+    }
+    settleConnectorExecution(db, started.id, "unknown", reason);
+    console.warn(`[connectors] ${action.name} outcome unknown: ${reason}`);
+    return `ERROR: ${action.name} may or may not have run; its reply was lost (${reason}). Check in ${toolkit} whether it took effect before calling it again.`;
+  }
   if (!result.successful) {
+    settleConnectorExecution(db, started.id, "failed", result.error);
     console.warn(`[connectors] ${action.name} failed: ${result.error.replace(/\s+/g, " ")}`);
     return `ERROR: ${action.name} failed: ${result.error}`;
   }
+  settleConnectorExecution(db, started.id, "succeeded", null);
   return JSON.stringify(result.data);
 }
 

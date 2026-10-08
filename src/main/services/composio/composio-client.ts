@@ -29,6 +29,13 @@ export interface ComposioConnectedAccount {
 /** Composio answers 200 for business failures too; only `successful` tells them apart. */
 export type ComposioToolExecutionResult = { successful: true; data: unknown } | { successful: false; error: string };
 
+/** Composio answered with an HTTP error status; below 500 the request was refused, so nothing ran. */
+export class ComposioHttpError extends Error {
+  constructor(message: string, readonly status: number) {
+    super(message);
+  }
+}
+
 const MAX_RESPONSE_BYTES = 2_000_000;
 const REQUEST_TIMEOUT_MS = 30_000;
 const EXECUTE_TIMEOUT_MS = 120_000;
@@ -204,7 +211,7 @@ export class ComposioClient {
             return;
           }
           if (response.statusCode && response.statusCode >= 400) {
-            finish(new Error(`Composio API ${method} ${url} returned ${response.statusCode}: ${responseData.slice(0, 200)}`));
+            finish(new ComposioHttpError(`Composio API ${method} ${url} returned ${response.statusCode}: ${responseData.slice(0, 200)}`, response.statusCode));
             return;
           }
           try {

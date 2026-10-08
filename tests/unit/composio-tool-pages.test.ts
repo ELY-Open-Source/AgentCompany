@@ -20,6 +20,10 @@ vi.mock("electron", () => ({
       request.end = () => {
         requested.push(url);
         if (url.includes("/tools/execute/GITHUB_HANG")) return;
+        if (url.includes("/tools/execute/GITHUB_DROP")) {
+          request.emit("error", new Error("socket hang up"));
+          return;
+        }
         const query = new URL(url).searchParams;
         const page = url.includes("/tools/execute/") ? executions.get(url.split("/tools/execute/")[1]) ?? { data: { number: 42 }, error: null, successful: true } : pages.get(`${query.get("toolkit_slug")}:${query.get("cursor") ?? ""}`);
         const response = new EventEmitter() as EventEmitter & { statusCode: number };
@@ -40,6 +44,7 @@ const { OrganizationService } = await import("../../src/main/services/organizati
 const { IntegrationKeyStore } = await import("../../src/main/services/integration-key-store");
 const { ConnectorGrantsService } = await import("../../src/main/services/composio/connector-grants");
 const { recordRunAction } = await import("../../src/main/services/run-journal");
+const { beginConnectorExecution } = await import("../../src/main/services/composio/connector-executions");
 
 const tool = (slug: string) => ({ slug, name: slug, description: "", input_parameters: {}, toolkit: { slug: "github" } });
 
@@ -119,7 +124,38 @@ describe("agents reach every action through search and run", () => {
     executions.set("GITHUB_ODD", { data: { ok: 1 } });
     const h = company("ak_failed");
     expect(await h.call("composio_run_action", { action: "GITHUB_MERGE", arguments: {} })).toBe("ERROR: GITHUB_MERGE failed: Repository not found");
-    expect(await h.call("composio_run_action", { action: "GITHUB_ODD", arguments: {} })).toBe("ERROR: Composio returned no execution status for GITHUB_ODD.");
+    expect(await h.call("composio_run_action", { action: "GITHUB_ODD", arguments: {} })).toBe("ERROR: GITHUB_ODD may or may not have run; its reply was lost (Composio returned no execution status for GITHUB_ODD). Check in github whether it took effect before calling it again.");
+    h.connection.close();
+  });
+
+  test("a call whose reply was lost is not repeated until the agent confirms it did not happen", async () => {
+    pages.set("github:", { items: [tool("GITHUB_DROP"), tool("GITHUB_MERGE")], next_cursor: null });
+    executions.set("GITHUB_MERGE", { data: {}, error: "Repository not found", successful: false });
+    const h = company("ak_lost");
+    const lost = await h.call("composio_run_action", { action: "GITHUB_DROP", arguments: { body: "hi", to: "a" } });
+    expect(lost).toBe("ERROR: GITHUB_DROP may or may not have run; its reply was lost (socket hang up). Check in github whether it took effect before calling it again.");
+    const sent = written.length;
+    const again = await h.call("composio_run_action", { action: "GITHUB_DROP", arguments: { to: "a", body: "hi" } });
+    expect(again).toMatch(/^ERROR: An identical GITHUB_DROP call at .+ may already have run; its reply was lost: socket hang up\. Check in github whether it took effect\. If it did not, call again with confirm_not_done: true\.$/);
+    expect(written.length).toBe(sent);
+    expect(await h.call("composio_run_action", { action: "GITHUB_DROP", arguments: { to: "a", body: "hi" }, confirm_not_done: "true" })).toBe("ERROR: confirm_not_done must be true or false.");
+    expect(written.length).toBe(sent);
+    expect(await h.call("composio_run_action", { action: "GITHUB_DROP", arguments: { to: "b", body: "hi" } })).toContain("may or may not have run");
+    expect(await h.call("composio_run_action", { action: "GITHUB_DROP", arguments: { to: "a", body: "hi" }, confirm_not_done: true })).toContain("may or may not have run");
+    expect(written.length).toBe(sent + 2);
+    // A definite failure does not block the same call again.
+    expect(await h.call("composio_run_action", { action: "GITHUB_MERGE", arguments: {} })).toBe("ERROR: GITHUB_MERGE failed: Repository not found");
+    expect(await h.call("composio_run_action", { action: "GITHUB_MERGE", arguments: {} })).toBe("ERROR: GITHUB_MERGE failed: Repository not found");
+    const states = h.connection.db.prepare("select action, state from connector_executions order by rowid").all() as Array<{ action: string; state: string }>;
+    expect(states.map((row) => `${row.action}:${row.state}`)).toEqual(["GITHUB_DROP:resolved", "GITHUB_DROP:unknown", "GITHUB_DROP:unknown", "GITHUB_MERGE:failed", "GITHUB_MERGE:failed"]);
+    h.connection.close();
+  });
+
+  test("a call left pending by a crash blocks the same call", async () => {
+    pages.set("github:", { items: [tool("GITHUB_SEND")], next_cursor: null });
+    const h = company("ak_crash");
+    beginConnectorExecution(h.connection.db, { orgId: h.orgId, agentId: h.ceoId, runId: null, action: "GITHUB_SEND", args: { text: "x" }, confirmedNotDone: false });
+    expect(await h.call("composio_run_action", { action: "GITHUB_SEND", arguments: { text: "x" } })).toMatch(/^ERROR: An identical GITHUB_SEND call at .+ may already have run; its reply was lost\. Check in github/);
     h.connection.close();
   });
 
