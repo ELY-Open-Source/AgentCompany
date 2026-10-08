@@ -25,15 +25,16 @@ interface KnowledgeRow {
 export const KNOWLEDGE_TOOLS: ToolDefinition[] = [
   {
     name: "search_knowledge",
-    description: "Search the company knowledge base — decisions, preferences, verified facts, and lessons recorded by the team.",
+    description: "Search the company knowledge base — decisions, preferences, verified facts, and lessons recorded by the team. Pass id instead of query to read one entry with its full revision history.",
     parameters: {
       type: "object",
       additionalProperties: false,
       properties: {
         query: { type: "string", description: "Words to look for." },
+        id: { type: "string", description: "One entry's id, to read it and every earlier version." },
         limit: { type: "number", description: "Most entries to return (default 10, max 30)." },
       },
-      required: ["query"],
+      required: [],
     },
   },
   {
@@ -54,9 +55,28 @@ export const KNOWLEDGE_TOOLS: ToolDefinition[] = [
       required: ["topic", "content", "category"],
     },
   },
+  {
+    name: "revise_knowledge",
+    description: "Correct an existing knowledge entry in place. Fields you omit keep their value; the earlier version stays in its history with your reason.",
+    parameters: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        id: { type: "string" },
+        topic: { type: "string" },
+        content: { type: "string" },
+        category: { type: "string" },
+        importance: { type: "string", enum: ["low", "normal", "high"] },
+        reason: { type: "string", description: "What was wrong or what changed." },
+      },
+      required: ["id", "reason"],
+    },
+  },
 ];
 
 export function searchKnowledgeTool(deps: AgentToolDeps, ctx: AgentToolContext, args: JsonRecord): string {
+  const id = optionalText(args.id, "id");
+  if (id) return entryHistory(deps.db, ctx.orgId, id);
   const query = requireString(args.query, "query");
   const limit = optionalLimit(args.limit, "limit", 10, 30);
   const found = relevantItems(knowledgeRows(deps.db, readerOf(ctx)), describeEntry, query, limit);
@@ -81,6 +101,37 @@ export function recordKnowledgeTool(deps: AgentToolDeps, ctx: AgentToolContext, 
     supersedesId: optionalText(args.supersedes, "supersedes"),
   });
   return `Recorded knowledge entry ${id}.`;
+}
+
+export function reviseKnowledgeTool(deps: AgentToolDeps, ctx: AgentToolContext, args: JsonRecord): string {
+  const id = requireString(args.id, "id");
+  const current = deps.db.prepare("select topic, category, content, importance from knowledge_entries where id = ? and org_id = ?")
+    .get(id, ctx.orgId) as { topic: string; category: string; content: string; importance: string } | undefined;
+  if (!current) throw new Error(`No knowledge entry with id "${id}".`);
+  const revision = new KnowledgeService(deps.db).update({
+    orgId: ctx.orgId,
+    entryId: id,
+    topic: optionalText(args.topic, "topic") ?? current.topic,
+    category: optionalText(args.category, "category") ?? current.category,
+    content: optionalText(args.content, "content") ?? current.content,
+    importance: optionalEnum(args.importance, "importance", IMPORTANCE, current.importance),
+    reason: requireString(args.reason, "reason"),
+    changedByType: "agent",
+    changedById: ctx.agent.id,
+  });
+  return `Knowledge entry ${id} is now at revision ${revision}.`;
+}
+
+function entryHistory(db: DatabaseSync, orgId: string, id: string): string {
+  const revisions = new KnowledgeService(db).revisions(orgId, id);
+  if (revisions.length === 0) return `No knowledge entry with id "${id}".`;
+  const entry = db.prepare("select superseded_by from knowledge_entries where id = ? and org_id = ?")
+    .get(id, orgId) as { superseded_by: string | null } | undefined;
+  const state = !entry ? "deleted" : entry.superseded_by ? `superseded by ${entry.superseded_by}` : "current";
+  return [
+    `Knowledge entry ${id} (${state}), ${revisions.length} revision(s):`,
+    ...revisions.map((rev) => `r${rev.revision} ${rev.created_at} by ${rev.changed_by_type}${rev.changed_by_id ? ` ${rev.changed_by_id}` : ""} — ${rev.reason}\n  ${rev.topic} [${rev.category}, ${rev.importance}]: ${rev.content}`),
+  ].join("\n");
 }
 
 /** Prompt lines for the entries most relevant to a task. */

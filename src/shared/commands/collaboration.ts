@@ -42,6 +42,19 @@ export interface CreateKnowledgeEntryInput {
   supersedesId: string | null;
 }
 
+export interface UpdateKnowledgeEntryInput {
+  orgId: string;
+  entryId: string;
+  topic: string;
+  category: string;
+  content: string;
+  importance: string;
+  /** Why it changed; kept in the revision history. */
+  reason: string;
+  changedByType: string;
+  changedById: string | null;
+}
+
 export interface DeleteKnowledgeEntryInput {
   orgId: string;
   entryId: string;

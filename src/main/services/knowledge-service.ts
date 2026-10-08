@@ -1,5 +1,5 @@
 import type { DatabaseSync } from "node:sqlite";
-import type { CreateKnowledgeEntryInput, DeleteKnowledgeEntryInput, KnowledgeScopeType } from "../../shared/commands";
+import type { CreateKnowledgeEntryInput, DeleteKnowledgeEntryInput, KnowledgeScopeType, UpdateKnowledgeEntryInput } from "../../shared/commands";
 import { createId } from "../../shared/ids";
 import { utcTimestamp } from "./agent-tool-args";
 import { AuditService } from "./audit-service";
@@ -33,6 +33,18 @@ export function applicableKnowledgeArgs(reader: KnowledgeReader): Array<string |
   return [reader.orgId, new Date().toISOString(), reader.projectId, reader.goalId, reader.taskId, reader.agentId];
 }
 
+export interface KnowledgeRevision {
+  revision: number;
+  topic: string;
+  category: string;
+  content: string;
+  importance: string;
+  changed_by_type: string;
+  changed_by_id: string | null;
+  reason: string;
+  created_at: string;
+}
+
 export class KnowledgeService {
   private readonly audit: AuditService;
 
@@ -54,6 +66,11 @@ export class KnowledgeService {
     if (input.supersedesId) {
       this.db.prepare("update knowledge_entries set superseded_by = ?, updated_at = ? where id = ?").run(id, now, input.supersedesId);
     }
+    this.writeRevision({
+      orgId: input.orgId, entryId: id, revision: 1, topic: input.topic.trim(), category: input.category, content: input.content,
+      importance: input.importance, changedByType: input.sourceType, changedById: input.sourceId,
+      reason: input.supersedesId ? `created, superseding ${input.supersedesId}` : "created", at: now,
+    });
     this.audit.record({
       orgId: input.orgId,
       entityType: "knowledge_entry",
@@ -66,9 +83,55 @@ export class KnowledgeService {
     return id;
   }
 
+  /** Corrects an entry in place; the prior content stays in its revision history. */
+  update(input: UpdateKnowledgeEntryInput): number {
+    const reason = input.reason.trim();
+    if (!reason) throw new Error("A knowledge correction needs a reason.");
+    const now = new Date().toISOString();
+    const result = this.db.prepare(`
+      update knowledge_entries set topic = ?, category = ?, content = ?, importance = ?, updated_at = ?
+      where id = ? and org_id = ?
+    `).run(input.topic.trim(), input.category, input.content, input.importance, now, input.entryId, input.orgId);
+    if (result.changes === 0) throw new Error(`No knowledge entry with id "${input.entryId}".`);
+    const last = this.db.prepare("select max(revision) as revision from knowledge_revisions where entry_id = ?")
+      .get(input.entryId) as { revision: number };
+    const revision = last.revision + 1;
+    this.writeRevision({
+      orgId: input.orgId, entryId: input.entryId, revision, topic: input.topic.trim(), category: input.category, content: input.content,
+      importance: input.importance, changedByType: input.changedByType, changedById: input.changedById, reason, at: now,
+    });
+    this.audit.record({
+      orgId: input.orgId,
+      entityType: "knowledge_entry",
+      entityId: input.entryId,
+      actorType: input.changedByType === "agent" ? "agent" : "employee",
+      actorId: input.changedById,
+      action: "revised",
+      payload: { revision, reason },
+    });
+    return revision;
+  }
+
+  revisions(orgId: string, entryId: string): KnowledgeRevision[] {
+    return this.db.prepare(`
+      select revision, topic, category, content, importance, changed_by_type, changed_by_id, reason, created_at
+      from knowledge_revisions where entry_id = ? and org_id = ? order by revision asc
+    `).all(entryId, orgId) as unknown as KnowledgeRevision[];
+  }
+
   delete(input: DeleteKnowledgeEntryInput): void {
     const result = this.db.prepare("delete from knowledge_entries where id = ? and org_id = ?").run(input.entryId, input.orgId);
     if (result.changes === 0) throw new Error("Knowledge entry was not found.");
+  }
+
+  private writeRevision(input: {
+    orgId: string; entryId: string; revision: number; topic: string; category: string; content: string;
+    importance: string; changedByType: string; changedById: string | null; reason: string; at: string;
+  }): void {
+    this.db.prepare(`
+      insert into knowledge_revisions(id, org_id, entry_id, revision, topic, category, content, importance, changed_by_type, changed_by_id, reason, created_at)
+      values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(createId("knr"), input.orgId, input.entryId, input.revision, input.topic, input.category, input.content, input.importance, input.changedByType, input.changedById, input.reason, input.at);
   }
 
   private assertScope(orgId: string, scopeType: KnowledgeScopeType, scopeId: string | null): void {

@@ -11,7 +11,7 @@ import { bindSkillSlugs, grantSkillTool, listSkillsTool } from "./agent-skill-to
 import { createDocumentTool, writeDeliverableTool } from "./agent-deliverable-tools";
 import { companyStatusTool, GOAL_TOOLS, updateGoalTool } from "./agent-goal-tools";
 import { ATTACHMENT_TOOLS, readAttachmentTool } from "./agent-attachment-tools";
-import { KNOWLEDGE_TOOLS, recordKnowledgeTool, searchKnowledgeTool } from "./agent-knowledge-tools";
+import { KNOWLEDGE_TOOLS, recordKnowledgeTool, reviseKnowledgeTool, searchKnowledgeTool } from "./agent-knowledge-tools";
 import { sendMessageTool } from "./agent-send-message";
 import { withSavepoint } from "../database/connection";
 import { optionalString, optionalStringArray, requireString } from "./agent-tool-args";
@@ -265,6 +265,8 @@ export function dispatchAgentTool(
         return searchKnowledgeTool(deps, ctx, call.arguments);
       case "record_knowledge":
         return recordKnowledgeTool(deps, ctx, call.arguments);
+      case "revise_knowledge":
+        return reviseKnowledgeTool(deps, ctx, call.arguments);
       case "read_attachment":
         return readAttachmentTool(deps, ctx, call.arguments);
       case "company_status":

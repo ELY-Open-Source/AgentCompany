@@ -62,6 +62,7 @@ import { chatWakeTextPurgeSchema } from "./migrations/060-chat-wake-text-purge";
 import { taskRunContextSchema } from "./migrations/061-task-run-context";
 import { providerContextWindowSchema } from "./migrations/062-provider-context-window";
 import { knowledgeScopeSchema } from "./migrations/063-knowledge-scope";
+import { knowledgeRevisionsSchema } from "./migrations/064-knowledge-revisions";
 
 interface Migration {
   version: number;
@@ -133,6 +134,7 @@ const MIGRATIONS: Migration[] = [
   { version: 61, name: "task_run_context", sql: taskRunContextSchema },
   { version: 62, name: "provider_context_window", sql: providerContextWindowSchema },
   { version: 63, name: "knowledge_scope", sql: knowledgeScopeSchema },
+  { version: 64, name: "knowledge_revisions", sql: knowledgeRevisionsSchema },
 ];
 
 const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;
