@@ -83,6 +83,39 @@ export class SkillService {
     return retired;
   }
 
+  /** Publishes a new revision when the files changed and moves bindings on the latest revision onto it. */
+  upgradeIfChanged(orgId: string, directoryPath: string, manifest: SkillManifest, slug: string): boolean {
+    const latest = this.db.prepare(`
+      select sr.id, sr.immutable_checksum from skill_definitions sd
+      join skill_revisions sr on sr.skill_id = sd.id
+      where sd.org_id = ? and sd.slug = ?
+      order by sr.published_at desc, sr.rowid desc limit 1
+    `).get(orgId, slug) as { id: string; immutable_checksum: string } | undefined;
+    if (!latest) throw new Error(`Skill "${slug}" has no revision to upgrade.`);
+    const checksum = recursiveSkillChecksum(directoryPath);
+    if (latest.immutable_checksum === checksum) return false;
+    const revisions = this.db.prepare(`
+      select sr.version_semver from skill_revisions sr join skill_definitions sd on sd.id = sr.skill_id
+      where sd.org_id = ? and sd.slug = ?
+    `).all(orgId, slug) as Array<{ version_semver: string }>;
+    // Same declared version, new content: tag the build so revisions stay distinct.
+    const versionTaken = revisions.some((row) => row.version_semver === manifest.version);
+    const published = versionTaken ? { ...manifest, version: `${manifest.version}+rev${revisions.length + 1}` } : manifest;
+    const revisionId = this.importManifest(orgId, directoryPath, published, slug);
+    const moved = this.db.prepare("update skill_bindings set pinned_revision_id = ? where org_id = ? and pinned_revision_id = ?")
+      .run(revisionId, orgId, latest.id);
+    this.audit.record({
+      orgId,
+      entityType: "skill_revision",
+      entityId: revisionId,
+      actorType: "system",
+      actorId: null,
+      action: "upgraded",
+      payload: { slug, fromRevisionId: latest.id, version: published.version, bindingsMoved: Number(moved.changes) },
+    });
+    return true;
+  }
+
   importManifest(orgId: string, directoryPath: string, manifest: SkillManifest, explicitSlug?: string): string {
     const slug = explicitSlug ?? slugify(manifest.name);
     if (!slug) throw new Error("Skill name could not be derived.");
@@ -216,7 +249,7 @@ export class SkillService {
         sa.object_key
       from skill_definitions sd
       join skill_revisions sr on sr.id = (
-        select id from skill_revisions where skill_id = sd.id order by published_at desc, id desc limit 1
+        select id from skill_revisions where skill_id = sd.id order by published_at desc, rowid desc limit 1
       )
       join skill_artifacts sa on sa.revision_id = sr.id and sa.artifact_type in ('entrypoint', 'markdown')
       where sd.org_id = ? and sd.status = 'active' and sd.slug in (${candidates.map(() => "?").join(", ")})

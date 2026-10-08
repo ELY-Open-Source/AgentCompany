@@ -10,7 +10,7 @@ export function listSkillsTool(deps: AgentToolDeps, ctx: AgentToolContext): stri
     select sd.id, sd.name, sd.slug, sr.manifest_json
     from skill_definitions sd
     left join skill_revisions sr on sr.id = (
-      select id from skill_revisions where skill_id = sd.id order by published_at desc, id desc limit 1
+      select id from skill_revisions where skill_id = sd.id order by published_at desc, rowid desc limit 1
     )
     where sd.org_id = ? and sd.status = 'active'
     order by sd.slug asc
@@ -69,7 +69,7 @@ export function grantSkillTool(deps: AgentToolDeps, ctx: AgentToolContext, args:
   const skillService = new SkillService(deps.db, "");
   if (mode === "grant") {
     const revision = deps.db.prepare(
-      "select id from skill_revisions where skill_id = ? order by published_at desc, id desc limit 1",
+      "select id from skill_revisions where skill_id = ? order by published_at desc, rowid desc limit 1",
     ).get(skill.id) as { id: string } | undefined;
     if (!revision) return `ERROR: The "${skillSlug}" skill has no published revision.`;
     skillService.bind({ orgId: ctx.orgId, agentId: target.id, skillId: skill.id, revisionId: revision.id });
@@ -94,7 +94,7 @@ export function bindSkillSlugs(deps: AgentToolDeps, orgId: string, agentId: stri
       select sd.id as skill_id, sd.name, sr.id as revision_id
       from skill_definitions sd
       join skill_revisions sr on sr.id = (
-        select id from skill_revisions where skill_id = sd.id order by published_at desc, id desc limit 1
+        select id from skill_revisions where skill_id = sd.id order by published_at desc, rowid desc limit 1
       )
       where sd.org_id = ? and sd.slug = ? and sd.status = 'active'
     `).get(orgId, slug) as { skill_id: string; name: string; revision_id: string } | undefined;

@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, test } from "vitest";
@@ -103,6 +103,54 @@ describe("built-in skills", () => {
     const slugs = (h.connection.db.prepare("select slug from skill_definitions where org_id = ? order by slug").all(h.orgId) as Array<{ slug: string }>)
       .map((row) => row.slug);
     expect(slugs).toEqual(["engineering-backend-architect", "humanizer", "humanizer-zh"]);
+    h.connection.close();
+  });
+
+  test("an app update that changes a built-in skill reaches existing orgs and their bindings", () => {
+    const h = harness();
+    h.connection.transaction(() => importStagedSkills(h.skills, h.orgId, stageBuiltinSkillsLibrary(h.sourceRoot, h.libraryRoot)));
+    const skillId = (h.connection.db.prepare("select id from skill_definitions where org_id = ? and slug = 'engineering-backend-architect'").get(h.orgId) as { id: string }).id;
+    const oldRevision = (h.connection.db.prepare("select id from skill_revisions where skill_id = ?").get(skillId) as { id: string }).id;
+    let agentId = "";
+    h.connection.transaction(() => {
+      agentId = h.organization.createAgent({
+        orgId: h.orgId, name: "Ada", role: "Engineer", department: "Engineering",
+        modelProviderId: null, modelId: null, budgetCents: 1000, managerAgentId: null,
+      });
+      h.skills.bind({ orgId: h.orgId, agentId, skillId, revisionId: oldRevision });
+    });
+
+    writeFileSync(join(h.sourceRoot, "engineering", "engineering-backend-architect.md"), ARCHITECT_MD.replace("hold everything up", "scale to millions"), "utf8");
+    rmSync(join(h.sourceRoot, "humanizer", "README.md"));
+    const report = h.connection.transaction(() => importStagedSkills(h.skills, h.orgId, stageBuiltinSkillsLibrary(h.sourceRoot, h.libraryRoot)));
+
+    expect(report).toMatchObject({ imported: 0, upgraded: 2, skipped: 1, retired: 0, failures: [] });
+    const bound = h.connection.db.prepare(`
+      select sa.object_key from skill_bindings sb join skill_artifacts sa on sa.revision_id = sb.pinned_revision_id and sa.artifact_type = 'entrypoint'
+      where sb.agent_id = ?
+    `).get(agentId) as { object_key: string };
+    expect(readFileSync(bound.object_key, "utf8")).toContain("scale to millions");
+    const humanizerFiles = h.connection.db.prepare(`
+      select sa.object_key from skill_definitions sd
+      join skill_revisions sr on sr.id = (select id from skill_revisions where skill_id = sd.id order by published_at desc, id desc limit 1)
+      join skill_artifacts sa on sa.revision_id = sr.id
+      where sd.org_id = ? and sd.slug = 'humanizer'
+    `).all(h.orgId) as Array<{ object_key: string }>;
+    const architectPath = join(h.sourceRoot, "engineering", "engineering-backend-architect.md");
+    for (const body of [ARCHITECT_MD.replace("hold everything up", "stay up"), ARCHITECT_MD.replace("hold everything up", "scale to millions")]) {
+      writeFileSync(architectPath, body, "utf8");
+      const again = h.connection.transaction(() => importStagedSkills(h.skills, h.orgId, stageBuiltinSkillsLibrary(h.sourceRoot, h.libraryRoot)));
+      expect(again).toMatchObject({ upgraded: 1, failures: [] });
+    }
+    const versions = (h.connection.db.prepare("select version_semver from skill_revisions where skill_id = ? order by published_at, rowid").all(skillId) as Array<{ version_semver: string }>)
+      .map((row) => row.version_semver);
+    expect(versions).toEqual(["1.0.0", "1.0.0+rev2", "1.0.0+rev3", "1.0.0+rev4"]);
+    const rebound = h.connection.db.prepare(`
+      select sa.object_key from skill_bindings sb join skill_artifacts sa on sa.revision_id = sb.pinned_revision_id and sa.artifact_type = 'entrypoint'
+      where sb.agent_id = ?
+    `).get(agentId) as { object_key: string };
+    expect(readFileSync(rebound.object_key, "utf8")).toContain("scale to millions");
+    expect(humanizerFiles.map((row) => row.object_key.replaceAll("\\", "/").split("/").at(-1))).toEqual(["SKILL.md"]);
     h.connection.close();
   });
 

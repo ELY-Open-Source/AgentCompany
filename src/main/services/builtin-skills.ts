@@ -1,4 +1,4 @@
-import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { RISK_LEVEL } from "../../shared/domain";
 import { loadSkillManifest, type SkillManifest } from "./skill-manifest";
@@ -17,7 +17,7 @@ import type { SkillService } from "./skill-service";
  * Staging normalizes both into one library layout the import machinery
  * understands — `<libraryRoot>/<slug>/SKILL.md` — a real copy on disk, never a
  * reference back into the bundle. Import then publishes every staged skill the
- * org does not carry yet into the immutable artifact store.
+ * org does not carry yet, or whose files changed, into the immutable artifact store.
  */
 
 export interface StagedBuiltinSkill {
@@ -28,6 +28,8 @@ export interface StagedBuiltinSkill {
 
 export interface BuiltinSkillSyncReport {
   imported: number;
+  /** Existing skills that got a new revision because the bundle changed them. */
+  upgraded: number;
   skipped: number;
   /** Active skills retired because the bundle no longer carries their slug. */
   retired: number;
@@ -73,17 +75,18 @@ export function stageBuiltinSkillsLibrary(sourceRoot: string, libraryRoot: strin
 
 /**
  * Makes the org catalogue mirror the bundle: publishes every staged skill
- * the org does not carry yet, then retires active skills whose slug the
- * bundle no longer ships (legacy ~/.agents imports, removed skills).
- * Existing bindings pin revisions directly and keep working; retired skills
- * simply leave list_skills and stop being grantable.
+ * the org does not carry yet, upgrades skills whose files changed (moving
+ * bindings onto the new revision), then retires active skills whose slug
+ * the bundle no longer ships. Retired skills leave list_skills and stop
+ * being grantable.
  */
 export function importStagedSkills(skills: SkillService, orgId: string, staged: StagedBuiltinSkill[]): BuiltinSkillSyncReport {
-  const report: BuiltinSkillSyncReport = { imported: 0, skipped: 0, retired: 0, failures: [] };
+  const report: BuiltinSkillSyncReport = { imported: 0, upgraded: 0, skipped: 0, retired: 0, failures: [] };
   for (const unit of staged) {
     try {
       if (skills.hasSkill(orgId, unit.slug)) {
-        report.skipped += 1;
+        if (skills.upgradeIfChanged(orgId, unit.directory, unit.manifest, unit.slug)) report.upgraded += 1;
+        else report.skipped += 1;
         continue;
       }
       skills.importManifest(orgId, unit.directory, unit.manifest, unit.slug);
@@ -99,7 +102,8 @@ export function importStagedSkills(skills: SkillService, orgId: string, staged: 
 function stageDirectorySkill(sourceDir: string, dirName: string, libraryRoot: string, seen: Set<string>): StagedBuiltinSkill {
   const slug = uniqueSlug(slugify(dirName), seen, sourceDir);
   const target = join(libraryRoot, slug);
-  mkdirSync(target, { recursive: true });
+  // Clear first so files the bundle dropped do not linger in the library.
+  rmSync(target, { recursive: true, force: true });
   cpSync(sourceDir, target, { recursive: true });
   const manifest = existsSync(join(target, "skill.manifest.json"))
     ? loadSkillManifest(target)
@@ -119,6 +123,7 @@ function stageCategorySkills(categoryDir: string, libraryRoot: string, seen: Set
     const stem = entry.name.replace(/\.md$/i, "");
     const slug = uniqueSlug(slugify(stem), seen, join(categoryDir, entry.name));
     const target = join(libraryRoot, slug);
+    rmSync(target, { recursive: true, force: true });
     mkdirSync(target, { recursive: true });
     writeFileSync(join(target, "SKILL.md"), body, "utf8");
     staged.push({
