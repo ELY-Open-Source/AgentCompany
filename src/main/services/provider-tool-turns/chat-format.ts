@@ -22,6 +22,7 @@ export function toChatMessages(instructions: string | null, messages: AgentTurnM
       for (const result of message.results) {
         out.push({ role: "tool", tool_call_id: result.toolCallId, content: result.output });
       }
+      if (message.followUp) out.push({ role: "user", content: message.followUp });
     }
   }
   return out;

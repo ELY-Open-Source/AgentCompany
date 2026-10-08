@@ -24,7 +24,7 @@ import {
   type WorkspaceRow,
 } from "./task-prompts";
 import { renderTaskHandoff } from "./agent-task-handoff";
-import { loadChatWakeContext } from "./chat-wake-context";
+import { createRunMessagePoller, loadChatWakeContext } from "./chat-wake-context";
 import { loadComposioTools } from "./composio/composio-tool-bridge";
 import { connectorDisplayName } from "./composio/connector-brands";
 import { ConnectorGrantsService } from "./composio/connector-grants";
@@ -134,6 +134,8 @@ export class TaskExecutionService {
     let skillRuntimeSnapshot: SkillRuntimeSnapshotRow | null = null;
     try {
       skillRuntimeSnapshot = this.resolveSkillRuntimeSnapshot(orgId, agent.id, runId);
+      // Watermark for reply delivery and mid-run message polling.
+      const runStartedAt = new Date().toISOString();
       const chatContext = loadChatWakeContext(this.db, orgId, agent.id, isolation.secretScopeJson);
       const toolContext: AgentToolContext = {
         orgId,
@@ -153,9 +155,6 @@ export class TaskExecutionService {
         .map(connectorDisplayName);
       const language = this.appLanguage();
       const externalTools = await loadComposioTools(this.db, this.providers.integrationKeys, orgId, agent.id);
-      // Watermark for the reply-delivery check below: anything the agent posts
-      // into the source thread from here on counts as its reply.
-      const runStartedAt = new Date().toISOString();
       const result = await runAgentLoop(
         {
           providers: this.providers,
@@ -185,6 +184,7 @@ export class TaskExecutionService {
           }),
           toolContext,
           externalTools,
+          pollNewMessages: createRunMessagePoller(this.db, { orgId, agentId: agent.id, sourceThreadId: chatContext?.threadId ?? null, runStartedAt }),
         },
       );
       providerRequestId = result.lastRequestId;

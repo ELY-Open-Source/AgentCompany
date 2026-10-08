@@ -20,7 +20,9 @@ export function toBedrockMessages(messages: AgentTurnMessage[]): JsonRecord[] {
       for (const call of message.toolCalls) content.push({ toolUse: { toolUseId: call.id, name: call.name, input: call.arguments } });
       out.push({ role: "assistant", content });
     } else {
-      out.push({ role: "user", content: message.results.map((result) => ({ toolResult: { toolUseId: result.toolCallId, content: [{ text: result.output }] } })) });
+      const content: unknown[] = message.results.map((result) => ({ toolResult: { toolUseId: result.toolCallId, content: [{ text: result.output }] } }));
+      if (message.followUp) content.push({ text: message.followUp });
+      out.push({ role: "user", content });
     }
   }
   return out;

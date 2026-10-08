@@ -35,6 +35,7 @@ export function toResponsesInput(messages: AgentTurnMessage[]): unknown[] {
       for (const result of message.results) {
         items.push({ type: "function_call_output", call_id: result.toolCallId, output: result.output });
       }
+      if (message.followUp) items.push({ role: "user", content: [{ type: "input_text", text: message.followUp }] });
     }
   }
   return items;

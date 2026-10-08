@@ -52,3 +52,32 @@ function formatMessage(m: ThreadMessageRow): string {
 function utcMinute(iso: string): string {
   return `${iso.slice(0, 10)} ${iso.slice(11, 16)} UTC`;
 }
+
+/** Polls the threads this run is part of for messages from others. */
+export function createRunMessagePoller(
+  db: DatabaseSync,
+  input: { orgId: string; agentId: string; sourceThreadId: string | null; runStartedAt: string },
+): () => string | null {
+  let watermark = input.runStartedAt;
+  return () => {
+    const rows = db.prepare(`
+      select m.body_md, m.created_at, m.edited_at, m.sender_type, m.sender_id,
+             coalesce(a.name, e.display_name, m.sender_type) as sender_name,
+             coalesce(a.role, e.role) as sender_role
+      from chat_messages m
+      left join agents a on a.id = m.sender_id and m.sender_type = 'agent'
+      left join employees e on e.id = m.sender_id and m.sender_type = 'employee'
+      where m.org_id = ? and m.created_at > ? and m.deleted_at is null
+        and not (m.sender_type = 'agent' and m.sender_id = ?)
+        and (m.thread_id = ? or m.thread_id in (
+          select own.thread_id from chat_messages own
+          where own.org_id = ? and own.sender_type = 'agent' and own.sender_id = ? and own.created_at >= ?
+        ))
+      order by m.created_at asc
+    `).all(input.orgId, watermark, input.agentId, input.sourceThreadId, input.orgId, input.agentId, input.runStartedAt) as unknown as ThreadMessageRow[];
+    if (rows.length === 0) return null;
+    watermark = rows[rows.length - 1].created_at;
+    console.info(`[run-inbox] agent ${input.agentId}: ${rows.length} new message(s) injected mid-run`);
+    return ["Messages that arrived while you were working (they may change what you should do):", ...rows.map(formatMessage)].join("\n");
+  };
+}

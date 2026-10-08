@@ -17,7 +17,9 @@ export function toAnthropicMessages(messages: AgentTurnMessage[]): unknown[] {
       for (const call of message.toolCalls) content.push({ type: "tool_use", id: call.id, name: call.name, input: call.arguments });
       out.push({ role: "assistant", content });
     } else {
-      out.push({ role: "user", content: message.results.map((result) => ({ type: "tool_result", tool_use_id: result.toolCallId, content: result.output })) });
+      const content: unknown[] = message.results.map((result) => ({ type: "tool_result", tool_use_id: result.toolCallId, content: result.output }));
+      if (message.followUp) content.push({ type: "text", text: message.followUp });
+      out.push({ role: "user", content });
     }
   }
   return out;

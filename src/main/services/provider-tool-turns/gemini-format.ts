@@ -43,9 +43,10 @@ function toGeminiContents(model: string, messages: AgentTurnMessage[]): JsonReco
       }
       if (parts.length > 0) contents.push({ role: "model", parts });
     } else {
-      const responses = message.results.map((result) => ({
+      const responses: unknown[] = message.results.map((result) => ({
         functionResponse: { name: result.toolName, response: { output: result.output }, ...(withId ? { id: result.toolCallId } : {}) },
       }));
+      if (message.followUp) responses.push({ text: message.followUp });
       const last = contents[contents.length - 1];
       if (last && last.role === "user" && Array.isArray(last.parts) && last.parts.some((part) => isRecord(part) && "functionResponse" in part)) {
         (last.parts as unknown[]).push(...responses);

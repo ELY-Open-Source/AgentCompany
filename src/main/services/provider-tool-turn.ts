@@ -24,7 +24,7 @@ export interface ToolCall {
 export type AgentTurnMessage =
   | { role: "user"; text: string }
   | { role: "assistant"; text: string; toolCalls: ToolCall[] }
-  | { role: "tool"; results: Array<{ toolCallId: string; toolName: string; output: string }> };
+  | { role: "tool"; results: Array<{ toolCallId: string; toolName: string; output: string }>; followUp?: string };
 
 export interface AgentTurnResult {
   text: string;

@@ -17,6 +17,8 @@ export interface AgentRunLoopInput {
   initialUserTurn: string;
   toolContext: AgentToolContext;
   externalTools?: ToolDefinition[];
+  /** Messages that arrived mid-run, or null. */
+  pollNewMessages?: () => string | null;
 }
 
 export interface AgentRunLoopResult {
@@ -63,6 +65,11 @@ export async function runAgentLoop(deps: AgentRunLoopDeps, input: AgentRunLoopIn
         // completing the run would silently mark a no-op as done.
         throw new Error("Provider returned an empty turn: no text and no tool calls.");
       }
+      const lateMessages = input.pollNewMessages?.();
+      if (lateMessages) {
+        messages.push({ role: "assistant", text: turn.text, toolCalls: [] }, { role: "user", text: lateMessages });
+        continue;
+      }
       return { finalText: turn.text, iterations: iteration, toolCallCount, lastRequestId };
     }
 
@@ -95,7 +102,8 @@ export async function runAgentLoop(deps: AgentRunLoopDeps, input: AgentRunLoopIn
       }
       results.push({ toolCallId: call.id, toolName: call.name, output });
     }
-    messages.push({ role: "tool", results });
+    const followUp = input.pollNewMessages?.();
+    messages.push(followUp ? { role: "tool", results, followUp } : { role: "tool", results });
     deps.onToolResults?.();
   }
 

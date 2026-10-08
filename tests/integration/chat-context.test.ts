@@ -19,10 +19,15 @@ const testVault = {
 
 async function founderLine() {
   const wakePrompts: string[] = [];
+  const wakeInputs: ProviderToolTurnInput["messages"][] = [];
+  let onWake: (turnIndex: number) => void = () => undefined;
   const turn = async (input: ProviderToolTurnInput): Promise<AgentTurnResult> => {
     const first = input.messages.find((message) => message.role === "user");
     const prompt = first && first.role === "user" ? first.text : "";
-    if (/thread_id="/.test(prompt) && input.messages.length === 1) wakePrompts.push(prompt);
+    if (!/thread_id="/.test(prompt)) return { text: "Kickoff noted.", toolCalls: [], rawResponseJson: "{}" };
+    if (input.messages.length === 1) wakePrompts.push(prompt);
+    wakeInputs.push(input.messages);
+    onWake(wakeInputs.length);
     return { text: `Reply ${wakePrompts.length}.`, toolCalls: [], rawResponseJson: "{}" };
   };
   const connection = new DatabaseConnection(join(tmpdir(), `ac-chatctx-${randomUUID()}.db`));
@@ -60,7 +65,8 @@ async function founderLine() {
     const row = connection.db.prepare("select id from chat_messages where body_md = ?").get(bodyMd) as { id: string };
     chat.editMessage({ orgId, messageId: row.id, bodyMd: newBody, actorType: "employee", actorId: founderId });
   };
-  return { connection, wakePrompts, say, runWake, edit };
+  const onWakeTurn = (hook: (turnIndex: number) => void) => { onWake = hook; };
+  return { connection, wakePrompts, wakeInputs, say, runWake, edit, onWakeTurn };
 }
 
 describe("chat wake context", () => {
@@ -97,6 +103,74 @@ describe("chat wake context", () => {
     const fresh = prompt.slice(prompt.indexOf("New since your last reply"));
     expect(fresh).toMatch(/Yang \(employee, Board Chair\) \(edited \d{4}-\d{2}-\d{2} \d{2}:\d{2} UTC\): Ship on Friday\./);
     expect(fresh).not.toContain("Reply 1.");
+    h.connection.close();
+  });
+
+  test("a message that arrives mid-run reaches the next model turn", async () => {
+    const connection = new DatabaseConnection(join(tmpdir(), `ac-midrun-${randomUUID()}.db`));
+    const chat = new ChatService(connection.db);
+    const seenFollowUps: string[] = [];
+    let founderId = "";
+    let orgId = "";
+    let spaceId = "";
+    let threadId = "";
+    let wakeTurns = 0;
+    const turn = async (input: ProviderToolTurnInput): Promise<AgentTurnResult> => {
+      const first = input.messages.find((message) => message.role === "user");
+      if (!(first && first.role === "user" && /thread_id="/.test(first.text))) return { text: "Kickoff noted.", toolCalls: [], rawResponseJson: "{}" };
+      wakeTurns += 1;
+      const last = input.messages[input.messages.length - 1];
+      if (last.role === "tool" && last.followUp) seenFollowUps.push(last.followUp);
+      if (wakeTurns === 1) {
+        chat.sendMessage({ orgId, spaceId, threadId, senderType: "employee", senderId: founderId, bodyMd: "Stop — use Postgres instead.", attachmentFileIds: [] });
+        return { text: "Looking.", toolCalls: [{ id: "c1", name: "read_messages", arguments: {} }], rawResponseJson: "{}" };
+      }
+      return { text: "Switching to Postgres.", toolCalls: [], rawResponseJson: "{}" };
+    };
+    const providers = new ProviderService(connection.db, providerAdapters, testVault, undefined, turn);
+    const onboarding = new OnboardingService({ db: connection.db, saveProviderCredential: (input) => providers.saveCredential(input) });
+    const execution = new TaskExecutionService(connection.db, providers);
+    let ceoId = "";
+    connection.transaction(() => {
+      const summary = onboarding.bootstrap({
+        companyName: "FlowPilot", companyDescription: "CSM analytics.", employeeName: "Yang", workspacePath: "",
+        executionMode: "ai_ceo", autoApproveHires: true, reviewDeliverables: false,
+        goalTitle: "Ship the MVP.", goalDescription: "A working product.",
+        providerKey: "openai", providerSecret: "sk-test-key", providerModel: "gpt-5.4",
+      });
+      orgId = summary.orgId;
+      ceoId = summary.ceoAgentId;
+    });
+    founderId = (connection.db.prepare("select id from employees where org_id = ?").get(orgId) as { id: string }).id;
+    spaceId = ensureCeoDirectSpace(connection.db, orgId)!;
+    const kickoff = claimNextQueuedRun(connection);
+    await execution.executeRun(kickoff!.org_id, kickoff!.id);
+    const firstId = chat.sendMessage({ orgId, spaceId, threadId: null, senderType: "employee", senderId: founderId, bodyMd: "Use MySQL.", attachmentFileIds: [] });
+    threadId = (connection.db.prepare("select thread_id from chat_messages where id = ?").get(firstId) as { thread_id: string }).thread_id;
+    const wake = connection.db.prepare(
+      "select id from task_runs where org_id = ? and agent_id = ? and trigger = 'chat_mention' and state = 'queued'",
+    ).get(orgId, ceoId) as { id: string };
+    await execution.executeRun(orgId, wake.id);
+
+    expect(seenFollowUps).toHaveLength(1);
+    expect(seenFollowUps[0]).toContain("Messages that arrived while you were working");
+    expect(seenFollowUps[0]).toContain("Stop — use Postgres instead.");
+    expect(seenFollowUps[0]).not.toContain("Use MySQL.");
+    connection.close();
+  });
+
+  test("a correction that lands while the model answers gets one more turn", async () => {
+    const h = await founderLine();
+    const threadId = h.say("Use MySQL.", null);
+    h.onWakeTurn((turnIndex) => {
+      if (turnIndex === 1) h.say("Stop — use Postgres instead.", threadId);
+    });
+    await h.runWake();
+    const second = h.wakeInputs[1];
+    expect(second.at(-2)).toMatchObject({ role: "assistant", text: "Reply 1." });
+    const last = second.at(-1)!;
+    expect(last.role).toBe("user");
+    expect(last.role === "user" && last.text).toContain("Stop — use Postgres instead.");
     h.connection.close();
   });
 });

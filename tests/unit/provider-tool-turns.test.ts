@@ -281,3 +281,35 @@ describe("responses tool definitions", () => {
     expect(responsesToolDefs(tools, true)[0]).toMatchObject({ strict: true });
   });
 });
+
+describe("mid-run follow-up text rides on the tool-result turn", () => {
+  const convo: AgentTurnMessage[] = [
+    { role: "user", text: "go" },
+    { role: "assistant", text: "", toolCalls: [{ id: "c1", name: "f", arguments: {} }] },
+    { role: "tool", results: [{ toolCallId: "c1", toolName: "f", output: "ok" }], followUp: "New: stop" },
+  ];
+
+  test("each wire format keeps the result and appends the text in order", () => {
+    expect(toResponsesInput(convo).slice(-2)).toEqual([
+      { type: "function_call_output", call_id: "c1", output: "ok" },
+      { role: "user", content: [{ type: "input_text", text: "New: stop" }] },
+    ]);
+    expect(toChatMessages(null, convo).slice(-2)).toEqual([
+      { role: "tool", tool_call_id: "c1", content: "ok" },
+      { role: "user", content: "New: stop" },
+    ]);
+    expect(toAnthropicMessages(convo).at(-1)).toEqual({
+      role: "user",
+      content: [{ type: "tool_result", tool_use_id: "c1", content: "ok" }, { type: "text", text: "New: stop" }],
+    });
+    expect(toBedrockMessages(convo).at(-1)).toEqual({
+      role: "user",
+      content: [{ toolResult: { toolUseId: "c1", content: [{ text: "ok" }] } }, { text: "New: stop" }],
+    });
+    const gemini = vertexRequestBody({ model: "gemini-3-pro", instructions: null, messages: convo, tools: [] }) as { contents: Array<{ role: string; parts: unknown[] }> };
+    expect(gemini.contents.at(-1)).toEqual({
+      role: "user",
+      parts: [{ functionResponse: { name: "f", response: { output: "ok" } } }, { text: "New: stop" }],
+    });
+  });
+});
