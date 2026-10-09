@@ -1,3 +1,4 @@
+import { LanguageField } from "./LanguageField";
 import { WorkspaceRow } from "./WorkspaceRow";
 import { CompanyDialog } from "./CompanyDialog";
 import { ScopeNote } from "./ScopeNote";
@@ -5,7 +6,6 @@ import { useState, type FormEvent } from "react";
 import type {
   OrganizationRecord,
   ProjectRecord,
-  UiLanguage,
   UiPreferences,
   UiTheme,
   WorkspaceRecord,
@@ -102,20 +102,7 @@ export function WorkspacePanel({
             <option value="dark">{t("Dark")}</option>
           </select>
         </Field>
-        <Field label={t("Language")}>
-          <select
-            className="input"
-            aria-label={t("Language")}
-            value={uiPreferences.language}
-            onChange={(event) =>
-              void actions.run(() => window.agentCompany.setUiPreferences({ language: event.target.value as UiLanguage }))
-            }
-          >
-            <option value="en">English</option>
-            <option value="zh">中文</option>
-          </select>
-          <span style={{ fontSize: 12, color: "var(--text-3)" }}>{t("Changes only what you see; agents keep the company's working language.")}</span>
-        </Field>
+        <LanguageField uiPreferences={uiPreferences} actions={actions} />
       </div>
 
       <div className="row reveal-row" style={{ marginBottom: 8 }}>

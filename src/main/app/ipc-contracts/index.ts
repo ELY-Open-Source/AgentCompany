@@ -13,6 +13,8 @@ const noInput = z.undefined();
 /** The runtime contract of each IPC call; a method without a schema, or a schema that disagrees with its type, fails the typecheck. */
 export const IPC_CONTRACTS: { [K in InvokedMethod]: z.ZodType<InputOf<K>> } = {
   loadSnapshot: noInput,
+  relaunchApp: noInput,
+  runningSessionCount: noInput,
   pickDirectory: noInput,
   listConnectorCatalog: noInput,
   windowMinimize: noInput,

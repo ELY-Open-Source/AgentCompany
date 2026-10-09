@@ -120,6 +120,10 @@ export type ModelCheckResult = { passed: true } | { passed: false; detail: strin
 
 export interface DesktopApi {
   loadSnapshot(): Promise<DesktopResult<AppSnapshot>>;
+  /** Restarts the app, which a display-language change needs; the user asks for it after seeing what it interrupts. */
+  relaunchApp(): Promise<DesktopResult<null>>;
+  /** Every agent session running now, in every company: what a restart interrupts. */
+  runningSessionCount(): Promise<DesktopResult<number>>;
   bootstrapOnboarding(input: BootstrapOnboardingInput): Promise<DesktopResult<BootstrapOnboardingSummary>>;
   setActiveOrganization(input: SetActiveOrganizationInput): Promise<DesktopResult<AppSnapshot>>;
   setUiPreferences(input: SetUiPreferencesInput): Promise<DesktopResult<AppSnapshot>>;

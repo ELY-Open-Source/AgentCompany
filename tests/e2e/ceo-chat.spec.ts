@@ -76,6 +76,15 @@ test("the pinned CEO conversation is the Messages front door", async () => {
     await page.getByRole("button", { name: "Settings" }).click();
     await expect(page.getByRole("note").filter({ hasText: "Applies to FlowPilot only." })).toBeVisible();
     await expect(page.getByRole("note").filter({ hasText: "Applies to every company in this app." })).toBeVisible();
+    // Picking a language does not restart the app; the restart waits for the user, after saying what it interrupts.
+    await page.getByLabel("Language", { exact: true }).selectOption("zh");
+    await expect(page.getByRole("status").filter({ hasText: "中文 applies after a restart." })).toBeVisible();
+    await page.getByRole("button", { name: "Restart now" }).click();
+    await expect(page.locator(".modal")).toContainText("Text you typed but have not sent or saved is lost.");
+    await expect(page.locator(".modal")).toContainText("Running agent sessions: 0. They stop now");
+    await page.locator(".modal").getByRole("button", { name: "Cancel" }).click();
+    await page.getByLabel("Language", { exact: true }).selectOption("en");
+    await expect(page.getByRole("status").filter({ hasText: "applies after a restart." })).toHaveCount(0);
     // How the company runs can be changed after onboarding.
     const editCompany = async (mode: string, autoHires: boolean) => {
       await page.getByRole("button", { name: "Edit company" }).click();

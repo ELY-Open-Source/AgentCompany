@@ -140,18 +140,16 @@ export function registerIpcHandlers(deps: IpcDeps): void {
 
   handle("createOrganization", (input) => mutate(() => organization.createOrganization(input)));
   handle("setActiveOrganization", (input) => mutate(() => organization.setActiveOrganization(input.orgId)));
-  handle("setUiPreferences", (input) => {
-    const before = snapshot.load().uiPreferences.language;
-    const result = mutate(() => organization.updateUiPreferences(input));
-    if (result.ok && result.data.uiPreferences.language !== before) {
-      // Chromium's locale is fixed at launch; a language change needs a
-      // fresh process to take effect.
-      setTimeout(() => {
-        app.relaunch();
-        app.quit();
-      }, 150);
-    }
-    return result;
+  handle("setUiPreferences", (input) => mutate(() => organization.updateUiPreferences(input)));
+  handle("runningSessionCount", () => ok((deps.connection.db.prepare("select count(*) as n from task_runs where state = 'running'").get() as { n: number }).n));
+  // Chromium's locale is fixed at launch; the reply goes out before the process exits.
+  handle("relaunchApp", () => {
+    console.info("[app] relaunch requested by the user");
+    setTimeout(() => {
+      app.relaunch();
+      app.quit();
+    }, 150);
+    return ok(null);
   });
   handle("deleteOrganization", (input) => mutate(() => organization.deleteOrganization(input.orgId)));
   handle("createAgent", (input) => mutate(() => organization.createAgent(input)));
