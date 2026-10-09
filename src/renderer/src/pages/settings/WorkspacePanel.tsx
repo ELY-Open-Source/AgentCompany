@@ -21,6 +21,7 @@ function optional(form: FormData, key: string): string | null {
 }
 
 export function WorkspacePanel({
+  focusedWorkspaceId,
   organization,
   workspaces,
   projects,
@@ -28,6 +29,8 @@ export function WorkspacePanel({
   uiPreferences,
   actions,
 }: {
+  /** A workspace the reader was sent here to see, marked in the list. */
+  focusedWorkspaceId: string | null;
   organization: OrganizationRecord;
   workspaces: WorkspaceRecord[];
   projects: ProjectRecord[];
@@ -111,7 +114,7 @@ export function WorkspacePanel({
         </span>
       </div>
       {workspaces.map((workspace) => (
-        <div key={workspace.id} className="row" style={{ padding: "8px 0", borderBottom: "1px solid var(--border-soft)" }}>
+        <div key={workspace.id} className="row" aria-current={workspace.id === focusedWorkspaceId ? "true" : undefined} style={{ padding: "8px 0", borderBottom: "1px solid var(--border-soft)", background: workspace.id === focusedWorkspaceId ? "var(--accent-soft)" : undefined }}>
           <div style={{ minWidth: 0 }}>
             <div style={{ fontWeight: 540 }}>{workspace.name}</div>
             <div style={{ fontSize: 12, color: "var(--text-3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{workspace.localPath}</div>

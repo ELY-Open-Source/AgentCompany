@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { decidedWindow } from "./approvals/decided-window";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Avatar, Button, Icon, IconButton, Pill } from "../shared/ui";
 import { TopbarActions } from "../shared/TopbarActions";
 import type {
@@ -28,11 +29,15 @@ const RISK_TONES: Record<RiskLevel, { label: string; color: string }> = {
   [RISK_LEVEL.LOW]: { label: t("Low risk"), color: "var(--text-3)" },
 };
 
-export function ApprovalsPage({ snapshot, actions }: PageProps) {
+export function ApprovalsPage({ snapshot, actions, navigate, focus }: PageProps) {
   const orgId = activeOrgId(snapshot);
   const employee = requireActiveEmployee(snapshot);
   const [filter, setFilter] = useState<RiskFilter>("all");
-  const [editingId, setEditingId] = useState<string | null>(null);
+  const focusedApproval = focus?.kind === "approval" ? focus.id : null;
+  const [editingId, setEditingId] = useState<string | null>(
+    focusedApproval && snapshot.approvals.some((item) => item.id === focusedApproval && item.state === "pending") ? focusedApproval : null,
+  );
+  const openTask = (taskId: string) => navigate("work", { kind: "task", id: taskId });
 
   const approvals = useMemo(() => snapshot.approvals.filter((item) => item.orgId === orgId), [snapshot.approvals, orgId]);
   const employees = snapshot.employees.filter((item) => item.orgId === orgId);
@@ -40,6 +45,7 @@ export function ApprovalsPage({ snapshot, actions }: PageProps) {
 
   const pending = approvals.filter((approval) => approval.state === APPROVAL_STATE.PENDING);
   const decided = approvals.filter((approval) => approval.state !== APPROVAL_STATE.PENDING);
+  const shownDecided = decidedWindow(decided, focusedApproval);
   const filteredPending = filter === "all" ? pending : pending.filter((approval) => approval.risk === filter);
   const weeklyDecided = decided.filter((approval) => withinDays(approval.decidedAt, 7));
   const approved7d = weeklyDecided.filter((approval) => approval.state === APPROVAL_STATE.APPROVED).length;
@@ -119,14 +125,16 @@ export function ApprovalsPage({ snapshot, actions }: PageProps) {
           <div className="section-label" style={{ margin: "32px 0 10px" }}>{t("Recently decided")}</div>
           {driftError && <div style={{ color: "var(--red)", fontSize: 13, marginBottom: 8 }}>{t("Could not check approved content: {message}", { message: driftError })}</div>}
           <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-            {decided.slice(0, 24).map((approval, index) => (
+            {shownDecided.map((approval, index) => (
               <DecidedRow
                 key={approval.id}
                 approval={approval}
                 drift={drifts[approval.id] ?? null}
                 requester={resolveRequester(approval, employees, agents)}
                 decider={resolveDecider(approval, employees)}
-                last={index === Math.min(decided.length, 24) - 1}
+                last={index === shownDecided.length - 1}
+                focused={approval.id === focusedApproval}
+                onOpenTask={openTask}
               />
             ))}
           </div>
@@ -138,6 +146,7 @@ export function ApprovalsPage({ snapshot, actions }: PageProps) {
         requester={editing ? resolveRequester(editing, employees, agents) : ""}
         onClose={() => setEditingId(null)}
         onDecide={(state, notes) => editing && decide(editing, state, notes)}
+        onOpenTask={openTask}
       />
     </div>
   );
@@ -148,11 +157,13 @@ function ApprovalDetailDialog({
   requester,
   onClose,
   onDecide,
+  onOpenTask,
 }: {
   approval: ApprovalRecord | null;
   requester: string;
   onClose: () => void;
   onDecide: (state: "approved" | "declined", notes?: string) => void;
+  onOpenTask: (taskId: string) => void;
 }) {
   const [notes, setNotes] = useState("");
   if (!approval) return null;
@@ -176,7 +187,14 @@ function ApprovalDetailDialog({
         <div style={{ display: "grid", gridTemplateColumns: "100px 1fr", gap: "10px 14px", fontSize: 12 }}>
           <span style={{ color: "var(--text-3)" }}>{t("Requested by")}</span>
           <span>{requester}</span>
-          {approval.sourceEntityType && (<><span style={{ color: "var(--text-3)" }}>{t("Source")}</span><span>{humanizeKind(approval.sourceEntityType)}</span></>)}
+          {approval.sourceEntityType && (
+            <>
+              <span style={{ color: "var(--text-3)" }}>{t("Source")}</span>
+              {approval.sourceEntityType === "task" && approval.sourceEntityId
+                ? <button type="button" className="link-button" onClick={() => onOpenTask(approval.sourceEntityId!)}>{t("Open task")}</button>
+                : <span>{humanizeKind(approval.sourceEntityType)}</span>}
+            </>
+          )}
           <span style={{ color: "var(--text-3)" }}>{t("Requested")}</span>
           <span>{formatRelative(approval.createdAt)}</span>
         </div>
@@ -292,28 +310,42 @@ function DecidedRow({
   requester,
   decider,
   last,
+  focused,
+  onOpenTask,
 }: {
   approval: ApprovalRecord;
   drift: ApprovalDrift | null;
   requester: string;
   decider: string;
   last: boolean;
+  focused: boolean;
+  onOpenTask: (taskId: string) => void;
 }) {
+  const rowRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (focused) rowRef.current?.scrollIntoView({ block: "center" });
+  }, [focused]);
   const approved = approval.state === APPROVAL_STATE.APPROVED;
   const superseded = approval.state === APPROVAL_STATE.SUPERSEDED;
   const decidedLabel = approved ? t("Approved") : superseded ? t("Replaced by an edit") : t("Declined");
   return (
     <div
+      ref={rowRef}
       className="row"
+      aria-current={focused ? "true" : undefined}
       style={{
         gap: 12,
         padding: "12px 18px",
         fontSize: 14,
         borderBottom: last ? "none" : "1px solid var(--border-soft)",
+        background: focused ? "var(--accent-soft)" : undefined,
       }}
     >
       <Icon name={approved ? "check" : "x"} size={14} color={approved ? "var(--green)" : superseded ? "var(--text-3)" : "var(--red)"} />
       <div style={{ flex: 1, fontWeight: 480, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{approval.title}</div>
+      {approval.sourceEntityType === "task" && approval.sourceEntityId && (
+        <button type="button" className="link-button" style={{ fontSize: 12 }} onClick={() => onOpenTask(approval.sourceEntityId!)}>{t("Open task")}</button>
+      )}
       {drift && <Pill tone="amber">{drift === "changed" ? t("Changed since approval") : t("Removed since approval")}</Pill>}
       <Avatar name={requester} size="sm" bot />
       <div style={{ fontSize: 12, color: "var(--text-3)", width: 180, textAlign: "right", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>

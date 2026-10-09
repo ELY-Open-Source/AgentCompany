@@ -22,7 +22,7 @@ import { ListView } from "./work/ListView";
 import { TimelineView } from "./work/TimelineView";
 import { latestTaskRun, nextStatus, prettyRunState, providerFor, runBlocker, runTone } from "./work/task-helpers";
 import type { PageProps } from "./types";
-import { activeOrgId } from "./types";
+import { activeOrgId, type Focus } from "./types";
 import { t } from "../i18n/i18n";
 
 type View = "board" | "list" | "timeline";
@@ -40,7 +40,7 @@ const VIEW_OPTIONS: ReadonlyArray<{ id: View; label: string }> = [
   { id: "timeline", label: t("Timeline") },
 ];
 
-export function WorkPage({ snapshot, actions }: PageProps) {
+export function WorkPage({ snapshot, actions, navigate, focus }: PageProps) {
   const orgId = activeOrgId(snapshot);
   const [view, setView] = useState<View>("board");
   const [newTaskOpen, setNewTaskOpen] = useState(false);
@@ -48,7 +48,8 @@ export function WorkPage({ snapshot, actions }: PageProps) {
   const [newProjectOpen, setNewProjectOpen] = useState(false);
   const [priorityFilter, setPriorityFilter] = useState<TaskPriority | "all">("all");
   const [assigneeFilter, setAssigneeFilter] = useState<string>("all");
-  const [detailTaskId, setDetailTaskId] = useState<string | null>(null);
+  const [detailTaskId, setDetailTaskId] = useState<string | null>(focus?.kind === "task" ? focus.id : null);
+  const [scope, setScope] = useState<Focus | null>(focus && (focus.kind === "goal" || focus.kind === "project") ? focus : null);
   const [actionError, setActionError] = useState<string | null>(null);
 
   const allTasks = useMemo(() => snapshot.tasks.filter((task) => task.orgId === orgId), [snapshot.tasks, orgId]);
@@ -57,9 +58,11 @@ export function WorkPage({ snapshot, actions }: PageProps) {
       allTasks.filter((task) => {
         if (priorityFilter !== "all" && task.priority !== priorityFilter) return false;
         if (assigneeFilter !== "all" && task.assigneeAgentId !== assigneeFilter) return false;
+        if (scope?.kind === "goal" && task.goalId !== scope.id) return false;
+        if (scope?.kind === "project" && task.projectId !== scope.id) return false;
         return true;
       }),
-    [allTasks, priorityFilter, assigneeFilter],
+    [allTasks, priorityFilter, assigneeFilter, scope],
   );
   const assigneeCount = useMemo(
     () => new Set(tasks.map((task) => task.assigneeAgentId).filter((id): id is string => id !== null)).size,
@@ -103,6 +106,16 @@ export function WorkPage({ snapshot, actions }: PageProps) {
         <Button tone="primary" onClick={() => setNewTaskOpen(true)}><Icon name="plus" size={16} /> {t("New task")}</Button>
       </TopbarActions>
       <h1 className="page-h1">{t("Work")}</h1>
+      {scope && (
+        <div className="row" style={{ gap: 8, marginBottom: 8 }}>
+          <Pill>
+            {scope.kind === "goal"
+              ? t("Goal: {title}", { title: goals.find((goal) => goal.id === scope.id)?.title ?? scope.id })
+              : t("Project: {name}", { name: projects.find((project) => project.id === scope.id)?.name ?? scope.id })}
+          </Pill>
+          <button type="button" className="link-button" style={{ fontSize: 12 }} onClick={() => setScope(null)}>{t("Show all work")}</button>
+        </div>
+      )}
       <p className="page-sub">
         {tasks.length === 1 ? t("{n} task", { n: tasks.length }) : t("{n} tasks", { n: tasks.length })} · {assigneeCount === 1 ? t("{n} assignee", { n: assigneeCount }) : t("{n} assignees", { n: assigneeCount })}
       </p>
@@ -163,6 +176,12 @@ export function WorkPage({ snapshot, actions }: PageProps) {
         onClose={() => setDetailTaskId(null)}
         onAdvance={advance}
         onRun={runTask}
+        onOpenTask={setDetailTaskId}
+        onScope={(next) => {
+          setScope(next);
+          setDetailTaskId(null);
+        }}
+        navigate={navigate}
       />
     </div>
   );

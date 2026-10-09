@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import type { Focus } from "../pages/types";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { Shell, type RouteId } from "../shared/Shell";
 import { AvatarDirectoryContext, type AvatarLook } from "../shared/ui";
 import { Onboarding } from "./Onboarding";
@@ -18,6 +19,12 @@ import { OfficePage } from "../pages/OfficePage";
 export function App() {
   const { snapshot, actions } = useSnapshot();
   const [route, setRoute] = useState<RouteId>("home");
+  const [focus, setFocus] = useState<Focus | null>(null);
+  // Opening a page for an object remembers it; plain navigation forgets it.
+  const navigate = (next: RouteId, nextFocus?: Focus) => {
+    setRoute(next);
+    setFocus(nextFocus ?? null);
+  };
   const avatarDirectory = useMemo(() => {
     // Scope the directory to the active organization: names are only unique
     // within one org, and a same-named principal in another org must not
@@ -75,7 +82,7 @@ export function App() {
     );
   }
 
-  const pageProps = { snapshot, actions, navigate: setRoute };
+  const pageProps = { snapshot, actions, navigate, focus };
   const page = {
     home: <HomePage {...pageProps} />,
     team: <TeamPage {...pageProps} />,
@@ -89,18 +96,19 @@ export function App() {
     office: <OfficePage {...pageProps} />,
     settings: <SettingsPage {...pageProps} />,
   }[route];
+  const pageKey = focus ? `${route}:${focus.kind}:${focus.id}` : route;
 
   return (
     <AvatarDirectoryContext.Provider value={avatarDirectory}>
       <Shell
         snapshot={snapshot}
         route={route}
-        setRoute={setRoute}
+        setRoute={(next) => navigate(next)}
         onSwitchOrg={(orgId) => void actions.run(() => window.agentCompany.setActiveOrganization({ orgId }))}
         onDeleteOrg={(orgId) => void actions.run(() => window.agentCompany.deleteOrganization({ orgId }))}
         onNewOrg={() => setCreatingOrg(true)}
       >
-        {page}
+        <Fragment key={pageKey}>{page}</Fragment>
       </Shell>
     </AvatarDirectoryContext.Provider>
   );

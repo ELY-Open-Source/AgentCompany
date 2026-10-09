@@ -72,6 +72,20 @@ test("the pinned CEO conversation is the Messages front door", async () => {
     // The message itself says where the reply stands.
     await expect(chatLog.locator(".chat-message", { hasText: "How are we tracking against the goal?" }).first()).toContainText("CEO will reply; queued.");
 
+    // From a task, its goal, run and back are one click each.
+    await page.getByRole("button", { name: "Work" }).click();
+    await page.getByRole("button", { name: /Operationalize goal: Ship the FlowPilot MVP\./ }).first().click();
+    const taskDialog = page.getByRole("dialog", { name: "Operationalize goal: Ship the FlowPilot MVP." });
+    await taskDialog.getByRole("button", { name: "Open goal Ship the FlowPilot MVP." }).click();
+    await expect(page.getByText("Goal: Ship the FlowPilot MVP.", { exact: true })).toBeVisible();
+    await page.getByRole("button", { name: /Operationalize goal: Ship the FlowPilot MVP\./ }).first().click();
+    await taskDialog.getByRole("button", { name: /^Open run/ }).first().click();
+    await expect(page.getByRole("button", { name: "Open task Operationalize goal: Ship the FlowPilot MVP." })).toBeVisible();
+    await page.getByRole("button", { name: "Open task Operationalize goal: Ship the FlowPilot MVP." }).click();
+    await expect(taskDialog).toBeVisible();
+    await taskDialog.getByRole("button", { name: "Close" }).click();
+    await page.getByRole("button", { name: "Messages" }).click();
+
     // Recency pressure: newer traffic in a channel must not displace the pin.
     await page.evaluate(async () => {
       const api = (window as unknown as { agentCompany: {

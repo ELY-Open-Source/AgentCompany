@@ -16,6 +16,7 @@ import { TASK_STATUS } from "../../../../shared/domain";
 import { auditEventLabel, formatRelative } from "../types";
 import { descendantIds, nextStatus, prettyRunState, prettyStatus, providerFor, runBlocker, runsForTask, runTone } from "./task-helpers";
 import type { SnapshotActions } from "../../app/useSnapshot";
+import type { Focus, PageProps } from "../types";
 import { t } from "../../i18n/i18n";
 
 type Tab = "overview" | "subtasks" | "activity";
@@ -41,6 +42,9 @@ export function TaskDetailDialog({
   onClose,
   onAdvance,
   onRun,
+  onOpenTask,
+  onScope,
+  navigate,
 }: {
   task: TaskRecord | null;
   agents: AgentRecord[];
@@ -57,6 +61,9 @@ export function TaskDetailDialog({
   onClose: () => void;
   onAdvance: (task: TaskRecord) => void;
   onRun: (task: TaskRecord) => void;
+  onOpenTask: (taskId: string) => void;
+  onScope: (scope: Focus) => void;
+  navigate: PageProps["navigate"];
 }) {
   const [tab, setTab] = useState<Tab>("overview");
   const [editing, setEditing] = useState(false);
@@ -115,13 +122,25 @@ export function TaskDetailDialog({
         <div style={{ marginBottom: 12 }}><Segmented value={tab} onChange={setTab} options={TABS} /></div>
 
         {tab === "overview" && (
-          <OverviewTab task={task} assignee={assignee} project={project} goal={goal} workspace={workspace} provider={provider} runs={runs} />
+          <OverviewTab
+            task={task}
+            assignee={assignee}
+            project={project}
+            goal={goal}
+            workspace={workspace}
+            provider={provider}
+            runs={runs}
+            parent={allTasks.find((item) => item.id === task.parentTaskId) ?? null}
+            onOpenTask={onOpenTask}
+            onScope={onScope}
+            navigate={navigate}
+          />
         )}
         {tab === "subtasks" && (
-          <SubtasksTab subtasks={subtasks} agents={agents} />
+          <SubtasksTab subtasks={subtasks} agents={agents} onOpenTask={onOpenTask} />
         )}
         {tab === "activity" && (
-          <ActivityTab audit={taskAudit} approvals={taskApprovals} />
+          <ActivityTab audit={taskAudit} approvals={taskApprovals} onOpenApproval={(approvalId) => navigate("approvals", { kind: "approval", id: approvalId })} />
         )}
 
         <div className="modal-actions">
@@ -136,10 +155,11 @@ export function TaskDetailDialog({
   );
 }
 
-function OverviewTab({ task, assignee, project, goal, workspace, provider, runs }: {
+function OverviewTab({ task, assignee, project, goal, workspace, provider, runs, parent, onOpenTask, onScope, navigate }: {
   task: TaskRecord; assignee: AgentRecord | null; project: ProjectRecord | null;
   goal: GoalRecord | null; workspace: WorkspaceRecord | null; provider: ProviderRecord | null;
-  runs: TaskRunRecord[];
+  runs: TaskRunRecord[]; parent: TaskRecord | null;
+  onOpenTask: (taskId: string) => void; onScope: (scope: Focus) => void; navigate: PageProps["navigate"];
 }) {
   return (
     <>
@@ -152,9 +172,10 @@ function OverviewTab({ task, assignee, project, goal, workspace, provider, runs 
         <div className="row" style={{ gap: 8 }}>
           {assignee ? (<><Avatar name={assignee.name} size="sm" bot /><span>{assignee.name}</span>{provider && <span style={{ color: "var(--text-3)" }}>({provider.label})</span>}</>) : <span style={{ color: "var(--text-4)" }}>{t("Unassigned")}</span>}
         </div>
-        {project && (<><MetaLabel>{t("Project")}</MetaLabel><div>{project.name}</div></>)}
-        {goal && (<><MetaLabel>{t("Goal")}</MetaLabel><div>{goal.title}</div></>)}
-        {workspace && (<><MetaLabel>{t("Workspace")}</MetaLabel><div>{workspace.name}</div></>)}
+        {parent && (<><MetaLabel>{t("Parent task")}</MetaLabel><LinkButton label={t("Open task {title}", { title: parent.title })} onClick={() => onOpenTask(parent.id)}>{parent.title}</LinkButton></>)}
+        {project && (<><MetaLabel>{t("Project")}</MetaLabel><LinkButton label={t("Open project {name}", { name: project.name })} onClick={() => onScope({ kind: "project", id: project.id })}>{project.name}</LinkButton></>)}
+        {goal && (<><MetaLabel>{t("Goal")}</MetaLabel><LinkButton label={t("Open goal {title}", { title: goal.title })} onClick={() => onScope({ kind: "goal", id: goal.id })}>{goal.title}</LinkButton></>)}
+        {workspace && (<><MetaLabel>{t("Workspace")}</MetaLabel><LinkButton label={t("Open workspace {name}", { name: workspace.name })} onClick={() => navigate("settings", { kind: "workspace", id: workspace.id })}>{workspace.name}</LinkButton></>)}
       </div>
       {runs.length > 0 && (
         <div style={{ marginTop: 16 }}>
@@ -163,7 +184,9 @@ function OverviewTab({ task, assignee, project, goal, workspace, provider, runs 
             {runs.map((run) => (
               <div key={run.id} style={{ display: "flex", flexDirection: "column", gap: 2 }}>
                 <div className="row" style={{ gap: 8 }}>
-                  <Pill tone={runTone(run.state)}>{prettyRunState(run.state)}</Pill>
+                  <button type="button" className="link-button" aria-label={t("Open run {id}", { id: run.id })} onClick={() => navigate("runs", { kind: "run", id: run.id })}>
+                    <Pill tone={runTone(run.state)}>{prettyRunState(run.state)}</Pill>
+                  </button>
                   <span style={{ color: "var(--text-3)", fontSize: 12 }}>{run.trigger}</span>
                   <span className="num" style={{ marginLeft: "auto", color: "var(--text-3)", fontSize: 12 }}>{formatRelative(run.createdAt)}</span>
                 </div>
@@ -182,7 +205,7 @@ function OverviewTab({ task, assignee, project, goal, workspace, provider, runs 
   );
 }
 
-function SubtasksTab({ subtasks, agents }: { subtasks: TaskRecord[]; agents: AgentRecord[] }) {
+function SubtasksTab({ subtasks, agents, onOpenTask }: { subtasks: TaskRecord[]; agents: AgentRecord[]; onOpenTask: (taskId: string) => void }) {
   return (
     <div style={{ minHeight: 60 }}>
       {subtasks.length === 0 && <div style={{ fontSize: 14, color: "var(--text-3)" }}>{t("No subtasks")}</div>}
@@ -191,7 +214,7 @@ function SubtasksTab({ subtasks, agents }: { subtasks: TaskRecord[]; agents: Age
         return (
           <div key={st.id} className="row" style={{ gap: 10, padding: "8px 0", borderBottom: "1px solid var(--border-soft)" }}>
             <Icon name={st.status === TASK_STATUS.DONE ? "check" : "work"} size={16} color={st.status === TASK_STATUS.DONE ? "var(--green)" : "var(--text-3)"} />
-            <span style={{ flex: 1, fontSize: 14, fontWeight: 480, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{st.title}</span>
+            <button type="button" className="link-button" aria-label={t("Open task {title}", { title: st.title })} onClick={() => onOpenTask(st.id)} style={{ flex: 1, fontSize: 14, fontWeight: 480, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textAlign: "left" }}>{st.title}</button>
             <Pill>{prettyStatus(st.status)}</Pill>
             {owner && <Avatar name={owner.name} size="sm" bot />}
           </div>
@@ -201,7 +224,7 @@ function SubtasksTab({ subtasks, agents }: { subtasks: TaskRecord[]; agents: Age
   );
 }
 
-function ActivityTab({ audit, approvals }: { audit: AuditEventRecord[]; approvals: ApprovalRecord[] }) {
+function ActivityTab({ audit, approvals, onOpenApproval }: { audit: AuditEventRecord[]; approvals: ApprovalRecord[]; onOpenApproval: (approvalId: string) => void }) {
   return (
     <div style={{ minHeight: 60 }}>
       {approvals.length > 0 && (
@@ -210,7 +233,7 @@ function ActivityTab({ audit, approvals }: { audit: AuditEventRecord[]; approval
           {approvals.map((a) => (
             <div key={a.id} className="row" style={{ gap: 8, padding: "6px 0" }}>
               <Pill tone={a.state === "approved" ? "green" : a.state === "pending" ? "amber" : "red"}>{a.state}</Pill>
-              <span style={{ fontSize: 12 }}>{a.title}</span>
+              <button type="button" className="link-button" style={{ fontSize: 12 }} aria-label={t("Open approval {title}", { title: a.title })} onClick={() => onOpenApproval(a.id)}>{a.title}</button>
               <span className="mono" style={{ marginLeft: "auto", fontSize: 12, color: "var(--text-3)" }}>{formatRelative(a.createdAt)}</span>
             </div>
           ))}
@@ -276,4 +299,8 @@ function EditOverlay({ task, agents, allTasks, error, onSubmit, onCancel }: {
 
 function MetaLabel({ children }: { children: string }) {
   return <div style={{ color: "var(--text-3)" }}>{children}</div>;
+}
+
+function LinkButton({ label, onClick, children }: { label: string; onClick: () => void; children: string }) {
+  return <button type="button" className="link-button" aria-label={label} onClick={onClick} style={{ textAlign: "left" }}>{children}</button>;
 }

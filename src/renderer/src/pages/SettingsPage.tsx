@@ -21,7 +21,7 @@ const TABS: NavSpec[] = [
   { id: "advanced", label: t("Advanced") },
 ];
 
-export function SettingsPage({ snapshot, actions }: PageProps) {
+export function SettingsPage({ snapshot, actions, focus }: PageProps) {
   const orgId = activeOrgId(snapshot);
   const organization = requireActiveOrganization(snapshot);
   const employee = requireActiveEmployee(snapshot);
@@ -46,7 +46,7 @@ export function SettingsPage({ snapshot, actions }: PageProps) {
       </aside>
       <div className="main" style={{ flex: 1, minWidth: 0 }}>
         <div className="content">
-          {tab === "general" && <WorkspacePanel organization={organization} workspaces={workspaces} projects={snapshot.projects.filter((p) => p.orgId === orgId)} orgId={orgId} uiPreferences={snapshot.uiPreferences} actions={actions} />}
+          {tab === "general" && <WorkspacePanel focusedWorkspaceId={focus?.kind === "workspace" ? focus.id : null} organization={organization} workspaces={workspaces} projects={snapshot.projects.filter((p) => p.orgId === orgId)} orgId={orgId} uiPreferences={snapshot.uiPreferences} actions={actions} />}
           {tab === "providers" && (
             <ProvidersPanel
               orgId={orgId}

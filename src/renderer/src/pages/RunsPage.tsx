@@ -15,7 +15,7 @@ const FILTERS: Array<{ id: StatusFilter; label: string }> = [
   { id: "failed", label: t("Failed") },
 ];
 
-export function RunsPage({ snapshot, actions }: PageProps) {
+export function RunsPage({ snapshot, actions, navigate, focus }: PageProps) {
   const orgId = activeOrgId(snapshot);
   const taskRuns = useMemo(() => snapshot.taskRuns.filter((r) => r.orgId === orgId), [snapshot.taskRuns, orgId]);
   const tasks = useMemo(() => snapshot.tasks.filter((t) => t.orgId === orgId), [snapshot.tasks, orgId]);
@@ -23,7 +23,7 @@ export function RunsPage({ snapshot, actions }: PageProps) {
   const providers = useMemo(() => snapshot.providers.filter((p) => p.orgId === orgId), [snapshot.providers, orgId]);
   const providerRequests = useMemo(() => snapshot.providerRequests.filter((r) => r.orgId === orgId), [snapshot.providerRequests, orgId]);
   const [filter, setFilter] = useState<StatusFilter>("all");
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(focus?.kind === "run" ? focus.id : null);
   const [search, setSearch] = useState("");
 
   const filtered = useMemo(() => {
@@ -90,7 +90,7 @@ export function RunsPage({ snapshot, actions }: PageProps) {
       </aside>
       <div style={{ flex: 1, minWidth: 0, overflow: "auto", padding: 24 }}>
         {selected ? (
-          <RunDetail run={selected} tasks={tasks} agents={agents} providers={providers} providerRequests={providerRequests} actions={actions} />
+          <RunDetail run={selected} tasks={tasks} agents={agents} providers={providers} providerRequests={providerRequests} actions={actions} onOpenTask={(taskId) => navigate("work", { kind: "task", id: taskId })} />
         ) : (
           <div style={{ display: "grid", placeItems: "center", height: "100%", color: "var(--text-3)", fontSize: 14 }}>
             {t("Select a run")}
@@ -101,8 +101,9 @@ export function RunsPage({ snapshot, actions }: PageProps) {
   );
 }
 
-function RunDetail({ run, tasks, agents, providers, providerRequests, actions }: {
+function RunDetail({ run, tasks, agents, providers, providerRequests, actions, onOpenTask }: {
   actions: PageProps["actions"];
+  onOpenTask: (taskId: string) => void;
   run: TaskRunRecord;
   tasks: TaskRecord[];
   agents: AgentRecord[];
@@ -129,7 +130,9 @@ function RunDetail({ run, tasks, agents, providers, providerRequests, actions }:
       <div className="row" style={{ gap: 10, marginBottom: 16 }}>
         {agent && <Avatar name={agent.name} size="sm" bot />}
         <div>
-          <div style={{ fontSize: 16, fontWeight: 600 }}>{task?.title ?? run.taskId}</div>
+          <button type="button" className="link-button" style={{ fontSize: 16, fontWeight: 600 }} aria-label={t("Open task {title}", { title: task?.title ?? run.taskId })} onClick={() => onOpenTask(run.taskId)}>
+            {task?.title ?? run.taskId}
+          </button>
           <div style={{ fontSize: 12, color: "var(--text-3)" }}>{run.id}</div>
         </div>
         <Pill tone={runTone(run.state)}>{runLabel(run.state)}</Pill>

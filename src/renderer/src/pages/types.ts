@@ -7,10 +7,18 @@ import type { SnapshotActions } from "../app/useSnapshot";
 import type { RouteId } from "../shared/Shell";
 import { t } from "../i18n/i18n";
 
+/** One object a page should open when navigated to: a task, run, approval, workspace, or the goal or project to scope work by. */
+export interface Focus {
+  kind: "task" | "run" | "approval" | "goal" | "project" | "workspace";
+  id: string;
+}
+
 export interface PageProps {
   snapshot: AppSnapshot;
   actions: SnapshotActions;
-  navigate: (route: RouteId) => void;
+  navigate: (route: RouteId, focus?: Focus) => void;
+  /** What the page was opened for; pages remount per navigation, so they read it once. */
+  focus: Focus | null;
 }
 
 export function activeOrgId(snapshot: AppSnapshot): string {

@@ -343,3 +343,7 @@ textarea.input { min-height: 84px; resize: vertical; line-height: 1.5; }
 .md-body table { border-collapse: collapse; margin: 0 0 6px; display: block; overflow-x: auto; max-width: 100%; }
 .md-body th, .md-body td { border: 1px solid var(--border); padding: 4px 8px; text-align: left; }
 .md-body th { background: var(--panel-2); font-weight: 600; }
+
+/* A link to another object, styled as text the reader can follow. */
+.link-button { border: 0; background: transparent; padding: 0; color: var(--accent); cursor: pointer; font: inherit; text-align: inherit; }
+.link-button:hover { text-decoration: underline; }
