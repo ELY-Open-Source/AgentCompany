@@ -41,6 +41,9 @@ describe("a message's reply status", () => {
     const status = () => new SnapshotService(connection.db).load().chatReplyStatuses.filter((item) => item.messageId === messageId);
 
     expect(status()).toEqual([{ messageId, agentId: ceoId, state: "queued", detail: null, resumesAt: null }]);
+    // The CEO answers channel messages that name no one.
+    const general = (connection.db.prepare("select id from chat_spaces where org_id = ? and name = 'general'").get(orgId) as { id: string }).id;
+    expect(new SnapshotService(connection.db).load().chatSpaceAnchors.find((item) => item.spaceId === general)).toEqual({ spaceId: general, agentId: ceoId });
     // A second message folded into the same queued reply gets the same status.
     const follow = connection.transaction(() => new ChatService(connection.db).sendMessage({
       orgId, spaceId: dm, threadId: (connection.db.prepare("select thread_id from chat_messages where id = ?").get(messageId) as { thread_id: string }).thread_id,

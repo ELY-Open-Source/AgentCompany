@@ -113,3 +113,9 @@ export type ChatReplyStatus = { messageId: string; agentId: string } & (
   | { state: "expired" | "failed"; detail: string; resumesAt: null }
   | { state: "stopped"; detail: string | null; resumesAt: null }
 );
+
+/** The agent that answers a channel message naming no one, per channel that has one. */
+export interface ChatSpaceAnchor {
+  spaceId: string;
+  agentId: string;
+}

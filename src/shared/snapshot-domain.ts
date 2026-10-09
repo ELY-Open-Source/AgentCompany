@@ -12,6 +12,7 @@ import type {
   ChatSpaceRecord,
   ChatThreadRecord,
   ChatReplyStatus,
+  ChatSpaceAnchor,
 } from "./chat-domain";
 import type { ComplianceExportRecord, LegalHoldRecord, RetentionFreezeRecord } from "./compliance-domain";
 import type {
@@ -86,6 +87,7 @@ export interface AppSnapshot {
   chatMessages: ChatMessageRecord[];
   chatThreads: ChatThreadRecord[];
   chatReplyStatuses: ChatReplyStatus[];
+  chatSpaceAnchors: ChatSpaceAnchor[];
   chatAttachments: ChatAttachmentRecord[];
   chatMentions: ChatMentionRecord[];
   chatSlashInvocations: ChatSlashInvocationRecord[];

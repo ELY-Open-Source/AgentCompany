@@ -7,7 +7,7 @@ import { ChatConversation } from "./chat/ChatConversation";
 import type { Draft, SendState } from "./chat/ChatComposer";
 import {
   buildConversations,
-  collectParticipants,
+  spaceMembers,
   filterApprovalsForSpace,
   messageReaders,
 } from "./chat/chat-helpers";
@@ -99,10 +99,11 @@ export function ChatPage({ snapshot, actions }: PageProps) {
     () => (activeSpace ? messagesAll.filter((m) => m.spaceId === activeSpace.id) : []),
     [messagesAll, activeSpace],
   );
-  const participants = useMemo(
-    () => collectParticipants(messagesInSpace, employees, agents),
-    [messagesInSpace, employees, agents],
-  );
+  const members = useMemo(() => {
+    if (!activeSpace) return [];
+    const anchor = snapshot.chatSpaceAnchors.find((item) => item.spaceId === activeSpace.id)?.agentId ?? null;
+    return spaceMembers(activeSpace, snapshot.chatMemberships, employees, agents, anchor);
+  }, [activeSpace, snapshot.chatSpaceAnchors, snapshot.chatMemberships, employees, agents]);
   const pendingApprovalsInSpace = filterApprovalsForSpace(approvalsAll, activeSpace);
 
   const sendInChannel = (event: FormEvent<HTMLFormElement>) => {
@@ -236,7 +237,7 @@ export function ChatPage({ snapshot, actions }: PageProps) {
       <ChatConversation
         key={activeSpace?.id ?? "none"}
         space={activeSpace}
-        participants={participants}
+        members={members}
         messagesInSpace={messagesInSpace}
         threads={snapshot.chatThreads}
         replyStatuses={snapshot.chatReplyStatuses}

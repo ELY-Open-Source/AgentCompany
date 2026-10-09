@@ -6,6 +6,7 @@ import { currentProviderUsageWindow } from "../../shared/provider-runtime-domain
 import { buildUsageStats } from "./usage-stats";
 import { taskHolds } from "./task-holds";
 import { chatReplyStatuses } from "./chat-reply-status";
+import { channelAnchorAgentId } from "./chat-anchor";
 
 type Row = Record<string, unknown>;
 type ProviderUsageWindowRow = Pick<
@@ -100,6 +101,11 @@ export class SnapshotService {
       chatMemberships: list(this.db, "chat_memberships", "space_id asc, principal_type asc, principal_id asc"),
       chatMessages,
       chatReplyStatuses: chatReplyStatuses(this.db, chatMessages.map((message) => message.id), holds),
+      chatSpaceAnchors: (this.db.prepare("select id, org_id from chat_spaces where space_type <> 'direct'").all() as Array<{ id: string; org_id: string }>)
+        .flatMap((space) => {
+          const agentId = channelAnchorAgentId(this.db, space.org_id, space.id);
+          return agentId ? [{ spaceId: space.id, agentId }] : [];
+        }),
       // Every thread a loaded message belongs to, plus the most recently active ones, so no shown message loses its thread.
       chatThreads: all<Row>(this.db.prepare(`
         select * from chat_threads

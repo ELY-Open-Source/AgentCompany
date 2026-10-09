@@ -66,24 +66,40 @@ export function messageAttachments(
     .filter((file): file is FileObjectRecord => Boolean(file));
 }
 
-export function collectParticipants(
-  messages: ChatMessageRecord[],
+/** One member of a conversation and what they do in it. */
+export interface SpaceMember {
+  id: string;
+  name: string;
+  bot: boolean;
+  duty: string;
+}
+
+/** Every member of the conversation, spoken or not, with the rule by which each agent replies (the same rules the server wakes them by). */
+export function spaceMembers(
+  space: ChatSpaceRecord,
+  memberships: ChatMembershipRecord[],
   employees: EmployeeRecord[],
   agents: AgentRecord[],
-): string[] {
-  const seen = new Map<string, string>();
-  for (const message of messages) {
-    if (!message.senderId) continue;
-    if (seen.has(message.senderId)) continue;
-    if (message.senderType === "employee") {
-      const employee = employees.find((item) => item.id === message.senderId);
-      if (employee) seen.set(message.senderId, employee.displayName);
-    } else if (message.senderType === "agent") {
-      const agent = agents.find((item) => item.id === message.senderId);
-      if (agent) seen.set(message.senderId, agent.name);
+  anchorAgentId: string | null,
+): SpaceMember[] {
+  const direct = space.spaceType === "direct";
+  return memberships.filter((membership) => membership.spaceId === space.id).map((membership) => {
+    if (membership.principalType === "employee") {
+      const employee = employees.find((item) => item.id === membership.principalId);
+      return { id: membership.principalId, name: employee ? employee.displayName : t("Former member"), bot: false, duty: t("Reads and writes") };
     }
-  }
-  return [...seen.values()];
+    const agent = agents.find((item) => item.id === membership.principalId);
+    const duty = direct ? t("Replies to every message")
+      : membership.principalId === anchorAgentId ? t("Replies when @mentioned, in threads it joined, and to messages that name no one")
+      : t("Replies when @mentioned and in threads it joined");
+    return { id: membership.principalId, name: agent ? agent.name : t("Former member"), bot: true, duty };
+  });
+}
+
+/** Who can read the conversation beyond its listed members. */
+export function spaceReaders(space: ChatSpaceRecord): string {
+  if (space.spaceType === "direct") return t("Only the people in this conversation can read it.");
+  return space.visibility === "workspace" ? t("Everyone in the company can read this channel.") : t("Only members can read this channel.");
 }
 
 export function filterApprovalsForSpace(

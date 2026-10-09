@@ -204,6 +204,17 @@ test("the pinned CEO conversation is the Messages front door", async () => {
     }
     await expect(start).toBeVisible();
     await expect(chatLog.getByText("General line 0", { exact: true })).toBeVisible();
+
+    // The header lists the real members, how each agent replies, and who can read.
+    await page.getByRole("button", { name: /^Members \(/ }).click();
+    const roster = page.getByRole("menu");
+    await expect(roster).toContainText("Everyone in the company can read this channel.");
+    await expect(roster.locator(".members-roster")).toHaveCSS("overflow-y", "auto");
+    await expect(roster).toContainText("Replies when @mentioned, in threads it joined, and to messages that name no one");
+    await page.keyboard.press("Escape");
+    await page.locator(".convo-item").first().click();
+    await page.getByRole("button", { name: /^Members \(/ }).click();
+    await expect(page.getByRole("menu")).toContainText("Replies to every message");
   } finally {
     await app.close();
   }

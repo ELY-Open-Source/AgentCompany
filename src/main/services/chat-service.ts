@@ -1,3 +1,4 @@
+import { channelAnchorAgentId } from "./chat-anchor";
 import { readVerifiedFile } from "./files/file-object-store";
 import type { DatabaseSync } from "node:sqlite";
 import type { CreateChatSpaceInput, DeleteMessageInput, EditMessageInput, MarkChatSpaceReadInput, SendMessageInput } from "../../shared/commands";
@@ -313,24 +314,13 @@ export class ChatService {
    * exactly like a room going quiet until the highest-ranking person speaks.
    */
   private wakeChannelAnchor(input: SendMessageInput, space: SpaceRow, messageId: string, threadId: string, now: string): void {
-    const anchor = this.db.prepare(`
-      select a.id as agent_id
-      from chat_memberships cm
-      join agents a on a.id = cm.principal_id and a.org_id = ?
-      join providers p on p.id = a.model_provider_id and p.org_id = a.org_id
-      where cm.space_id = ? and cm.principal_type = 'agent'
-        and a.lifecycle = 'active'
-        and p.enabled = 1
-      order by case a.role_level when 'c_suite' then 0 when 'director' then 1 when 'lead' then 2 else 3 end,
-               a.created_at asc
-      limit 1
-    `).get(input.orgId, input.spaceId) as { agent_id: string } | undefined;
-    if (!anchor) {
+    const anchorId = channelAnchorAgentId(this.db, input.orgId, input.spaceId);
+    if (!anchorId) {
       console.info(`[chat] no runnable agent member in #${space.name}; the message stays unanswered until one is hired or a provider is enabled.`);
       return;
     }
     try {
-      this.agentWake.wakeFromMention(input, anchor.agent_id, messageId, threadId, now);
+      this.agentWake.wakeFromMention(input, anchorId, messageId, threadId, now);
     } catch (error) {
       console.warn(`[chat] waking channel anchor for #${space.name} failed: ${error instanceof Error ? error.message : String(error)}`);
     }
