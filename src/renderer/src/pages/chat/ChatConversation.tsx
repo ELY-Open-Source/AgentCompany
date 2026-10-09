@@ -14,7 +14,7 @@ import { ChatComposer, type Draft, type SendState } from "./ChatComposer";
 import { ChatTimeline } from "./ChatTimeline";
 import { ThreadPanel } from "./ThreadPanel";
 import { buildThreadLinks } from "./thread-links";
-import type { SpaceHistoryPage } from "../../../../shared/chat-domain";
+import type { ChatReplyStatus, SpaceHistoryPage } from "../../../../shared/chat-domain";
 
 /** Older messages fetched per "Show earlier messages". */
 const HISTORY_PAGE = 150;
@@ -26,6 +26,7 @@ export function ChatConversation({
   participants,
   messagesInSpace,
   threads,
+  replyStatuses,
   pendingApprovals,
   attachments,
   mentions,
@@ -53,6 +54,7 @@ export function ChatConversation({
   participants: string[];
   messagesInSpace: ChatMessageRecord[];
   threads: ChatThreadRecord[];
+  replyStatuses: ChatReplyStatus[];
   pendingApprovals: ApprovalRecord[];
   attachments: ChatAttachmentRecord[];
   mentions: ChatMentionRecord[];
@@ -130,6 +132,10 @@ export function ChatConversation({
   const pagedIds = useMemo(() => new Set((older?.messages ?? []).map((message) => message.id)), [older]);
   const allAttachments = useMemo(() => [...(older?.attachments ?? []), ...attachments.filter((item) => !pagedIds.has(item.messageId))], [older, attachments, pagedIds]);
   const allMentions = useMemo(() => [...(older?.mentions ?? []), ...mentions.filter((item) => !pagedIds.has(item.messageId))], [older, mentions, pagedIds]);
+  const allReplyStatuses = useMemo(
+    () => [...(older?.replyStatuses ?? []), ...replyStatuses.filter((item) => !pagedIds.has(item.messageId))],
+    [older, replyStatuses, pagedIds],
+  );
   const allSlashInvocations = useMemo(
     () => [...(older?.slashInvocations ?? []), ...slashInvocations.filter((item) => !pagedIds.has(item.messageId))],
     [older, slashInvocations, pagedIds],
@@ -214,6 +220,7 @@ export function ChatConversation({
                 historyError={historyError}
                 onLoadOlder={loadOlder}
                 threadLinks={threadLinks}
+                replyStatuses={allReplyStatuses}
                 onOpenThread={setOpenThreadId}
                 onApprove={onApprove}
                 onDecline={onDecline}

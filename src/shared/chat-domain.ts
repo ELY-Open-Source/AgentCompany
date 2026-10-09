@@ -102,5 +102,14 @@ export interface ThreadHistory {
 export interface SpaceHistoryPage extends ThreadHistory {
   /** The threads these messages belong to, which the snapshot may no longer hold. */
   threads: ChatThreadRecord[];
+  replyStatuses: ChatReplyStatus[];
   hasMore: boolean;
 }
+
+/** Where one agent's reply to a message stands: waiting carries the hold's reason and resume time, expired and failed say why. */
+export type ChatReplyStatus = { messageId: string; agentId: string } & (
+  | { state: "queued" | "running" | "replied"; detail: null; resumesAt: null }
+  | { state: "waiting"; detail: string; resumesAt: string | null }
+  | { state: "expired" | "failed"; detail: string; resumesAt: null }
+  | { state: "stopped"; detail: string | null; resumesAt: null }
+);

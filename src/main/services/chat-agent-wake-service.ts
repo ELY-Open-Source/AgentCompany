@@ -122,7 +122,10 @@ export class ChatAgentWakeService {
     // newest messages when it executes, so waking again before it starts would
     // spend a whole run to answer the same conversation twice.
     const pending = this.pendingWakeRun(input.orgId, agentId, threadId);
-    if (pending) return { targetId: agentId, taskId: pending.taskId, runId: pending.runId };
+    if (pending) {
+      this.recordReplyRequest(messageId, agentId, pending.taskId, now);
+      return { targetId: agentId, taskId: pending.taskId, runId: pending.runId };
+    }
     const workspace = this.workspaceForAgent(input.orgId, agent.workspace_id);
     const from = this.principalName(input.orgId, input.senderType, input.senderId);
     const space = this.spaceRow(input.orgId, input.spaceId);
@@ -142,6 +145,7 @@ export class ChatAgentWakeService {
       origin: "chat_wake",
     });
     const runId = this.createQueuedRun({ orgId: input.orgId, taskId, agent, workspace, messageId, threadId, senderType: input.senderType, now });
+    this.recordReplyRequest(messageId, agent.id, taskId, now);
     this.recordPresence(agent.id, { command: "mention", args: "" }, now);
     return { targetId: agent.id, taskId, runId };
   }
@@ -168,8 +172,14 @@ export class ChatAgentWakeService {
       origin: "chat_wake",
     });
     const runId = this.createQueuedRun({ orgId: input.orgId, taskId, agent, workspace, messageId, threadId, senderType: input.senderType, now });
+    this.recordReplyRequest(messageId, agent.id, taskId, now);
     this.recordPresence(agent.id, slash, now);
     return { targetId: agent.id, taskId, runId };
+  }
+
+  /** Links the message to the wake task that answers it, so the message can show where its reply stands. */
+  private recordReplyRequest(messageId: string, agentId: string, taskId: string, now: string): void {
+    this.db.prepare("insert or ignore into chat_reply_requests(message_id, agent_id, task_id, created_at) values (?, ?, ?, ?)").run(messageId, agentId, taskId, now);
   }
 
   private pendingWakeRun(orgId: string, agentId: string, threadId: string): { taskId: string; runId: string } | null {

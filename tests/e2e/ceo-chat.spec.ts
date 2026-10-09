@@ -69,6 +69,8 @@ test("the pinned CEO conversation is the Messages front door", async () => {
       return snapshot.data.taskRuns.filter((run) => run.agentId === ceo.id && run.trigger === "chat_mention").map((run) => run.state);
     });
     expect(wake).toEqual(["queued"]);
+    // The message itself says where the reply stands.
+    await expect(chatLog.locator(".chat-message", { hasText: "How are we tracking against the goal?" }).first()).toContainText("CEO will reply; queued.");
 
     // Recency pressure: newer traffic in a channel must not displace the pin.
     await page.evaluate(async () => {

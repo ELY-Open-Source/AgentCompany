@@ -10,6 +10,7 @@ import type {
 import { formatTime } from "../types";
 import { messageAttachments, senderName, type MessageContext } from "./chat-helpers";
 import type { ThreadLink } from "./thread-links";
+import type { ChatReplyStatus } from "../../../../shared/chat-domain";
 import { t } from "../../i18n/i18n";
 
 export function ChatMessageRow({
@@ -21,6 +22,7 @@ export function ChatMessageRow({
   context,
   canModify = false,
   thread,
+  replyStatuses = [],
   onOpenThread,
   onEdit,
   onDelete,
@@ -35,6 +37,8 @@ export function ChatMessageRow({
   canModify?: boolean;
   /** Where the message sits in its thread; absent inside the thread view itself. */
   thread?: ThreadLink;
+  /** Where each agent's reply to this message stands; a finished reply shows nothing. */
+  replyStatuses?: ChatReplyStatus[];
   onOpenThread?: () => void;
   onEdit?: (bodyMd: string) => void;
   onDelete?: () => void;
@@ -124,6 +128,11 @@ export function ChatMessageRow({
             {thread.replyCount === 1 ? t("1 reply") : t("{count} replies", { count: String(thread.replyCount) })}
           </button>
         )}
+        {replyStatuses.filter((status) => status.state !== "replied").map((status) => (
+          <div key={`${status.agentId}-${status.state}`} role="status" style={{ fontSize: 12, color: status.state === "failed" || status.state === "expired" ? "var(--red)" : "var(--text-3)", marginTop: 4 }}>
+            {replyStatusText(status, context)}
+          </div>
+        ))}
         {readers.length > 0 && (
           <div style={{ fontSize: 12, color: "var(--text-3)", marginTop: 4 }}>
             {t("Read by {names}", { names: readers.join(", ") })}
@@ -132,6 +141,20 @@ export function ChatMessageRow({
       </div>
     </div>
   );
+}
+
+function replyStatusText(status: ChatReplyStatus, context: MessageContext): string {
+  const agent = context.agents.find((item) => item.id === status.agentId)?.name ?? t("Former member");
+  if (status.state === "queued") return t("{agent} will reply; queued.", { agent });
+  if (status.state === "running") return t("{agent} is replying…", { agent });
+  if (status.state === "waiting") {
+    return status.resumesAt
+      ? t("{agent} is waiting: {reason} Resumes {time}.", { agent, reason: status.detail, time: formatTime(status.resumesAt) })
+      : t("{agent} is waiting: {reason}", { agent, reason: status.detail });
+  }
+  if (status.state === "expired") return t("{agent} did not reply: {reason}", { agent, reason: status.detail });
+  if (status.state === "failed") return t("{agent}'s reply failed: {reason}", { agent, reason: status.detail });
+  return t("{agent}'s reply was stopped.", { agent });
 }
 
 function renderBody(body: string, mentions: ChatMentionRecord[], context: MessageContext): ReactNode {

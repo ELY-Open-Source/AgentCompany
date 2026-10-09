@@ -238,6 +238,7 @@ export function ChatPage({ snapshot, actions }: PageProps) {
         participants={participants}
         messagesInSpace={messagesInSpace}
         threads={snapshot.chatThreads}
+        replyStatuses={snapshot.chatReplyStatuses}
         pendingApprovals={pendingApprovalsInSpace}
         attachments={snapshot.chatAttachments}
         mentions={mentionsAll}

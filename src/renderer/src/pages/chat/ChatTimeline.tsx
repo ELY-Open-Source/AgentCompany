@@ -10,6 +10,7 @@ import type {
 } from "../../../../shared/domain";
 import { ChatMessageRow } from "./ChatMessageRow";
 import type { ThreadLink } from "./thread-links";
+import type { ChatReplyStatus } from "../../../../shared/chat-domain";
 import { formatDay, type MessageContext } from "./chat-helpers";
 import { t } from "../../i18n/i18n";
 
@@ -42,6 +43,7 @@ export function ChatTimeline({
   historyError,
   onLoadOlder,
   threadLinks,
+  replyStatuses,
   onOpenThread,
   onApprove,
   onDecline,
@@ -62,6 +64,7 @@ export function ChatTimeline({
   historyError: string | null;
   onLoadOlder: () => void;
   threadLinks: Map<string, ThreadLink>;
+  replyStatuses: ChatReplyStatus[];
   onOpenThread: (threadId: string) => void;
   onApprove: (approvalId: string) => void;
   onDecline: (approvalId: string) => void;
@@ -72,6 +75,7 @@ export function ChatTimeline({
   const [visibleCount, setVisibleCount] = useState(WINDOW_SIZE);
 
   const attachmentsByMessage = groupBy(attachments, (item) => item.messageId);
+  const repliesByMessage = groupBy(replyStatuses, (item) => item.messageId);
   const mentionsByMessage = groupBy(mentions, (item) => item.messageId);
   const invocationsByMessage = groupBy(slashInvocations, (item) => item.messageId);
 
@@ -113,6 +117,7 @@ export function ChatTimeline({
         context={context}
         canModify={message.senderType === "employee" && message.senderId === currentEmployeeId && !message.deletedAt}
         thread={threadLinks.get(message.id)}
+        replyStatuses={repliesByMessage.get(message.id)}
         onOpenThread={threadId ? () => onOpenThread(threadId) : undefined}
         onEdit={(bodyMd) => onEditMessage(message.id, bodyMd)}
         onDelete={() => onDeleteMessage(message.id)}

@@ -1,6 +1,8 @@
 import type { DatabaseSync } from "node:sqlite";
 import type { SpaceHistoryPage, ThreadHistory } from "../../shared/chat-domain";
 import { camel } from "./snapshot-service";
+import { chatReplyStatuses } from "./chat-reply-status";
+import { taskHolds } from "./task-holds";
 
 /** Every message of one thread with its attachments, mentions and commands, however far back it started. */
 export function threadHistory(db: DatabaseSync, orgId: string, threadId: string): ThreadHistory {
@@ -55,6 +57,7 @@ export function spaceHistory(db: DatabaseSync, orgId: string, spaceId: string, b
     mentions: carried("select * from chat_mentions where message_id in (select value from json_each(?)) order by message_id, offset_start"),
     slashInvocations: carried("select * from chat_slash_invocations where message_id in (select value from json_each(?)) order by message_id"),
     threads: carried("select * from chat_threads where id in (select thread_id from chat_messages where id in (select value from json_each(?)))"),
+    replyStatuses: chatReplyStatuses(db, page.map((row) => row.id as string), taskHolds(db, new Date())),
     hasMore,
   };
 }

@@ -70,6 +70,7 @@ describe("a conversation's history", () => {
     expect(spaceHistory(connection.db, orgId, spaceId, ids[200], { fromMessageId: ids[1] }).hasMore).toBe(true);
     // Each page carries the threads of its messages, which the snapshot may have dropped.
     expect(refreshed.threads.map((thread) => thread.rootMessageId).sort()).toEqual(ids.slice(0, 200).sort());
+    expect(refreshed.replyStatuses).toEqual([]);
     // With nothing loaded, the newest messages come first.
     expect(spaceHistory(connection.db, orgId, spaceId, null, { limit: 2 }).messages.map((message) => message.bodyMd)).toEqual(["Line 248", "Line 249"]);
     expect(() => spaceHistory(connection.db, orgId, spaceId, "msg_elsewhere", { limit: 10 })).toThrow("The earliest loaded message is not in this conversation.");

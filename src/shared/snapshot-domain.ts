@@ -11,6 +11,7 @@ import type {
   ChatSlashInvocationRecord,
   ChatSpaceRecord,
   ChatThreadRecord,
+  ChatReplyStatus,
 } from "./chat-domain";
 import type { ComplianceExportRecord, LegalHoldRecord, RetentionFreezeRecord } from "./compliance-domain";
 import type {
@@ -84,6 +85,7 @@ export interface AppSnapshot {
   chatMemberships: ChatMembershipRecord[];
   chatMessages: ChatMessageRecord[];
   chatThreads: ChatThreadRecord[];
+  chatReplyStatuses: ChatReplyStatus[];
   chatAttachments: ChatAttachmentRecord[];
   chatMentions: ChatMentionRecord[];
   chatSlashInvocations: ChatSlashInvocationRecord[];

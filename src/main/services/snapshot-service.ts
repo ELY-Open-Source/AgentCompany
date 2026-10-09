@@ -5,6 +5,7 @@ import { IntegrationKeyStore } from "./integration-key-store";
 import { currentProviderUsageWindow } from "../../shared/provider-runtime-domain";
 import { buildUsageStats } from "./usage-stats";
 import { taskHolds } from "./task-holds";
+import { chatReplyStatuses } from "./chat-reply-status";
 
 type Row = Record<string, unknown>;
 type ProviderUsageWindowRow = Pick<
@@ -51,6 +52,7 @@ export class SnapshotService {
     const agents = list<AppSnapshot["agents"][number]>(this.db, "agents", "created_at asc")
       .map((agent) => ({ ...agent, heartbeatEnabled: toBool(agent.heartbeatEnabled) }));
     const holds = taskHolds(this.db, new Date());
+    const chatMessages = recentList<AppSnapshot["chatMessages"][number]>(this.db, "chat_messages", "created_at desc, rowid desc", 500).reverse();
     const tasks = list<AppSnapshot["tasks"][number]>(this.db, "tasks", "created_at asc")
       .map((task) => ({ ...task, requiresFilesystem: toBool(task.requiresFilesystem), hold: holds.get(task.id) ?? null }));
     const workspaces = list<AppSnapshot["workspaces"][number]>(this.db, "workspaces", "created_at asc")
@@ -96,7 +98,8 @@ export class SnapshotService {
       approvals: list(this.db, "approvals", "created_at desc"),
       chatSpaces: list(this.db, "chat_spaces", "created_at asc"),
       chatMemberships: list(this.db, "chat_memberships", "space_id asc, principal_type asc, principal_id asc"),
-      chatMessages: recentList<AppSnapshot["chatMessages"][number]>(this.db, "chat_messages", "created_at desc, rowid desc", 500).reverse(),
+      chatMessages,
+      chatReplyStatuses: chatReplyStatuses(this.db, chatMessages.map((message) => message.id), holds),
       // Every thread a loaded message belongs to, plus the most recently active ones, so no shown message loses its thread.
       chatThreads: all<Row>(this.db.prepare(`
         select * from chat_threads
