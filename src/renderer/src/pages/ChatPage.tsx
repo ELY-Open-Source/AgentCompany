@@ -180,14 +180,15 @@ export function ChatPage({ snapshot, actions }: PageProps) {
       decidedByEmployeeId: employee.id,
     }));
 
-  const editChatMessage = (messageId: string, bodyMd: string) =>
-    void actions.run(() => window.agentCompany.editMessage({
+  const editChatMessage = async (messageId: string, bodyMd: string) => {
+    await actions.run(() => window.agentCompany.editMessage({
       orgId,
       messageId,
       actorType: "employee",
       actorId: employee.id,
       bodyMd,
     }));
+  };
 
   const deleteChatMessage = (messageId: string) =>
     void actions.run(() => window.agentCompany.deleteMessage({

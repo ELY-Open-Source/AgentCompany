@@ -41,11 +41,14 @@ export function ChatMessageRow({
   /** Where each agent's reply to this message stands; a finished reply shows nothing. */
   replyStatuses?: ChatReplyStatus[];
   onOpenThread?: () => void;
-  onEdit?: (bodyMd: string) => void;
+  /** Saves an edit; the editor stays open until it is saved. */
+  onEdit?: (bodyMd: string) => Promise<void>;
   onDelete?: () => void;
   onOpenFile?: (fileId: string) => void;
 }) {
   const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
   const name = senderName(message, context);
   const bot = message.senderType === "agent";
   const deleted = Boolean(message.deletedAt);
@@ -57,8 +60,19 @@ export function ChatMessageRow({
     event.preventDefault();
     const next = new FormData(event.currentTarget).get("body");
     const value = typeof next === "string" ? next.trim() : "";
-    if (value && onEdit) onEdit(value);
-    setEditing(false);
+    if (!value || !onEdit || saving) return;
+    setSaving(true);
+    setEditError(null);
+    // The editor closes only once the edit is saved; a refusal keeps the text and says why.
+    onEdit(value).then(() => {
+      setSaving(false);
+      setEditing(false);
+    }).catch((reason: unknown) => {
+      const message = reason instanceof Error ? reason.message : String(reason);
+      console.error(`[chat] edit failed: ${message}`);
+      setSaving(false);
+      setEditError(message);
+    });
   };
   return (
     <div className="chat-message" style={{ display: "flex", gap: 12, marginBottom: 18 }}>
@@ -102,12 +116,14 @@ export function ChatMessageRow({
               defaultValue={message.bodyMd}
               autoFocus
               aria-label={t("Edit message")}
+              disabled={saving}
               className="input"
               style={{ minHeight: 60, marginBottom: 6 }}
             />
+            {editError && <div className="form-error" role="alert" style={{ marginBottom: 6 }}>{t("Not saved: {reason}", { reason: editError })}</div>}
             <div className="row" style={{ gap: 6 }}>
-              <Button tone="primary" size="small" type="submit">{t("Save")}</Button>
-              <Button tone="ghost" size="small" onClick={() => setEditing(false)}>{t("Cancel")}</Button>
+              <Button tone="primary" size="small" type="submit" disabled={saving}>{t("Save")}</Button>
+              <Button tone="ghost" size="small" disabled={saving} onClick={() => { setEditing(false); setEditError(null); }}>{t("Cancel")}</Button>
             </div>
           </form>
         ) : (

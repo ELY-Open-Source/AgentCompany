@@ -111,6 +111,19 @@ test("the pinned CEO conversation is the Messages front door", async () => {
     await expect(composer).toHaveValue("");
     await expect(page.getByRole("alert")).toHaveCount(0);
 
+    // An edit the backend refuses keeps the editor open with the text and says why.
+    const own = chatLog.locator(".chat-message", { hasText: "Second thought: what is blocked?" });
+    await own.getByRole("button", { name: "Edit message" }).click();
+    const editor = own.getByRole("textbox", { name: "Edit message" });
+    await editor.fill("/status everything");
+    await own.getByRole("button", { name: "Save" }).click();
+    await expect(own.getByRole("alert")).toContainText("Not saved: Slash command messages are immutable.");
+    await expect(editor).toHaveValue("/status everything");
+    await editor.fill("Second thought: what is blocked right now?");
+    await own.getByRole("button", { name: "Save" }).click();
+    await expect(chatLog.getByText("Second thought: what is blocked right now?")).toBeVisible();
+    await expect(chatLog.getByRole("textbox", { name: "Edit message" })).toHaveCount(0);
+
     // Each conversation keeps its own unsent draft.
     await composer.fill("Draft for the CEO only");
     await page.locator(".convo-item", { hasText: "general" }).click();

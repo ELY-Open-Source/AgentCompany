@@ -69,7 +69,7 @@ export function ChatConversation({
   onAttach: () => void;
   onApprove: (approvalId: string) => void;
   onDecline: (approvalId: string) => void;
-  onEditMessage: (messageId: string, bodyMd: string) => void;
+  onEditMessage: (messageId: string, bodyMd: string) => Promise<void>;
   onDeleteMessage: (messageId: string) => void;
   onOpenFile: (fileId: string) => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;

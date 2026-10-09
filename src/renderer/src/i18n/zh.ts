@@ -37,6 +37,7 @@ export const zh: Record<string, string> = {
   "Waiting on you, or resumes on its own at {time}.": "等待你处理，或于 {time} 自动恢复。",
   "Waiting on you.": "等待你处理。",
   "Not sent: {reason}": "未发送：{reason}",
+  "Not saved: {reason}": "未保存：{reason}",
   "Remove {name}": "移除 {name}",
   "Not attached: {reason}": "未能附加：{reason}",
   "Reply in thread": "在话题中回复",
