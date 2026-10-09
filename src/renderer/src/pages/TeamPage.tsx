@@ -1,3 +1,4 @@
+import { oneOf, usePersistentState } from "../shared/view-state";
 import { agentModel } from "../../../shared/agent-model";
 import { useMemo, useState, type FormEvent } from "react";
 import { Avatar, Button, Field, Icon, IconButton } from "../shared/ui";
@@ -24,7 +25,7 @@ export function TeamPage({ snapshot, actions }: PageProps) {
   const [hireProviderId, setHireProviderId] = useState("");
   const [hireModelId, setHireModelId] = useState("");
   const [editAgentId, setEditAgentId] = useState<string | null>(null);
-  const [filter, setFilter] = useState<"all" | "human" | "agent">("all");
+  const [filter, setFilter] = usePersistentState<"all" | "human" | "agent">(`${orgId}:team.filter`, "all", oneOf(["all", "human", "agent"] as const));
 
   const employees = useMemo(() => snapshot.employees.filter((item) => item.orgId === orgId), [snapshot.employees, orgId]);
   const agents = useMemo(() => snapshot.agents.filter((item) => item.orgId === orgId), [snapshot.agents, orgId]);

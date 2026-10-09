@@ -1,3 +1,4 @@
+import type { RouteId } from "./routes";
 import { shortcutLabel } from "../i18n/labels";
 import { isBusinessTask } from "../pages/work/task-helpers";
 import { unreadBySpace } from "../pages/chat/chat-helpers";
@@ -12,18 +13,8 @@ import { SearchDialog } from "./SearchDialog";
 import { TopbarSlotContext } from "./topbar-context";
 import { t } from "../i18n/i18n";
 
-export type RouteId =
-  | "home"
-  | "team"
-  | "work"
-  | "chat"
-  | "files"
-  | "library"
-  | "runs"
-  | "approvals"
-  | "connectors"
-  | "office"
-  | "settings";
+export type { RouteId };
+
 
 interface NavSpec {
   id: RouteId;

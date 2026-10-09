@@ -1,3 +1,4 @@
+import { oneOf, usePersistentState } from "../shared/view-state";
 import { approvalKindLabel } from "../i18n/labels";
 import { decideEach, type BatchResult } from "./approvals/decide-each";
 import { DECIDED_PAGE, decidedWindow } from "./approvals/decided-window";
@@ -33,8 +34,9 @@ const RISK_FILTERS: ReadonlyArray<{ id: RiskFilter; label: string }> = [
 export function ApprovalsPage({ snapshot, actions, navigate, focus }: PageProps) {
   const orgId = activeOrgId(snapshot);
   const employee = requireActiveEmployee(snapshot);
-  const [filter, setFilter] = useState<RiskFilter>("all");
   const focusedApproval = focus?.kind === "approval" ? focus.id : null;
+  // A linked request is never hidden by a filter left from before.
+  const [filter, setFilter] = usePersistentState<RiskFilter>(`${orgId}:approvals.filter`, "all", oneOf(["all", "low", "medium", "high"] as const), focusedApproval ? "all" : undefined);
   const [editingId, setEditingId] = useState<string | null>(
     focusedApproval && snapshot.approvals.some((item) => item.id === focusedApproval && item.state === "pending") ? focusedApproval : null,
   );

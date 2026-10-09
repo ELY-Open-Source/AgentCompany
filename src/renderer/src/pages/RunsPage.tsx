@@ -1,3 +1,4 @@
+import { isIdOrNull, oneOf, usePersistentState } from "../shared/view-state";
 import { requestStateLabel, runTriggerLabel } from "../i18n/labels";
 import { RunRequestList } from "./runs/RunRequestList";
 import { useRunRequests } from "./runs/use-run-requests";
@@ -8,7 +9,8 @@ import type { PageProps } from "./types";
 import { activeOrgId, formatRelative } from "./types";
 import { t } from "../i18n/i18n";
 
-type StatusFilter = "all" | "queued" | "running" | "completed" | "failed";
+const STATUS_FILTERS = ["all", "queued", "running", "completed", "failed"] as const;
+type StatusFilter = (typeof STATUS_FILTERS)[number];
 const FILTERS: Array<{ id: StatusFilter; label: string }> = [
   { id: "all", label: t("All") },
   { id: "queued", label: t("Queued") },
@@ -61,8 +63,9 @@ export function RunsPage({ snapshot, actions, navigate, focus }: PageProps) {
   const tasks = useMemo(() => snapshot.tasks.filter((t) => t.orgId === orgId), [snapshot.tasks, orgId]);
   const agents = useMemo(() => snapshot.agents.filter((a) => a.orgId === orgId), [snapshot.agents, orgId]);
   const providers = useMemo(() => snapshot.providers.filter((p) => p.orgId === orgId), [snapshot.providers, orgId]);
-  const [filter, setFilter] = useState<StatusFilter>("all");
-  const [selectedId, setSelectedId] = useState<string | null>(focus?.kind === "run" ? focus.id : null);
+  // A linked run is never hidden by a filter left from before.
+  const [filter, setFilter] = usePersistentState<StatusFilter>(`${orgId}:runs.filter`, "all", oneOf(STATUS_FILTERS), focus?.kind === "run" ? "all" : undefined);
+  const [selectedId, setSelectedId] = usePersistentState<string | null>(`${orgId}:runs.selected`, null, isIdOrNull, focus?.kind === "run" ? focus.id : undefined);
   const [search, setSearch] = useState("");
 
   const filtered = useMemo(() => {

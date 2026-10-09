@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { oneOf, usePersistentState } from "../shared/view-state";
+import { useMemo } from "react";
 import { Button, Icon, Segmented } from "../shared/ui";
 import { TopbarActions } from "../shared/TopbarActions";
 import { FILE_SCAN_STATE, type FileObjectRecord, type FileScanState } from "../../../shared/domain";
@@ -20,6 +21,13 @@ import {
   type ViewMode,
 } from "./files/file-helpers";
 
+const isSection = (value: unknown): value is Section => {
+  if (typeof value !== "object" || value === null) return false;
+  const section = value as { kind?: unknown; value?: unknown };
+  if (section.kind === "all" || section.kind === "recent" || section.kind === "pinned") return true;
+  return (section.kind === "department" || section.kind === "agent") && typeof section.value === "string";
+};
+
 export function FilesPage({ snapshot, actions }: PageProps) {
   const orgId = activeOrgId(snapshot);
   const employees = snapshot.employees.filter((employee) => employee.orgId === orgId);
@@ -30,9 +38,9 @@ export function FilesPage({ snapshot, actions }: PageProps) {
     () => snapshot.fileAccessGrants.filter((grant) => grant.orgId === orgId),
     [snapshot.fileAccessGrants, orgId],
   );
-  const [section, setSection] = useState<Section>({ kind: "all" });
-  const [view, setView] = useState<ViewMode>("list");
-  const [scanFilter, setScanFilter] = useState<FileScanState | "all">("all");
+  const [section, setSection] = usePersistentState<Section>(`${orgId}:files.section`, { kind: "all" }, isSection);
+  const [view, setView] = usePersistentState<ViewMode>(`${orgId}:files.view`, "list", oneOf(["grid", "list"] as const));
+  const [scanFilter, setScanFilter] = usePersistentState<FileScanState | "all">(`${orgId}:files.scan`, "all", (value): value is FileScanState | "all" => typeof value === "string");
 
   const departments = collectDepartments(files, agents);
   const filesByAgent = collectAgentFiles(files, agents);

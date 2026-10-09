@@ -1,3 +1,4 @@
+import { isIdOrNull, usePersistentState } from "../shared/view-state";
 import { useLeaveGuard } from "../app/leave-guard";
 import { setDrafts, useDrafts } from "./chat/draft-store";
 import { useCallback, useMemo, useRef, useState, type FormEvent } from "react";
@@ -66,7 +67,7 @@ export function ChatPage({ snapshot, actions }: PageProps) {
     }),
     [spaces, snapshot.chatMemberships, messagesAll, snapshot.chatReadStates, employees, agents, employee.id, ceoAgentId],
   );
-  const [selectedSpaceId, setSelectedSpaceId] = useState<string | null>(null);
+  const [selectedSpaceId, setSelectedSpaceId] = usePersistentState<string | null>(`${orgId}:chat.space`, null, isIdOrNull);
   const [createOpen, setCreateOpen] = useState(false);
   const requestLeave = useLeaveGuard();
   // Text and attachment are kept per conversation, outside the page, so switching conversations or pages loses neither.

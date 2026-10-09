@@ -73,6 +73,8 @@ export interface AppSnapshot {
   uiPreferences: UiPreferences;
   /** The setup wizard left unfinished, resumed on the next launch. */
   onboardingDraft: OnboardingDraft | null;
+  /** Where the operator was: page, sections, filters and selected records, by key. */
+  viewState: Record<string, unknown>;
   /** True while the operator has paused the autonomous run engine. */
   autonomousPaused: boolean;
   integrationKeys: IntegrationKeyStatus[];

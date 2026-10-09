@@ -1,3 +1,4 @@
+import { isIdOrNull, oneOf, usePersistentState } from "../../shared/view-state";
 import { useEffect, useState, type FormEvent } from "react";
 import type { AgentRecord, GoalRecord, KnowledgeEntryRecord, ProjectRecord, TaskRecord } from "../../../../shared/domain";
 import type { KnowledgeRevisionRecord, KnowledgeScopeType } from "../../../../shared/commands";
@@ -28,8 +29,8 @@ export function KnowledgePanel({
   actions: SnapshotActions;
 }) {
   const now = new Date().toISOString();
-  const [filter, setFilter] = useState<EntryState>("active");
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [filter, setFilter] = usePersistentState<EntryState>(`${orgId}:library.knowledgeFilter`, "active", oneOf(["active", "superseded", "expired"] as const));
+  const [selectedId, setSelectedId] = usePersistentState<string | null>(`${orgId}:library.entry`, null, isIdOrNull);
   const [loaded, setLoaded] = useState<{ entryId: string; revisions: KnowledgeRevisionRecord[] } | null>(null);
   const [dialog, setDialog] = useState<"new" | "revise" | "delete" | null>(null);
   const [scopeType, setScopeType] = useState<KnowledgeScopeType>("organization");

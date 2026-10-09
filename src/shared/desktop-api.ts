@@ -126,6 +126,8 @@ export interface DesktopApi {
   relaunchApp(): Promise<DesktopResult<null>>;
   /** Whether typed input would be lost if the app closed now; closing asks first while it is. */
   reportUnsaved(input: { unsaved: boolean }): Promise<DesktopResult<null>>;
+  /** Remembers one piece of where the operator was; null forgets it. */
+  saveViewState(input: { key: string; value: unknown }): Promise<DesktopResult<null>>;
   saveOnboardingDraft(input: { draft: OnboardingDraft | null }): Promise<DesktopResult<null>>;
   completeSetup(input: { orgId: string }): Promise<DesktopResult<AppSnapshot>>;
   /** Every agent session running now, in every company: what a restart interrupts. */

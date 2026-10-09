@@ -1,3 +1,4 @@
+import { oneOf, readViewState, seedViewState, writeViewState } from "../shared/view-state";
 import { LeaveGuardContext } from "./leave-guard";
 import { t } from "../i18n/i18n";
 import { Button } from "../shared/ui";
@@ -6,7 +7,8 @@ import { ErrorBoundary } from "../shared/ErrorBoundary";
 import { StartupScreen } from "./StartupScreen";
 import type { Focus } from "../pages/types";
 import { useEffect, useMemo, useState } from "react";
-import { Shell, type RouteId } from "../shared/Shell";
+import { Shell } from "../shared/Shell";
+import { ROUTE_IDS, type RouteId } from "../shared/routes";
 import { AvatarDirectoryContext, type AvatarLook } from "../shared/ui";
 import { Onboarding } from "./Onboarding";
 import { useSnapshot } from "./useSnapshot";
@@ -22,9 +24,11 @@ import { RunsPage } from "../pages/RunsPage";
 import { SettingsPage } from "../pages/SettingsPage";
 import { OfficePage } from "../pages/OfficePage";
 
+const isRoute = oneOf(ROUTE_IDS);
+
 export function App() {
   const { snapshot, syncFailure, actions } = useSnapshot();
-  const [route, setRoute] = useState<RouteId>("home");
+  const [routeChoice, setRoute] = useState<RouteId | null>(null);
   const [focus, setFocus] = useState<Focus | null>(null);
   // Leaving a page with input that would be lost asks first.
   const [leaving, setLeaving] = useState<{ proceed: () => void } | null>(null);
@@ -35,6 +39,7 @@ export function App() {
   // Opening a page for an object remembers it; plain navigation forgets it.
   const navigate = (next: RouteId, nextFocus?: Focus) => requestLeave(() => {
     setRoute(next);
+    writeViewState("route", next);
     setFocus(nextFocus ?? null);
   });
   const avatarDirectory = useMemo(() => {
@@ -76,6 +81,8 @@ export function App() {
     // A failed manual retry is already recorded in syncFailure, which the screen shows.
     return <StartupScreen failure={syncFailure} onRetry={() => void actions.reload().catch(() => undefined)} />;
   }
+  seedViewState(snapshot.viewState);
+  const route = routeChoice ?? readViewState("route", isRoute) ?? "home";
   // A company exists from Launch on, but its setup is unfinished until the connectors step is done; that is stored, so a restart resumes it.
   const unfinished = snapshot.organizations.find((organization) => organization.setupCompletedAt === null) ?? null;
   if (snapshot.organizations.length === 0 || creatingOrg || unfinished) {

@@ -10,6 +10,7 @@ const api: DesktopApi = {
   loadSnapshot: () => invoke(IPC_CHANNELS.loadSnapshot),
   relaunchApp: () => invoke(IPC_CHANNELS.relaunchApp),
   reportUnsaved: (input) => invoke(IPC_CHANNELS.reportUnsaved, input),
+  saveViewState: (input) => invoke(IPC_CHANNELS.saveViewState, input),
   saveOnboardingDraft: (input) => invoke(IPC_CHANNELS.saveOnboardingDraft, input),
   completeSetup: (input) => invoke(IPC_CHANNELS.completeSetup, input),
   runningSessionCount: () => invoke(IPC_CHANNELS.runningSessionCount),

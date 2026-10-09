@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { oneOf, usePersistentState } from "../shared/view-state";
+import { useMemo } from "react";
 import { DocumentsPanel } from "./library/DocumentsPanel";
 import { KnowledgePanel } from "./library/KnowledgePanel";
 import type { PageProps } from "./types";
@@ -15,7 +16,7 @@ const TABS: Array<{ id: LibraryTab; label: string }> = [
 export function LibraryPage({ snapshot, actions }: PageProps) {
   const orgId = activeOrgId(snapshot);
   const employee = requireActiveEmployee(snapshot);
-  const [tab, setTab] = useState<LibraryTab>("documents");
+  const [tab, setTab] = usePersistentState<LibraryTab>(`${orgId}:library.tab`, "documents", oneOf(["documents", "knowledge"] as const));
   const documents = useMemo(() => inOrg(snapshot.documents, orgId), [snapshot.documents, orgId]);
   const entries = useMemo(() => inOrg(snapshot.knowledgeEntries, orgId), [snapshot.knowledgeEntries, orgId]);
   const tasks = useMemo(() => inOrg(snapshot.tasks, orgId), [snapshot.tasks, orgId]);

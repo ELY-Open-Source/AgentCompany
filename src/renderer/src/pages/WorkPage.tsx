@@ -1,3 +1,4 @@
+import { oneOf, usePersistentState } from "../shared/view-state";
 import { useMemo, useState } from "react";
 import { Avatar, Button, Icon, IconButton, Pill, Segmented } from "../shared/ui";
 import { MenuDivider, MenuLabel, MenuRow, Popover } from "../shared/Popover";
@@ -25,7 +26,10 @@ import type { PageProps } from "./types";
 import { activeOrgId, requireActiveOrganization, type Focus } from "./types";
 import { t } from "../i18n/i18n";
 
-type View = "board" | "list" | "progress";
+const VIEWS = ["board", "list", "progress"] as const;
+type View = (typeof VIEWS)[number];
+const isScope = (value: unknown): value is Focus | null =>
+  value === null || (typeof value === "object" && (["goal", "project"] as unknown[]).includes((value as Focus).kind) && typeof (value as Focus).id === "string");
 
 const COLUMNS: ReadonlyArray<{ id: TaskStatus; label: string; tone: string }> = [
   { id: TASK_STATUS.BACKLOG, label: t("Backlog"), tone: "var(--text-4)" },
@@ -42,14 +46,14 @@ const VIEW_OPTIONS: ReadonlyArray<{ id: View; label: string }> = [
 
 export function WorkPage({ snapshot, actions, navigate, focus }: PageProps) {
   const orgId = activeOrgId(snapshot);
-  const [view, setView] = useState<View>("board");
+  const [view, setView] = usePersistentState<View>(`${orgId}:work.view`, "board", oneOf(VIEWS));
   const [newTaskOpen, setNewTaskOpen] = useState(false);
   const [newGoalOpen, setNewGoalOpen] = useState(false);
   const [newProjectOpen, setNewProjectOpen] = useState(false);
-  const [priorityFilter, setPriorityFilter] = useState<TaskPriority | "all">("all");
-  const [assigneeFilter, setAssigneeFilter] = useState<string>("all");
+  const [priorityFilter, setPriorityFilter] = usePersistentState<TaskPriority | "all">(`${orgId}:work.priority`, "all", oneOf(["all", "low", "normal", "high"] as const));
+  const [assigneeFilter, setAssigneeFilter] = usePersistentState<string>(`${orgId}:work.assignee`, "all", (value): value is string => typeof value === "string");
   const [detailTaskId, setDetailTaskId] = useState<string | null>(focus?.kind === "task" ? focus.id : null);
-  const [scope, setScope] = useState<Focus | null>(focus && (focus.kind === "goal" || focus.kind === "project") ? focus : null);
+  const [scope, setScope] = usePersistentState<Focus | null>(`${orgId}:work.scope`, null, isScope, focus && (focus.kind === "goal" || focus.kind === "project") ? focus : undefined);
   const [actionError, setActionError] = useState<string | null>(null);
 
   // The board, its counts and its filters show real work; chat replies and goal checkpoints show on Messages, Home and Runs.

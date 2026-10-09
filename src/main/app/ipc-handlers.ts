@@ -43,6 +43,7 @@ import { deleteWorkspace, setPrimaryWorkspace, updateWorkspace } from "../servic
 import { setProviderModel } from "../services/provider-default-model";
 import { completeSetup, saveOnboardingDraft } from "../services/onboarding-progress";
 import { setUnsavedInput } from "./unsaved-guard";
+import { saveViewState } from "../services/view-state";
 import { providerDisconnectImpact } from "../services/provider-disconnect-impact";
 
 export interface IpcDeps {
@@ -152,6 +153,14 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     }
   });
   handle("completeSetup", (input) => mutate(() => completeSetup(deps.connection.db, input.orgId)));
+  handle("saveViewState", (input) => {
+    try {
+      saveViewState(deps.connection.db, input.key, input.value);
+      return ok(null);
+    } catch (error) {
+      return fail("view_state_failed", error instanceof Error ? error.message : String(error));
+    }
+  });
   handle("reportUnsaved", (input) => {
     setUnsavedInput(input.unsaved);
     return ok(null);

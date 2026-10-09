@@ -15,6 +15,7 @@ export const IPC_CONTRACTS: { [K in InvokedMethod]: z.ZodType<InputOf<K>> } = {
   loadSnapshot: noInput,
   relaunchApp: noInput,
   reportUnsaved: z.strictObject({ unsaved: z.boolean() }),
+  saveViewState: z.strictObject({ key: z.string().min(1).max(200), value: z.json().refine((value) => JSON.stringify(value).length <= 4_000, "View state value is too large.") }),
   runningSessionCount: noInput,
   pickDirectory: noInput,
   listConnectorCatalog: noInput,

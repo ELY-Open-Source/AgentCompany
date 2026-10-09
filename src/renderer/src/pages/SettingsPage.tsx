@@ -1,5 +1,6 @@
+import { oneOf, usePersistentState } from "../shared/view-state";
 import { useLeaveGuard } from "../app/leave-guard";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { ProvidersPanel } from "./settings/ProvidersPanel";
 import { WorkspacePanel } from "./settings/WorkspacePanel";
 import { AdvancedPanel } from "./settings/AdvancedPanel";
@@ -8,7 +9,8 @@ import { t } from "../i18n/i18n";
 import type { PageProps } from "./types";
 import { activeOrgId, requireActiveEmployee, requireActiveOrganization, requireUsageStats } from "./types";
 
-type SettingsTab = "general" | "providers" | "integrations" | "advanced";
+const SETTINGS_TABS = ["general", "providers", "integrations", "advanced"] as const;
+type SettingsTab = (typeof SETTINGS_TABS)[number];
 
 interface NavSpec {
   id: SettingsTab;
@@ -26,7 +28,8 @@ export function SettingsPage({ snapshot, actions, focus }: PageProps) {
   const orgId = activeOrgId(snapshot);
   const organization = requireActiveOrganization(snapshot);
   const employee = requireActiveEmployee(snapshot);
-  const [tab, setTab] = useState<SettingsTab>("general");
+  // A workspace link opens General, where workspaces are, whatever section was left open.
+  const [tab, setTab] = usePersistentState<SettingsTab>(`${orgId}:settings.tab`, "general", oneOf(SETTINGS_TABS), focus?.kind === "workspace" ? "general" : undefined);
   const requestLeave = useLeaveGuard();
 
   const agents = useMemo(() => snapshot.agents.filter((item) => item.orgId === orgId), [snapshot.agents, orgId]);

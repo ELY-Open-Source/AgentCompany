@@ -1,3 +1,4 @@
+import { isIdOrNull, usePersistentState } from "../../shared/view-state";
 import { DOCUMENT_STATUS_VALUES, documentStatusLabel } from "../../i18n/labels";
 import { useEffect, useState, type FormEvent } from "react";
 import type { DocumentRecord, TaskRecord } from "../../../../shared/domain";
@@ -21,7 +22,7 @@ export function DocumentsPanel({
   tasks: TaskRecord[];
   actions: SnapshotActions;
 }) {
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = usePersistentState<string | null>(`${orgId}:library.document`, null, isIdOrNull);
   const selected = documents.find((doc) => doc.id === selectedId) ?? null;
   const [loaded, setLoaded] = useState<{ documentId: string; versions: DocumentVersionRecord[] } | null>(null);
   const [shownVersion, setShownVersion] = useState<number | null>(null);
