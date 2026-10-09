@@ -1,4 +1,4 @@
-import { useRef, useState, type PointerEvent } from "react";
+import { useRef, useState, type PointerEvent, type KeyboardEvent } from "react";
 import { Avatar, Icon, IconButton } from "../../shared/ui";
 import type { ChatPresenceRecord } from "../../../../shared/domain";
 import { formatRelative } from "../types";
@@ -63,6 +63,17 @@ export function ChatSidebar({
     const next = Math.min(PANE_MAX_W, Math.max(PANE_MIN_W, dragStart.current.width + event.clientX - dragStart.current.pointerX));
     setPaneWidth(next);
   };
+  const RESIZE_STEP = 16;
+  const onHandleKey = (event: KeyboardEvent<HTMLDivElement>) => {
+    const next = event.key === "ArrowLeft" ? paneWidth - RESIZE_STEP
+      : event.key === "ArrowRight" ? paneWidth + RESIZE_STEP
+        : event.key === "Home" ? PANE_MIN_W : event.key === "End" ? PANE_MAX_W : null;
+    if (next === null) return;
+    event.preventDefault();
+    const clamped = Math.min(PANE_MAX_W, Math.max(PANE_MIN_W, next));
+    setPaneWidth(clamped);
+    window.localStorage.setItem(PANE_WIDTH_KEY, String(clamped));
+  };
   const onHandleUp = (event: PointerEvent<HTMLDivElement>) => {
     if (!dragStart.current) return;
     dragStart.current = null;
@@ -94,6 +105,11 @@ export function ChatSidebar({
         role="separator"
         aria-orientation="vertical"
         aria-label={t("Resize conversation list")}
+        aria-valuemin={PANE_MIN_W}
+        aria-valuemax={PANE_MAX_W}
+        aria-valuenow={paneWidth}
+        tabIndex={0}
+        onKeyDown={onHandleKey}
         onPointerDown={onHandleDown}
         onPointerMove={onHandleMove}
         onPointerUp={onHandleUp}

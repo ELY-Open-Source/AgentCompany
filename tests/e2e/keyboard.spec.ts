@@ -104,3 +104,61 @@ test("mention suggestions are announced, and an input method's Enter never picks
     await closeApp(app);
   }
 });
+
+test("the list width, office people and chart values all work from the keyboard and read as text", async () => {
+  const profileDir = join(tmpdir(), `agentcompany-new-e2e-nomouse-${randomUUID()}`);
+  mkdirSync(profileDir, { recursive: true });
+  const builtinDir = seedBuiltinSkillsFixture(join(tmpdir(), `agentcompany-new-e2e-nomouse-builtin-${randomUUID()}`));
+  const app = await electron.launch({
+    args: [resolve("out/main/index.js")],
+    env: { ...process.env, AGENTCOMPANY_NEW_PROFILE_DIR: profileDir, AGENTCOMPANY_NEW_AUTORUN: "0", AGENTCOMPANY_NEW_BUILTIN_SKILLS_DIR: builtinDir },
+  });
+  try {
+    const page = await app.firstWindow();
+    await onboard(page, "No Mouse Co");
+
+    // A chart is one stop in the Tab order; arrows read its values aloud, and all of them are listed as text.
+    await page.getByRole("button", { name: "Home" }).click();
+    const runs = page.getByRole("region", { name: "Run activity" });
+    const chart = runs.getByRole("group", { name: /Run activity: use the arrow keys/ });
+    await chart.focus();
+    await page.keyboard.press("Home");
+    const readout = runs.locator("[aria-live=polite]");
+    await expect(readout).toHaveText(/^\S+ · 0$/);
+    const values = runs.locator(".sr-only li");
+    await expect(values).toHaveCount(7);
+    await expect(readout).toHaveText((await values.nth(0).textContent())!.replace(": ", " · "));
+    await page.keyboard.press("End");
+    await expect(readout).toHaveText((await values.nth(6).textContent())!.replace(": ", " · "));
+    await page.keyboard.press("ArrowLeft");
+    await expect(readout).toHaveText((await values.nth(5).textContent())!.replace(": ", " · "));
+    await page.keyboard.press("Tab");
+    await expect(readout).toHaveText(/in the last 7 days/);
+
+    // The conversation list resizes with the arrow keys, within its limits, and keeps the width.
+    await page.getByRole("button", { name: "Messages" }).click();
+    const handle = page.getByRole("separator", { name: "Resize conversation list" });
+    await handle.focus();
+    const before = Number(await handle.getAttribute("aria-valuenow"));
+    await page.keyboard.press("ArrowRight");
+    await expect(handle).toHaveAttribute("aria-valuenow", String(Math.min(480, before + 16)));
+    await page.keyboard.press("End");
+    await expect(handle).toHaveAttribute("aria-valuenow", "480");
+    await page.keyboard.press("Home");
+    await expect(handle).toHaveAttribute("aria-valuenow", "200");
+    await page.keyboard.press("ArrowLeft");
+    await expect(handle).toHaveAttribute("aria-valuenow", "200");
+    expect(await page.evaluate(() => window.localStorage.getItem("agentcompany:chat-pane-width"))).toBe("200");
+
+    // In the office, each person can be chosen from a list, and the floor says who is there.
+    await page.getByRole("button", { name: "Office", exact: true }).click();
+    await expect(page.getByRole("img", { name: /People here: 1./ })).toBeVisible();
+    const people = page.getByRole("combobox", { name: "Show a person" });
+    await people.selectOption({ label: "CEO, Idle" });
+    await expect(page.getByRole("dialog", { name: "Agent CEO" })).toBeVisible();
+    await people.selectOption({ label: "Show a person…" });
+    await expect(page.getByRole("dialog", { name: "Agent CEO" })).toHaveCount(0);
+  } finally {
+    await closeApp(app);
+  }
+});

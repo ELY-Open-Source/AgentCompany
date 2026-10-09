@@ -1,6 +1,6 @@
 import { workloadBars } from "./workload-bars";
 import type { UsageStatsRecord } from "../../../../shared/usage-stats";
-import { useState, type ReactNode } from "react";
+import { useState, type ReactNode, type KeyboardEvent } from "react";
 import type { AgentRecord, TaskRecord } from "../../../../shared/domain";
 import { t } from "../../i18n/i18n";
 
@@ -8,16 +8,42 @@ const CHART_H = 116;
 const CHART_W = 260;
 const BAR_GAP = 4;
 
-/** A metric tile that lifts on hover and surfaces a live readout in its
- * header — the hovered datum's value, or a resting summary otherwise. */
-function ChartCard({ title, readout, children }: { title: string; readout: string; children: ReactNode }) {
+/** A metric tile with a live readout: hover, or focus it and use the arrow keys, to read one datum; every value is also listed as text. */
+function ChartCard({ title, readout, values, point, onPoint, children }: {
+  title: string;
+  readout: string;
+  /** Each datum as text, in order. */
+  values: string[];
+  point?: number | null;
+  onPoint?: (index: number | null) => void;
+  children: ReactNode;
+}) {
+  const step = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (!onPoint || values.length === 0) return;
+    const current = point ?? -1;
+    const next = event.key === "ArrowRight" ? Math.min(values.length - 1, current + 1)
+      : event.key === "ArrowLeft" ? Math.max(0, current <= 0 ? 0 : current - 1)
+        : event.key === "Home" ? 0 : event.key === "End" ? values.length - 1 : null;
+    if (next === null) return;
+    event.preventDefault();
+    onPoint(next);
+  };
   return (
-    <section className="card metric-card">
+    <section className="card metric-card" aria-label={title}>
       <div className="row" style={{ marginBottom: 12, gap: 8 }}>
         <span className="card-label">{title}</span>
-        <span className="metric-readout num">{readout}</span>
+        <span className="metric-readout num" aria-live="polite">{readout}</span>
       </div>
-      {children}
+      <div
+        tabIndex={onPoint ? 0 : undefined}
+        role={onPoint ? "group" : undefined}
+        aria-label={onPoint ? t("{title}: use the arrow keys to read each value", { title }) : undefined}
+        onKeyDown={step}
+        onBlur={() => onPoint?.(null)}
+      >
+        {children}
+      </div>
+      <ul className="sr-only">{values.map((value, index) => <li key={index}>{value}</li>)}</ul>
     </section>
   );
 }
@@ -33,7 +59,7 @@ export function AgentWorkloadChart({ agents, tasks }: { agents: AgentRecord[]; t
   const readout = hover !== null && data[hover] ? `${data[hover]!.label} · ${data[hover]!.count}` : t("{n} open", { n: total });
 
   return (
-    <ChartCard title={t("Agent workload")} readout={readout}>
+    <ChartCard title={t("Agent workload")} readout={readout} values={data.map((d) => `${d.label}: ${d.count}`)} point={hover} onPoint={setHover}>
       <svg viewBox={`0 0 ${CHART_W} ${CHART_H}`} style={{ width: "100%", height: CHART_H }}>
         {data.map((d, i) => {
           const h = (d.count / max) * (CHART_H - 22);
@@ -69,7 +95,7 @@ export function RunActivityChart({ days }: { days: UsageDays }) {
   const readout = hover !== null && buckets[hover] ? `${buckets[hover]!.label} · ${buckets[hover]!.count}` : t("{n} in the last 7 days", { n: total });
 
   return (
-    <ChartCard title={t("Run activity")} readout={readout}>
+    <ChartCard title={t("Run activity")} readout={readout} values={buckets.map((b) => `${b.label}: ${b.count}`)} point={hover} onPoint={setHover}>
       <svg viewBox={`0 0 ${CHART_W} ${CHART_H}`} style={{ width: "100%", height: CHART_H }}>
         {buckets.map((b, i) => {
           const h = (b.count / max) * (CHART_H - 24);
@@ -108,7 +134,11 @@ export function AcceptanceChart({ days }: { days: UsageDays }) {
   const offset = circumference - (rate / 100) * circumference;
 
   return (
-    <ChartCard title={t("Work accepted (7 days)")} readout={t("{accepted} done · {returned} sent back · sessions: {ok} ended, {failed} failed", { accepted, returned, ok: completed, failed })}>
+    <ChartCard
+      title={t("Work accepted (7 days)")}
+      readout={t("{accepted} done · {returned} sent back · sessions: {ok} ended, {failed} failed", { accepted, returned, ok: completed, failed })}
+      values={[judged > 0 ? t("{rate}% of judged work accepted", { rate }) : t("No work judged yet")]}
+    >
       <svg viewBox="0 0 100 100" style={{ width: 96, height: 96, margin: "4px auto", display: "block" }}>
         <circle cx="50" cy="50" r="42" fill="none" stroke="var(--panel-3)" strokeWidth="8" />
         <circle
@@ -144,7 +174,7 @@ export function CostTrendChart({ days }: { days: UsageDays }) {
     : week;
 
   return (
-    <ChartCard title={t("Token usage")} readout={readout}>
+    <ChartCard title={t("Token usage")} readout={readout} values={tokenBuckets.map((b) => `${b.label}: ${compact(b.tokens)}`)} point={hover} onPoint={setHover}>
       <svg viewBox={`0 0 ${CHART_W} ${CHART_H}`} style={{ width: "100%", height: CHART_H }}>
         <polyline points={points} fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
         {coords.map((c, i) => (

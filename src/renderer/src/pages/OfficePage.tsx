@@ -5,6 +5,7 @@ import { activeOrgId, requireActiveEmployee } from "./types";
 import { hashString, renderOffice, type RenderPerson } from "./office/office-renderer";
 import { OfficeSimulation, cameraFor, type MoveInput } from "./office/simulation";
 import { AgentDetailCard } from "./office/AgentDetailCard";
+import { officeActivityLabel } from "../i18n/labels";
 import { cardPositionFor, CARD_FALLBACK_H } from "./office/agent-card-position";
 import type { AgentActivity, Camera, OfficeAgentInput, Vec } from "./office/office-types";
 import { t } from "../i18n/i18n";
@@ -235,6 +236,8 @@ export function OfficePage({ snapshot }: PageProps) {
     <div style={{ flex: 1, overflow: "hidden", position: "relative" }}>
       <canvas
         ref={canvasRef}
+        role="img"
+        aria-label={t("Office floor. People here: {count}. The person list in the toolbar shows each of them.", { count: inputs.length })}
         onClick={onCanvasClick}
         onMouseMove={onCanvasMouseMove}
         style={{ width: "100%", height: "100%", display: "block" }}
@@ -245,6 +248,19 @@ export function OfficePage({ snapshot }: PageProps) {
         </div>
       )}
       <div className="office-toolbar" role="toolbar" aria-label={t("Office tools")}>
+        <select
+          className="input"
+          aria-label={t("Show a person")}
+          value={selectedId ?? ""}
+          onChange={(event) => {
+            setTool("select");
+            setSelectedId(event.target.value || null);
+          }}
+          style={{ width: 200, height: 30 }}
+        >
+          <option value="">{t("Show a person…")}</option>
+          {inputs.map((input) => <option key={input.id} value={input.id}>{t("{name}, {activity}", { name: input.name, activity: officeActivityLabel(input.activity) })}</option>)}
+        </select>
         <button
           type="button"
           className={`office-tool ${tool === "whip" ? "active" : ""}`.trim()}

@@ -1,14 +1,8 @@
 import { Avatar, Icon, IconButton, Pill } from "../../shared/ui";
-import { roleLevelLabel } from "../../i18n/labels";
+import { officeActivityLabel, roleLevelLabel } from "../../i18n/labels";
 import { t } from "../../i18n/i18n";
 import type { AgentActivity, OfficeAgentInput } from "./office-types";
 
-const ACTIVITY_LABEL: Record<AgentActivity, string> = {
-  active: t("Active"),
-  thinking: t("Thinking"),
-  busy: t("Busy"),
-  idle: t("Idle"),
-};
 
 const ACTIVITY_TONE: Record<AgentActivity, "green" | "violet" | "amber" | undefined> = {
   active: "green",
@@ -46,7 +40,7 @@ export function AgentDetailCard({ agent, onClose }: { agent: OfficeAgentInput; o
       <div className="row" style={{ gap: 6, marginTop: 10, flexWrap: "wrap" }}>
         <Pill>{agent.department}</Pill>
         <Pill>{roleLevelLabel(agent.roleLevel)}</Pill>
-        <Pill tone={ACTIVITY_TONE[agent.activity]} dot>{ACTIVITY_LABEL[agent.activity]}</Pill>
+        <Pill tone={ACTIVITY_TONE[agent.activity]} dot>{officeActivityLabel(agent.activity)}</Pill>
       </div>
       {agent.taskTitle && (
         <div className="row" style={{ gap: 7, marginTop: 12, alignItems: "flex-start" }}>
