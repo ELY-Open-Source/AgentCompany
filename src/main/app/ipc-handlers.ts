@@ -226,6 +226,13 @@ export function registerIpcHandlers(deps: IpcDeps): void {
   handle("deleteMessage", (input) => mutate(() => chat.deleteMessage(input)));
   handle("markChatSpaceRead", (input) => mutate(() => chat.markSpaceRead(input)));
   handle("saveProviderCredential", (input) => mutate(() => providers.saveCredential(input)));
+  handle("providerEndpoint", (input) => {
+    try {
+      return ok(providers.endpoint(input.orgId, input.providerId));
+    } catch (error) {
+      return fail("provider_endpoint_failed", error instanceof Error ? error.message : String(error));
+    }
+  });
   handle("setProviderModel", (input) => mutate(() => setProviderModel(deps.connection.db, input)));
   handle("revokeProviderCredential", async (input) => {
     try {

@@ -55,6 +55,7 @@ const api: DesktopApi = {
   markChatSpaceRead: (input) => invoke(IPC_CHANNELS.markChatSpaceRead, input),
   saveProviderCredential: (input) => invoke(IPC_CHANNELS.saveProviderCredential, input),
   setProviderModel: (input) => invoke(IPC_CHANNELS.setProviderModel, input),
+  providerEndpoint: (input) => invoke(IPC_CHANNELS.providerEndpoint, input),
   revokeProviderCredential: (input) => invoke(IPC_CHANNELS.revokeProviderCredential, input),
   startProviderOAuth: (input) => invoke(IPC_CHANNELS.startProviderOAuth, input),
   cancelProviderOAuth: (input) => invoke(IPC_CHANNELS.cancelProviderOAuth, input),

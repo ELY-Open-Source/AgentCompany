@@ -9,6 +9,7 @@ export function composeSecret(entry: ProviderCatalogEntry, form: FormData): stri
     projectId: String(form.get("cloudProject") ?? "").trim(),
     deployment: String(form.get("cloudDeployment") ?? "").trim(),
     secret: raw,
+    ...(raw === "" && form.get("keepSavedSecret") === "1" ? { keepSavedSecret: true } : {}),
   };
   return JSON.stringify(payload);
 }

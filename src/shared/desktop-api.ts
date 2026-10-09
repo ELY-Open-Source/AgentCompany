@@ -73,6 +73,7 @@ import type {
   RevokeProviderCredentialInput,
   SaveProviderCredentialInput,
   SetProviderModelInput,
+  ProviderEndpoint,
   ConnectComposioToolkitInput,
   ConnectComposioToolkitResult,
   ConnectorCatalogEntry,
@@ -165,6 +166,8 @@ export interface DesktopApi {
   markChatSpaceRead(input: MarkChatSpaceReadInput): Promise<DesktopResult<AppSnapshot>>;
   saveProviderCredential(input: SaveProviderCredentialInput): Promise<DesktopResult<AppSnapshot>>;
   setProviderModel(input: SetProviderModelInput): Promise<DesktopResult<AppSnapshot>>;
+  /** Null when the provider has no saved cloud or custom-endpoint credential. */
+  providerEndpoint(input: { orgId: string; providerId: string }): Promise<DesktopResult<ProviderEndpoint | null>>;
   revokeProviderCredential(input: RevokeProviderCredentialInput): Promise<DesktopResult<AppSnapshot>>;
   startProviderOAuth(input: StartProviderOAuthInput): Promise<DesktopResult<StartProviderOAuthResult>>;
   cancelProviderOAuth(input: CancelProviderOAuthInput): Promise<DesktopResult<null>>;

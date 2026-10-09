@@ -212,6 +212,22 @@ test("onboards, hires, and creates work in the Electron shell", async () => {
     await changeModel(() => "gpt-5.4");
     await expect(page.getByText("gpt-5.4 · API key").first()).toBeVisible();
 
+    // A saved custom endpoint reopens with its address filled in, and a blank key keeps the saved one.
+    await page.locator("div", { hasText: /^Custom OpenAI-compatible$/ }).locator("xpath=../..").getByRole("button", { name: "Connect" }).click();
+    await page.locator(".modal input[name=cloudBaseUrl]").fill("http://localhost:11434/v1");
+    await page.locator(".modal input[name=secret]").fill("local-key");
+    await page.locator(".modal [name=model]").fill("llama3");
+    await page.locator(".modal").getByRole("button", { name: "Save" }).click();
+    const customRow = page.locator(".reveal-row", { hasText: "Custom OpenAI-compatible" });
+    await customRow.getByRole("button", { name: "Manage" }).click();
+    await expect(page.locator(".modal input[name=cloudBaseUrl]")).toHaveValue("http://localhost:11434/v1");
+    await expect(page.locator(".modal input[name=secret]")).toHaveAttribute("placeholder", "Saved. Leave blank to keep it.");
+    await page.locator(".modal [name=model]").fill("llama3.1");
+    await page.locator(".modal").getByRole("button", { name: "Save" }).click();
+    await expect(customRow.getByText("llama3.1 · Cloud")).toBeVisible();
+    await customRow.getByRole("button", { name: "Disconnect" }).click();
+    await expect(customRow).toHaveCount(0);
+
     // Skills are built-in now: no Skills tab exists, yet the bundled
     // catalogue imported itself during onboarding.
     await expect(page.getByRole("button", { name: "Skills" })).toHaveCount(0);

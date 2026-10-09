@@ -7,6 +7,14 @@ export interface SaveProviderCredentialInput {
   model: string | null;
 }
 
+/** The non-secret part of a saved cloud or custom-endpoint credential. */
+export interface ProviderEndpoint {
+  baseUrl: string;
+  region: string;
+  projectId: string;
+  deployment: string;
+}
+
 export interface SetProviderModelInput {
   orgId: string;
   providerId: string;

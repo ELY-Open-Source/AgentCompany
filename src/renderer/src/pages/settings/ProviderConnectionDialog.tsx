@@ -1,18 +1,38 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { ProviderCatalogEntry, ProviderRecord } from "../../../../shared/domain";
 import { ProviderOAuthConnect } from "../../shared/ProviderOAuthConnect";
 import { Field } from "../../shared/ui";
 import { t } from "../../i18n/i18n";
 import type { ModelCheckResult } from "../../../../shared/desktop-api";
+import type { ProviderEndpoint } from "../../../../shared/commands";
 
-interface CloudFields {
-  baseUrl: string;
-  region: string;
-  projectId: string;
-  deployment: string;
+const CLOUD_DEFAULTS: ProviderEndpoint = { baseUrl: "", region: "", projectId: "", deployment: "" };
+
+/** The saved endpoint of a connected cloud or custom provider: undefined while loading, null when nothing is saved. */
+function useSavedEndpoint(provider: ProviderRecord, entry: ProviderCatalogEntry): { endpoint: ProviderEndpoint | null | undefined; error: string | null } {
+  const saved = entry.authType === "cloud" && Boolean(provider.credentialId);
+  const [state, setState] = useState<{ endpoint: ProviderEndpoint | null | undefined; error: string | null }>({ endpoint: saved ? undefined : null, error: null });
+  useEffect(() => {
+    if (!saved) return;
+    let live = true;
+    void window.agentCompany.providerEndpoint({ orgId: provider.orgId, providerId: provider.id }).then((result) => {
+      if (!live) return;
+      setState(result.ok ? { endpoint: result.data, error: null } : { endpoint: null, error: result.error.message });
+    });
+    return () => { live = false; };
+  }, [saved, provider.orgId, provider.id]);
+  return state;
 }
 
-const CLOUD_DEFAULTS: CloudFields = { baseUrl: "", region: "", projectId: "", deployment: "" };
+/** With a saved key the field may stay blank, which keeps it. */
+function SecretField({ label, saved, required }: { label: string; saved: boolean; required: boolean }) {
+  return (
+    <Field label={label}>
+      <input className="input" name="secret" type="password" required={required && !saved} placeholder={saved ? t("Saved. Leave blank to keep it.") : undefined} autoFocus />
+      {saved && <input type="hidden" name="keepSavedSecret" value="1" />}
+    </Field>
+  );
+}
 
 export function ProviderConnectFields({
   provider,
@@ -30,10 +50,16 @@ export function ProviderConnectFields({
       </>
     );
   }
-  if (entry.customEndpoint) {
-    return <CompatFieldsForm entry={entry} provider={provider} />;
-  }
-  return <CloudFieldsForm entry={entry} provider={provider} />;
+  return <SavedEndpointForm entry={entry} provider={provider} />;
+}
+
+function SavedEndpointForm({ provider, entry }: { provider: ProviderRecord; entry: ProviderCatalogEntry }) {
+  const { endpoint, error } = useSavedEndpoint(provider, entry);
+  if (error) return <div className="form-error" role="alert">{t("The saved settings could not be read: {error}", { error })}</div>;
+  if (endpoint === undefined) return <p style={{ fontSize: 12, color: "var(--text-3)", margin: 0 }}>{t("Loading saved settings…")}</p>;
+  return entry.customEndpoint
+    ? <CompatFieldsForm entry={entry} provider={provider} saved={endpoint} />
+    : <CloudFieldsForm entry={entry} provider={provider} saved={endpoint} />;
 }
 
 export function ProviderOAuthFields({
@@ -75,8 +101,8 @@ export function ProviderOAuthFields({
   );
 }
 
-function CompatFieldsForm({ entry, provider }: { entry: ProviderCatalogEntry; provider: ProviderRecord }) {
-  const [baseUrl, setBaseUrl] = useState("");
+function CompatFieldsForm({ entry, provider, saved }: { entry: ProviderCatalogEntry; provider: ProviderRecord; saved: ProviderEndpoint | null }) {
+  const [baseUrl, setBaseUrl] = useState(saved?.baseUrl ?? "");
   return (
     <>
       <p style={{ fontSize: 12, color: "var(--text-3)", lineHeight: 1.5, margin: 0 }}>{entry.credentialHelp}</p>
@@ -88,7 +114,7 @@ function CompatFieldsForm({ entry, provider }: { entry: ProviderCatalogEntry; pr
           onChange={(event) => setBaseUrl(event.target.value)}
         />
       </Field>
-      <Field label={t("API key (if the server asks for one)")}><input className="input" name="secret" type="password" /></Field>
+      <SecretField label={t("API key (if the server asks for one)")} saved={saved !== null} required={false} />
       <ModelPicker entry={entry} provider={provider} />
     </>
   );
@@ -159,9 +185,9 @@ export function ModelPicker({ entry, provider }: { entry: ProviderCatalogEntry; 
   );
 }
 
-function CloudFieldsForm({ entry, provider }: { entry: ProviderCatalogEntry; provider: ProviderRecord }) {
-  const [state, setState] = useState<CloudFields>(CLOUD_DEFAULTS);
-  const update = (patch: Partial<CloudFields>) => setState((current) => ({ ...current, ...patch }));
+function CloudFieldsForm({ entry, provider, saved }: { entry: ProviderCatalogEntry; provider: ProviderRecord; saved: ProviderEndpoint | null }) {
+  const [state, setState] = useState<ProviderEndpoint>(saved ?? CLOUD_DEFAULTS);
+  const update = (patch: Partial<ProviderEndpoint>) => setState((current) => ({ ...current, ...patch }));
   return (
     <>
       <p style={{ fontSize: 12, color: "var(--text-3)", lineHeight: 1.5, margin: 0 }}>{entry.credentialHelp}</p>
@@ -177,9 +203,7 @@ function CloudFieldsForm({ entry, provider }: { entry: ProviderCatalogEntry; pro
       <Field label={t("Deployment / model id")}>
         <input className="input" name="cloudDeployment" value={state.deployment} onChange={(event) => update({ deployment: event.target.value })} />
       </Field>
-      <Field label={t("Credential")}>
-        <input className="input" name="secret" type="password" required autoFocus />
-      </Field>
+      <SecretField label={t("Credential")} saved={saved !== null} required />
       <Field label={t("Default model")}>
         <input className="input" name="model" defaultValue={provider.model ?? entry.defaultModel ?? ""} />
       </Field>

@@ -1,5 +1,6 @@
 import type { DatabaseSync } from "node:sqlite";
-import type { CancelProviderResponseInput, ListProviderModelsInput, RevokeProviderCredentialInput, SaveProviderCredentialInput, StreamProviderResponseInput, UpdateProviderPolicyInput, SetProviderPricesInput } from "../../shared/commands";
+import type { CancelProviderResponseInput, ListProviderModelsInput, ProviderEndpoint, RevokeProviderCredentialInput, SaveProviderCredentialInput, StreamProviderResponseInput, UpdateProviderPolicyInput, SetProviderPricesInput } from "../../shared/commands";
+import { providerEndpoint, withSavedSecret } from "./provider-endpoint";
 import type { ProviderModelEntry } from "../../shared/provider-models";
 import { PROVIDER_AUTH_TYPE, PROVIDER_DATA_POLICY, type ProviderAuthType } from "../../shared/domain";
 import type { ProviderStreamRendererEvent } from "../../shared/provider-request-domain";
@@ -97,8 +98,9 @@ export class ProviderService {
     const provider = this.db.prepare("select * from providers where id = ? and org_id = ?")
       .get(input.providerId, input.orgId) as { provider_key: string; auth_type: ProviderAuthType } | undefined;
     if (!provider) throw new Error("Provider was not found.");
-    const secret = input.secret.trim();
-    if (!secret) throw new Error("Credential is required.");
+    const typed = input.secret.trim();
+    if (!typed) throw new Error("Credential is required.");
+    const secret = provider.auth_type === "cloud" ? withSavedSecret(this.db, this.authBroker, input.orgId, input.providerId, typed) : typed;
     const adapter = requireAdapter(this.adapters, provider.provider_key, provider.auth_type);
     adapter.parseAuthProfile(secret);
     const catalogEntry = requireCatalogEntry(provider.provider_key);
@@ -128,6 +130,10 @@ export class ProviderService {
       action: "credential_saved",
       payload: { providerKey: provider.provider_key, authType: provider.auth_type, authProfileId: authProfile.authProfileId, sourceType: source.sourceType, sourceRef: source.sourceRef },
     });
+  }
+
+  endpoint(orgId: string, providerId: string): ProviderEndpoint | null {
+    return providerEndpoint(this.db, this.authBroker, orgId, providerId);
   }
 
   /** Revokes at the provider where it can, then always disconnects and erases the credential here; a remote failure is reported, not hidden. */
