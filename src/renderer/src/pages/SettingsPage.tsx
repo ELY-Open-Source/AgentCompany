@@ -105,6 +105,7 @@ function NavGroup({
           key={item.id}
           type="button"
           aria-label={item.label}
+          aria-current={item.id === active ? "page" : undefined}
           className={`nav-item ${item.id === active ? "active" : ""}`.trim()}
           onClick={() => onChange(item.id)}
         >

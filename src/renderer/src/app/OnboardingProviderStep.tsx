@@ -33,6 +33,7 @@ export function ProviderStep({
           <Fragment key={provider.key}>
             <button
               type="button"
+              aria-pressed={draft.providerKey === provider.key}
               className={`option-card ${draft.providerKey === provider.key ? "active" : ""}`.trim()}
               onClick={() => onChange({
                 providerKey: provider.key,

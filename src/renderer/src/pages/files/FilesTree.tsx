@@ -91,7 +91,7 @@ function TreeItem({
   onClick: () => void;
 }) {
   return (
-    <button type="button" className={`nav-item ${active ? "active" : ""}`.trim()} onClick={onClick}>
+    <button type="button" aria-current={active ? "true" : undefined} className={`nav-item ${active ? "active" : ""}`.trim()} onClick={onClick}>
       <span className="icon-box"><Icon name={icon} size={18} /></span>
       <span>{label}</span>
       <span className="nav-badge num">{count}</span>

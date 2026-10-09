@@ -101,7 +101,7 @@ export function RunsPage({ snapshot, actions, navigate, focus }: PageProps) {
             onChange={(e) => setSearch(e.target.value)}
             style={{ marginBottom: 8 }}
           />
-          <Segmented value={filter} onChange={setFilter} options={FILTERS} />
+          <Segmented label={t("Run status")} value={filter} onChange={setFilter} options={FILTERS} />
         </div>
         <div className="pane-scroll">
           {/* Newest first, so "show older runs" continues below. */}
@@ -113,6 +113,7 @@ export function RunsPage({ snapshot, actions, navigate, focus }: PageProps) {
               <button
                 key={run.id}
                 type="button"
+                aria-current={active ? "true" : undefined}
                 className={`nav-row ${active ? "active" : ""}`}
                 onClick={() => setSelectedId(run.id)}
               >

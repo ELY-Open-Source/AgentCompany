@@ -159,7 +159,7 @@ export function TaskDetailDialog({
           {task.requiresFilesystem && <Pill>{t("workspace")}</Pill>}
         </div>
 
-        <div style={{ marginBottom: 12 }}><Segmented value={tab} onChange={setTab} options={TABS} /></div>
+        <div style={{ marginBottom: 12 }}><Segmented label={t("Task sections")} value={tab} onChange={setTab} options={TABS} /></div>
 
         {tab === "overview" && (
           <OverviewTab

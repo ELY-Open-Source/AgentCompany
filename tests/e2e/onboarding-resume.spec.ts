@@ -75,8 +75,8 @@ test("onboarding resumes where it was left after the app is closed", async () =>
   await expect.poll(savedModel).toBe("cancelled-model");
   // Saving a preference refreshes the in-memory snapshot, which now holds the draft too.
   await page.getByRole("button", { name: "Back", exact: true }).click();
-  await page.getByRole("button", { name: "中文" }).click();
-  await page.getByRole("button", { name: "English" }).click();
+  await page.getByRole("radio", { name: "中文" }).click();
+  await page.getByRole("radio", { name: "English" }).click();
   // Past the 800 ms change-event reload window, so only Cancel itself can refresh the snapshot.
   await page.waitForTimeout(1_200);
   await page.getByRole("button", { name: "Cancel" }).click();

@@ -1,4 +1,4 @@
-import { createContext, useContext, type ReactNode } from "react";
+import { createContext, useContext, type ReactNode, type KeyboardEvent } from "react";
 import { Icon, type IconName } from "./Icon";
 
 export interface AvatarLook {
@@ -181,21 +181,37 @@ export function Field({ label, children }: { label: string; children: ReactNode 
   );
 }
 
+/** A one-of choice: a labelled radio group, the chosen option checked and the only one in the Tab order; arrows, Home and End move the choice. */
 export function Segmented<T extends string>({
+  label,
   value,
   onChange,
   options,
 }: {
+  label: string;
   value: T;
   onChange: (next: T) => void;
   options: ReadonlyArray<{ id: T; label: string }>;
 }) {
+  const move = (event: KeyboardEvent<HTMLDivElement>) => {
+    const index = options.findIndex((option) => option.id === value);
+    const next = event.key === "ArrowRight" || event.key === "ArrowDown" ? (index + 1) % options.length
+      : event.key === "ArrowLeft" || event.key === "ArrowUp" ? (index - 1 + options.length) % options.length
+        : event.key === "Home" ? 0 : event.key === "End" ? options.length - 1 : null;
+    if (next === null) return;
+    event.preventDefault();
+    onChange(options[next]!.id);
+    event.currentTarget.querySelectorAll<HTMLButtonElement>("[role=radio]")[next]?.focus();
+  };
   return (
-    <div className="segmented">
+    <div className="segmented" role="radiogroup" aria-label={label} onKeyDown={move}>
       {options.map((option) => (
         <button
           key={option.id}
           type="button"
+          role="radio"
+          aria-checked={value === option.id}
+          tabIndex={value === option.id ? 0 : -1}
           className={`segment ${value === option.id ? "active" : ""}`.trim()}
           onClick={() => onChange(option.id)}
         >

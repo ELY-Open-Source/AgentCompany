@@ -244,7 +244,7 @@ test("onboards, hires, and creates work in the Electron shell", async () => {
     await page.getByRole("button", { name: "Advanced" }).click();
     await expect(page.getByText("Requests", { exact: true }).first()).toBeVisible();
     await expect(page.getByLabel("Request provider")).toBeVisible();
-    await expect(page.getByRole("button", { name: "Background" })).toBeVisible();
+    await expect(page.getByRole("radio", { name: "Background" })).toBeVisible();
     await page.getByLabel("Request prompt").fill("Draft a provider control memo.");
     await page.getByLabel("Request instructions").fill("Use direct language.");
 

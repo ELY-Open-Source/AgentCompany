@@ -117,6 +117,7 @@ function ConversationRow({
   return (
     <button
       type="button"
+      aria-current={active ? "true" : undefined}
       className={`convo-item ${active ? "active" : ""}`.trim()}
       onClick={onClick}
     >

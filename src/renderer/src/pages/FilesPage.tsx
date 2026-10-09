@@ -81,6 +81,7 @@ export function FilesPage({ snapshot, actions, focus }: PageProps) {
         <TopbarActions>
           <FilesFilter scan={scanFilter} onScan={setScanFilter} />
           <Segmented<ViewMode>
+            label={t("Layout")}
             value={view}
             onChange={setView}
             options={[

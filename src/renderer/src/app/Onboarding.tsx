@@ -181,7 +181,7 @@ export function Onboarding({
           </p>
           <div className="onboarding-steps">
             {STEPS.map((entry) => (
-              <span key={entry.id} className={`step-chip ${entry.id === step ? "active" : ""}`}>{entry.label}</span>
+              <span key={entry.id} aria-current={entry.id === step ? "step" : undefined} className={`step-chip ${entry.id === step ? "active" : ""}`}>{entry.label}</span>
             ))}
           </div>
         </div>
@@ -277,6 +277,7 @@ function WelcomeStep({
       <div className="row">
         <h2 className="page-h1" style={{ margin: 0, flex: 1 }}>{t("Welcome")}</h2>
         <Segmented
+          label={t("Language")}
           value={language}
           onChange={(next) => { if (next !== language) onLanguage(next); }}
           options={[{ id: "en", label: "English" }, { id: "zh", label: "中文" }]}
@@ -386,7 +387,7 @@ function ModeCard({
   onClick: () => void;
 }) {
   return (
-    <button type="button" className={`option-card ${active ? "active" : ""}`.trim()} onClick={onClick}>
+    <button type="button" aria-pressed={active} className={`option-card ${active ? "active" : ""}`.trim()} onClick={onClick}>
       <div className="opt-title">{title}</div>
       <div className="opt-sub">{description}</div>
     </button>

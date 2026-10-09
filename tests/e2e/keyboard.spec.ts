@@ -55,6 +55,17 @@ test("a dialog keeps the keyboard inside it, closes on Escape, and gives focus b
     await expect(dialog).toHaveCount(0);
     // Both layers closed at once; focus still returns to what opened the dialog.
     await expect(opener).toBeFocused();
+
+    // A one-of choice says which option is chosen, and the arrow keys move the choice.
+    const views = page.getByRole("radiogroup", { name: "View" });
+    await expect(views.getByRole("radio", { name: "Board" })).toHaveAttribute("aria-checked", "true");
+    await views.getByRole("radio", { name: "Board" }).focus();
+    await page.keyboard.press("ArrowRight");
+    await expect(views.getByRole("radio", { name: "List" })).toHaveAttribute("aria-checked", "true");
+    await expect(views.getByRole("radio", { name: "List" })).toBeFocused();
+    await expect(views.getByRole("radio", { name: "Board" })).toHaveAttribute("aria-checked", "false");
+    await page.keyboard.press("Home");
+    await expect(views.getByRole("radio", { name: "Board" })).toHaveAttribute("aria-checked", "true");
   } finally {
     await closeApp(app);
   }

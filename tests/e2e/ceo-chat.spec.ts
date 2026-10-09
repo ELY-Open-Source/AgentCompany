@@ -404,7 +404,7 @@ test("the pinned CEO conversation is the Messages front door", async () => {
     await parentDialog.getByRole("button", { name: "Delete", exact: true }).click();
     await expect(parentDialog.getByRole("alertdialog", { name: "Delete this task?" })).toContainText("1 subtasks stay and move to the top level.");
     // Switching to another task drops a pending confirmation, so it can never delete the wrong task.
-    await parentDialog.getByRole("button", { name: "Subtasks" }).click();
+    await parentDialog.getByRole("radio", { name: "Subtasks" }).click();
     await parentDialog.getByRole("button", { name: "Open task Child step" }).click();
     const childDialog = page.getByRole("dialog", { name: "Child step" });
     await expect(childDialog).toBeVisible();

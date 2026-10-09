@@ -94,6 +94,7 @@ export function OrgSwitcher({ snapshot, activeOrgId, onSelect, onNew, onDelete }
               <button
                 type="button"
                 role="menuitem"
+                aria-current={org.id === activeOrgId ? "true" : undefined}
                 className={`org-menu-row ${org.id === activeOrgId ? "active" : ""}`.trim()}
                 onClick={() => handleSelect(org.id)}
               >

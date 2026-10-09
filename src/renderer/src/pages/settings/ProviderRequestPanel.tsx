@@ -99,6 +99,7 @@ export function ProviderRequestPanel({
             <span>{t("Mode")}</span>
             <div style={{ alignSelf: "flex-start" }}>
               <Segmented
+                label={t("Mode")}
                 value={selectedMode}
                 onChange={setMode}
                 options={backgroundAwareOptions(canRunBackground)}

@@ -61,6 +61,7 @@ export function MenuRow({
     <button
       type="button"
       role="menuitem"
+      aria-current={active ? "true" : undefined}
       className={`menu-row ${active ? "active" : ""} ${danger ? "danger" : ""}`.replace(/\s+/g, " ").trim()}
       onClick={onClick}
     >

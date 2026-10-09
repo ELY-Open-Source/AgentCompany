@@ -100,7 +100,7 @@ export function WorkPage({ snapshot, actions, navigate, focus }: PageProps) {
   return (
     <div className="page-wide work-page">
       <TopbarActions>
-        <Segmented value={view} onChange={setView} options={VIEW_OPTIONS} />
+        <Segmented label={t("View")} value={view} onChange={setView} options={VIEW_OPTIONS} />
         <WorkFilter
           agents={agents}
           priority={priorityFilter}
