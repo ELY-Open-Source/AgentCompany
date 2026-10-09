@@ -79,8 +79,6 @@ export class SnapshotService {
       .map((flag) => ({ ...flag, enabled: toBool(flag.enabled) }));
     const operationalEvents = list<AppSnapshot["operationalEvents"][number]>(this.db, "operational_events", "created_at desc")
       .map((event) => ({ ...event, success: toBool(event.success) }));
-    const rollbackSnapshots = list<AppSnapshot["rollbackSnapshots"][number]>(this.db, "rollback_snapshots", "created_at desc")
-      .map((snapshot) => ({ ...snapshot, active: toBool(snapshot.active) }));
 
     return {
       activeOrgId,
@@ -139,9 +137,6 @@ export class SnapshotService {
       socialAuditRecords: list(this.db, "social_audit_records", "created_at desc"),
       policyRules: list(this.db, "policy_rules", "created_at asc"),
       migrationReports: list(this.db, "migration_reports", "created_at desc"),
-      rollbackSnapshots,
-      migrationCutoverEvents: list(this.db, "migration_cutover_events", "created_at desc"),
-      migrationReconciliationItems: list(this.db, "migration_reconciliation_items", "created_at desc"),
       complianceExports: list(this.db, "compliance_exports", "created_at desc"),
       legalHolds,
       retentionFreezes,

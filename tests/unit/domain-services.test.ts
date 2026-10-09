@@ -1,4 +1,4 @@
-import { mkdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { createHash, randomUUID } from "node:crypto";
@@ -35,7 +35,7 @@ describe("domain services", () => {
     const connection = createConnection();
 
     const rows = connection.db.prepare("select version from schema_migrations order by version asc").all() as Array<{ version: number }>;
-    expect(rows.map((row) => row.version)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98]);
+    expect(rows.map((row) => row.version)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99]);
     connection.close();
   });
 
@@ -592,14 +592,14 @@ describe("domain services", () => {
       idMaps: Record<string, string[]>;
       failures: Array<{ table: string; reason: string }>;
       validationSummary: { missingTableCount: number; passed: boolean };
-      rollbackPack: { sourceDatabasePath: string };
     };
     expect(report.tableChecksums.agents).toHaveLength(64);
     expect(report.idMaps.agents).toEqual(["agent-1"]);
     expect(report.failures.some((failure) => failure.reason === "missing_table")).toBe(true);
     expect(report.validationSummary.missingTableCount).toBeGreaterThan(0);
     expect(report.validationSummary.passed).toBe(false);
-    expect(report.rollbackPack.sourceDatabasePath).toBe(realpathSync.native(legacyPath));
+    // A report validates the source; it promises no restore it cannot perform.
+    expect(Object.keys(report)).not.toContain("rollbackPack");
     connection.close();
   });
 

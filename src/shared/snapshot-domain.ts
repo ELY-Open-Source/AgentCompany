@@ -47,7 +47,6 @@ import type { FeatureFlagRecord, OperationalEventRecord, SloTargetRecord } from 
 import type { ProviderAuthProfileRecord, ProviderAuthSessionRecord } from "./provider-auth-domain";
 import type { ProviderRequestRecord } from "./provider-request-domain";
 import type { ProviderRateLimitObservationRecord, ProviderRateLimitStateRecord } from "./provider-runtime-domain";
-import type { MigrationCutoverEventRecord, MigrationReconciliationItemRecord, RollbackSnapshotRecord } from "./rollback-domain";
 import type {
   BrowserActionPolicyRecord,
   BrowserActionRecord,
@@ -118,9 +117,6 @@ export interface AppSnapshot {
   socialAuditRecords: SocialAuditRecord[];
   policyRules: PolicyRuleRecord[];
   migrationReports: MigrationReportRecord[];
-  rollbackSnapshots: RollbackSnapshotRecord[];
-  migrationCutoverEvents: MigrationCutoverEventRecord[];
-  migrationReconciliationItems: MigrationReconciliationItemRecord[];
   complianceExports: ComplianceExportRecord[];
   legalHolds: LegalHoldRecord[];
   retentionFreezes: RetentionFreezeRecord[];

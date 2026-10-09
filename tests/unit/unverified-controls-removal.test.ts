@@ -23,3 +23,16 @@ describe("SDLC controls", () => {
     connection.close();
   });
 });
+
+describe("rollback records", () => {
+  test("offer no snapshot, cutover or reconciliation that marks a restore it never performs", () => {
+    const connection = new DatabaseConnection(join(tmpdir(), `agentcompany-new-rollback-${randomUUID()}.db`));
+    const tables = connection.db.prepare(`
+      select name from sqlite_master
+      where type = 'table' and name in ('rollback_snapshots', 'migration_cutover_events', 'migration_reconciliation_items')
+    `).all();
+    expect(tables).toEqual([]);
+    expect(Object.keys(IPC_CHANNELS).filter((name) => ["createRollbackSnapshot", "setRollbackSnapshotActive", "resolveMigrationReconciliation"].includes(name))).toEqual([]);
+    connection.close();
+  });
+});

@@ -45,16 +45,10 @@ interface MigrationReportBody {
     relationFailureCount: number;
     passed: boolean;
   };
-  rollbackPack: {
-    sourceDatabasePath: string;
-    sourceFingerprint: string;
-    tableChecksums: Record<string, string>;
-    idMaps: Record<string, string[]>;
-  };
 }
 
 describe("migration service", () => {
-  test("creates idempotent reports with checksums, id maps, rollback pack, and integrity failures", () => {
+  test("creates idempotent reports with checksums, id maps, and integrity failures", () => {
     const connection = createConnection();
     const organization = new OrganizationService(connection.db);
     const migrations = new MigrationService(connection.db);
@@ -87,9 +81,6 @@ describe("migration service", () => {
     expect(body.tableCounts.organizations).toBe(1);
     expect(body.tableChecksums.agents).toHaveLength(64);
     expect(body.idMaps.tasks).toEqual(["task-1"]);
-    expect(body.rollbackPack.sourceFingerprint).toBe(body.sourceFingerprint);
-    expect(body.rollbackPack.tableChecksums.agents).toBe(body.tableChecksums.agents);
-    expect(body.rollbackPack.idMaps.tasks).toEqual(["task-1"]);
     expect(body.failures).toContainEqual({ table: "agents", reason: "dangling_org_id", detail: "agent-1 -> org-missing" });
     expect(body.failures).toContainEqual({ table: "tasks", reason: "dangling_assignee_agent_id", detail: "task-1 -> agent-missing" });
     expect(body.validationSummary).toMatchObject({
@@ -171,9 +162,6 @@ describe("migration service", () => {
       create table legal_holds(id text primary key, org_id text, created_by_employee_id text);
       create table retention_freezes(id text primary key, org_id text, created_by_employee_id text);
       create table search_documents(entity_id text);
-      create table rollback_snapshots(id text primary key, org_id text, migration_report_id text, created_by_employee_id text);
-      create table migration_cutover_events(id text primary key, org_id text, migration_report_id text, rollback_snapshot_id text);
-      create table migration_reconciliation_items(id text primary key, org_id text, migration_report_id text, rollback_snapshot_id text, resolved_by_employee_id text);
       create table audit_events(id text primary key, org_id text);
       insert into organizations(id) values ('org-1');
       insert into employees(id, org_id) values ('emp-1', 'org-1');
@@ -236,9 +224,6 @@ describe("migration service", () => {
       insert into legal_holds(id, org_id, created_by_employee_id) values ('hold-1', 'org-1', 'emp-1');
       insert into retention_freezes(id, org_id, created_by_employee_id) values ('freeze-1', 'org-1', 'emp-1');
       insert into search_documents(entity_id) values ('task-1');
-      insert into rollback_snapshots(id, org_id, migration_report_id, created_by_employee_id) values ('rollback-1', 'org-1', 'migration-1', 'emp-1');
-      insert into migration_cutover_events(id, org_id, migration_report_id, rollback_snapshot_id) values ('cutover-1', 'org-1', 'migration-1', 'rollback-1');
-      insert into migration_reconciliation_items(id, org_id, migration_report_id, rollback_snapshot_id, resolved_by_employee_id) values ('reconcile-1', 'org-1', 'migration-1', 'rollback-1', 'emp-1');
       insert into audit_events(id, org_id) values ('audit-1', 'org-1');
     `);
     let orgId = "";
@@ -279,9 +264,6 @@ describe("migration service", () => {
     expect(body.tableCounts.social_approval_routes).toBe(1);
     expect(body.tableCounts.social_audit_records).toBe(1);
     expect(body.tableCounts.compliance_exports).toBe(1);
-    expect(body.tableCounts.rollback_snapshots).toBe(1);
-    expect(body.tableCounts.migration_cutover_events).toBe(1);
-    expect(body.tableCounts.migration_reconciliation_items).toBe(1);
     expect(body.tableCounts.search_documents).toBe(1);
     expect(body.tableChecksums.audit_events).toHaveLength(64);
     expect(body.idMaps.skill_runtime_snapshots).toEqual(["snapshot-1"]);
@@ -292,9 +274,6 @@ describe("migration service", () => {
     expect(body.idMaps.board_interventions).toEqual(["bdi-1"]);
     expect(body.idMaps.file_handoff_records).toEqual(["handoff-1"]);
     expect(body.idMaps.retention_freezes).toEqual(["freeze-1"]);
-    expect(body.idMaps.rollback_snapshots).toEqual(["rollback-1"]);
-    expect(body.idMaps.migration_cutover_events).toEqual(["cutover-1"]);
-    expect(body.idMaps.migration_reconciliation_items).toEqual(["reconcile-1"]);
     expect(body.idMaps.provider_usage_windows).toEqual(["usage-1"]);
     expect(body.idMaps.provider_rate_limit_observations).toEqual(["quota-1"]);
     expect(body.idMaps.provider_auth_profiles).toEqual(["authp-1"]);

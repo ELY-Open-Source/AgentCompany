@@ -10,25 +10,6 @@ export interface CreateMigrationReportInput {
   sourceDatabasePath: string;
 }
 
-export interface CreateRollbackSnapshotInput {
-  orgId: string;
-  migrationReportId: string;
-  createdByEmployeeId: string;
-}
-
-export interface SetRollbackSnapshotActiveInput {
-  orgId: string;
-  snapshotId: string;
-  active: boolean;
-  employeeId: string;
-}
-
-export interface ResolveMigrationReconciliationInput {
-  orgId: string;
-  reconciliationItemId: string;
-  employeeId: string;
-}
-
 export interface CreateComplianceExportInput {
   orgId: string;
   subjectType: ComplianceSubjectType;

@@ -70,9 +70,6 @@ const LEGACY_TABLES = [
   "legal_holds",
   "retention_freezes",
   "search_documents",
-  "rollback_snapshots",
-  "migration_cutover_events",
-  "migration_reconciliation_items",
   "audit_events",
 ];
 
@@ -98,14 +95,6 @@ interface MigrationReportBody {
   missingTables: string[];
   failures: MigrationFailure[];
   validationSummary: MigrationValidationSummary;
-  rollbackPack: {
-    sourceDatabasePath: string;
-    capturedAt: string;
-    restoreStrategy: string;
-    sourceFingerprint: string;
-    tableChecksums: Record<string, string>;
-    idMaps: Record<string, string[]>;
-  };
 }
 
 const RELATION_CHECKS: RelationCheck[] = [
@@ -238,16 +227,6 @@ const RELATION_CHECKS: RelationCheck[] = [
   { table: "legal_holds", column: "created_by_employee_id", referencedTable: "employees", referencedColumn: "id", reason: "dangling_creator_employee_id" },
   { table: "retention_freezes", column: "org_id", referencedTable: "organizations", referencedColumn: "id", reason: "dangling_org_id" },
   { table: "retention_freezes", column: "created_by_employee_id", referencedTable: "employees", referencedColumn: "id", reason: "dangling_creator_employee_id" },
-  { table: "rollback_snapshots", column: "org_id", referencedTable: "organizations", referencedColumn: "id", reason: "dangling_org_id" },
-  { table: "rollback_snapshots", column: "migration_report_id", referencedTable: "migration_reports", referencedColumn: "id", reason: "dangling_migration_report_id" },
-  { table: "rollback_snapshots", column: "created_by_employee_id", referencedTable: "employees", referencedColumn: "id", reason: "dangling_creator_employee_id" },
-  { table: "migration_cutover_events", column: "org_id", referencedTable: "organizations", referencedColumn: "id", reason: "dangling_org_id" },
-  { table: "migration_cutover_events", column: "migration_report_id", referencedTable: "migration_reports", referencedColumn: "id", reason: "dangling_migration_report_id" },
-  { table: "migration_cutover_events", column: "rollback_snapshot_id", referencedTable: "rollback_snapshots", referencedColumn: "id", reason: "dangling_rollback_snapshot_id" },
-  { table: "migration_reconciliation_items", column: "org_id", referencedTable: "organizations", referencedColumn: "id", reason: "dangling_org_id" },
-  { table: "migration_reconciliation_items", column: "migration_report_id", referencedTable: "migration_reports", referencedColumn: "id", reason: "dangling_migration_report_id" },
-  { table: "migration_reconciliation_items", column: "rollback_snapshot_id", referencedTable: "rollback_snapshots", referencedColumn: "id", reason: "dangling_rollback_snapshot_id" },
-  { table: "migration_reconciliation_items", column: "resolved_by_employee_id", referencedTable: "employees", referencedColumn: "id", reason: "dangling_resolver_employee_id" },
   { table: "audit_events", column: "org_id", referencedTable: "organizations", referencedColumn: "id", reason: "dangling_org_id" },
 ];
 
@@ -314,14 +293,6 @@ export class MigrationService {
         missingTables,
         failures,
         validationSummary,
-        rollbackPack: {
-          sourceDatabasePath,
-          capturedAt: now,
-          restoreStrategy: "legacy_snapshot_restore",
-          sourceFingerprint,
-          tableChecksums,
-          idMaps,
-        },
       };
       this.db.prepare(`
         insert into migration_reports(id, org_id, source_ref, report_json, created_at)
@@ -446,7 +417,7 @@ function quoteIdentifier(identifier: string): string {
   return `"${identifier.replaceAll('"', '""')}"`;
 }
 
-function fingerprintSource(body: Omit<MigrationReportBody, "sourceFingerprint" | "missingTables" | "rollbackPack" | "validationSummary">): string {
+function fingerprintSource(body: Omit<MigrationReportBody, "sourceFingerprint" | "missingTables" | "validationSummary">): string {
   return createHash("sha256").update(JSON.stringify(body)).digest("hex");
 }
 

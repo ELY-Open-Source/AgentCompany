@@ -51,7 +51,6 @@ import type {
   CreateOrganizationInput,
   CreateProviderResponseInput,
   CreateRetentionFreezeInput,
-  CreateRollbackSnapshotInput,
   CreateScheduledPostInput,
   CreateSocialAccountInput,
   CreateTaskInput,
@@ -63,7 +62,6 @@ import type {
   OpenFileInput,
   GrantRoleInput,
   LaunchSocialLoginInput,
-  ResolveMigrationReconciliationInput,
   RunTaskInput,
   RevokeProviderCredentialInput,
   SaveProviderCredentialInput,
@@ -81,7 +79,6 @@ import type {
   SetFilePinnedInput,
   SetFeatureFlagInput,
   SetLegalHoldStateInput,
-  SetRollbackSnapshotActiveInput,
   SetRetentionFreezeStateInput,
   SetScheduledPostStateInput,
   StreamProviderResponseInput,
@@ -182,9 +179,6 @@ export interface DesktopApi {
   pickDirectory(): Promise<DesktopResult<string | null>>;
   setFilePinned(input: SetFilePinnedInput): Promise<DesktopResult<AppSnapshot>>;
   createMigrationReport(input: CreateMigrationReportInput): Promise<DesktopResult<AppSnapshot>>;
-  createRollbackSnapshot(input: CreateRollbackSnapshotInput): Promise<DesktopResult<AppSnapshot>>;
-  setRollbackSnapshotActive(input: SetRollbackSnapshotActiveInput): Promise<DesktopResult<AppSnapshot>>;
-  resolveMigrationReconciliation(input: ResolveMigrationReconciliationInput): Promise<DesktopResult<AppSnapshot>>;
   setFeatureFlag(input: SetFeatureFlagInput): Promise<DesktopResult<AppSnapshot>>;
   createComplianceExport(input: CreateComplianceExportInput): Promise<DesktopResult<AppSnapshot>>;
   createLegalHold(input: CreateLegalHoldInput): Promise<DesktopResult<AppSnapshot>>;
