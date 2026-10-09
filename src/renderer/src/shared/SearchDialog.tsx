@@ -37,16 +37,22 @@ export function SearchDialog({
 }) {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<SearchFilter>("all");
-  const [results, setResults] = useState<SearchResultRecord[]>([]);
+  // An answer belongs to the company, filter and words it was asked for; only the current question's answer is shown.
+  const [answer, setAnswer] = useState<{ key: string; results: SearchResultRecord[]; error: string | null } | null>(null);
   const orgId = snapshot.activeOrgId;
   const employee = useMemo(() => snapshot.employees.find((item) => item.orgId === orgId), [snapshot.employees, orgId]);
-  const canSearch = Boolean(orgId && employee && query.trim().length >= 2);
-  const visibleResults = canSearch ? results : [];
+  const trimmed = query.trim();
+  const canSearch = Boolean(orgId && employee && trimmed.length >= 2);
+  const key = `${orgId}|${filter}|${trimmed}`;
+  const current = canSearch && answer?.key === key ? answer : null;
+  const visibleResults = current?.results ?? [];
+  const searching = canSearch && !current;
 
   useEffect(() => {
-    if (!open) return;
-    const trimmed = query.trim();
-    if (!orgId || !employee || trimmed.length < 2) return;
+    if (!open || !orgId || !employee || trimmed.length < 2) return;
+    // A reply to a question that has since changed is dropped, so a slow old answer never replaces a newer one.
+    let live = true;
+    const asked = `${orgId}|${filter}|${trimmed}`;
     const timeout = window.setTimeout(() => {
       void window.agentCompany.search({
         orgId,
@@ -55,12 +61,17 @@ export function SearchDialog({
         entityTypes: filter === "all" ? undefined : [filter],
         limit: 12,
       }).then((result) => {
-        if (!result.ok) throw new Error(result.error.message);
-        setResults(result.data);
+        if (!live) return;
+        setAnswer(result.ok ? { key: asked, results: result.data, error: null } : { key: asked, results: [], error: result.error.message });
+      }, (reason: unknown) => {
+        if (live) setAnswer({ key: asked, results: [], error: reason instanceof Error ? reason.message : String(reason) });
       });
     }, 120);
-    return () => window.clearTimeout(timeout);
-  }, [employee, filter, open, orgId, query]);
+    return () => {
+      live = false;
+      window.clearTimeout(timeout);
+    };
+  }, [employee, filter, open, orgId, trimmed]);
 
   useEffect(() => {
     if (!open) return;
@@ -115,7 +126,9 @@ export function SearchDialog({
           </select>
           <Button size="small" onClick={onClose}>{t("Close")}</Button>
         </div>
-        <div style={{ maxHeight: 420, overflow: "auto", padding: 8 }}>
+        <div style={{ maxHeight: 420, overflow: "auto", padding: 8 }} aria-busy={searching}>
+          {searching && <div role="status" style={{ padding: 8, fontSize: 13, color: "var(--text-3)" }}>{t("Searching…")}</div>}
+          {current?.error && <div className="form-error" role="alert">{t("Search failed: {reason}", { reason: current.error })}</div>}
           {visibleResults.map((result) => (
             <button
               key={`${result.entityType}:${result.entityId}`}

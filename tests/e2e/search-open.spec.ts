@@ -37,6 +37,17 @@ test("a search hit opens the object itself, not just its page", async () => {
       await page.getByRole("dialog", { name: "Search" }).getByRole("button", { name: title }).first().click();
     };
 
+    // While asking, search says so; quick typing shows only the latest words' answer.
+    await page.locator(".search-kbd").click();
+    const searchDialog = page.getByRole("dialog", { name: "Search" });
+    await searchDialog.getByRole("textbox").fill("zebra");
+    await expect(searchDialog.getByRole("status")).toHaveText("Searching…");
+    await searchDialog.getByRole("textbox").fill("Walrus");
+    await expect(searchDialog.getByRole("button", { name: /Walrus pricing memo/ })).toBeVisible();
+    await expect(searchDialog.getByRole("button", { name: /zebra crossing note/ })).toHaveCount(0);
+    await expect(searchDialog.getByRole("status")).toHaveCount(0);
+    await page.keyboard.press("Escape");
+
     // A message opens its conversation with its thread shown and the message marked.
     await search("zebra", /zebra crossing note/);
     await expect(page.getByRole("complementary", { name: "Thread" })).toBeVisible();

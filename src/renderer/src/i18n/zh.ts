@@ -696,6 +696,8 @@ export const zh: Record<string, string> = {
   "Working language": "工作语言",
   "That did not work": "操作未成功",
   "Working…": "处理中…",
+  "Searching…": "正在搜索…",
+  "Search failed: {reason}": "搜索失败：{reason}",
   "Not up to date.": "数据不是最新的。",
   "Showing data from {time}.": "当前显示 {time} 的数据。",
   "Updating failed: {reason} (attempt {count}).": "更新失败：{reason}（第 {count} 次尝试）。",
