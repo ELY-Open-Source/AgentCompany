@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Avatar } from "../../shared/ui";
+import { PixelAvatar } from "../office/PixelAvatar";
+import { ceoIdOf, officeRoster } from "../office/roster";
 import type { AgentRecord, EmployeeRecord } from "../../../../shared/domain";
 import { t } from "../../i18n/i18n";
 
-const NODE_W = 208;
+const NODE_W = 232;
 const NODE_H = 64;
 const H_GAP = 24;
 const V_GAP = 44;
@@ -47,6 +48,7 @@ export function OrgChartTree({
   onSelectAgent: (agentId: string) => void;
 }) {
   const layout = useMemo(() => buildLayout(boardChair, agents), [boardChair, agents]);
+  const ceoId = useMemo(() => ceoIdOf(officeRoster(agents)), [agents]);
   const scrollRef = useRef<HTMLDivElement>(null);
   const scaleRef = useRef(1);
   const pendingCenter = useRef<{ cx: number; cy: number } | null>(null);
@@ -126,7 +128,7 @@ export function OrgChartTree({
                 onClick={() => { if (node.agentId) onSelectAgent(node.agentId); }}
                 disabled={!node.agentId}
               >
-                <Avatar name={node.name} bot={!node.human} size="sm" />
+                {node.id !== "__org__" && <PixelAvatar id={node.id} isCeo={node.id === ceoId} />}
                 <span className="org-node-text">
                   <span className="org-node-name">{node.name}</span>
                   <span className="org-node-role">{node.role}</span>

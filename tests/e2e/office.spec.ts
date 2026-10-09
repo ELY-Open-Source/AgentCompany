@@ -113,6 +113,21 @@ test("the office floor opens agent details on click", async () => {
     // Hired agents take open-floor desks in hire order and are clickable too.
     await hireAgent(page, "Ava Patel", "Designer", "Design");
     await hireAgent(page, "Ken Ito", "Engineer", "Engineering");
+
+    // The org chart draws everyone as the office's pixel people: the chair, the CEO and both hires.
+    await page.getByRole("button", { name: "Team", exact: true }).click();
+    const avatars = page.locator(".org-node-card canvas.pixel-avatar");
+    await expect(avatars).toHaveCount(4);
+    const painted = await avatars.evaluateAll((canvases) => canvases.map((canvas) => {
+      const { data } = (canvas as HTMLCanvasElement).getContext("2d")!.getImageData(0, 0, (canvas as HTMLCanvasElement).width, (canvas as HTMLCanvasElement).height);
+      let opaque = 0;
+      for (let i = 3; i < data.length; i += 4) if (data[i] === 255) opaque++;
+      return opaque;
+    }));
+    for (const count of painted) expect(count).toBeGreaterThan(100);
+    // Different people look different.
+    const looks = await avatars.evaluateAll((canvases) => canvases.map((canvas) => (canvas as HTMLCanvasElement).toDataURL()));
+    expect(new Set(looks).size).toBe(4);
     await page.getByRole("button", { name: "Office", exact: true }).click();
     await expect(canvas).toBeVisible();
     await page.waitForTimeout(300);

@@ -635,6 +635,7 @@ a { color: inherit; }
 }
 .org-node-card:hover:not(:disabled) { border-color: var(--border-strong); box-shadow: var(--shadow-md); }
 .org-node-card:disabled { cursor: default; }
+.pixel-avatar { flex-shrink: 0; image-rendering: pixelated; }
 .org-node-card.human { border-color: var(--amber); background: var(--amber-soft); }
 .org-node-text { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .org-node-name {

@@ -12,6 +12,7 @@ import { dayPart, season } from "../shared/palette-clock";
 import { pixelScale } from "../shared/pixel-scale";
 import type { Camera, OfficeAgentInput } from "./office/office-types";
 import { officeStatus } from "./office/agent-state";
+import { officeRoster } from "./office/roster";
 import { t } from "../i18n/i18n";
 
 const FPS_INTERVAL = 1000 / 24;
@@ -42,9 +43,7 @@ export function OfficePage({ snapshot }: PageProps) {
   if (simRef.current === null) simRef.current = new OfficeSimulation();
 
   const inputs = useMemo<OfficeAgentInput[]>(() => {
-    const orgAgents = snapshot.agents
-      .filter((agent) => agent.orgId === orgId && agent.lifecycle === "active")
-      .sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id));
+    const orgAgents = officeRoster(snapshot.agents.filter((agent) => agent.orgId === orgId));
     const allTasks = snapshot.tasks.filter((task) => task.orgId === orgId);
     const orgTasks = allTasks.filter(isBusinessTask);
     return orgAgents.map((agent) => ({

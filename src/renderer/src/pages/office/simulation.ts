@@ -1,6 +1,7 @@
 import { buildFloorPlan, findPath } from "./floor-plan";
 import type { AmenitySpot, Camera, FloorPlan, OfficeAgentInput, Rect, Vec } from "./office-types";
 import { appearanceFor, type Carrying, type Facing, type SpriteAppearance } from "./sprites";
+import { ceoIdOf } from "./roster";
 
 export type AgentBehavior =
   | { kind: "seated" }
@@ -278,7 +279,7 @@ export class OfficeSimulation {
    * else takes open-floor desks in order.
    */
   sync(inputs: OfficeAgentInput[]): void {
-    const ceoId = inputs.find((input) => input.roleLevel === "c_suite")?.id ?? null;
+    const ceoId = ceoIdOf(inputs);
     const openCount = inputs.filter((input) => input.id !== ceoId).length;
     const planRebuilt = openCount !== this.openDeskDemand;
     if (planRebuilt) {
