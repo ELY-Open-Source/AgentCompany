@@ -1,3 +1,4 @@
+import { SignInStatus } from "../pages/connectors/SignInStatus";
 import { useMemo } from "react";
 import type { AppSnapshot } from "../../../shared/domain";
 import { Button } from "../shared/ui";
@@ -23,7 +24,7 @@ export function ConnectorsStep({
   actions: SnapshotActions;
   onFinish: () => void;
 }) {
-  const { catalog, busySlug, connectError, connect, retry } = useConnectorCatalog(orgId, actions);
+  const { catalog, busySlug, connectError, signIn, stopWaiting, checkAgain, connect, retry } = useConnectorCatalog(orgId, actions);
   const connectedSlugs = useMemo(
     () =>
       new Set(
@@ -65,6 +66,7 @@ export function ConnectorsStep({
           />
         </div>
       )}
+      {signIn && <SignInStatus signIn={signIn} onStop={stopWaiting} onCheckAgain={checkAgain} />}
       {connectError && (
         <div
           style={{

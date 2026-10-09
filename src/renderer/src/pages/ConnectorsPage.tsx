@@ -1,3 +1,4 @@
+import { SignInStatus } from "./connectors/SignInStatus";
 import { useMemo } from "react";
 import { Button } from "../shared/ui";
 import { t } from "../i18n/i18n";
@@ -16,7 +17,7 @@ import { DEFAULT_CONNECTOR_ACCOUNT_LABEL } from "../../../shared/commands";
 export function ConnectorsPage({ snapshot, actions }: PageProps) {
   const orgId = activeOrgId(snapshot);
   const employee = requireActiveEmployee(snapshot);
-  const { catalog, busySlug, busyAction, connectError, connect, disconnect, grant, revoke, retry } = useConnectorCatalog(orgId, actions);
+  const { catalog, busySlug, busyAction, connectError, signIn, stopWaiting, checkAgain, connect, disconnect, grant, revoke, retry } = useConnectorCatalog(orgId, actions);
 
   const accounts = useMemo(
     () => snapshot.connectorAccounts.filter((account) => account.orgId === orgId),
@@ -60,6 +61,8 @@ export function ConnectorsPage({ snapshot, actions }: PageProps) {
           {connectError}
         </div>
       )}
+
+      {signIn && <SignInStatus signIn={signIn} onStop={stopWaiting} onCheckAgain={checkAgain} />}
 
       <ConnectedList
         accounts={accounts}

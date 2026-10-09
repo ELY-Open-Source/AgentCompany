@@ -1,3 +1,4 @@
+import { judgeSignIn } from "./sign-in";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ConnectorCatalogEntry } from "../../../../shared/commands";
 import type { SnapshotActions } from "../../app/useSnapshot";
@@ -10,6 +11,14 @@ export type CatalogState =
   | { phase: "error"; message: string };
 
 type CatalogSlot = { orgId: string; state: CatalogState } | null;
+
+/** Where a sign-in started from this window stands; it always ends connected, failed, or timed out. */
+export type SignIn = { slug: string; label: string; accountId: string } & (
+  | { phase: "waiting"; check: number; checks: number }
+  | { phase: "connected" }
+  | { phase: "timed_out" }
+  | { phase: "failed"; message: string }
+);
 
 const CONNECT_POLL_INTERVAL_MS = 4000;
 const CONNECT_POLL_ATTEMPTS = 15;
@@ -24,6 +33,9 @@ export function useConnectorCatalog(orgId: string, actions: SnapshotActions): {
   busySlug: string | null;
   busyAction: "connect" | "disconnect" | null;
   connectError: string | null;
+  signIn: SignIn | null;
+  stopWaiting: () => void;
+  checkAgain: () => void;
   connect: (toolkitSlug: string, label: string) => void;
   disconnect: (toolkitSlug: string, label: string) => void;
   grant: (agentId: string, toolkitSlug: string, accountLabel: string, employeeId: string) => void;
@@ -33,7 +45,10 @@ export function useConnectorCatalog(orgId: string, actions: SnapshotActions): {
   const [catalogSlot, setCatalogSlot] = useState<CatalogSlot>(null);
   const [busy, setBusy] = useState<{ slug: string; action: "connect" | "disconnect" } | null>(null);
   const [connectError, setConnectError] = useState<string | null>(null);
+  const [signIn, setSignIn] = useState<SignIn | null>(null);
   const pollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Each sign-in check run has its own number; a stopped or replaced run's late answers are dropped.
+  const pollRun = useRef(0);
   const catalog: CatalogState = catalogSlot && catalogSlot.orgId === orgId ? catalogSlot.state : { phase: "loading" };
 
   const load = useCallback(() => {
@@ -65,6 +80,7 @@ export function useConnectorCatalog(orgId: string, actions: SnapshotActions): {
   }, [orgId]);
 
   useEffect(() => () => {
+    pollRun.current += 1;
     if (pollTimer.current) clearTimeout(pollTimer.current);
   }, []);
 
@@ -79,39 +95,81 @@ export function useConnectorCatalog(orgId: string, actions: SnapshotActions): {
     [actions, orgId],
   );
 
-  const pollUntilActive = useCallback((toolkitSlug: string, label: string) => {
+  // Checks the account until it is ACTIVE, failed, or the checks run out; the card stays busy until one of those.
+  const pollUntilActive = useCallback((toolkitSlug: string, label: string, accountId: string) => {
+    if (pollTimer.current) clearTimeout(pollTimer.current);
+    pollRun.current += 1;
+    const run = pollRun.current;
+    const sign = { slug: toolkitSlug, label, accountId };
+    const end = (outcome: SignIn) => {
+      if (pollRun.current !== run) return;
+      setSignIn(outcome);
+      setBusy(null);
+    };
     const poll = (attempt: number) => {
-      if (attempt >= CONNECT_POLL_ATTEMPTS) return;
+      if (pollRun.current !== run) return;
+      if (attempt >= CONNECT_POLL_ATTEMPTS) {
+        end({ ...sign, phase: "timed_out" });
+        return;
+      }
+      setSignIn({ ...sign, phase: "waiting", check: attempt + 1, checks: CONNECT_POLL_ATTEMPTS });
       pollTimer.current = setTimeout(() => {
         void refreshAccounts().then((data) => {
+          if (pollRun.current !== run) return;
           const account = data?.connectorAccounts.find(
             (item) => item.orgId === orgId && item.toolkitSlug === toolkitSlug && item.label === label,
           );
-          if (account?.status === "ACTIVE" && !account.pendingAccountId) return;
+          const judged = judgeSignIn(account, accountId);
+          if (judged.outcome === "connected") return end({ ...sign, phase: "connected" });
+          if (judged.outcome === "failed") return end({ ...sign, phase: "failed", message: judged.message });
           poll(attempt + 1);
-        });
+        }, (error: unknown) => end({ ...sign, phase: "failed", message: error instanceof Error ? error.message : String(error) }));
       }, CONNECT_POLL_INTERVAL_MS);
     };
     poll(0);
   }, [refreshAccounts, orgId]);
 
+  const stopWaiting = useCallback(() => {
+    pollRun.current += 1;
+    if (pollTimer.current) clearTimeout(pollTimer.current);
+    setSignIn(null);
+    setBusy(null);
+  }, []);
+
+  const checkAgain = useCallback(() => {
+    if (!signIn) return;
+    setBusy({ slug: signIn.slug, action: "connect" });
+    pollUntilActive(signIn.slug, signIn.label, signIn.accountId);
+  }, [signIn, pollUntilActive]);
+
   const connect = useCallback((toolkitSlug: string, label: string) => {
+    pollRun.current += 1;
+    const run = pollRun.current;
+    if (pollTimer.current) clearTimeout(pollTimer.current);
     setBusy({ slug: toolkitSlug, action: "connect" });
     setConnectError(null);
+    setSignIn(null);
     void window.agentCompany
       .connectComposioToolkit({ orgId, toolkitSlug, label })
       .then(async (result) => {
+        // Unmounted, stopped or replaced while connecting: this answer starts nothing.
+        if (pollRun.current !== run) return;
         if (!result.ok) {
           setConnectError(result.error.message);
+          setBusy(null);
           return;
         }
-        pollUntilActive(toolkitSlug, label.trim().toLowerCase());
+        // Opening the browser is not being connected: the card stays busy while the sign-in is checked.
+        pollUntilActive(toolkitSlug, label.trim().toLowerCase(), result.data.accountId);
         if (result.data.redirectUrl) {
           const opened = await window.agentCompany.openExternalUrl(result.data.redirectUrl);
           if (!opened.ok) setConnectError(opened.error.message);
         }
-      })
-      .finally(() => setBusy(null));
+      }, (error: unknown) => {
+        if (pollRun.current !== run) return;
+        setConnectError(error instanceof Error ? error.message : String(error));
+        setBusy(null);
+      });
   }, [orgId, pollUntilActive]);
 
   const disconnect = useCallback((toolkitSlug: string, label: string) => {
@@ -139,6 +197,9 @@ export function useConnectorCatalog(orgId: string, actions: SnapshotActions): {
     busySlug: busy?.slug ?? null,
     busyAction: busy?.action ?? null,
     connectError,
+    signIn,
+    stopWaiting,
+    checkAgain,
     connect,
     disconnect,
     grant,
