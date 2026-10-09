@@ -28,7 +28,7 @@ import { SprintService } from "../services/sprint-service";
 import { ComposioConnectionService } from "../services/composio/composio-connection-service";
 import { ConnectorGrantsService } from "../services/composio/connector-grants";
 import { approvalDrifts } from "../services/approval-drift";
-import { threadHistory } from "../services/chat-history";
+import { spaceHistory, threadHistory } from "../services/chat-history";
 import { requestsForRun } from "../services/provider-request-store";
 import { setGoalAuditor } from "../services/goal-audit-inputs";
 import { IntegrationKeyStore } from "../services/integration-key-store";
@@ -415,6 +415,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
   handle("grantConnector", (input) => mutate(() => new ConnectorGrantsService(deps.connection.db).grantFromBoard(input)));
   handle("runRequests", (input) => ok(requestsForRun(deps.connection.db, input.orgId, input.runId)));
   handle("chatThreadHistory", (input) => ok(threadHistory(deps.connection.db, input.orgId, input.threadId)));
+  handle("chatSpaceHistory", (input) => ok(spaceHistory(deps.connection.db, input.orgId, input.spaceId, input.beforeMessageId, "limit" in input ? { limit: input.limit } : { fromMessageId: input.fromMessageId })));
   handle("approvalDrifts", (input) => {
     try {
       return ok(approvalDrifts(deps.connection.db, input.orgId));

@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type MutableRefObject } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type MutableRefObject } from "react";
 import { AvatarStack, Icon, IconButton } from "../../shared/ui";
 import type {
   ApprovalRecord,
@@ -14,6 +14,10 @@ import { ChatComposer, type Draft, type SendState } from "./ChatComposer";
 import { ChatTimeline } from "./ChatTimeline";
 import { ThreadPanel } from "./ThreadPanel";
 import { buildThreadLinks } from "./thread-links";
+import type { SpaceHistoryPage } from "../../../../shared/chat-domain";
+
+/** Older messages fetched per "Show earlier messages". */
+const HISTORY_PAGE = 150;
 import type { MessageContext } from "./chat-helpers";
 import { t } from "../../i18n/i18n";
 
@@ -76,11 +80,65 @@ export function ChatConversation({
   const [query, setQuery] = useState("");
   // The component is keyed by space, so an open thread closes when the conversation changes.
   const [openThreadId, setOpenThreadId] = useState<string | null>(null);
-  const threadLinks = useMemo(() => buildThreadLinks(messagesInSpace, threads, context), [messagesInSpace, threads, context]);
+  // The snapshot holds recent chat only; older messages come from the database, paged back from the oldest one loaded.
+  const [oldestId, setOldestId] = useState<string | null>(null);
+  const [exhausted, setExhausted] = useState(false);
+  const [older, setOlder] = useState<SpaceHistoryPage | null>(null);
+  const [historyError, setHistoryError] = useState<string | null>(null);
+  const anchorId = messagesInSpace.length > 0 ? messagesInSpace[0].id : null;
+  const orgId = space?.orgId ?? null;
+  const currentSpaceId = space?.id ?? null;
+  const loadOlder = useCallback(() => {
+    if (!orgId || !currentSpaceId) return;
+    window.agentCompany.chatSpaceHistory({ orgId, spaceId: currentSpaceId, beforeMessageId: oldestId ?? anchorId, limit: HISTORY_PAGE }).then((result) => {
+      if (!result.ok) throw new Error(result.error.message);
+      // With nothing older, the oldest message already shown is pinned, so the range refresh keeps it if newer traffic displaces it.
+      const oldest = result.data.messages.length > 0 ? result.data.messages[0].id : oldestId ?? anchorId;
+      if (oldest !== null) setOldestId(oldest);
+      setExhausted(!result.data.hasMore);
+      setHistoryError(null);
+    }).catch((reason: unknown) => setHistoryError(reason instanceof Error ? reason.message : String(reason)));
+  }, [orgId, currentSpaceId, oldestId, anchorId]);
+  // While the snapshot holds none of the conversation and nothing is pinned, every reload checks the database for its newest page.
+  useEffect(() => {
+    if (messagesInSpace.length === 0 && oldestId === null) loadOlder();
+  }, [messagesInSpace, oldestId, loadOlder]);
+  useEffect(() => {
+    if (!orgId || !currentSpaceId || !oldestId) return;
+    let cancelled = false;
+    // The loaded range is refetched on every snapshot reload (messagesInSpace changes), so edits and deletes of old messages show too.
+    window.agentCompany.chatSpaceHistory({ orgId, spaceId: currentSpaceId, beforeMessageId: anchorId, fromMessageId: oldestId }).then((result) => {
+      if (cancelled) return;
+      if (!result.ok) throw new Error(result.error.message);
+      setOlder(result.data);
+      setExhausted(!result.data.hasMore);
+      setHistoryError(null);
+    }).catch((reason: unknown) => {
+      if (!cancelled) setHistoryError(reason instanceof Error ? reason.message : String(reason));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [orgId, currentSpaceId, oldestId, anchorId, messagesInSpace]);
+  const allMessages = useMemo(() => [...(older?.messages ?? []), ...messagesInSpace], [older, messagesInSpace]);
+  const allThreads = useMemo(() => {
+    const byId = new Map(threads.map((thread) => [thread.id, thread]));
+    for (const thread of older?.threads ?? []) if (!byId.has(thread.id)) byId.set(thread.id, thread);
+    return [...byId.values()];
+  }, [threads, older]);
+  // Paged messages take their attachments, mentions and commands from the page only, so a record the snapshot also holds is not doubled.
+  const pagedIds = useMemo(() => new Set((older?.messages ?? []).map((message) => message.id)), [older]);
+  const allAttachments = useMemo(() => [...(older?.attachments ?? []), ...attachments.filter((item) => !pagedIds.has(item.messageId))], [older, attachments, pagedIds]);
+  const allMentions = useMemo(() => [...(older?.mentions ?? []), ...mentions.filter((item) => !pagedIds.has(item.messageId))], [older, mentions, pagedIds]);
+  const allSlashInvocations = useMemo(
+    () => [...(older?.slashInvocations ?? []), ...slashInvocations.filter((item) => !pagedIds.has(item.messageId))],
+    [older, slashInvocations, pagedIds],
+  );
+  const threadLinks = useMemo(() => buildThreadLinks(allMessages, allThreads, context), [allMessages, allThreads, context]);
   const trimmed = query.trim().toLowerCase();
   const filtered = trimmed
-    ? messagesInSpace.filter((m) => m.bodyMd.toLowerCase().includes(trimmed))
-    : messagesInSpace;
+    ? allMessages.filter((m) => m.bodyMd.toLowerCase().includes(trimmed))
+    : allMessages;
 
   // Messenger scroll contract: open at the latest message, stay pinned there
   // while the reader is at the bottom, and offer a jump back the moment they
@@ -146,12 +204,15 @@ export function ChatConversation({
                 key={space.id}
                 messagesInSpace={filtered}
                 pendingApprovals={pendingApprovals}
-                attachments={attachments}
-                mentions={mentions}
-                slashInvocations={slashInvocations}
+                attachments={allAttachments}
+                mentions={allMentions}
+                slashInvocations={allSlashInvocations}
                 files={files}
                 context={context}
                 currentEmployeeId={currentEmployeeId}
+                historyStart={exhausted}
+                historyError={historyError}
+                onLoadOlder={loadOlder}
                 threadLinks={threadLinks}
                 onOpenThread={setOpenThreadId}
                 onApprove={onApprove}

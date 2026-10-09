@@ -72,6 +72,10 @@ export const platformContracts = {
   approvalDrifts: z.strictObject({ orgId: id }),
   runRequests: z.strictObject({ orgId: id, runId: id }),
   chatThreadHistory: z.strictObject({ orgId: id, threadId: id }),
+  chatSpaceHistory: z.union([
+    z.strictObject({ orgId: id, spaceId: id, beforeMessageId: id.nullable(), limit: z.number().int().min(1).max(500) }),
+    z.strictObject({ orgId: id, spaceId: id, beforeMessageId: id.nullable(), fromMessageId: id }),
+  ]),
   search: z.strictObject({
     orgId: id, employeeId: id, query: z.string(), entityTypes: z.array(z.enum(SEARCH_ENTITY_TYPES)).optional(), limit: z.number().optional(),
   }) satisfies z.ZodType<C.SearchInput>,

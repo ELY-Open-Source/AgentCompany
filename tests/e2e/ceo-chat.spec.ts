@@ -166,6 +166,29 @@ test("the pinned CEO conversation is the Messages front door", async () => {
     await expect(ceoRow.locator(".nav-badge")).toHaveText("1");
     await page.getByRole("button", { name: "Jump to latest" }).click();
     await expect(ceoRow.locator(".nav-badge")).toHaveCount(0);
+
+    // History older than the loaded window comes from the database, back to the very first message.
+    await page.evaluate(async () => {
+      const api = (window as unknown as { agentCompany: {
+        loadSnapshot: () => Promise<{ ok: true; data: { activeOrgId: string; employees: Array<{ id: string; orgId: string }>; chatSpaces: Array<{ id: string; orgId: string; name: string }> } }>;
+        sendMessage: (input: unknown) => Promise<unknown>;
+      } }).agentCompany;
+      const snapshot = (await api.loadSnapshot()).data;
+      const employee = snapshot.employees.find((item) => item.orgId === snapshot.activeOrgId)!;
+      const general = snapshot.chatSpaces.find((item) => item.orgId === snapshot.activeOrgId && item.name === "general")!;
+      for (let index = 0; index < 520; index += 1) {
+        await api.sendMessage({ orgId: snapshot.activeOrgId, spaceId: general.id, threadId: null, senderType: "employee", senderId: employee.id, bodyMd: `General line ${index}`, attachmentFileIds: [] });
+      }
+    });
+    await page.locator(".convo-item", { hasText: "general" }).click();
+    await expect(chatLog.getByText("General line 519")).toBeVisible();
+    const start = chatLog.getByText("This is the start of the conversation.");
+    for (let click = 0; click < 10 && !(await start.isVisible()); click += 1) {
+      await chatLog.getByRole("button", { name: "Show earlier messages" }).click();
+      await page.waitForTimeout(300);
+    }
+    await expect(start).toBeVisible();
+    await expect(chatLog.getByText("General line 0", { exact: true })).toBeVisible();
   } finally {
     await app.close();
   }

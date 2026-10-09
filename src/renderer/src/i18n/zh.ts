@@ -48,6 +48,8 @@ export const zh: Record<string, string> = {
   "Close thread": "关闭话题",
   "Reply": "回复",
   "Send reply": "发送回复",
+  "Earlier messages could not load: {reason}": "更早的消息未能加载：{reason}",
+  "This is the start of the conversation.": "这是会话的开头。",
   "Resume": "恢复",
   "Missing this run": "本次运行缺少的能力",
   "Disconnect": "断开连接",

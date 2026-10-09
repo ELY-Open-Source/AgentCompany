@@ -38,6 +38,9 @@ export function ChatTimeline({
   files,
   context,
   currentEmployeeId,
+  historyStart,
+  historyError,
+  onLoadOlder,
   threadLinks,
   onOpenThread,
   onApprove,
@@ -54,6 +57,10 @@ export function ChatTimeline({
   files: FileObjectRecord[];
   context: MessageContext;
   currentEmployeeId: string;
+  /** True once the database said no older message exists. */
+  historyStart: boolean;
+  historyError: string | null;
+  onLoadOlder: () => void;
   threadLinks: Map<string, ThreadLink>;
   onOpenThread: (threadId: string) => void;
   onApprove: (approvalId: string) => void;
@@ -72,14 +79,20 @@ export function ChatTimeline({
   const visible = hiddenCount > 0 ? messagesInSpace.slice(hiddenCount) : messagesInSpace;
 
   const elements: ReactNode[] = [];
-  if (hiddenCount > 0) {
+  if (historyError) elements.push(<div key="history-error" className="form-error" role="alert">{t("Earlier messages could not load: {reason}", { reason: historyError })}</div>);
+  if (hiddenCount > 0 || !historyStart) {
+    // Showing earlier first reveals loaded messages, then asks the database for the next page.
+    const showEarlier = () => {
+      setVisibleCount((count) => count + WINDOW_SIZE);
+      if (hiddenCount === 0) onLoadOlder();
+    };
     elements.push(
       <div key="show-earlier" style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
-        <Button size="small" onClick={() => setVisibleCount((count) => count + WINDOW_SIZE)}>
-          {t("Show earlier messages")}
-        </Button>
+        <Button size="small" onClick={showEarlier}>{t("Show earlier messages")}</Button>
       </div>,
     );
+  } else {
+    elements.push(<div key="history-start" style={{ textAlign: "center", fontSize: 12, color: "var(--text-3)", marginBottom: 16 }}>{t("This is the start of the conversation.")}</div>);
   }
   let lastDay = "";
   for (const message of visible) {

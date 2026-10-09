@@ -97,3 +97,10 @@ export interface ThreadHistory {
   mentions: ChatMentionRecord[];
   slashInvocations: ChatSlashInvocationRecord[];
 }
+
+/** One page of a conversation's older messages, oldest first, and whether still older ones exist. */
+export interface SpaceHistoryPage extends ThreadHistory {
+  /** The threads these messages belong to, which the snapshot may no longer hold. */
+  threads: ChatThreadRecord[];
+  hasMore: boolean;
+}
