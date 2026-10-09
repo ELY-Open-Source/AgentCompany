@@ -1,3 +1,4 @@
+import { tableRows } from "../helpers/table-rows";
 import { randomUUID } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -5,7 +6,6 @@ import { describe, expect, test } from "vitest";
 import { DatabaseConnection } from "../../src/main/database/connection";
 import { OrganizationService } from "../../src/main/services/organization-service";
 import { parseProviderRateLimitHeaders, ProviderRateLimitRegistry } from "../../src/main/services/provider-rate-limit-registry";
-import { SnapshotService } from "../../src/main/services/snapshot-service";
 
 function createConnection(): DatabaseConnection {
   return new DatabaseConnection(join(tmpdir(), `agentcompany-provider-rate-limits-${randomUUID()}.db`));
@@ -52,7 +52,6 @@ describe("provider rate limit registry", () => {
   test("persists observed quota state into snapshots", () => {
     const connection = createConnection();
     const organization = new OrganizationService(connection.db);
-    const snapshot = new SnapshotService(connection.db);
     const registry = new ProviderRateLimitRegistry(connection.db);
     let orgId = "";
     let openAiProviderId = "";
@@ -75,7 +74,7 @@ describe("provider rate limit registry", () => {
       });
     });
 
-    expect(snapshot.load().providerRateLimitObservations[0]).toMatchObject({
+    expect(tableRows(connection.db, "provider_rate_limit_observations", "observed_at desc")[0]).toMatchObject({
       orgId,
       providerId: openAiProviderId,
       providerKey: "openai",

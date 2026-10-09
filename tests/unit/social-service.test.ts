@@ -1,3 +1,4 @@
+import { tableRows } from "../helpers/table-rows";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { randomUUID } from "node:crypto";
@@ -274,7 +275,6 @@ describe("social service", () => {
     const connection = createConnection();
     const organization = new OrganizationService(connection.db);
     const social = new SocialService(connection.db);
-    const snapshot = new SnapshotService(connection.db);
     let orgId = "";
     let authorizerId = "";
     let approvalId = "";
@@ -303,8 +303,7 @@ describe("social service", () => {
         .get(postId) as { approval_id: string }).approval_id;
     });
 
-    const state = snapshot.load();
-    expect(state.approvalAssignments).toContainEqual(expect.objectContaining({
+    expect(tableRows(connection.db, "approval_assignments", "created_at desc")).toContainEqual(expect.objectContaining({
       approvalId,
       assigneeType: ROUTE_TO_TYPE.EMPLOYEE,
       assigneeId: authorizerId,

@@ -16,14 +16,3 @@ export const SLO_SIGNAL_KEY = {
 export type FeatureFlagKey = ValueOf<typeof FEATURE_FLAG_KEY>;
 export type SloSignalKey = ValueOf<typeof SLO_SIGNAL_KEY>;
 
-export interface FeatureFlagRecord {
-  id: string; orgId: string; key: FeatureFlagKey; label: string; enabled: boolean; createdAt: string; updatedAt: string;
-}
-
-export interface SloTargetRecord {
-  id: string; orgId: string; signalKey: SloSignalKey; label: string; targetBasisPoints: number; windowMinutes: number; createdAt: string; updatedAt: string;
-}
-
-export interface OperationalEventRecord {
-  id: string; orgId: string; signalKey: SloSignalKey; source: string; success: boolean; durationMs: number | null; detailJson: string; createdAt: string;
-}

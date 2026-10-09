@@ -54,7 +54,7 @@ test("data that can no longer be updated says so, from when it is, and recovers"
     db.close();
   };
   const announceChange = () => app.evaluate(({ BrowserWindow }) => {
-    BrowserWindow.getAllWindows()[0]!.webContents.send("agentcompany:renderer-event", { type: "snapshot-changed" });
+    BrowserWindow.getAllWindows()[0]!.webContents.send("agentcompany:renderer-event", { type: "snapshot-changed", version: Number.MAX_SAFE_INTEGER });
   });
   try {
     const page = await app.firstWindow();

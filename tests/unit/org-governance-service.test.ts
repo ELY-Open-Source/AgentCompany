@@ -1,3 +1,4 @@
+import { tableRows } from "../helpers/table-rows";
 import { randomUUID } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -72,8 +73,8 @@ describe("org governance service", () => {
     });
 
     const state = snapshot.load();
-    expect(state.approvalAssignments).toHaveLength(1);
-    expect(state.approvalAssignments[0]).toMatchObject({ approvalId, assigneeType: "employee" });
+    expect(tableRows(connection.db, "approval_assignments", "created_at desc")).toHaveLength(1);
+    expect(tableRows(connection.db, "approval_assignments", "created_at desc")[0]).toMatchObject({ approvalId, assigneeType: "employee" });
     expect(state.auditEvents.some((event) => event.entityType === "approval" && event.action === "routed")).toBe(true);
     connection.close();
   });
@@ -107,8 +108,8 @@ describe("org governance service", () => {
     const state = snapshot.load();
     const approval = state.approvals.find((item) => item.kind === "agent_hire");
     expect(approval).toMatchObject({ orgId, title: "Review hire: Ada", risk: RISK_LEVEL.MEDIUM });
-    expect(state.approvalAssignments).toHaveLength(1);
-    expect(state.approvalAssignments[0]).toMatchObject({ approvalId: approval?.id, assigneeType: "employee" });
+    expect(tableRows(connection.db, "approval_assignments", "created_at desc")).toHaveLength(1);
+    expect(tableRows(connection.db, "approval_assignments", "created_at desc")[0]).toMatchObject({ approvalId: approval?.id, assigneeType: "employee" });
     connection.close();
   });
 });

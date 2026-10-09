@@ -28,26 +28,3 @@ export interface ComplianceExportRecord {
   completedAt: string | null;
 }
 
-export interface LegalHoldRecord {
-  id: string;
-  orgId: string;
-  entityType: LegalHoldEntityType;
-  entityId: string;
-  reason: string;
-  createdByEmployeeId: string | null;
-  active: boolean;
-  createdAt: string;
-  releasedAt: string | null;
-}
-
-export interface RetentionFreezeRecord {
-  id: string;
-  orgId: string;
-  scopeType: RetentionFreezeScopeType;
-  scopeId: string;
-  reason: string;
-  createdByEmployeeId: string | null;
-  active: boolean;
-  createdAt: string;
-  releasedAt: string | null;
-}

@@ -1,3 +1,4 @@
+import { bumpDataVersion, currentDataVersion } from "../services/data-version";
 import { createIpcGate } from "./ipc-gate";
 import { app, dialog, shell, type BrowserWindow } from "electron";
 import type { DatabaseConnection } from "../database/connection";
@@ -69,13 +70,18 @@ export function registerIpcHandlers(deps: IpcDeps): void {
   const integrationKeys = new IntegrationKeyStore(deps.connection.db);
   const providerOAuth = new ProviderOAuthService(integrationKeys);
   const skills = new SkillService(deps.connection.db, deps.artifactRoot);
-  const notifyDataChanged = coalesce(() => {
+  const announceChange = coalesce(() => {
     try {
       if (!deps.mainWindow.isDestroyed() && !deps.mainWindow.webContents.isDestroyed()) {
-        deps.mainWindow.webContents.send(IPC_CHANNELS.rendererEvent, { type: "snapshot-changed" });
+        deps.mainWindow.webContents.send(IPC_CHANNELS.rendererEvent, { type: "snapshot-changed", version: currentDataVersion() });
       }
     } catch { /* renderer may have been disposed during agent run */ }
   }, 200);
+  // The version moves at once, so the snapshot an action returns already carries the change its own event announces.
+  const notifyDataChanged = () => {
+    bumpDataVersion();
+    announceChange();
+  };
   const taskExecution = new TaskExecutionService(deps.connection.db, providers, skills, notifyDataChanged);
   const social = new SocialService(deps.connection.db);
   const files = new FileService(deps.connection.db, deps.artifactRoot);
@@ -456,11 +462,12 @@ export function registerIpcHandlers(deps: IpcDeps): void {
   handle("disconnectComposioToolkit", async (input) => {
     try {
       await composioConnections.disconnectToolkit(input.orgId, input.toolkitSlug, input.label);
+      notifyDataChanged();
       return ok(snapshot.load());
     } catch (error) {
-      return fail("composio_disconnect_failed", error instanceof Error ? error.message : String(error));
-    } finally {
+      // A disconnect that failed partway may still have written; the page reloads either way.
       notifyDataChanged();
+      return fail("composio_disconnect_failed", error instanceof Error ? error.message : String(error));
     }
   });
   handle("grantConnector", (input) => mutate(() => new ConnectorGrantsService(deps.connection.db).grantFromBoard(input)));
@@ -478,11 +485,11 @@ export function registerIpcHandlers(deps: IpcDeps): void {
   handle("refreshComposioAccounts", async (input) => {
     try {
       await composioConnections.refreshAccounts(input.orgId);
+      notifyDataChanged();
       return ok(snapshot.load());
     } catch (error) {
-      return fail("composio_refresh_failed", error instanceof Error ? error.message : String(error));
-    } finally {
       notifyDataChanged();
+      return fail("composio_refresh_failed", error instanceof Error ? error.message : String(error));
     }
   });
   handle("windowMinimize", () => deps.mainWindow.minimize());

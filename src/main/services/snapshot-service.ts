@@ -1,3 +1,4 @@
+import { currentDataVersion } from "./data-version";
 import { loadViewState } from "./view-state";
 import { loadOnboardingDraft } from "./onboarding-progress";
 import type { DatabaseSync, StatementSync, SQLInputValue } from "node:sqlite";
@@ -71,32 +72,17 @@ export class SnapshotService {
       .map((provider) => ({ ...provider, enabled: toBool(provider.enabled), backgroundEnabled: toBool(provider.backgroundEnabled) }));
     const providerAuthProfiles = list<AppSnapshot["providerAuthProfiles"][number]>(this.db, "provider_auth_profiles", "created_at desc")
       .map((profile) => ({ ...profile, active: toBool(profile.active) }));
-    const providerAuthSessions = list<AppSnapshot["providerAuthSessions"][number]>(this.db, "provider_auth_sessions", "created_at desc");
-    const providerRateLimitObservations = list<AppSnapshot["providerRateLimitObservations"][number]>(
-      this.db,
-      "provider_rate_limit_observations",
-      "observed_at desc",
-    );
     const providerUsageWindows = list<ProviderUsageWindowRow>(this.db, "provider_usage_windows", "window_start desc");
     const providerRateLimits = buildProviderRateLimits(providers, providerUsageWindows);
     const files = list<AppSnapshot["files"][number]>(this.db, "file_objects", "created_at desc")
       .map((file) => ({ ...file, pinned: toBool(file.pinned) }));
-    const legalHolds = list<AppSnapshot["legalHolds"][number]>(this.db, "legal_holds", "created_at desc")
-      .map((hold) => ({ ...hold, active: toBool(hold.active) }));
-    const retentionFreezes = list<AppSnapshot["retentionFreezes"][number]>(this.db, "retention_freezes", "created_at desc")
-      .map((freeze) => ({ ...freeze, active: toBool(freeze.active) }));
-    const employeeIdentities = list<AppSnapshot["employeeIdentities"][number]>(this.db, "employee_identities", "created_at desc")
-      .map((identity) => ({ ...identity, active: toBool(identity.active) }));
-    const featureFlags = list<AppSnapshot["featureFlags"][number]>(this.db, "feature_flags", "key asc")
-      .map((flag) => ({ ...flag, enabled: toBool(flag.enabled) }));
-    const operationalEvents = list<AppSnapshot["operationalEvents"][number]>(this.db, "operational_events", "created_at desc")
-      .map((event) => ({ ...event, success: toBool(event.success) }));
 
     return {
       activeOrgId,
       uiPreferences: this.resolveUiPreferences(),
       onboardingDraft: loadOnboardingDraft(this.db),
       viewState: loadViewState(this.db),
+      dataVersion: currentDataVersion(),
       autonomousPaused: this.resolveAutonomousPaused(),
       integrationKeys: new IntegrationKeyStore(this.db).statuses(),
       organizations,
@@ -127,7 +113,6 @@ export class SnapshotService {
       chatAttachments: forMessages(this.db, "chat_attachments", "message_id desc", loadedMessageIds),
       chatMentions: forMessages(this.db, "chat_mentions", "message_id desc, offset_start asc", loadedMessageIds),
       chatSlashInvocations: forMessages(this.db, "chat_slash_invocations", "created_at desc", loadedMessageIds),
-      boardInterventions: list(this.db, "board_interventions", "created_at asc"),
       chatPresence: list(this.db, "chat_presence", "last_seen_at desc"),
       chatReadStates: list(this.db, "chat_read_state", "last_read_at desc"),
       files,
@@ -136,7 +121,6 @@ export class SnapshotService {
       scheduledPosts: list(this.db, "scheduled_posts", "scheduled_for asc"),
       providers,
       providerAuthProfiles,
-      providerAuthSessions,
       providerCatalog: PROVIDER_CATALOG,
       // Explicit projection: raw_response_json alone weighs megabytes across
       // 100 rows and no renderer surface reads it.
@@ -150,7 +134,6 @@ export class SnapshotService {
       `), activeOrgId ?? "").map((row) => camel(row) as unknown as AppSnapshot["providerRequests"][number]),
       providerRateLimits,
       usageStats: buildUsageStats(this.db, new Date()),
-      providerRateLimitObservations,
       skillDefinitions: list(this.db, "skill_definitions", "created_at asc"),
       socialAccounts: list(this.db, "social_accounts", "created_at asc"),
       socialAccountGrants: list(this.db, "social_account_grants", "created_at asc"),
@@ -164,19 +147,7 @@ export class SnapshotService {
       policyRules: list(this.db, "policy_rules", "created_at asc"),
       migrationReports: list(this.db, "migration_reports", "created_at desc"),
       complianceExports: list(this.db, "compliance_exports", "created_at desc"),
-      legalHolds,
-      retentionFreezes,
-      employeeIdentities,
-      serviceIdentities: list(this.db, "service_identities", "created_at desc"),
-      roleGrants: list(this.db, "role_grants", "created_at desc"),
-      accessDecisions: recentInOrg<AppSnapshot["accessDecisions"][number]>(this.db, "access_decisions", "created_at desc", 200, activeOrgId),
-      orgDepartments: list(this.db, "org_departments", "name asc"),
       hiringPolicies: list(this.db, "hiring_policies", "department_name asc"),
-      approvalRoutingRules: list(this.db, "approval_routing_rules", "created_at asc"),
-      approvalAssignments: list(this.db, "approval_assignments", "created_at desc"),
-      featureFlags,
-      sloTargets: list(this.db, "slo_targets", "signal_key asc"),
-      operationalEvents,
       auditEvents: recentInOrg<AppSnapshot["auditEvents"][number]>(this.db, "audit_events", "created_at desc", 200, activeOrgId),
       documents: list(this.db, "documents", "updated_at desc"),
       knowledgeEntries: list(this.db, "knowledge_entries", "updated_at desc"),

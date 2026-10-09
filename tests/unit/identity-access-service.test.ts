@@ -1,3 +1,4 @@
+import { tableRows } from "../helpers/table-rows";
 import { randomUUID } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -58,8 +59,8 @@ describe("identity access service", () => {
     });
 
     const state = snapshot.load();
-    expect(state.employeeIdentities.some((identity) => identity.source === "sso" && identity.email === "dana@example.com")).toBe(true);
-    expect(state.roleGrants.some((grant) => grant.principalId === employeeId && grant.roleKey === ROLE_KEY.APPROVAL_DECIDER)).toBe(true);
+    expect(tableRows(connection.db, "employee_identities", "created_at desc", ["active"]).some((identity) => identity.source === "sso" && identity.email === "dana@example.com")).toBe(true);
+    expect(tableRows(connection.db, "role_grants", "created_at desc").some((grant) => grant.principalId === employeeId && grant.roleKey === ROLE_KEY.APPROVAL_DECIDER)).toBe(true);
     expect(state.auditEvents.some((event) => event.entityType === "employee_identity" && event.action === "synced")).toBe(true);
     connection.close();
   });

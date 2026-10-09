@@ -24,18 +24,3 @@ export type ChatThreadBoardState = ValueOf<typeof CHAT_THREAD_BOARD_STATE>;
 export type BoardInterventionMode = ValueOf<typeof BOARD_INTERVENTION_MODE>;
 export type BoardInterventionAction = ValueOf<typeof BOARD_INTERVENTION_ACTION>;
 
-export interface BoardInterventionRecord {
-  id: string;
-  orgId: string;
-  threadId: string;
-  messageId: string;
-  mode: BoardInterventionMode;
-  action: BoardInterventionAction;
-  details: string;
-  targetType: "employee" | "agent" | "board" | null;
-  targetId: string | null;
-  approvalId: string | null;
-  createdByType: "employee" | "agent" | "board" | "system";
-  createdById: string | null;
-  createdAt: string;
-}

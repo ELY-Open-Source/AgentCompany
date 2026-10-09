@@ -1,3 +1,4 @@
+import { tableRows } from "../helpers/table-rows";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { randomUUID } from "node:crypto";
@@ -238,7 +239,7 @@ describe("provider service", () => {
       responseText: "api_key:gpt-5.4:Draft board memo",
       state: "succeeded",
     });
-    expect(state.operationalEvents[0]).toMatchObject({ signalKey: "provider_request_success", source: "provider_gateway", success: true });
+    expect(tableRows(connection.db, "operational_events", "created_at desc", ["success"])[0]).toMatchObject({ signalKey: "provider_request_success", source: "provider_gateway", success: true });
     expect(state.providers.find((provider) => provider.id === openAiProviderId)?.healthState).toBe("healthy");
     connection.close();
   });
@@ -246,7 +247,6 @@ describe("provider service", () => {
   test("records provider response rate limit observations", async () => {
     const connection = createConnection();
     const organization = new OrganizationService(connection.db);
-    const snapshot = new SnapshotService(connection.db);
     const adapters: ProviderAdapterRegistry = {
       ...providerAdapters,
       openai: {
@@ -281,7 +281,7 @@ describe("provider service", () => {
       instructions: null,
     });
 
-    expect(snapshot.load().providerRateLimitObservations[0]).toMatchObject({
+    expect(tableRows(connection.db, "provider_rate_limit_observations", "observed_at desc")[0]).toMatchObject({
       orgId,
       providerId: openAiProviderId,
       providerKey: "openai",
@@ -337,7 +337,7 @@ describe("provider service", () => {
       state: "failed",
       errorMessage: "rate limited",
     });
-    expect(state.providerRateLimitObservations[0]).toMatchObject({
+    expect(tableRows(connection.db, "provider_rate_limit_observations", "observed_at desc")[0]).toMatchObject({
       orgId,
       providerId: openAiProviderId,
       providerKey: "openai",

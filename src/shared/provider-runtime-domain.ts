@@ -26,15 +26,6 @@ export interface ProviderObservedRateLimitState {
   rawStateJson: string;
 }
 
-export interface ProviderRateLimitObservationRecord extends ProviderObservedRateLimitState {
-  id: string;
-  orgId: string;
-  providerId: string;
-  providerKey: string;
-  model: string | null;
-  observedAt: string;
-}
-
 /** The message of the typed error a run gets when its provider's monthly request allowance is used up. */
 export const PROVIDER_MONTHLY_LIMIT_MESSAGE = "Provider monthly request limit has been reached.";
 

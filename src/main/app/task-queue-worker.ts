@@ -1,3 +1,4 @@
+import { bumpDataVersion } from "../services/data-version";
 import type { BrowserWindow } from "electron";
 import type { DatabaseConnection } from "../database/connection";
 import { IPC_CHANNELS } from "../../shared/ipc";
@@ -80,7 +81,7 @@ export function claimNextQueuedRun(connection: DatabaseConnection, excludedProvi
 export function startTaskQueueWorker(input: TaskQueueWorkerInput): () => void {
   const notifyDataChanged = () => {
     if (!input.mainWindow.isDestroyed()) {
-      input.mainWindow.webContents.send(IPC_CHANNELS.rendererEvent, { type: "snapshot-changed" });
+      input.mainWindow.webContents.send(IPC_CHANNELS.rendererEvent, { type: "snapshot-changed", version: bumpDataVersion() });
     }
   };
   const taskExecution = input.taskExecution ?? new TaskExecutionService(input.connection.db, undefined, undefined, notifyDataChanged);

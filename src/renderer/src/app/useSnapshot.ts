@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { supersedes } from "./snapshot-order";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AppSnapshot } from "../../../shared/domain";
 import type { DesktopResult } from "../../../shared/result";
 
@@ -23,13 +24,17 @@ export function useSnapshot(): {
   const [snapshot, setSnapshot] = useState<AppSnapshot | null>(null);
   const [syncFailure, setSyncFailure] = useState<SyncFailure | null>(null);
   const [syncedAt, setSyncedAt] = useState<string | null>(null);
+  // The newest data version on screen; a change event at or below it needs no reload.
+  const shownVersion = useRef(-1);
 
   const load = useCallback(async () => {
     try {
       const result = await window.agentCompany.loadSnapshot();
       if (!result.ok) throw new Error(result.error.message);
-      setSnapshot(result.data);
       setSyncFailure(null);
+      if (!supersedes(shownVersion.current, result.data.dataVersion)) return;
+      shownVersion.current = result.data.dataVersion;
+      setSnapshot(result.data);
       setSyncedAt(new Date().toISOString());
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -43,7 +48,8 @@ export function useSnapshot(): {
   ): Promise<T | null> => {
     const result = await operation();
     if (!result.ok) throw new Error(result.error.message);
-    if (result.data) {
+    if (result.data && supersedes(shownVersion.current, (result.data as AppSnapshot).dataVersion)) {
+      shownVersion.current = (result.data as AppSnapshot).dataVersion;
       setSnapshot(result.data as AppSnapshot);
       setSyncFailure(null);
       setSyncedAt(new Date().toISOString());
@@ -84,7 +90,7 @@ export function useSnapshot(): {
       guardedLoad();
     });
     const unsubscribe = window.agentCompany.subscribe((event) => {
-      if (event.type === "snapshot-changed") scheduleReload();
+      if (event.type === "snapshot-changed" && event.version > shownVersion.current) scheduleReload();
     });
     return () => {
       disposed = true;

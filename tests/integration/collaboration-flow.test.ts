@@ -1,3 +1,4 @@
+import { tableRows } from "../helpers/table-rows";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { tmpdir } from "node:os";
@@ -104,9 +105,9 @@ describe("collaboration integration flow", () => {
       .get() as { compiled_prompt: string } | undefined;
     if (!snapshotRecord) throw new Error("Skill runtime snapshot was not created.");
     expect(state.approvals.find((approval) => approval.id === approvalId)?.state).toBe(APPROVAL_STATE.APPROVED);
-    expect(state.approvalAssignments.some((assignment) => assignment.approvalId === approvalId)).toBe(true);
+    expect(tableRows(connection.db, "approval_assignments", "created_at desc").some((assignment) => assignment.approvalId === approvalId)).toBe(true);
     expect(snapshotRecord.compiled_prompt).toContain("Release Gate");
-    expect(state.operationalEvents.some((event) => event.signalKey === "skill_resolve_success")).toBe(true);
+    expect(tableRows(connection.db, "operational_events", "created_at desc", ["success"]).some((event) => event.signalKey === "skill_resolve_success")).toBe(true);
     connection.close();
   });
 });

@@ -1,3 +1,4 @@
+import { tableRows } from "../helpers/table-rows";
 import { randomUUID } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -167,7 +168,7 @@ describe("compliance service", () => {
     expect(redactedApproval?.decidedByEmployeeId).toBeNull();
     expect(redactedSocialAccount?.authorizedEmployeeId).toBeNull();
     expect(state.socialAccountGrants).toHaveLength(0);
-    expect(state.providerAuthSessions).toHaveLength(0);
+    expect(tableRows(connection.db, "provider_auth_sessions", "created_at desc")).toHaveLength(0);
     expect(state.complianceExports[0]?.exportType).toBe("gdpr_delete");
     expect(state.complianceExports[0]?.requestedByEmployeeId).toBeNull();
     expect(state.auditEvents.some((event) => event.entityType === "compliance_export" && event.action === "gdpr_deleted")).toBe(true);

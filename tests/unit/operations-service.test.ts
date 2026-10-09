@@ -1,3 +1,4 @@
+import { tableRows } from "../helpers/table-rows";
 import { randomUUID } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -7,7 +8,6 @@ import { OperationsService } from "../../src/main/services/operations-service";
 import { OrganizationService } from "../../src/main/services/organization-service";
 import { ProviderService } from "../../src/main/services/provider-service";
 import { providerAdapters, type ProviderAdapterRegistry } from "../../src/main/services/provider-adapters";
-import { SnapshotService } from "../../src/main/services/snapshot-service";
 import { PROVIDER_DATA_POLICY, PROVIDER_EXECUTION_MODE } from "../../src/shared/domain";
 
 function createConnection(): DatabaseConnection {
@@ -37,20 +37,18 @@ describe("operations service", () => {
   test("seeds feature flags and SLO targets, and no drill that scores configuration as fault handling", () => {
     const connection = createConnection();
     const organization = new OrganizationService(connection.db);
-    const snapshot = new SnapshotService(connection.db);
 
     connection.transaction(() => {
       createOrganization(organization);
     });
 
-    const state = snapshot.load();
-    expect(state.featureFlags.map((flag) => flag.key).sort()).toEqual([
+    expect(tableRows(connection.db, "feature_flags", "key asc", ["enabled"]).map((flag) => flag.key).sort()).toEqual([
       "board_intervention",
       "provider_background_execution",
       "social_publish_approval",
     ]);
     // Every SLO target is fed by a runtime source; none waits on a signal only a drill would write.
-    expect(state.sloTargets.map((target) => target.signalKey).sort()).toEqual([
+    expect(tableRows(connection.db, "slo_targets", "signal_key asc").map((target) => target.signalKey).sort()).toEqual([
       "approval_route_coverage", "migration_validation_success", "provider_request_success", "skill_resolve_success",
     ]);
     expect(connection.db.prepare("select name from sqlite_master where type = 'table' and name like 'chaos_drill%'").all()).toEqual([]);

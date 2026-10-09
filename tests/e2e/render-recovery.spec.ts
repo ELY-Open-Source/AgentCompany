@@ -25,6 +25,10 @@ test("a record that breaks one page leaves the rest of the app working", async (
     db.prepare("insert into approvals(id, org_id, kind, title, details, risk, requested_by_type, state, created_at) values ('app_bad', ?, 'task_risk', 'Broken request', 'd', 'unknown', 'system', 'pending', ?)")
       .run(orgId, new Date().toISOString());
     db.close();
+    // Written behind the app's back, so the test announces it as the app's own changes are.
+    await app.evaluate(({ BrowserWindow }) => {
+      BrowserWindow.getAllWindows()[0]!.webContents.send("agentcompany:renderer-event", { type: "snapshot-changed", version: Number.MAX_SAFE_INTEGER });
+    });
 
     await page.getByRole("button", { name: "Approvals" }).click();
     const failure = page.getByRole("alert").filter({ hasText: "This page could not be shown." });

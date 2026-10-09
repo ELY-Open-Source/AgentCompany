@@ -1,3 +1,4 @@
+import { bumpDataVersion } from "../services/data-version";
 import type { BrowserWindow } from "electron";
 import type { DatabaseSync } from "node:sqlite";
 import { IPC_CHANNELS } from "../../shared/ipc";
@@ -22,7 +23,7 @@ export function startProviderBackgroundWorker(input: ProviderBackgroundWorkerInp
     try {
       const changedCount = await service.recoverBackgroundResponses();
       if (changedCount > 0 && !input.mainWindow.isDestroyed()) {
-        input.mainWindow.webContents.send(IPC_CHANNELS.rendererEvent, { type: "snapshot-changed" });
+        input.mainWindow.webContents.send(IPC_CHANNELS.rendererEvent, { type: "snapshot-changed", version: bumpDataVersion() });
       }
     } finally {
       running = false;

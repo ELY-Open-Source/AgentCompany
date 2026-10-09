@@ -1,3 +1,4 @@
+import { tableRows } from "../helpers/table-rows";
 import { writeFileSync } from "node:fs";
 import { createHash, randomUUID } from "node:crypto";
 import { tmpdir } from "node:os";
@@ -567,10 +568,10 @@ describe("chat governance", () => {
     const state = snapshot.load();
     const thread = state.chatThreads.find((item) => item.id === threadId);
     expect(thread).toMatchObject({ boardState: "takeover", controlledByType: "agent", controlledById: agentId });
-    expect(state.boardInterventions.map((item) => item.action)).toEqual(["freeze", "rollback", "takeover", "force_approval"]);
+    expect(tableRows(connection.db, "board_interventions", "created_at asc").map((item) => item.action)).toEqual(["freeze", "rollback", "takeover", "force_approval"]);
     const forceApproval = state.approvals.find((item) => item.kind === "board_force_approval");
     if (!forceApproval) throw new Error("Board force approval was not created.");
-    const forceIntervention = state.boardInterventions.find((item) => item.action === "force_approval");
+    const forceIntervention = tableRows(connection.db, "board_interventions", "created_at asc").find((item) => item.action === "force_approval");
     if (!forceIntervention) throw new Error("Board force approval intervention was not created.");
     expect(forceIntervention.approvalId).toBe(forceApproval.id);
     expect(state.chatSlashInvocations.some((item) => item.resultRef === forceIntervention.id)).toBe(true);

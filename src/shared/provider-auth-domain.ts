@@ -16,19 +16,3 @@ export interface ProviderAuthProfileRecord {
   createdAt: string;
 }
 
-export interface ProviderAuthSessionRecord {
-  id: string;
-  orgId: string;
-  providerId: string;
-  providerKey: string;
-  employeeId: string;
-  state: string;
-  nonce: string;
-  codeVerifierSha256: string;
-  redirectUri: string;
-  signInUrl: string;
-  partition: string;
-  createdAt: string;
-  expiresAt: string;
-  completedAt: string | null;
-}

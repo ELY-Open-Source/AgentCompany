@@ -113,7 +113,8 @@ export interface ProviderOAuthEvent {
 }
 
 export type RendererEvent =
-  | { type: "snapshot-changed" }
+  /** `version` is the data version the change produced; a snapshot at that version or later already shows it. */
+  | { type: "snapshot-changed"; version: number }
   | { type: "provider-response-stream"; event: ProviderStreamRendererEvent }
   | ProviderOAuthEvent;
 

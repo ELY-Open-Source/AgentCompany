@@ -1,7 +1,6 @@
 import type { OnboardingDraft } from "./commands";
 import type { UsageStatsRecord } from "./usage-stats";
 import type { IntegrationKeyStatus } from "./commands/integration-keys";
-import type { BoardInterventionRecord as BoardInterventionRecordModel } from "./board-domain";
 import type {
   ChatAttachmentRecord,
   ChatMembershipRecord,
@@ -15,7 +14,7 @@ import type {
   ChatReplyStatus,
   ChatSpaceAnchor,
 } from "./chat-domain";
-import type { ComplianceExportRecord, LegalHoldRecord, RetentionFreezeRecord } from "./compliance-domain";
+import type { ComplianceExportRecord } from "./compliance-domain";
 import type {
   AgentRecord,
   ApprovalRecord,
@@ -44,12 +43,10 @@ import type {
   TaskRunRecord,
   WorkspaceRecord,
 } from "./domain";
-import type { AccessDecisionRecord, EmployeeIdentityRecord, RoleGrantRecord, ServiceIdentityRecord } from "./identity-domain";
-import type { ApprovalAssignmentRecord, ApprovalRoutingRuleRecord, HiringPolicyRecord, OrgDepartmentRecord } from "./org-governance-domain";
-import type { FeatureFlagRecord, OperationalEventRecord, SloTargetRecord } from "./operations-domain";
-import type { ProviderAuthProfileRecord, ProviderAuthSessionRecord } from "./provider-auth-domain";
+import type { HiringPolicyRecord } from "./org-governance-domain";
+import type { ProviderAuthProfileRecord } from "./provider-auth-domain";
 import type { ProviderRequestRecord } from "./provider-request-domain";
-import type { ProviderRateLimitObservationRecord, ProviderRateLimitStateRecord } from "./provider-runtime-domain";
+import type { ProviderRateLimitStateRecord } from "./provider-runtime-domain";
 import type {
   BrowserActionPolicyRecord,
   BrowserActionRecord,
@@ -75,6 +72,8 @@ export interface AppSnapshot {
   onboardingDraft: OnboardingDraft | null;
   /** Where the operator was: page, sections, filters and selected records, by key. */
   viewState: Record<string, unknown>;
+  /** The data version this snapshot was read at. */
+  dataVersion: number;
   /** True while the operator has paused the autonomous run engine. */
   autonomousPaused: boolean;
   integrationKeys: IntegrationKeyStatus[];
@@ -96,7 +95,6 @@ export interface AppSnapshot {
   chatAttachments: ChatAttachmentRecord[];
   chatMentions: ChatMentionRecord[];
   chatSlashInvocations: ChatSlashInvocationRecord[];
-  boardInterventions: BoardInterventionRecordModel[];
   chatPresence: ChatPresenceRecord[];
   chatReadStates: ChatReadStateRecord[];
   files: FileObjectRecord[];
@@ -105,13 +103,11 @@ export interface AppSnapshot {
   scheduledPosts: ScheduledPostRecord[];
   providers: ProviderRecord[];
   providerAuthProfiles: ProviderAuthProfileRecord[];
-  providerAuthSessions: ProviderAuthSessionRecord[];
   providerCatalog: ProviderCatalogEntry[];
   providerRequests: ProviderRequestRecord[];
   providerRateLimits: ProviderRateLimitStateRecord[];
   /** Period statistics per org over all records, for charts and billing. */
   usageStats: UsageStatsRecord[];
-  providerRateLimitObservations: ProviderRateLimitObservationRecord[];
   // The snapshot is the renderer's working set and rides IPC on every
   // refresh. Skill internals (revisions, bindings, per-run runtime
   // snapshots with compiled prompts) are main-process concerns and stay out
@@ -127,19 +123,7 @@ export interface AppSnapshot {
   policyRules: PolicyRuleRecord[];
   migrationReports: MigrationReportRecord[];
   complianceExports: ComplianceExportRecord[];
-  legalHolds: LegalHoldRecord[];
-  retentionFreezes: RetentionFreezeRecord[];
-  employeeIdentities: EmployeeIdentityRecord[];
-  serviceIdentities: ServiceIdentityRecord[];
-  roleGrants: RoleGrantRecord[];
-  accessDecisions: AccessDecisionRecord[];
-  orgDepartments: OrgDepartmentRecord[];
   hiringPolicies: HiringPolicyRecord[];
-  approvalRoutingRules: ApprovalRoutingRuleRecord[];
-  approvalAssignments: ApprovalAssignmentRecord[];
-  featureFlags: FeatureFlagRecord[];
-  sloTargets: SloTargetRecord[];
-  operationalEvents: OperationalEventRecord[];
   auditEvents: AuditEventRecord[];
   documents: DocumentRecord[];
   knowledgeEntries: KnowledgeEntryRecord[];

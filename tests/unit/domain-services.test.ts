@@ -1,3 +1,4 @@
+import { tableRows } from "../helpers/table-rows";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -55,13 +56,13 @@ describe("domain services", () => {
     expect(state.organizations).toHaveLength(1);
     expect(state.employees[0]?.displayName).toBe("Dana Lee");
     expect(state.providers.length).toBeGreaterThanOrEqual(6);
-    expect(state.employeeIdentities).toHaveLength(1);
-    expect(state.roleGrants.map((grant) => grant.roleKey).sort()).toEqual(["approval_decider", "hiring_manager", "org_admin"]);
-    expect(state.orgDepartments.map((department) => department.name)).toContain("Engineering");
+    expect(tableRows(connection.db, "employee_identities", "created_at desc", ["active"])).toHaveLength(1);
+    expect(tableRows(connection.db, "role_grants", "created_at desc").map((grant) => grant.roleKey).sort()).toEqual(["approval_decider", "hiring_manager", "org_admin"]);
+    expect(tableRows(connection.db, "org_departments", "name asc").map((department) => department.name)).toContain("Engineering");
     expect(state.hiringPolicies.some((policy) => policy.departmentName === "Engineering")).toBe(true);
-    expect(state.approvalRoutingRules[0]).toMatchObject({ kind: "*", minimumRisk: "low", routeToType: "employee" });
-    expect(state.featureFlags.map((flag) => flag.key)).toContain("board_intervention");
-    expect(state.sloTargets.map((target) => target.signalKey)).toContain("provider_request_success");
+    expect(tableRows(connection.db, "approval_routing_rules", "created_at asc")[0]).toMatchObject({ kind: "*", minimumRisk: "low", routeToType: "employee" });
+    expect(tableRows(connection.db, "feature_flags", "key asc", ["enabled"]).map((flag) => flag.key)).toContain("board_intervention");
+    expect(tableRows(connection.db, "slo_targets", "signal_key asc").map((target) => target.signalKey)).toContain("provider_request_success");
     expect(state.chatSpaces.map((space) => space.name)).toContain("board");
     expect(state.policyRules[0]?.action).toBe("task_create");
     expect(state.auditEvents[0]?.action).toBe("created");
@@ -100,7 +101,7 @@ describe("domain services", () => {
     const state = snapshot.load();
     expect(state.tasks).toHaveLength(1);
     expect(state.approvals).toHaveLength(1);
-    expect(state.approvalAssignments).toHaveLength(1);
+    expect(tableRows(connection.db, "approval_assignments", "created_at desc")).toHaveLength(1);
     expect(state.approvals[0]?.state).toBe("pending");
     expect(state.approvals[0]).toMatchObject({ sourceEntityType: "task", sourceEntityId: state.tasks[0]?.id });
     connection.close();
@@ -140,7 +141,7 @@ describe("domain services", () => {
     expect(state.approvals).toHaveLength(1);
     expect(state.approvals[0]?.state).toBe("approved");
     expect(state.approvals[0]?.decidedByEmployeeId).toBe(employeeId);
-    expect(state.approvalAssignments).toHaveLength(0);
+    expect(tableRows(connection.db, "approval_assignments", "created_at desc")).toHaveLength(0);
     connection.close();
   });
 
