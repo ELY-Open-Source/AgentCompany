@@ -100,6 +100,7 @@ import { dropAuditReplaysSchema } from "./migrations/098-drop-audit-replays";
 import { dropRollbackRecordsSchema } from "./migrations/099-drop-rollback-records";
 import { chatReplyRequestsSchema } from "./migrations/100-chat-reply-requests";
 import { taskBlockedSchema } from "./migrations/101-task-blocked";
+import { goalDueDateSchema } from "./migrations/102-goal-due-date";
 
 interface Migration {
   version: number;
@@ -209,6 +210,7 @@ const MIGRATIONS: Migration[] = [
   { version: 99, name: "drop_rollback_records", sql: dropRollbackRecordsSchema },
   { version: 100, name: "chat_reply_requests", sql: chatReplyRequestsSchema },
   { version: 101, name: "task_blocked", sql: taskBlockedSchema },
+  { version: 102, name: "goal_due_date", sql: goalDueDateSchema },
 ];
 
 const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;

@@ -172,6 +172,8 @@ export interface GoalRecord {
   ownerAgentId: string | null;
   /** Set when the goal's review loop stopped without a decision. */
   stalledReason: string | null;
+  /** When the goal is planned to be reached; null when no target date was set. */
+  dueAt: string | null;
   createdAt: string;
   updatedAt: string;
 }

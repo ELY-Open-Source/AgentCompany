@@ -1,3 +1,4 @@
+import { goalProgress, type GoalPace } from "./home/goal-progress";
 import { newestRuns } from "./runs/newest-runs";
 import { isBusinessTask } from "./work/task-helpers";
 import { useMemo, useState, type CSSProperties } from "react";
@@ -47,7 +48,7 @@ export function HomePage({ snapshot, actions, navigate }: PageProps) {
   const pendingApprovals = approvals.filter((approval) => approval.state === "pending");
   const totalBudgetCents = agents.reduce((sum, agent) => sum + agent.budgetCents, 0);
   const primaryGoal = goals.find((goal) => goal.status === "active") ?? goals[0] ?? null;
-  const goalProgress = computeGoalProgress(primaryGoal, businessTasks);
+  const progress = primaryGoal ? goalProgress(primaryGoal, businessTasks, new Date()) : null;
   const firstName = employee.displayName.split(/\s+/)[0] ?? employee.displayName;
   const greeting = greetingFor(new Date().getHours());
 
@@ -60,7 +61,7 @@ export function HomePage({ snapshot, actions, navigate }: PageProps) {
       <p className="page-sub">{renderSummary(pendingApprovals.length, agents.length)}</p>
 
       <div style={STRIP}>
-        <GoalCard goal={primaryGoal} progress={goalProgress} organizationName={organization.name} actions={actions} />
+        <GoalCard goal={primaryGoal} progress={progress} organizationName={organization.name} actions={actions} />
         <SpendCard providers={providers} totalBudgetCents={totalBudgetCents} capCents={budgetCapCents} agents={agents} />
         <WaitingCard
           approvals={pendingApprovals}
@@ -95,7 +96,7 @@ function GoalCard({
   actions,
 }: {
   goal: GoalRecord | null;
-  progress: { percent: number; status: "ahead" | "on_track" | "behind" } | null;
+  progress: { percent: number; pace: GoalPace | null } | null;
   organizationName: string;
   actions: PageProps["actions"];
 }) {
@@ -114,7 +115,8 @@ function GoalCard({
       </div>
       <div className="row" style={{ alignItems: "baseline", gap: 8, marginTop: 16 }}>
         <span className="num" style={{ fontSize: 18, fontWeight: 600 }}>{progress ? `${percent}%` : "—"}</span>
-        <span style={{ fontSize: 12, color: "var(--text-3)" }}>{progress ? statusLabel(progress.status) : t("no work yet")}</span>
+        <span style={{ fontSize: 12, color: "var(--text-3)" }}>{progress?.pace ? statusLabel(progress.pace) : t("no target date")}</span>
+        {goal && <TargetDate goal={goal} actions={actions} />}
       </div>
       <div style={{ marginTop: 12, height: 4, background: "var(--panel-3)", borderRadius: 999, overflow: "hidden" }}>
         <div style={{ width: `${percent}%`, height: "100%", background: "var(--text-1)", transition: "width var(--motion-slow) var(--ease-out)" }} />
@@ -299,20 +301,10 @@ function RecentMessagesCard({
   );
 }
 
-function computeGoalProgress(goal: GoalRecord | null, tasks: TaskRecord[]): { percent: number; status: "ahead" | "on_track" | "behind" } | null {
-  if (!goal) return null;
-  const scoped = tasks.filter((task) => task.goalId === goal.id);
-  if (scoped.length === 0) return { percent: 0, status: "on_track" };
-  const done = scoped.filter((task) => task.status === "done").length;
-  const percent = Math.round((done / scoped.length) * 100);
-  if (percent >= 75) return { percent, status: "ahead" };
-  if (percent >= 30) return { percent, status: "on_track" };
-  return { percent, status: "behind" };
-}
-
-function statusLabel(status: "ahead" | "on_track" | "behind"): string {
-  if (status === "ahead") return t("ahead");
-  if (status === "behind") return t("behind");
+function statusLabel(pace: GoalPace): string {
+  if (pace === "ahead") return t("ahead");
+  if (pace === "behind") return t("behind");
+  if (pace === "overdue") return t("overdue");
   return t("on track");
 }
 
@@ -366,4 +358,29 @@ function runStateLabel(state: string): string {
   if (state === "superseded") return t("Superseded");
   if (state === "stopped") return t("Stopped");
   return state;
+}
+
+/** Sets or clears when the goal should be reached, which is what its pace is measured against. */
+function TargetDate({ goal, actions }: { goal: GoalRecord; actions: PageProps["actions"] }) {
+  const [error, setError] = useState<string | null>(null);
+  const value = goal.dueAt ? localDate(new Date(goal.dueAt)) : "";
+  const change = (date: string) => {
+    setError(null);
+    // A date means the end of that day where the operator is.
+    const dueAt = date ? new Date(`${date}T23:59:59`).toISOString() : null;
+    actions.run(() => window.agentCompany.setGoalDueDate({ orgId: goal.orgId, goalId: goal.id, dueAt }))
+      .catch((reason: unknown) => setError(reason instanceof Error ? reason.message : String(reason)));
+  };
+  return (
+    <span style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 6 }}>
+      <input className="input" type="date" aria-label={t("Target date")} value={value} onChange={(event) => change(event.target.value)} style={{ height: 26, padding: "0 6px", fontSize: 12 }} />
+      {error && <span className="form-error" role="alert">{error}</span>}
+    </span>
+  );
+}
+
+/** The calendar day of a time where the operator is, as a date input expects it. */
+function localDate(time: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${time.getFullYear()}-${pad(time.getMonth() + 1)}-${pad(time.getDate())}`;
 }

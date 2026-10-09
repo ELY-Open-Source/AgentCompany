@@ -35,6 +35,7 @@ import type {
   DeleteAutomationRuleInput,
   DeleteDocumentInput,
   DeleteTaskInput,
+  SetGoalDueDateInput,
   SetTaskBlockedInput,
   DeleteKnowledgeEntryInput,
   ResumeGoalInput,
@@ -206,6 +207,7 @@ export interface DesktopApi {
   /** What deleting a task would remove, keep and close. */
   taskDeleteImpact(input: { orgId: string; taskId: string }): Promise<DesktopResult<TaskDeleteImpact>>;
   /** Cancels a run that has not started yet. */
+  setGoalDueDate(input: SetGoalDueDateInput): Promise<DesktopResult<AppSnapshot>>;
   cancelQueuedRun(input: { orgId: string; runId: string }): Promise<DesktopResult<AppSnapshot>>;
   /** Runs older than a loaded one, for history beyond the snapshot's recent runs. */
   runHistory(input: { orgId: string; beforeRunId: string | null } & ({ limit: number } | { from: RunCursor })): Promise<DesktopResult<RunHistoryPage>>;

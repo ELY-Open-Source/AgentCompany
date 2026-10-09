@@ -140,6 +140,15 @@ export interface CreateGoalInput {
   title: string;
   description: string;
   ownerAgentId: string | null;
+  /** When the goal is planned to be reached; omitted means no target date. */
+  dueAt?: string | null;
+}
+
+export interface SetGoalDueDateInput {
+  orgId: string;
+  goalId: string;
+  /** ISO time the goal is planned to be reached, or null to clear it. */
+  dueAt: string | null;
 }
 
 export interface CreateProjectInput {

@@ -87,6 +87,7 @@ export const IPC_CHANNELS = {
   taskDeleteImpact: "agentcompany:task-delete-impact",
   cancelQueuedRun: "agentcompany:cancel-queued-run",
   runHistory: "agentcompany:run-history",
+  setGoalDueDate: "agentcompany:set-goal-due-date",
   revokeConnector: "agentcompany:revoke-connector",
   search: "agentcompany:search",
   rendererEvent: "agentcompany:renderer-event",

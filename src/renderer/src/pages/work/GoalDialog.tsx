@@ -34,6 +34,7 @@ export function GoalDialog({
       title: text(form, "title"),
       description: text(form, "description"),
       ownerAgentId: optional(form, "ownerAgentId"),
+      dueAt: text(form, "dueDate") ? new Date(`${text(form, "dueDate")}T23:59:59`).toISOString() : null,
     })).then((result) => { if (result) onClose(); });
   };
 
@@ -41,6 +42,7 @@ export function GoalDialog({
     <Dialog title={t("New goal")} open={open} submitLabel={t("Create")} onClose={onClose} onSubmit={submit}>
       <Field label={t("Title")}><input className="input" name="title" required /></Field>
       <Field label={t("Description")}><textarea className="input" name="description" required /></Field>
+      <Field label={t("Target date")}><input className="input" type="date" name="dueDate" /></Field>
       <Field label={t("Owner agent")}>
         <select className="input" name="ownerAgentId" defaultValue="">
           <option value="">{t("Unassigned")}</option>

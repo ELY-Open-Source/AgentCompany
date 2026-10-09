@@ -54,7 +54,8 @@ export const organizationContracts = {
   ]),
   updateTaskStatus: z.strictObject({ orgId: id, taskId: id, status: z.enum(TASK_STATUS) }) satisfies z.ZodType<C.UpdateTaskStatusInput>,
   runTask: z.strictObject({ orgId: id, taskId: id }) satisfies z.ZodType<C.RunTaskInput>,
-  createGoal: z.strictObject({ orgId: id, title: z.string(), description: z.string(), ownerAgentId: nullableId }) satisfies z.ZodType<C.CreateGoalInput>,
+  createGoal: z.strictObject({ orgId: id, title: z.string(), description: z.string(), ownerAgentId: nullableId, dueAt: z.string().nullable().optional() }) satisfies z.ZodType<C.CreateGoalInput>,
+  setGoalDueDate: z.strictObject({ orgId: id, goalId: id, dueAt: z.string().nullable() }) satisfies z.ZodType<C.SetGoalDueDateInput>,
   resumeGoal: z.strictObject({ orgId: id, goalId: id }) satisfies z.ZodType<C.ResumeGoalInput>,
   createProject: z.strictObject({
     orgId: id, goalId: nullableId, name: z.string(), description: z.string(), leadAgentId: nullableId,

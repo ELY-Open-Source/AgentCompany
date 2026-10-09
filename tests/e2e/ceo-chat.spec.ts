@@ -72,6 +72,13 @@ test("the pinned CEO conversation is the Messages front door", async () => {
     // The message itself says where the reply stands.
     await expect(chatLog.locator(".chat-message", { hasText: "How are we tracking against the goal?" }).first()).toContainText("CEO will reply; queued.");
 
+    // A goal's pace is measured against its target date; without one, no pace is claimed.
+    await page.getByRole("button", { name: "Home" }).click();
+    await expect(page.getByText("no target date")).toBeVisible();
+    await page.getByLabel("Target date").fill("2099-12-31");
+    await expect(page.getByText("on track", { exact: true })).toBeVisible();
+    await expect(page.getByLabel("Target date")).toHaveValue("2099-12-31");
+
     // From a task, its goal, run and back are one click each.
     await page.getByRole("button", { name: "Work" }).click();
     // The CEO's reply to the founder is a chat vehicle, not work: it stays off the board.

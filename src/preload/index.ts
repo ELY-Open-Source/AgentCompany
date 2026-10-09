@@ -94,6 +94,7 @@ const api: DesktopApi = {
   taskDeleteImpact: (input) => invoke(IPC_CHANNELS.taskDeleteImpact, input),
   cancelQueuedRun: (input) => invoke(IPC_CHANNELS.cancelQueuedRun, input),
   runHistory: (input) => invoke(IPC_CHANNELS.runHistory, input),
+  setGoalDueDate: (input) => invoke(IPC_CHANNELS.setGoalDueDate, input),
   revokeConnector: (input) => invoke(IPC_CHANNELS.revokeConnector, input),
   refreshComposioAccounts: (input) => invoke(IPC_CHANNELS.refreshComposioAccounts, input),
   search: (input) => invoke(IPC_CHANNELS.search, input),
