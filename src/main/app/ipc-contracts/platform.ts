@@ -4,7 +4,6 @@ import { INTEGRATION_KEY_NAMES } from "../../../shared/commands";
 import { COMPLIANCE_EXPORT_TYPE } from "../../../shared/compliance-domain";
 import { SOCIAL_PLATFORM } from "../../../shared/domain";
 import { PROVIDER_DATA_POLICY, PROVIDER_EXECUTION_MODE } from "../../../shared/provider-policy-domain";
-import { SDLC_REVIEW_TARGET_TYPE } from "../../../shared/sdlc-domain";
 import { SEARCH_ENTITY_TYPES } from "../../../shared/search-domain";
 
 const id = z.string();
@@ -58,8 +57,6 @@ export const platformContracts = {
   resolveMigrationReconciliation: z.strictObject({ orgId: id, reconciliationItemId: id, employeeId: id }) satisfies z.ZodType<C.ResolveMigrationReconciliationInput>,
   setFeatureFlag: z.strictObject({ orgId: id, flagId: id, enabled: z.boolean() }) satisfies z.ZodType<C.SetFeatureFlagInput>,
   runChaosDrill: z.strictObject({ orgId: id, drillId: id }) satisfies z.ZodType<C.RunChaosDrillInput>,
-  runSdlcReview: z.strictObject({ orgId: id, reviewAgentId: id, targetType: z.enum(SDLC_REVIEW_TARGET_TYPE), targetRef: z.string() }) satisfies z.ZodType<C.RunSdlcReviewInput>,
-  runEvalSuite: z.strictObject({ orgId: id, suiteId: id }) satisfies z.ZodType<C.RunEvalSuiteInput>,
   setPrBotGate: z.strictObject({ orgId: id, gateId: id, enabled: z.boolean() }) satisfies z.ZodType<C.SetPrBotGateInput>,
   createComplianceExport: z.strictObject({
     orgId: id, subjectType: z.enum(["employee", "agent"]), subjectId: id, exportType: z.enum(COMPLIANCE_EXPORT_TYPE), requestedByEmployeeId: id,

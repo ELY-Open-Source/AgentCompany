@@ -1,12 +1,6 @@
-import { randomUUID } from "node:crypto";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { describe, expect, test } from "vitest";
-import { DatabaseConnection } from "../../src/main/database/connection";
-import { OrganizationService } from "../../src/main/services/organization-service";
 import { providerAdapters } from "../../src/main/services/provider-adapters";
-import { SdlcService } from "../../src/main/services/sdlc-service";
-import { EVAL_SUITE_KEY, PROVIDER_AUTH_TYPE, SDLC_RUN_STATE } from "../../src/shared/domain";
+import { PROVIDER_AUTH_TYPE } from "../../src/shared/domain";
 import { PROVIDER_CATALOG } from "../../src/shared/provider-catalog";
 
 const PROVIDER_SECRET_SAMPLES: Record<string, string> = {
@@ -41,19 +35,6 @@ const PROVIDER_SECRET_SAMPLES: Record<string, string> = {
   "custom-openai": JSON.stringify({ baseUrl: "https://api.example.com/v1", secret: "sk-custom" }),
   "custom-anthropic": JSON.stringify({ baseUrl: "https://llm.example.com", secret: "sk-custom" }),
 };
-
-function createConnection(): DatabaseConnection {
-  return new DatabaseConnection(join(tmpdir(), `agentcompany-new-contract-${randomUUID()}.db`));
-}
-
-function createOrganization(organization: OrganizationService): string {
-  return organization.createOrganization({
-    organizationName: "Acme Operations",
-    employeeName: "Dana Lee",
-    mission: "Coordinate agents with auditable approvals.",
-    goal: "Ship a verified control plane.",
-  });
-}
 
 describe("provider contracts", () => {
   test("keeps provider catalog and adapters aligned", () => {
@@ -138,34 +119,5 @@ describe("provider contracts", () => {
       if (!provider.revokesRemotely) await expect(adapter.revoke({ authProfile: profile, secret })).resolves.toBeUndefined();
       await expect(adapter.refresh({ authProfile: profile })).rejects.toThrow("does not support token refresh");
     }
-  });
-
-  test("runs the seeded contract eval suite", () => {
-    const connection = createConnection();
-    const organization = new OrganizationService(connection.db);
-    const sdlc = new SdlcService(connection.db);
-    let orgId = "";
-    let suiteId = "";
-    let runId = "";
-
-    connection.transaction(() => {
-      orgId = createOrganization(organization);
-      suiteId = (connection.db.prepare("select id from eval_suites where org_id = ? and key = ?")
-        .get(orgId, EVAL_SUITE_KEY.CONTRACT) as { id: string }).id;
-      runId = sdlc.runEvalSuite({ orgId, suiteId });
-    });
-
-    const run = connection.db.prepare("select state, failed_count, result_json from eval_runs where id = ?")
-      .get(runId) as { state: string; failed_count: number; result_json: string };
-    const result = JSON.parse(run.result_json) as { checks: Array<{ key: string; passed: boolean }> };
-    expect(run).toMatchObject({ state: SDLC_RUN_STATE.PASSED, failed_count: 0 });
-    expect(result.checks.map((check) => check.key).sort()).toEqual([
-      "provider_adapter_coverage",
-      "provider_rate_limit_registry",
-      "provider_runtime_contract",
-      "schema_version",
-    ]);
-    expect(result.checks.every((check) => check.passed)).toBe(true);
-    connection.close();
   });
 });

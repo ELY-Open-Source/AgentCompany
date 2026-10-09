@@ -7,10 +7,9 @@ import { DatabaseConnection } from "../../src/main/database/connection";
 import { ApprovalService } from "../../src/main/services/approval-service";
 import { ChatService } from "../../src/main/services/chat-service";
 import { OrganizationService } from "../../src/main/services/organization-service";
-import { SdlcService } from "../../src/main/services/sdlc-service";
 import { SkillService } from "../../src/main/services/skill-service";
 import { SnapshotService } from "../../src/main/services/snapshot-service";
-import { APPROVAL_STATE, EVAL_SUITE_KEY, SDLC_RUN_STATE } from "../../src/shared/domain";
+import { APPROVAL_STATE } from "../../src/shared/domain";
 
 function createConnection(): DatabaseConnection {
   return new DatabaseConnection(join(tmpdir(), `agentcompany-new-integration-${randomUUID()}.db`));
@@ -52,7 +51,6 @@ describe("collaboration integration flow", () => {
     const approvals = new ApprovalService(connection.db);
     const chat = new ChatService(connection.db);
     const skills = new SkillService(connection.db, join(tmpdir(), `agentcompany-new-artifacts-${randomUUID()}`));
-    const sdlc = new SdlcService(connection.db);
     const snapshot = new SnapshotService(connection.db);
     let orgId = "";
     let employeeId = "";
@@ -60,8 +58,6 @@ describe("collaboration integration flow", () => {
     let approvalId = "";
     let skillId = "";
     let revisionId = "";
-    let suiteId = "";
-    let evalRunId = "";
 
     connection.transaction(() => {
       orgId = createOrganization(organization);
@@ -99,23 +95,17 @@ describe("collaboration integration flow", () => {
       skillId = (connection.db.prepare("select skill_id from skill_revisions where id = ?").get(revisionId) as { skill_id: string }).skill_id;
       skills.bind({ orgId, agentId, skillId, revisionId });
       skills.resolveRuntimeSnapshot({ orgId, agentId, runId: `run_${randomUUID().replaceAll("-", "")}`, maxTokens: 44_800, taskText: "", runModel: { providerKey: "openai", model: "gpt-5.4" }, houseStyle: true });
-      suiteId = (connection.db.prepare("select id from eval_suites where org_id = ? and key = ?")
-        .get(orgId, EVAL_SUITE_KEY.INTEGRATION) as { id: string }).id;
-      evalRunId = sdlc.runEvalSuite({ orgId, suiteId });
     });
 
     const state = snapshot.load();
-    const evalRun = state.evalRuns.find((run) => run.id === evalRunId);
     // Compiled runtime snapshots live in the database only - the renderer
     // snapshot must not carry per-run compiled prompts.
     const snapshotRecord = connection.db.prepare("select compiled_prompt from skill_runtime_snapshots limit 1")
       .get() as { compiled_prompt: string } | undefined;
-    if (!evalRun) throw new Error("Integration eval run was not created.");
     if (!snapshotRecord) throw new Error("Skill runtime snapshot was not created.");
     expect(state.approvals.find((approval) => approval.id === approvalId)?.state).toBe(APPROVAL_STATE.APPROVED);
     expect(state.approvalAssignments.some((assignment) => assignment.approvalId === approvalId)).toBe(true);
     expect(snapshotRecord.compiled_prompt).toContain("Release Gate");
-    expect(evalRun).toMatchObject({ state: SDLC_RUN_STATE.PASSED, failedCount: 0 });
     expect(state.operationalEvents.some((event) => event.signalKey === "skill_resolve_success")).toBe(true);
     connection.close();
   });

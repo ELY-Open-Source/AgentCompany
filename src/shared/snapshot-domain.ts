@@ -49,7 +49,7 @@ import type { ProviderAuthProfileRecord, ProviderAuthSessionRecord } from "./pro
 import type { ProviderRequestRecord } from "./provider-request-domain";
 import type { ProviderRateLimitObservationRecord, ProviderRateLimitStateRecord } from "./provider-runtime-domain";
 import type { MigrationCutoverEventRecord, MigrationReconciliationItemRecord, RollbackSnapshotRecord } from "./rollback-domain";
-import type { EvalCaseRecord, EvalRunRecord, EvalSuiteRecord, PrBotGateRecord, SdlcReviewAgentRecord, SdlcReviewRunRecord } from "./sdlc-domain";
+import type { PrBotGateRecord } from "./sdlc-domain";
 import type {
   BrowserActionPolicyRecord,
   BrowserActionRecord,
@@ -139,11 +139,6 @@ export interface AppSnapshot {
   operationalEvents: OperationalEventRecord[];
   chaosDrills: ChaosDrillRecord[];
   chaosDrillRuns: ChaosDrillRunRecord[];
-  sdlcReviewAgents: SdlcReviewAgentRecord[];
-  sdlcReviewRuns: SdlcReviewRunRecord[];
-  evalSuites: EvalSuiteRecord[];
-  evalCases: EvalCaseRecord[];
-  evalRuns: EvalRunRecord[];
   prBotGates: PrBotGateRecord[];
   auditReplayRuns: AuditReplayRunRecord[];
   auditEvents: AuditEventRecord[];

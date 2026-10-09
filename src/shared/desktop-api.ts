@@ -66,8 +66,6 @@ import type {
   LaunchSocialLoginInput,
   ResolveMigrationReconciliationInput,
   RunChaosDrillInput,
-  RunEvalSuiteInput,
-  RunSdlcReviewInput,
   RunTaskInput,
   RevokeProviderCredentialInput,
   SaveProviderCredentialInput,
@@ -192,8 +190,6 @@ export interface DesktopApi {
   resolveMigrationReconciliation(input: ResolveMigrationReconciliationInput): Promise<DesktopResult<AppSnapshot>>;
   setFeatureFlag(input: SetFeatureFlagInput): Promise<DesktopResult<AppSnapshot>>;
   runChaosDrill(input: RunChaosDrillInput): Promise<DesktopResult<AppSnapshot>>;
-  runSdlcReview(input: RunSdlcReviewInput): Promise<DesktopResult<AppSnapshot>>;
-  runEvalSuite(input: RunEvalSuiteInput): Promise<DesktopResult<AppSnapshot>>;
   setPrBotGate(input: SetPrBotGateInput): Promise<DesktopResult<AppSnapshot>>;
   createComplianceExport(input: CreateComplianceExportInput): Promise<DesktopResult<AppSnapshot>>;
   createAuditReplay(input: CreateAuditReplayInput): Promise<DesktopResult<AppSnapshot>>;

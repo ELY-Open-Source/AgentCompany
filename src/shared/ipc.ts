@@ -54,8 +54,6 @@ export const IPC_CHANNELS = {
   resolveMigrationReconciliation: "agentcompany:resolve-migration-reconciliation",
   setFeatureFlag: "agentcompany:set-feature-flag",
   runChaosDrill: "agentcompany:run-chaos-drill",
-  runSdlcReview: "agentcompany:run-sdlc-review",
-  runEvalSuite: "agentcompany:run-eval-suite",
   setPrBotGate: "agentcompany:set-pr-bot-gate",
   createComplianceExport: "agentcompany:create-compliance-export",
   createAuditReplay: "agentcompany:create-audit-replay",
