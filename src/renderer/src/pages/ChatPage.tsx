@@ -4,6 +4,7 @@ import { Dialog } from "../shared/Dialog";
 import { t } from "../i18n/i18n";
 import { ChatSidebar } from "./chat/ChatSidebar";
 import { ChatConversation } from "./chat/ChatConversation";
+import type { SendState } from "./chat/ChatComposer";
 import {
   buildConversations,
   collectParticipants,
@@ -19,6 +20,8 @@ type Visibility = "workspace" | "restricted";
 function value(form: FormData, key: string): string {
   return String(form.get(key) ?? "").trim();
 }
+
+const IDLE_SEND: SendState = { pending: false, error: null };
 
 export function ChatPage({ snapshot, actions }: PageProps) {
   const orgId = activeOrgId(snapshot);
@@ -67,6 +70,8 @@ export function ChatPage({ snapshot, actions }: PageProps) {
   const [selectedSpaceId, setSelectedSpaceId] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [attachmentFileId, setAttachmentFileId] = useState<string>("");
+  // Sends are tracked per conversation, so a late answer lands in the conversation that sent it.
+  const [sends, setSends] = useState<Record<string, SendState>>({});
   const composerRef = useRef<HTMLTextAreaElement | null>(null);
 
   const firstAvailableSpaceId = conversations[0]?.space.id ?? null;
@@ -107,21 +112,31 @@ export function ChatPage({ snapshot, actions }: PageProps) {
 
   const sendInChannel = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!activeSpace) return;
-    const form = new FormData(event.currentTarget);
-    const body = value(form, "message");
+    if (!activeSpace || sends[activeSpace.id]?.pending) return;
+    const spaceId = activeSpace.id;
+    const sentAttachment = attachmentFileId;
+    const formElement = event.currentTarget;
+    const body = value(new FormData(formElement), "message");
     if (!body) return;
-    event.currentTarget.reset();
-    setAttachmentFileId("");
-    void actions.run(() => window.agentCompany.sendMessage({
+    setSends((current) => ({ ...current, [spaceId]: { pending: true, error: null } }));
+    // The draft and attachment stay until the message is saved, so a refused send loses nothing.
+    actions.run(() => window.agentCompany.sendMessage({
       orgId,
-      spaceId: activeSpace.id,
+      spaceId,
       threadId: null,
       senderType: "employee",
       senderId: employee.id,
       bodyMd: body,
-      attachmentFileIds: attachmentFileId ? [attachmentFileId] : [],
-    }));
+      attachmentFileIds: sentAttachment ? [sentAttachment] : [],
+    })).then(() => {
+      formElement.reset();
+      setAttachmentFileId((current) => (current === sentAttachment ? "" : current));
+      setSends((current) => ({ ...current, [spaceId]: { pending: false, error: null } }));
+    }).catch((error: unknown) => {
+      const reason = error instanceof Error ? error.message : String(error);
+      console.error(`[chat] send failed: ${reason}`);
+      setSends((current) => ({ ...current, [spaceId]: { pending: false, error: reason } }));
+    });
   };
 
   const createSpace = (event: FormEvent<HTMLFormElement>) => {
@@ -218,6 +233,7 @@ export function ChatPage({ snapshot, actions }: PageProps) {
         onDeleteMessage={deleteChatMessage}
         onOpenFile={openFile}
         onSubmit={sendInChannel}
+        send={(activeSpaceId ? sends[activeSpaceId] : undefined) ?? IDLE_SEND}
         composerRef={composerRef}
       />
 

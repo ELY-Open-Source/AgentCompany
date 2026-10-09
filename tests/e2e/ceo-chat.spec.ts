@@ -96,6 +96,18 @@ test("the pinned CEO conversation is the Messages front door", async () => {
     });
     await expect(page.locator(".convo-item").first().locator(".convo-ceo-badge")).toBeVisible();
     await expect(page.locator(".convo-item").first()).toContainText("How are we tracking against the goal?");
+
+    // A send the backend refuses keeps the draft and says why, instead of clearing it.
+    const composer = page.getByRole("textbox", { name: "Message" });
+    await composer.fill("/nosuch keep this draft");
+    await page.getByRole("button", { name: "Send" }).click();
+    await expect(page.getByRole("alert")).toContainText("Not sent: Slash command /nosuch is unavailable.");
+    await expect(composer).toHaveValue("/nosuch keep this draft");
+    await composer.fill("Second thought: what is blocked?");
+    await page.getByRole("button", { name: "Send" }).click();
+    await expect(chatLog.getByText("Second thought: what is blocked?")).toBeVisible();
+    await expect(composer).toHaveValue("");
+    await expect(page.getByRole("alert")).toHaveCount(0);
   } finally {
     await app.close();
   }

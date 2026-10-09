@@ -53,7 +53,7 @@ export function MentionTextarea({
 
   const insertMention = (handle: string) => {
     const node = ref.current;
-    if (!node) return;
+    if (!node || disabled) return;
     const before = node.value.slice(0, anchor.current);
     const after = node.value.slice(node.selectionStart);
     node.value = `${before}@${handle} ${after}`;
@@ -109,7 +109,7 @@ export function MentionTextarea({
 
   return (
     <div style={{ position: "relative" }}>
-      {query !== null && filtered.length > 0 && (
+      {!disabled && query !== null && filtered.length > 0 && (
         <div style={{
           position: "absolute",
           bottom: "100%",

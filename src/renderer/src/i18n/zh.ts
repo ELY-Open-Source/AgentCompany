@@ -36,6 +36,7 @@ export const zh: Record<string, string> = {
   "Resumes on its own at {time}.": "将于 {time} 自动恢复。",
   "Waiting on you, or resumes on its own at {time}.": "等待你处理，或于 {time} 自动恢复。",
   "Waiting on you.": "等待你处理。",
+  "Not sent: {reason}": "未发送：{reason}",
   "Resume": "恢复",
   "Missing this run": "本次运行缺少的能力",
   "Disconnect": "断开连接",

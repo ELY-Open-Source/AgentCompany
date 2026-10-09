@@ -9,7 +9,7 @@ import type {
   ChatSlashInvocationRecord,
   FileObjectRecord,
 } from "../../../../shared/domain";
-import { ChatComposer } from "./ChatComposer";
+import { ChatComposer, type SendState } from "./ChatComposer";
 import { ChatTimeline } from "./ChatTimeline";
 import type { MessageContext } from "./chat-helpers";
 import { t } from "../../i18n/i18n";
@@ -34,6 +34,7 @@ export function ChatConversation({
   onDeleteMessage,
   onOpenFile,
   onSubmit,
+  send,
   composerRef,
 }: {
   space: ChatSpaceRecord | null;
@@ -55,6 +56,7 @@ export function ChatConversation({
   onDeleteMessage: (messageId: string) => void;
   onOpenFile: (fileId: string) => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  send: SendState;
   composerRef: MutableRefObject<HTMLTextAreaElement | null>;
 }) {
   const [query, setQuery] = useState("");
@@ -135,6 +137,7 @@ export function ChatConversation({
       </div>
       <ChatComposer
         disabled={!space}
+        send={send}
         files={files}
         agents={context.agents}
         employees={context.employees}
