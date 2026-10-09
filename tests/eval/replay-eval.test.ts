@@ -5,10 +5,8 @@ import { describe, expect, test } from "vitest";
 import { DatabaseConnection } from "../../src/main/database/connection";
 import { AuditService } from "../../src/main/services/audit-service";
 import { ChatService } from "../../src/main/services/chat-service";
-import { OperationsService } from "../../src/main/services/operations-service";
 import { OrganizationService } from "../../src/main/services/organization-service";
 import { SnapshotService } from "../../src/main/services/snapshot-service";
-import { SLO_SIGNAL_KEY } from "../../src/shared/domain";
 
 function createConnection(): DatabaseConnection {
   return new DatabaseConnection(join(tmpdir(), `agentcompany-new-replay-${randomUUID()}.db`));
@@ -29,7 +27,6 @@ describe("replay eval", () => {
     const organization = new OrganizationService(connection.db);
     const chat = new ChatService(connection.db);
     const audit = new AuditService(connection.db);
-    const operations = new OperationsService(connection.db);
     const snapshot = new SnapshotService(connection.db);
     let orgId = "";
     let employeeId = "";
@@ -57,14 +54,6 @@ describe("replay eval", () => {
       });
       threadId = (connection.db.prepare("select thread_id from chat_messages where id = ?").get(messageId) as { thread_id: string }).thread_id;
       replayRunId = audit.createThreadReplay({ orgId, threadId, createdByEmployeeId: employeeId });
-      operations.recordSignal({
-        orgId,
-        signalKey: SLO_SIGNAL_KEY.APPROVAL_ROUTE_COVERAGE,
-        source: "replay_eval",
-        success: true,
-        durationMs: 12,
-        detail: { threadId, replayRunId },
-      });
     });
 
     const state = snapshot.load();

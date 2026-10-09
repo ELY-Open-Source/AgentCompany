@@ -49,7 +49,10 @@ describe("operations service", () => {
       "provider_background_execution",
       "social_publish_approval",
     ]);
-    expect(state.sloTargets.map((target) => target.signalKey)).toContain("browser_session_boundary");
+    // Every SLO target is fed by a runtime source; none waits on a signal only a drill would write.
+    expect(state.sloTargets.map((target) => target.signalKey).sort()).toEqual([
+      "approval_route_coverage", "migration_validation_success", "provider_request_success", "skill_resolve_success",
+    ]);
     expect(connection.db.prepare("select name from sqlite_master where type = 'table' and name like 'chaos_drill%'").all()).toEqual([]);
     connection.close();
   });
@@ -95,6 +98,21 @@ describe("operations service", () => {
       instructions: null,
       executionMode: PROVIDER_EXECUTION_MODE.BACKGROUND,
     })).rejects.toThrow("Provider background execution is disabled by feature flag.");
+    connection.close();
+  });
+
+  test("a signal's category comes from its runtime source, so a self-check cannot be filed as real traffic", () => {
+    const connection = createConnection();
+    const operations = new OperationsService(connection.db);
+    let orgId = "";
+    connection.transaction(() => {
+      orgId = createOrganization(new OrganizationService(connection.db));
+    });
+    operations.recordSignal({ orgId, source: "skill_resolver", success: true, durationMs: null, detail: {} });
+    expect(connection.db.prepare("select signal_key, source from operational_events where org_id = ?").all(orgId))
+      .toEqual([{ signal_key: "skill_resolve_success", source: "skill_resolver" }]);
+    expect(() => operations.recordSignal({ orgId, source: "replay_eval" as "skill_resolver", success: true, durationMs: null, detail: {} }))
+      .toThrow('"replay_eval" is not a runtime signal source.');
     connection.close();
   });
 });

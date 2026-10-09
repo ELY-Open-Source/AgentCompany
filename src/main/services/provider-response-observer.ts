@@ -1,5 +1,5 @@
 import type { DatabaseSync } from "node:sqlite";
-import { SLO_SIGNAL_KEY, type ProviderExecutionMode } from "../../shared/domain";
+import type { ProviderExecutionMode } from "../../shared/domain";
 import type { ProviderObservedRateLimitState } from "../../shared/provider-runtime-domain";
 import { AuditService } from "./audit-service";
 import { OperationsService } from "./operations-service";
@@ -59,7 +59,6 @@ export class ProviderResponseObserver {
     });
     this.operations.recordSignal({
       orgId: input.orgId,
-      signalKey: SLO_SIGNAL_KEY.PROVIDER_REQUEST_SUCCESS,
       source: "provider_gateway",
       success: true,
       durationMs: Date.now() - input.startedAt,
@@ -85,7 +84,6 @@ export class ProviderResponseObserver {
     this.recordProviderHealth(input.provider.id, input.orgId, HEALTH_STATE_FAILED, message);
     this.operations.recordSignal({
       orgId: input.orgId,
-      signalKey: SLO_SIGNAL_KEY.PROVIDER_REQUEST_SUCCESS,
       source: "provider_gateway",
       success: false,
       durationMs: Date.now() - input.startedAt,

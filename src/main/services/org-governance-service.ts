@@ -1,6 +1,6 @@
 import type { DatabaseSync } from "node:sqlite";
 import type { CreateAgentInput } from "../../shared/commands";
-import { RISK_LEVEL, ROUTE_TO_TYPE, SLO_SIGNAL_KEY, type RiskLevel } from "../../shared/domain";
+import { RISK_LEVEL, ROUTE_TO_TYPE, type RiskLevel } from "../../shared/domain";
 import { createId } from "../../shared/ids";
 import { AuditService } from "./audit-service";
 import { OperationsService } from "./operations-service";
@@ -117,7 +117,6 @@ export class OrgGovernanceService {
     });
     this.operations.recordSignal({
       orgId: input.orgId,
-      signalKey: SLO_SIGNAL_KEY.APPROVAL_ROUTE_COVERAGE,
       source: "approval_routing",
       success: true,
       durationMs: null,

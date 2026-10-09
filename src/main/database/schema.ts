@@ -95,6 +95,7 @@ import { taskEnqueueErrorSchema } from "./migrations/093-task-enqueue-error";
 import { dropConfigCountEvalsSchema } from "./migrations/094-drop-config-count-evals";
 import { dropPrBotGatesSchema } from "./migrations/095-drop-pr-bot-gates";
 import { dropChaosDrillsSchema } from "./migrations/096-drop-chaos-drills";
+import { dropDrillOnlySloSchema } from "./migrations/097-drop-drill-only-slo";
 
 interface Migration {
   version: number;
@@ -199,6 +200,7 @@ const MIGRATIONS: Migration[] = [
   { version: 94, name: "drop_config_count_evals", sql: dropConfigCountEvalsSchema },
   { version: 95, name: "drop_pr_bot_gates", sql: dropPrBotGatesSchema },
   { version: 96, name: "drop_chaos_drills", sql: dropChaosDrillsSchema },
+  { version: 97, name: "drop_drill_only_slo", sql: dropDrillOnlySloSchema },
 ];
 
 const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;

@@ -9,7 +9,6 @@ export const FEATURE_FLAG_KEY = {
 export const SLO_SIGNAL_KEY = {
   PROVIDER_REQUEST_SUCCESS: "provider_request_success",
   APPROVAL_ROUTE_COVERAGE: "approval_route_coverage",
-  BROWSER_SESSION_BOUNDARY: "browser_session_boundary",
   SKILL_RESOLVE_SUCCESS: "skill_resolve_success",
   MIGRATION_VALIDATION_SUCCESS: "migration_validation_success",
 } as const;

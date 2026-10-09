@@ -1,7 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import type { DatabaseSync } from "node:sqlite";
 import type { BindSkillInput, ImportSkillDirectoryInput, ResolveAgentSkillsInput, RunSkillTestsInput } from "../../shared/commands";
-import { SLO_SIGNAL_KEY } from "../../shared/domain";
 import { createId } from "../../shared/ids";
 import { AuditService } from "./audit-service";
 import { OperationsService } from "./operations-service";
@@ -390,7 +389,6 @@ export class SkillService {
     });
     this.operations.recordSignal({
       orgId: input.orgId,
-      signalKey: SLO_SIGNAL_KEY.SKILL_RESOLVE_SUCCESS,
       source: "skill_resolver",
       success: true,
       durationMs: null,

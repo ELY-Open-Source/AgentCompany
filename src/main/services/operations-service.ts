@@ -1,6 +1,6 @@
 import type { DatabaseSync } from "node:sqlite";
 import type { SetFeatureFlagInput } from "../../shared/commands";
-import { FEATURE_FLAG_KEY, SLO_SIGNAL_KEY, type FeatureFlagKey, type SloSignalKey } from "../../shared/domain";
+import { FEATURE_FLAG_KEY, SLO_SIGNAL_KEY, type FeatureFlagKey } from "../../shared/domain";
 import { createId } from "../../shared/ids";
 import { AuditService } from "./audit-service";
 
@@ -10,10 +10,18 @@ const FEATURE_FLAGS = [
   { key: FEATURE_FLAG_KEY.BOARD_INTERVENTION, label: "Board intervention", enabled: true },
 ] as const;
 
+/** Each runtime source and the one signal it reports; drills and self-checks have no source here, so they cannot pass as real traffic. */
+const SIGNAL_OF_SOURCE = {
+  provider_gateway: SLO_SIGNAL_KEY.PROVIDER_REQUEST_SUCCESS,
+  approval_routing: SLO_SIGNAL_KEY.APPROVAL_ROUTE_COVERAGE,
+  skill_resolver: SLO_SIGNAL_KEY.SKILL_RESOLVE_SUCCESS,
+  migration_validation: SLO_SIGNAL_KEY.MIGRATION_VALIDATION_SUCCESS,
+} as const;
+export type SignalSource = keyof typeof SIGNAL_OF_SOURCE;
+
 const SLO_TARGETS = [
   { signalKey: SLO_SIGNAL_KEY.PROVIDER_REQUEST_SUCCESS, label: "Provider requests", targetBasisPoints: 9950, windowMinutes: 43200 },
   { signalKey: SLO_SIGNAL_KEY.APPROVAL_ROUTE_COVERAGE, label: "Approval routing", targetBasisPoints: 10000, windowMinutes: 43200 },
-  { signalKey: SLO_SIGNAL_KEY.BROWSER_SESSION_BOUNDARY, label: "Browser session boundary", targetBasisPoints: 10000, windowMinutes: 43200 },
   { signalKey: SLO_SIGNAL_KEY.SKILL_RESOLVE_SUCCESS, label: "Skill resolve", targetBasisPoints: 9950, windowMinutes: 43200 },
   { signalKey: SLO_SIGNAL_KEY.MIGRATION_VALIDATION_SUCCESS, label: "Migration validation", targetBasisPoints: 10000, windowMinutes: 43200 },
 ] as const;
@@ -68,21 +76,15 @@ export class OperationsService {
     return row.enabled === 1;
   }
 
-  recordSignal(input: {
-    orgId: string;
-    signalKey: SloSignalKey;
-    source: string;
-    success: boolean;
-    durationMs: number | null;
-    detail: unknown;
-  }): void {
+  recordSignal(input: { orgId: string; source: SignalSource; success: boolean; durationMs: number | null; detail: unknown }): void {
+    if (!Object.hasOwn(SIGNAL_OF_SOURCE, input.source)) throw new Error(`"${input.source}" is not a runtime signal source.`);
     this.db.prepare(`
       insert into operational_events(id, org_id, signal_key, source, success, duration_ms, detail_json, created_at)
       values (?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       createId("ope"),
       input.orgId,
-      input.signalKey,
+      SIGNAL_OF_SOURCE[input.source],
       input.source,
       input.success ? 1 : 0,
       input.durationMs,

@@ -3,7 +3,6 @@ import { createHash } from "node:crypto";
 import { resolve } from "node:path";
 import { DatabaseSync, type StatementSync } from "node:sqlite";
 import type { CreateMigrationReportInput } from "../../shared/commands";
-import { SLO_SIGNAL_KEY } from "../../shared/domain";
 import { createId } from "../../shared/ids";
 import { AuditService } from "./audit-service";
 import { buildMigrationValidationSummary, type MigrationValidationSummary } from "./migration-validation-summary";
@@ -343,7 +342,6 @@ export class MigrationService {
       });
       this.operations.recordSignal({
         orgId: input.orgId,
-        signalKey: SLO_SIGNAL_KEY.MIGRATION_VALIDATION_SUCCESS,
         source: "migration_validation",
         success: validationSummary.passed,
         durationMs: null,
