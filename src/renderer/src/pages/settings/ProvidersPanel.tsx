@@ -1,3 +1,4 @@
+import { defaultModelReach } from "../../../../shared/agent-model";
 import { ScopeNote } from "./ScopeNote";
 import { useState, type FormEvent } from "react";
 import { Button, Pill } from "../../shared/ui";
@@ -120,6 +121,11 @@ export function ProvidersPanel({ orgId, companyName, employeeId, providers, auth
           ) : (
             <ProviderConnectFields provider={active} entry={activeCatalogEntry} />
           )
+        )}
+        {active && (
+          <p style={{ fontSize: 12, color: "var(--text-3)", margin: 0 }}>
+            {t("The default model reaches {following} agents without their own model; {own} keep their own. Sessions already started keep the model they began with.", { following: defaultModelReach(agents, active.id).following, own: defaultModelReach(agents, active.id).ownModel })}
+          </p>
         )}
       </Dialog>
     </div>

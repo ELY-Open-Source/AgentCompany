@@ -1,3 +1,4 @@
+import { agentModel } from "../../shared/agent-model";
 import { TASK_APPROVAL_KINDS_SQL, TASK_SNAPSHOT_SQL } from "./task-approval";
 import type { DatabaseSync } from "node:sqlite";
 import { APPROVAL_STATE, RISK_LEVEL } from "../../shared/domain";
@@ -73,7 +74,7 @@ export function assertModelSelectable(providerKey: string, agentModelId: string 
 
 /** The model a run calls: the agent's own choice, or else its provider's default. */
 export function effectiveModel(agentModelId: string | null, providerModel: string | null): string | null {
-  return agentModelId?.trim() || providerModel;
+  return agentModel(agentModelId, providerModel).model;
 }
 
 export function requireAgentProvider(db: DatabaseSync, orgId: string, agent: TaskExecutionAgentRow): TaskExecutionProviderRow {

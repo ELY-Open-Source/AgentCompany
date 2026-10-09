@@ -211,6 +211,8 @@ export interface TaskRunRecord {
   contextJson: string | null;
   /** Capabilities the run could not load, one per line, so the user sees what it worked without. */
   capabilityWarnings: string | null;
+  /** The model the session pinned when it started; null until then. */
+  runModel: string | null;
 }
 
 export interface ApprovalRecord {

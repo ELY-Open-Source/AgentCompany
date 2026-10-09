@@ -1,3 +1,4 @@
+import { agentModel } from "../../../shared/agent-model";
 import { useMemo, useState, type FormEvent } from "react";
 import { Avatar, Button, Field, Icon, IconButton } from "../shared/ui";
 import { AvatarField } from "../shared/AvatarField";
@@ -40,21 +41,20 @@ export function TeamPage({ snapshot, actions }: PageProps) {
   const openHireDialog = () => {
     const provider = providers[0] ?? null;
     setHireProviderId(provider?.id ?? "");
-    setHireModelId(provider?.model ?? "");
+    setHireModelId("");
     setHireOpen(true);
   };
 
   const updateHireProvider = (providerId: string) => {
-    const provider = providers.find((item) => item.id === providerId) ?? null;
     setHireProviderId(providerId);
-    setHireModelId(provider?.model ?? "");
+    setHireModelId("");
   };
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     const selectedProvider = providers.find((provider) => provider.id === hireProviderId) ?? null;
-    const modelId = selectedProvider ? hireModelId.trim() || selectedProvider.model : null;
+    const modelId = selectedProvider ? hireModelId.trim() || null : null;
     void actions.run(() => window.agentCompany.createAgent({
       orgId,
       name: text(form, "name"),
@@ -148,8 +148,9 @@ export function TeamPage({ snapshot, actions }: PageProps) {
           </select>
         </Field>
         <Field label={t("Model")}>
-          <input className="input" name="modelId" list="agent-model-suggestions" value={hireModelId} onChange={(event) => setHireModelId(event.currentTarget.value)} />
+          <input className="input" name="modelId" list="agent-model-suggestions" value={hireModelId} placeholder={providers.find((provider) => provider.id === hireProviderId)?.model ?? ""} onChange={(event) => setHireModelId(event.currentTarget.value)} />
         </Field>
+        <p style={{ fontSize: 12, color: "var(--text-3)", margin: 0 }}>{t("Leave the model blank to use the provider's default. A changed model applies from the agent's next session.")}</p>
         <Field label={t("Manager")}>
           <select className="input" name="managerAgentId" defaultValue="">
             <option value="">{t("None")}</option>
@@ -174,15 +175,8 @@ export function TeamPage({ snapshot, actions }: PageProps) {
           <Field label={t("Title")}><input className="input" name="title" defaultValue={editingAgent.title} /></Field>
           <Field label={t("Department")}><input className="input" name="department" defaultValue={editingAgent.department} required /></Field>
           <Field label={t("Monthly budget")}><input className="input" name="budget" type="number" min="0" step="1" defaultValue={editingAgent.budgetCents / 100} /></Field>
-          <Field label={t("Provider")}>
-            <select className="input" name="modelProviderId" defaultValue={editingAgent.modelProviderId ?? ""}>
-              <option value="">{t("Unassigned")}</option>
-              {providers.map((provider) => <option key={provider.id} value={provider.id}>{provider.label}</option>)}
-            </select>
-          </Field>
-          <Field label={t("Model")}>
-            <input className="input" name="modelId" defaultValue={editingAgent.modelId ?? ""} list="agent-model-suggestions" />
-          </Field>
+          <EditModelFields agent={editingAgent} providers={providers} />
+          <p style={{ fontSize: 12, color: "var(--text-3)", margin: 0 }}>{t("Leave the model blank to use the provider's default. A changed model applies from the agent's next session.")}</p>
           <Field label={t("Seniority")}>
             {/* The CEO's rank carries company-wide powers, so it is shown, never picked. */}
             {editingAgent.roleLevel === "c_suite" ? (
@@ -251,12 +245,13 @@ function buildRoster(
     const cap = agents.reduce((max, agent) => (agent.budgetCents > max ? agent.budgetCents : max), 0);
     for (const agent of agents) {
       const provider = agent.modelProviderId ? providers.find((entry) => entry.id === agent.modelProviderId) : null;
+      const inEffect = agentModel(agent.modelId, provider?.model ?? null);
       rows.push({
         id: agent.id,
         name: agent.name,
         role: agent.role,
         dept: agent.department || "—",
-        model: agent.modelId ?? (provider?.model ?? "—"),
+        model: inEffect.source === "provider_default" ? t("{model} (provider default)", { model: inEffect.model ?? "" }) : inEffect.model ?? "—",
         providerLabel: provider?.label ?? "—",
         budgetCents: agent.budgetCents,
         budgetCapCents: cap > 0 ? cap : null,
@@ -265,6 +260,24 @@ function buildRoster(
     }
   }
   return rows;
+}
+
+/** The placeholder names the default of the provider picked now, which is the model a blank field will follow. */
+function EditModelFields({ agent, providers }: { agent: AgentRecord; providers: ProviderRecord[] }) {
+  const [providerId, setProviderId] = useState(agent.modelProviderId ?? "");
+  return (
+    <>
+      <Field label={t("Provider")}>
+        <select className="input" name="modelProviderId" value={providerId} onChange={(event) => setProviderId(event.currentTarget.value)}>
+          <option value="">{t("Unassigned")}</option>
+          {providers.map((provider) => <option key={provider.id} value={provider.id}>{provider.label}</option>)}
+        </select>
+      </Field>
+      <Field label={t("Model")}>
+        <input className="input" name="modelId" defaultValue={agent.modelId ?? ""} placeholder={providers.find((provider) => provider.id === providerId)?.model ?? ""} list="agent-model-suggestions" />
+      </Field>
+    </>
+  );
 }
 
 function RosterRow({ row, last, onEdit }: { row: RosterEntry; last: boolean; onEdit: (() => void) | null }) {

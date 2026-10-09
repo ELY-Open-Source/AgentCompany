@@ -89,7 +89,9 @@ test("onboards, hires, and creates work in the Electron shell", async () => {
       };
     });
     expect(hiredAgent.modelProviderId).toBeTruthy();
-    expect(hiredAgent.modelId).toBe("gpt-5.4");
+    // A hire without its own model follows the provider default, and the roster says so.
+    expect(hiredAgent.modelId).toBeNull();
+    await expect(page.getByText("gpt-5.4 (provider default)").first()).toBeVisible();
     expect(hiredAgent.workspaceId).toBe(hiredAgent.primaryWorkspaceId);
     expect(hiredAgent.heartbeatEnabled).toBe(true);
     expect(hiredAgent.heartbeatIntervalSec).toBe(120);
@@ -98,6 +100,14 @@ test("onboards, hires, and creates work in the Electron shell", async () => {
     await page.getByRole("button", { name: "Edit Alex Chen" }).click();
     await page.locator(".modal").getByLabel("Name", { exact: true }).fill("Alex Turing");
     await page.getByLabel("Avatar emoji").fill("🚀");
+    // The blank model field names the default of whichever provider is picked now.
+    const editModel = page.locator(".modal").getByLabel("Model", { exact: true });
+    await expect(editModel).toHaveAttribute("placeholder", "gpt-5.4");
+    const editProvider = page.locator(".modal select[name=modelProviderId]");
+    const savedProvider = await editProvider.inputValue();
+    await editProvider.selectOption("");
+    await expect(editModel).toHaveAttribute("placeholder", "");
+    await editProvider.selectOption(savedProvider);
     await page.locator(".modal").getByRole("button", { name: "Save" }).click();
     await expect(page.getByText("Alex Turing").first()).toBeVisible();
     await expect(page.locator(".table-row", { hasText: "Alex Turing" }).locator(".avatar", { hasText: "🚀" })).toBeVisible();

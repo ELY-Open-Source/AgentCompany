@@ -204,7 +204,8 @@ function RunDetail({ run, tasks, agents, providers, actions, onOpenTask }: {
 
       <div style={{ display: "grid", gridTemplateColumns: "120px 1fr", gap: "8px 16px", fontSize: 14, marginBottom: 20 }}>
         <MetaLabel>{t("Agent")}</MetaLabel><div>{agent?.name ?? "—"} ({agent?.role ?? "—"})</div>
-        <MetaLabel>{t("Provider")}</MetaLabel><div>{provider?.label ?? "—"} · {provider?.model ?? "—"}</div>
+        <MetaLabel>{t("Provider")}</MetaLabel><div>{provider?.label ?? "—"}</div>
+        <MetaLabel>{t("Model")}</MetaLabel><div>{run.runModel ?? t("Chosen when the session starts")}</div>
         <MetaLabel>{t("Trigger")}</MetaLabel><div>{run.trigger}</div>
         <MetaLabel>{t("Created")}</MetaLabel><div>{formatRelative(run.createdAt)}</div>
         {run.startedAt && (<><MetaLabel>{t("Started")}</MetaLabel><div>{formatRelative(run.startedAt)}</div></>)}
