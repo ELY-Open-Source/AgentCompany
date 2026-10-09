@@ -105,8 +105,14 @@ test("onboards, hires, and creates work in the Electron shell", async () => {
     await expect(editModel).toHaveAttribute("placeholder", "gpt-5.4");
     const editProvider = page.locator(".modal select[name=modelProviderId]");
     const savedProvider = await editProvider.inputValue();
+    // Suggestions come from the picked provider only, and switching provider clears the model.
+    await expect(page.locator("#edit-model-suggestions option").first()).toHaveAttribute("value", /.+/);
+    await expect(page.locator("#edit-model-suggestions option[value^=claude]")).toHaveCount(0);
+    await editModel.fill("gpt-5.4");
     await editProvider.selectOption("");
     await expect(editModel).toHaveAttribute("placeholder", "");
+    await expect(editModel).toHaveValue("");
+    await expect(editModel).toBeDisabled();
     await editProvider.selectOption(savedProvider);
     await page.locator(".modal").getByRole("button", { name: "Save" }).click();
     await expect(page.getByText("Alex Turing").first()).toBeVisible();

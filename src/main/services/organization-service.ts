@@ -1,3 +1,4 @@
+import { assertModelHasProvider } from "../../shared/agent-model";
 import { setAutonomousPaused, updateUiPreferences } from "./app-state";
 import { updateOrganizationProfile } from "./organization-profile";
 import { setGoalDueDate, validDueAt } from "./goal-due-date";
@@ -88,6 +89,7 @@ export class OrganizationService {
   createAgent(input: CreateAgentInput): string {
     assertUsableMentionName(input.name);
     this.assertAgentNameAvailable(input.orgId, input.name, null);
+    assertModelHasProvider(input.modelProviderId, input.modelId);
     this.governance.assertRank(input.orgId, null, input.roleLevel ?? "staff");
     const hiringPolicy = this.governance.enforceHiringPolicy(input);
     const id = createId("agt");
@@ -173,6 +175,7 @@ export class OrganizationService {
       assertUsableMentionName(name);
       this.assertAgentNameAvailable(input.orgId, name, input.agentId);
     }
+    assertModelHasProvider(input.modelProviderId, input.modelId);
     if (input.modelProviderId) {
       const provider = this.db.prepare("select id from providers where id = ? and org_id = ?")
         .get(input.modelProviderId, input.orgId) as { id: string } | undefined;

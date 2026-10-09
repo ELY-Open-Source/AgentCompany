@@ -5,7 +5,7 @@ import { AvatarField } from "../shared/AvatarField";
 import { TopbarActions } from "../shared/TopbarActions";
 import { Dialog } from "../shared/Dialog";
 import { OrgChartTree } from "./team/OrgChartTree";
-import type { AgentRecord, EmployeeRecord, ProviderRecord } from "../../../shared/domain";
+import type { AgentRecord, EmployeeRecord, ProviderCatalogEntry, ProviderRecord } from "../../../shared/domain";
 import type { PageProps } from "./types";
 import { activeOrgId, money } from "./types";
 import { t } from "../i18n/i18n";
@@ -148,8 +148,9 @@ export function TeamPage({ snapshot, actions }: PageProps) {
           </select>
         </Field>
         <Field label={t("Model")}>
-          <input className="input" name="modelId" list="agent-model-suggestions" value={hireModelId} placeholder={providers.find((provider) => provider.id === hireProviderId)?.model ?? ""} onChange={(event) => setHireModelId(event.currentTarget.value)} />
+          <input className="input" name="modelId" list="hire-model-suggestions" value={hireModelId} disabled={!hireProviderId} placeholder={providers.find((provider) => provider.id === hireProviderId)?.model ?? ""} onChange={(event) => setHireModelId(event.currentTarget.value)} />
         </Field>
+        <ModelSuggestions id="hire-model-suggestions" providerId={hireProviderId} providers={providers} catalog={snapshot.providerCatalog} />
         <p style={{ fontSize: 12, color: "var(--text-3)", margin: 0 }}>{t("Leave the model blank to use the provider's default. A changed model applies from the agent's next session.")}</p>
         <Field label={t("Manager")}>
           <select className="input" name="managerAgentId" defaultValue="">
@@ -175,7 +176,7 @@ export function TeamPage({ snapshot, actions }: PageProps) {
           <Field label={t("Title")}><input className="input" name="title" defaultValue={editingAgent.title} /></Field>
           <Field label={t("Department")}><input className="input" name="department" defaultValue={editingAgent.department} required /></Field>
           <Field label={t("Monthly budget")}><input className="input" name="budget" type="number" min="0" step="1" defaultValue={editingAgent.budgetCents / 100} /></Field>
-          <EditModelFields agent={editingAgent} providers={providers} />
+          <EditModelFields agent={editingAgent} providers={providers} catalog={snapshot.providerCatalog} />
           <p style={{ fontSize: 12, color: "var(--text-3)", margin: 0 }}>{t("Leave the model blank to use the provider's default. A changed model applies from the agent's next session.")}</p>
           <Field label={t("Seniority")}>
             {/* The CEO's rank carries company-wide powers, so it is shown, never picked. */}
@@ -195,13 +196,6 @@ export function TeamPage({ snapshot, actions }: PageProps) {
         </Dialog>
       )}
 
-      <datalist id="agent-model-suggestions">
-        {snapshot.providerCatalog.flatMap((entry) =>
-          entry.models.map((model) => (
-            <option key={`${entry.key}-${model.id}`} value={model.id}>{entry.label} · {model.name}</option>
-          )),
-        )}
-      </datalist>
     </div>
   );
 }
@@ -263,20 +257,33 @@ function buildRoster(
 }
 
 /** The placeholder names the default of the provider picked now, which is the model a blank field will follow. */
-function EditModelFields({ agent, providers }: { agent: AgentRecord; providers: ProviderRecord[] }) {
+function EditModelFields({ agent, providers, catalog }: { agent: AgentRecord; providers: ProviderRecord[]; catalog: ProviderCatalogEntry[] }) {
   const [providerId, setProviderId] = useState(agent.modelProviderId ?? "");
+  const [modelId, setModelId] = useState(agent.modelId ?? "");
   return (
     <>
       <Field label={t("Provider")}>
-        <select className="input" name="modelProviderId" value={providerId} onChange={(event) => setProviderId(event.currentTarget.value)}>
+        <select className="input" name="modelProviderId" value={providerId} onChange={(event) => { setProviderId(event.currentTarget.value); setModelId(""); }}>
           <option value="">{t("Unassigned")}</option>
           {providers.map((provider) => <option key={provider.id} value={provider.id}>{provider.label}</option>)}
         </select>
       </Field>
       <Field label={t("Model")}>
-        <input className="input" name="modelId" defaultValue={agent.modelId ?? ""} placeholder={providers.find((provider) => provider.id === providerId)?.model ?? ""} list="agent-model-suggestions" />
+        <input className="input" name="modelId" value={modelId} onChange={(event) => setModelId(event.currentTarget.value)} disabled={!providerId} placeholder={providers.find((provider) => provider.id === providerId)?.model ?? ""} list="edit-model-suggestions" />
       </Field>
+      <ModelSuggestions id="edit-model-suggestions" providerId={providerId} providers={providers} catalog={catalog} />
     </>
+  );
+}
+
+/** Suggests only the picked provider's models; a model from another provider would mean nothing here. */
+function ModelSuggestions({ id, providerId, providers, catalog }: { id: string; providerId: string; providers: ProviderRecord[]; catalog: ProviderCatalogEntry[] }) {
+  const providerKey = providers.find((provider) => provider.id === providerId)?.providerKey;
+  const models = catalog.find((entry) => entry.key === providerKey)?.models ?? [];
+  return (
+    <datalist id={id}>
+      {models.map((model) => <option key={model.id} value={model.id}>{model.name}</option>)}
+    </datalist>
   );
 }
 
