@@ -74,7 +74,7 @@ export function ThreadPanel({
   return (
     <aside role="complementary" aria-label={t("Thread")} style={{ width: 360, flexShrink: 0, display: "flex", flexDirection: "column", borderLeft: "1px solid var(--border-soft)", background: "var(--panel)" }}>
       <header className="row" style={{ height: 52, padding: "0 16px", borderBottom: "1px solid var(--border-soft)", flexShrink: 0 }}>
-        <span style={{ fontSize: 14, fontWeight: 600 }}>{t("Thread")}</span>
+        <span style={{ fontSize: "var(--fs-body)" }}>{t("Thread")}</span>
         <span style={{ marginLeft: "auto" }}><IconButton icon="x" label={t("Close thread")} onClick={onClose} /></span>
       </header>
       <div style={{ flex: 1, overflow: "auto", padding: "16px 16px 8px" }}>

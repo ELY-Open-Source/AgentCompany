@@ -46,7 +46,7 @@ export function ConnectorsPage({ snapshot, actions }: PageProps) {
 
   return (
     <div style={{ maxWidth: 1060 }}>
-      <h2 style={{ margin: "0 0 18px", fontSize: 16, fontWeight: 600 }}>{t("Connectors")}</h2>
+      <h2 style={{ margin: "0 0 18px", fontSize: "var(--fs-body)" }}>{t("Connectors")}</h2>
 
       {connectError && <ErrorText message={connectError} />}
 

@@ -158,7 +158,7 @@ export function ApprovalsPage({ snapshot, actions, navigate, focus }: PageProps)
       {decided.length > 0 && (
         <>
           <div className="section-label" style={{ margin: "32px 0 10px" }}>{t("Recently decided")}</div>
-          {driftError && <div style={{ color: "var(--red)", fontSize: 13, marginBottom: 8 }}>{t("Could not check approved content: {message}", { message: driftError })}</div>}
+          {driftError && <div style={{ color: "var(--red)", fontSize: "var(--fs-body)", marginBottom: 8 }}>{t("Could not check approved content: {message}", { message: driftError })}</div>}
           <div className="card" style={{ padding: 0, overflow: "hidden" }}>
             {shownDecided.map((approval, index) => (
               <DecidedRow
@@ -176,7 +176,7 @@ export function ApprovalsPage({ snapshot, actions, navigate, focus }: PageProps)
           </div>
           {decided.length > decidedLimit && (
             <div className="row" style={{ justifyContent: "center", marginTop: 12, gap: 10 }}>
-              <span style={{ fontSize: 12, color: "var(--text-3)" }}>{t("Showing {shown} of {total}", { shown: Math.min(decidedLimit, decided.length), total: decided.length })}</span>
+              <span style={{ fontSize: "var(--fs-body)", color: "var(--text-3)" }}>{t("Showing {shown} of {total}", { shown: Math.min(decidedLimit, decided.length), total: decided.length })}</span>
               <Button size="small" onClick={() => setDecidedLimit((limit) => limit + DECIDED_PAGE)}>{t("Show earlier decisions")}</Button>
             </div>
           )}
@@ -232,7 +232,7 @@ function StatTile({ label, value, tone }: { label: string; value: string; tone?:
       <div className="card-label" style={{ marginBottom: 6 }}>{label}</div>
       <div
         className="num"
-        style={{ fontSize: 18, fontWeight: 600, color: tone === "amber" ? "var(--amber)" : "var(--text-1)", letterSpacing: "-0.02em" }}
+        style={{ fontSize: "var(--fs-display)", color: tone === "amber" ? "var(--amber)" : "var(--text-1)" }}
       >
         {value}
       </div>
@@ -266,7 +266,6 @@ function ApprovalRow({
     <div
       style={{
         border: "1px solid var(--border)",
-        borderRadius: 12,
         background: "var(--panel)",
         padding: 18,
         marginBottom: 10,
@@ -276,20 +275,20 @@ function ApprovalRow({
         alignItems: "flex-start",
       }}
     >
-      <div style={{ width: 3, alignSelf: "stretch", background: tone.color, borderRadius: 2 }} />
+      <div style={{ width: 3, alignSelf: "stretch", background: tone.color }} />
       <div style={{ minWidth: 0 }}>
         <div className="row" style={{ marginBottom: 4 }}>
-          <span style={{ fontSize: 12, color: tone.color, fontWeight: 540, letterSpacing: "0.02em" }}>{tone.label}</span>
+          <span style={{ fontSize: "var(--fs-body)", color: tone.color }}>{tone.label}</span>
           <span style={{ color: "var(--text-4)" }}>·</span>
           <Pill>{approvalKindLabel(approval.kind)}</Pill>
         </div>
-        <div style={{ fontSize: 15, fontWeight: 540, letterSpacing: "-0.01em", marginBottom: 4 }}>{approval.title}</div>
-        <div style={{ fontSize: 14, color: "var(--text-2)", lineHeight: 1.5, marginBottom: 12, whiteSpace: "pre-wrap" }}>
+        <div style={{ fontSize: "var(--fs-body)", marginBottom: 4 }}>{approval.title}</div>
+        <div style={{ fontSize: "var(--fs-body)", color: "var(--text-2)", lineHeight: 1.5, marginBottom: 12, whiteSpace: "pre-wrap" }}>
           {approval.details}
         </div>
         <div className="row" style={{ gap: 8 }}>
           <Avatar name={requester} size="sm" bot={isBot} />
-          <span style={{ fontSize: 12, color: "var(--text-3)" }}>{t("Requested by {requester}", { requester })} · {formatRelative(approval.createdAt)}</span>
+          <span style={{ fontSize: "var(--fs-body)", color: "var(--text-3)" }}>{t("Requested by {requester}", { requester })} · {formatRelative(approval.createdAt)}</span>
         </div>
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end" }}>
@@ -336,7 +335,7 @@ function DecidedRow({
       style={{
         gap: 12,
         padding: "12px 18px",
-        fontSize: 14,
+        fontSize: "var(--fs-body)",
         borderBottom: last ? "none" : "1px solid var(--border-soft)",
         background: focused ? "var(--accent-soft)" : undefined,
       }}
@@ -347,16 +346,16 @@ function DecidedRow({
         className="link-button"
         aria-label={t("View record of {title}", { title: approval.title })}
         onClick={onView}
-        style={{ flex: 1, fontWeight: 480, color: "var(--text-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textAlign: "left" }}
+        style={{ flex: 1, color: "var(--text-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textAlign: "left" }}
       >
         {approval.title}
       </button>
       {approval.sourceEntityType === "task" && approval.sourceEntityId && (
-        <button type="button" className="link-button" style={{ fontSize: 12 }} onClick={() => onOpenTask(approval.sourceEntityId!)}>{t("Open task")}</button>
+        <button type="button" className="link-button" style={{ fontSize: "var(--fs-body)" }} onClick={() => onOpenTask(approval.sourceEntityId!)}>{t("Open task")}</button>
       )}
       {drift && <Pill tone="amber">{drift === "changed" ? t("Changed since approval") : t("Removed since approval")}</Pill>}
       <Avatar name={requester} size="sm" bot />
-      <div style={{ fontSize: 12, color: "var(--text-3)", width: 180, textAlign: "right", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+      <div style={{ fontSize: "var(--fs-body)", color: "var(--text-3)", width: 180, textAlign: "right", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
         {decidedLabel} · {formatRelative(approval.decidedAt ?? approval.createdAt)}{superseded ? "" : ` · ${decider.split(" ")[0]}`}
       </div>
     </div>
@@ -412,7 +411,7 @@ function BatchSummary({ total, result, onDismiss }: { total: number; result: Bat
   return (
     <div role="status" className="card" style={{ padding: 14, marginBottom: 16 }}>
       <div className="row" style={{ gap: 8 }}>
-        <span style={{ fontWeight: 600 }}>{t("Approved {n} of {total}.", { n: result.approved.length, total })}</span>
+        <span>{t("Approved {n} of {total}.", { n: result.approved.length, total })}</span>
         <span style={{ marginLeft: "auto" }}><Button size="small" tone="ghost" onClick={onDismiss}>{t("Dismiss")}</Button></span>
       </div>
       {result.failed.map((failure) => (

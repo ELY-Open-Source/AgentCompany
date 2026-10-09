@@ -171,8 +171,8 @@ function ProviderRequestRow({
       }}
     >
       <div style={{ minWidth: 0 }}>
-        <div style={{ fontWeight: 540, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{provider.label}</div>
-        <div className="mono" style={{ fontSize: 12, color: "var(--text-3)" }}>{request.model}</div>
+        <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{provider.label}</div>
+        <div className="mono" style={{ fontSize: "var(--fs-body)", color: "var(--text-3)" }}>{request.model}</div>
       </div>
       <div className="mono" style={{ color: "var(--text-2)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{workspace?.name ?? t("Organization")}</div>
       <div className="mono" style={{ color: "var(--text-2)" }}>{request.executionMode}</div>

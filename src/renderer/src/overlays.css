@@ -24,7 +24,7 @@
   to { opacity: 1; transform: none; }
 }
 /* Dialog name plate, as a speaker's name above an RPG text box. */
-.modal-title { display: inline-block; margin: 0 0 var(--sp-4); padding: 2px 10px; font-size: var(--fs-title); font-weight: 400; background: var(--btn-primary-bg); color: var(--btn-primary-fg); box-shadow: 2px 2px 0 0 var(--border-strong); }
+.modal-title { display: inline-block; margin: 0 0 var(--sp-4); padding: 2px 10px; font-size: var(--fs-title); background: var(--btn-primary-bg); color: var(--btn-primary-fg); box-shadow: 2px 2px 0 0 var(--border-strong); }
 .modal-actions { display: flex; justify-content: flex-end; gap: var(--sp-2); margin-top: var(--sp-5); }
 
 .onboarding-window {
@@ -104,7 +104,7 @@
 .option-card:hover { border-color: var(--border-strong); box-shadow: var(--shadow-sm); }
 .option-card:active { transform: scale(0.99); }
 .option-card.active { border-color: var(--text-1); box-shadow: inset 0 0 0 1px var(--text-1); }
-.option-card .opt-title { font-size: var(--fs-body); font-weight: 540; }
+.option-card .opt-title { font-size: var(--fs-body); }
 .option-card .opt-sub { font-size: var(--fs-caption); color: var(--text-3); margin-top: var(--sp-1); }
 .provider-inline-form {
   display: grid;
@@ -142,8 +142,6 @@
 .menu-label {
   padding: var(--sp-2) var(--sp-2) var(--sp-1);
   font-size: var(--fs-caption);
-  font-weight: 540;
-  letter-spacing: 0;
   color: var(--text-3);
 }
 .menu-row {
@@ -161,7 +159,7 @@
   transition: background var(--motion-fast) var(--ease-out), color var(--motion-fast) var(--ease-out);
 }
 .menu-row:hover { background: var(--hover); color: var(--text-1); }
-.menu-row.active { background: var(--panel-3); color: var(--text-1); font-weight: 540; }
+.menu-row.active { background: var(--panel-3); color: var(--text-1); }
 .menu-row.danger { color: var(--red); }
 .menu-row.danger:hover { background: rgba(210, 59, 59, 0.1); color: var(--red); }
 .menu-row .menu-check { margin-left: auto; color: var(--accent); display: inline-flex; }

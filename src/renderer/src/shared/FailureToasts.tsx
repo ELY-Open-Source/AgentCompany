@@ -29,7 +29,7 @@ export function FailureToasts() {
     <div style={{ position: "fixed", right: 16, bottom: 16, zIndex: 1000, display: "grid", gap: 8, maxWidth: 420 }}>
       {failures.map((failure) => (
         <div key={failure.id} role="alert" className="card" style={{ display: "flex", gap: 8, alignItems: "flex-start", borderColor: "var(--red)", padding: 12 }}>
-          <div style={{ flex: 1, minWidth: 0, fontSize: 13 }}>
+          <div style={{ flex: 1, minWidth: 0, fontSize: "var(--fs-body)" }}>
             <strong style={{ display: "block", marginBottom: 2 }}>{t("That did not work")}</strong>
             <span style={{ color: "var(--text-2)", wordBreak: "break-word" }}>{failure.message}</span>
           </div>

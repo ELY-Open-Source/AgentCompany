@@ -5,8 +5,8 @@ import { Button, Icon, Pill } from "../../shared/ui";
 import type { NextUpItem } from "./next-up";
 
 const SHOWN = 3;
-const TITLE = { fontSize: 14, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } as const;
-const META = { fontSize: 12, color: "var(--text-3)", margin: "2px 0 8px" } as const;
+const TITLE = { fontSize: "var(--fs-body)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } as const;
+const META = { fontSize: "var(--fs-body)", color: "var(--text-3)", margin: "2px 0 8px" } as const;
 
 /** Home's one place for what to look at next: decisions and stopped work in priority order, or else the next task in line. */
 export function NextUpCard({
@@ -35,7 +35,7 @@ export function NextUpCard({
       </div>
       {needsYou.length === 0 ? (
         <>
-          <div className="row" style={{ gap: 8, color: "var(--text-3)", fontSize: 14, marginBottom: 12 }}>
+          <div className="row" style={{ gap: 8, color: "var(--text-3)", fontSize: "var(--fs-body)", marginBottom: 12 }}>
             <Icon name="check" /><span>{t("You're all caught up")}</span>
           </div>
           {next?.kind === "next" && (
@@ -68,7 +68,7 @@ export function NextUpCard({
               <Button size="small" onClick={() => onOpenTask(item.task.id)}>{t("Open")}</Button>
             </li>
           ) : null)}
-          {more > 0 && <li style={{ fontSize: 12, color: "var(--text-3)" }}>{t("{n} more after these", { n: more })}</li>}
+          {more > 0 && <li style={{ fontSize: "var(--fs-body)", color: "var(--text-3)" }}>{t("{n} more after these", { n: more })}</li>}
         </ol>
       )}
     </section>

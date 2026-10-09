@@ -43,7 +43,7 @@ export function BillingPanel({
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 20 }}>
         <div className="card" style={{ padding: 14 }}>
           <div className="card-label" style={{ marginBottom: 8 }}>{t("Token usage (30d)")}</div>
-          <div style={{ display: "grid", gridTemplateColumns: "100px 1fr", gap: "6px 14px", fontSize: 12 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "100px 1fr", gap: "6px 14px", fontSize: "var(--fs-body)" }}>
             <span style={{ color: "var(--text-3)" }}>{t("Input")}</span><span className="num">{inputTokens.toLocaleString()}</span>
             <span style={{ color: "var(--text-3)" }}>{t("of which cached")}</span><span className="num">{cachedTokens.toLocaleString()}</span>
             <span style={{ color: "var(--text-3)" }}>{t("Output")}</span><span className="num">{outputTokens.toLocaleString()}</span>
@@ -54,11 +54,11 @@ export function BillingPanel({
         <div className="card" style={{ padding: 14 }}>
           <div className="card-label" style={{ marginBottom: 8 }}>{t("Spent this month")}</div>
           <div style={{ marginBottom: 8 }}><XpBar percent={totalBudget > 0 ? (spentCents / totalBudget) * 100 : 0} label={t("Spent this month")} /></div>
-          <div style={{ fontSize: 12, color: "var(--text-3)" }}>
+          <div style={{ fontSize: "var(--fs-body)", color: "var(--text-3)" }}>
             {t("${spent} of ${allocated} allocated to agents", { spent: (spentCents / 100).toFixed(2), allocated: (totalBudget / 100).toFixed(2) })}
             {unpricedCalls > 0 && <> · {t("{count} calls not priced", { count: unpricedCalls })}</>}
           </div>
-          <div style={{ fontSize: 12, color: "var(--text-3)", marginTop: 4 }}>
+          <div style={{ fontSize: "var(--fs-body)", color: "var(--text-3)", marginTop: 4 }}>
             {totalCap > 0 ? t("Allocations use {percent}% of department caps", { percent: Math.round((totalBudget / totalCap) * 100) }) : t("No budget cap set")}
           </div>
         </div>
@@ -73,12 +73,12 @@ export function BillingPanel({
           <div key={row.agent.id} className="table-row" style={{ gridTemplateColumns: "minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr)", borderBottom: i === agentSpend.length - 1 ? "none" : "1px solid var(--border-soft)" }}>
             <div className="row" style={{ gap: 8 }}>
               <Avatar name={row.agent.name} size="sm" bot />
-              <span style={{ fontWeight: 480 }}>{row.agent.name}</span>
+              <span>{row.agent.name}</span>
             </div>
             <div className="num mono">{money(row.agent.budgetCents)}</div>
             <div className="num mono">{row.requestCount}</div>
-            <div className="num mono" style={{ fontSize: 12 }}>{row.tokens.toLocaleString()}</div>
-            <div className="num mono" style={{ fontSize: 12 }}>${(row.spentCents / 100).toFixed(2)}</div>
+            <div className="num mono" style={{ fontSize: "var(--fs-body)" }}>{row.tokens.toLocaleString()}</div>
+            <div className="num mono" style={{ fontSize: "var(--fs-body)" }}>${(row.spentCents / 100).toFixed(2)}</div>
           </div>
         ))}
       </div>
@@ -95,8 +95,8 @@ export function BillingPanel({
           return (
             <div key={provider.id} className="table-row" style={{ gridTemplateColumns: "minmax(0, 1.6fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr)", borderBottom: index === providers.length - 1 ? "none" : "1px solid var(--border-soft)" }}>
               <div style={{ minWidth: 0 }}>
-                <div style={{ fontWeight: 540 }}>{provider.label}</div>
-                {provider.model && <div style={{ fontSize: 12, color: "var(--text-3)" }}>{provider.model}</div>}
+                <div>{provider.label}</div>
+                {provider.model && <div style={{ fontSize: "var(--fs-body)", color: "var(--text-3)" }}>{provider.model}</div>}
               </div>
               <div className="num mono">{activity?.requests ?? 0}</div>
               <div>{errors > 0 ? <Pill tone="amber">{errors}</Pill> : <span className="num mono" style={{ color: "var(--text-3)" }}>0</span>}</div>
@@ -113,7 +113,7 @@ function StatTile({ label, value, tone }: { label: string; value: string; tone?:
   return (
     <div className="card" style={{ padding: 14 }}>
       <div className="card-label" style={{ marginBottom: 6 }}>{label}</div>
-      <div className="num" style={{ fontSize: 18, fontWeight: 600, color: tone === "red" ? "var(--red)" : "var(--text-1)" }}>{value}</div>
+      <div className="num" style={{ fontSize: "var(--fs-display)", color: tone === "red" ? "var(--red)" : "var(--text-1)" }}>{value}</div>
     </div>
   );
 }

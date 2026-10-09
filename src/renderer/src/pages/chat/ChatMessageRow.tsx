@@ -84,9 +84,9 @@ export function ChatMessageRow({
       <Avatar name={name} bot={bot} />
       <div style={{ flex: 1, minWidth: 0 }}>
         <div className="row" style={{ alignItems: "baseline", gap: 8, marginBottom: 2 }}>
-          <span style={{ fontSize: 14, fontWeight: 540 }}>{name}</span>
-          <span className="mono" style={{ fontSize: 12, color: "var(--text-3)" }}>{formatTime(message.createdAt)}</span>
-          {message.editedAt && !deleted && <span style={{ fontSize: 12, color: "var(--text-3)" }}>{t("(edited)")}</span>}
+          <span style={{ fontSize: "var(--fs-body)" }}>{name}</span>
+          <span className="mono" style={{ fontSize: "var(--fs-body)", color: "var(--text-3)" }}>{formatTime(message.createdAt)}</span>
+          {message.editedAt && !deleted && <span style={{ fontSize: "var(--fs-body)", color: "var(--text-3)" }}>{t("(edited)")}</span>}
           {!editing && (canModify || (onOpenThread && !deleted)) && (
             <span style={{ marginLeft: "auto", display: "flex", gap: 2 }}>
               {onOpenThread && !deleted && <IconButton icon="chat" label={t("Reply in thread")} onClick={onOpenThread} />}
@@ -102,7 +102,7 @@ export function ChatMessageRow({
               ? t("Replying in thread: {snippet}", { snippet: thread.replyTo.snippet })
               : t("Replying to {name}: {snippet}", { name: thread.replyTo.name, snippet: thread.replyTo.snippet })}
             onClick={onOpenThread}
-            style={{ display: "block", maxWidth: "100%", margin: "0 0 4px", padding: 0, border: 0, background: "transparent", color: "var(--text-3)", fontSize: 12, textAlign: "left", cursor: "pointer", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+            style={{ display: "block", maxWidth: "100%", margin: "0 0 4px", padding: 0, border: 0, background: "transparent", color: "var(--text-3)", fontSize: "var(--fs-body)", textAlign: "left", cursor: "pointer", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
           >
             ↳ {thread.replyTo.name === null ? thread.replyTo.snippet : `${thread.replyTo.name}: ${thread.replyTo.snippet}`}
           </button>
@@ -113,7 +113,7 @@ export function ChatMessageRow({
           </div>
         )}
         {deleted ? (
-          <div style={{ fontSize: 14, color: "var(--text-3)", fontStyle: "italic" }}>{t("Message deleted")}</div>
+          <div style={{ fontSize: "var(--fs-body)", color: "var(--text-3)", fontStyle: "italic" }}>{t("Message deleted")}</div>
         ) : editing ? (
           <form onSubmit={submitEdit} onInput={() => setChanged(true)}>
             <textarea
@@ -132,7 +132,7 @@ export function ChatMessageRow({
             </div>
           </form>
         ) : (
-          <div style={{ fontSize: 14, color: "var(--text-1)", lineHeight: 1.5, wordBreak: "break-word" }}>
+          <div style={{ fontSize: "var(--fs-body)", color: "var(--text-1)", lineHeight: 1.5, wordBreak: "break-word" }}>
             {renderBody(message.bodyMd, messageMentions, context)}
           </div>
         )}
@@ -146,17 +146,17 @@ export function ChatMessageRow({
           </div>
         )}
         {thread && thread.replyCount > 0 && (
-          <button type="button" onClick={onOpenThread} style={{ marginTop: 4, padding: 0, border: 0, background: "transparent", color: "var(--accent)", fontSize: 12, cursor: "pointer" }}>
+          <button type="button" onClick={onOpenThread} style={{ marginTop: 4, padding: 0, border: 0, background: "transparent", color: "var(--accent)", fontSize: "var(--fs-body)", cursor: "pointer" }}>
             {thread.replyCount === 1 ? t("1 reply") : t("{count} replies", { count: String(thread.replyCount) })}
           </button>
         )}
         {replyStatuses.filter((status) => status.state !== "replied").map((status) => (
-          <div key={`${status.agentId}-${status.state}`} role="status" style={{ fontSize: 12, color: status.state === "failed" || status.state === "expired" ? "var(--red)" : "var(--text-3)", marginTop: 4 }}>
+          <div key={`${status.agentId}-${status.state}`} role="status" style={{ fontSize: "var(--fs-body)", color: status.state === "failed" || status.state === "expired" ? "var(--red)" : "var(--text-3)", marginTop: 4 }}>
             {replyStatusText(status, context)}
           </div>
         ))}
         {readers.length > 0 && (
-          <div style={{ fontSize: 12, color: "var(--text-3)", marginTop: 4 }}>
+          <div style={{ fontSize: "var(--fs-body)", color: "var(--text-3)", marginTop: 4 }}>
             {t("Read by {names}", { names: readers.join(", ") })}
           </div>
         )}
@@ -200,8 +200,6 @@ function renderBody(body: string, mentions: ChatMentionRecord[], context: Messag
           background: failed ? "rgba(255,100,80,0.1)" : "var(--accent-soft)",
           color: failed ? "var(--text-3)" : "var(--accent)",
           padding: "1px 5px",
-          borderRadius: 4,
-          fontWeight: 500,
           textDecoration: failed ? "line-through" : undefined,
         }}
       >
@@ -235,7 +233,6 @@ function AttachmentCard({ file, handoff = false, onOpen }: { file: FileObjectRec
       style={{
         maxWidth: 360,
         border: "1px solid var(--border)",
-        borderRadius: 10,
         padding: 10,
         display: "flex",
         alignItems: "center",
@@ -247,7 +244,6 @@ function AttachmentCard({ file, handoff = false, onOpen }: { file: FileObjectRec
         style={{
           width: 32,
           height: 32,
-          borderRadius: 6,
           background: "var(--panel-3)",
           color: "var(--text-2)",
           display: "grid",
@@ -258,14 +254,14 @@ function AttachmentCard({ file, handoff = false, onOpen }: { file: FileObjectRec
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div className="row" style={{ gap: 6, minWidth: 0 }}>
-          <span style={{ fontSize: 12, fontWeight: 540, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{file.name}</span>
+          <span style={{ fontSize: "var(--fs-body)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{file.name}</span>
           {handoff && (
             <span className="pill violet" style={{ flexShrink: 0 }}>
               <Icon name="bot" /> {t("AI → AI")}
             </span>
           )}
         </div>
-        <div style={{ fontSize: 12, color: "var(--text-3)" }}>{fileKindLabel(file.kind)}</div>
+        <div style={{ fontSize: "var(--fs-body)", color: "var(--text-3)" }}>{fileKindLabel(file.kind)}</div>
       </div>
       {canOpen && <IconButton icon="arrowUpRight" label={t("Open {name}", { name: file.name })} onClick={onOpen ?? undefined} />}
     </div>

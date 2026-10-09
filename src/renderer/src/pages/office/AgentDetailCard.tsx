@@ -24,7 +24,6 @@ export function AgentDetailCard({ agent, onClose }: { agent: OfficeAgentInput; o
         width: 264,
         background: "var(--panel)",
         border: "1px solid var(--border-strong)",
-        borderRadius: 12,
         boxShadow: "0 12px 32px rgba(16,16,24,0.18)",
         padding: 14,
       }}
@@ -32,8 +31,8 @@ export function AgentDetailCard({ agent, onClose }: { agent: OfficeAgentInput; o
       <div className="row" style={{ gap: 10, alignItems: "flex-start" }}>
         <Avatar name={agent.name} size="lg" bot />
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 14, fontWeight: 600, lineHeight: 1.3, wordBreak: "break-word" }}>{agent.name}</div>
-          <div style={{ fontSize: 12, color: "var(--text-2)", marginTop: 1, wordBreak: "break-word" }}>{agent.title}</div>
+          <div style={{ fontSize: "var(--fs-body)", lineHeight: 1.3, wordBreak: "break-word" }}>{agent.name}</div>
+          <div style={{ fontSize: "var(--fs-body)", color: "var(--text-2)", marginTop: 1, wordBreak: "break-word" }}>{agent.title}</div>
         </div>
         <IconButton icon="x" label={t("Close agent details")} onClick={onClose} />
       </div>
@@ -47,7 +46,7 @@ export function AgentDetailCard({ agent, onClose }: { agent: OfficeAgentInput; o
           <Icon name="work" color="var(--text-3)" />
           <span
             style={{
-              fontSize: 12,
+              fontSize: "var(--fs-body)",
               color: "var(--text-2)",
               lineHeight: 1.45,
               display: "-webkit-box",

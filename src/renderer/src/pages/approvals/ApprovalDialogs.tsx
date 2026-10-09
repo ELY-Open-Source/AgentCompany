@@ -45,14 +45,14 @@ export function ApprovalDetailDialog({
           <IconButton icon="x" label={t("Close")} onClick={onClose} />
         </div>
         <div className="row" style={{ flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
-          <span style={{ fontSize: 12, color: tone.color, fontWeight: 540, letterSpacing: "0.02em" }}>{tone.label}</span>
+          <span style={{ fontSize: "var(--fs-body)", color: tone.color }}>{tone.label}</span>
           <span style={{ color: "var(--text-4)" }}>·</span>
           <Pill>{approvalKindLabel(approval.kind)}</Pill>
         </div>
-        <p style={{ margin: "0 0 16px", color: "var(--text-2)", fontSize: 14, lineHeight: 1.55, whiteSpace: "pre-wrap" }}>
+        <p style={{ margin: "0 0 16px", color: "var(--text-2)", fontSize: "var(--fs-body)", lineHeight: 1.55, whiteSpace: "pre-wrap" }}>
           {approval.details}
         </p>
-        <div style={{ display: "grid", gridTemplateColumns: "100px 1fr", gap: "10px 14px", fontSize: 12 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "100px 1fr", gap: "10px 14px", fontSize: "var(--fs-body)" }}>
           <span style={{ color: "var(--text-3)" }}>{t("Requested by")}</span>
           <span>{requester}</span>
           {approval.sourceEntityType && (
@@ -117,8 +117,8 @@ export function ApprovalRecordDialog({ approval, requester, decider, drift, onCl
           <Pill>{approvalKindLabel(approval.kind)}</Pill>
           {drift && <Pill tone="amber">{drift === "changed" ? t("Changed since approval") : t("Removed since approval")}</Pill>}
         </div>
-        <p style={{ margin: "0 0 16px", color: "var(--text-2)", fontSize: 14, lineHeight: 1.55, whiteSpace: "pre-wrap" }}>{approval.details}</p>
-        <div style={{ display: "grid", gridTemplateColumns: "110px 1fr", gap: "10px 14px", fontSize: 12 }}>
+        <p style={{ margin: "0 0 16px", color: "var(--text-2)", fontSize: "var(--fs-body)", lineHeight: 1.55, whiteSpace: "pre-wrap" }}>{approval.details}</p>
+        <div style={{ display: "grid", gridTemplateColumns: "110px 1fr", gap: "10px 14px", fontSize: "var(--fs-body)" }}>
           <span style={{ color: "var(--text-3)" }}>{t("Requested by")}</span>
           <span>{requester} · {formatRelative(approval.createdAt)}</span>
           <span style={{ color: "var(--text-3)" }}>{t("Decided by")}</span>

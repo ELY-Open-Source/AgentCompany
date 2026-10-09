@@ -24,7 +24,7 @@ export function ProviderPolicyTable({
     <>
       <div className="section-label" style={{ marginBottom: 6 }}>{t("Runtime policy")}</div>
       {/* What each column governs, so a change is made knowing what it reaches. */}
-      <ul style={{ fontSize: 12, color: "var(--text-3)", lineHeight: 1.6, margin: "0 0 10px", paddingLeft: 18 }}>
+      <ul style={{ fontSize: "var(--fs-body)", color: "var(--text-3)", lineHeight: 1.6, margin: "0 0 10px", paddingLeft: 18 }}>
         <li>{t("Scope: “Workspace” refuses every call that is not made for a workspace, including agent sessions on tasks without one.")}</li>
         <li>{t("Data policy: zero data retention refuses background requests, so it also switches background off.")}</li>
         <li>{t("Background: lets requests from the request console run in the provider's background mode.")}</li>
@@ -123,8 +123,8 @@ function ProviderPolicyRow({
       }}
     >
       <div style={{ minWidth: 0 }}>
-        <div style={{ fontWeight: 540, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{provider.label}</div>
-        {linkedNote && <div style={{ fontSize: 12, color: "var(--text-3)" }}>{linkedNote}</div>}
+        <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{provider.label}</div>
+        {linkedNote && <div style={{ fontSize: "var(--fs-body)", color: "var(--text-3)" }}>{linkedNote}</div>}
       </div>
       <select
         className="input"
@@ -144,7 +144,7 @@ function ProviderPolicyRow({
         <option value={PROVIDER_DATA_POLICY.STANDARD}>{t("Standard retention")}</option>
         <option value={PROVIDER_DATA_POLICY.ZERO_DATA_RETENTION}>{t("Zero data retention")}</option>
       </select>
-      <label className="row" style={{ gap: 8, fontSize: 12, color: "var(--text-2)" }}>
+      <label className="row" style={{ gap: 8, fontSize: "var(--fs-body)", color: "var(--text-2)" }}>
         <input
           aria-label={t("{label} background execution", { label: provider.label })}
           type="checkbox"
@@ -174,7 +174,7 @@ function ProviderPolicyRow({
       />
       <div>
         <div className="num mono">{rateLimit.requestCount} / {rateLimit.monthlyRequestLimit}</div>
-        <div style={{ fontSize: 11, color: "var(--text-3)" }}>{t("Resets {date} (UTC)", { date: rateLimit.windowEnd.slice(0, 10) })}</div>
+        <div style={{ fontSize: "var(--fs-body)", color: "var(--text-3)" }}>{t("Resets {date} (UTC)", { date: rateLimit.windowEnd.slice(0, 10) })}</div>
         <div className="row" style={{ gap: 6, marginTop: 4 }}>
           <button type="button" className="button small" aria-label={t("Save {label} policy", { label: provider.label })} onClick={savePolicy} disabled={!dirty || status?.kind === "saving"}>
             {t("Save")}

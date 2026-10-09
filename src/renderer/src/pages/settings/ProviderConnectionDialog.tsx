@@ -44,7 +44,7 @@ export function ProviderConnectFields({
   if (entry.authType === "api_key") {
     return (
       <>
-        <p style={{ fontSize: 12, color: "var(--text-3)", lineHeight: 1.5, margin: 0 }}>{entry.credentialHelp}</p>
+        <p style={{ fontSize: "var(--fs-body)", color: "var(--text-3)", lineHeight: 1.5, margin: 0 }}>{entry.credentialHelp}</p>
         <Field label={t("API key")}><input className="input" name="secret" type="password" required autoFocus /></Field>
         <ModelPicker entry={entry} provider={provider} />
       </>
@@ -56,7 +56,7 @@ export function ProviderConnectFields({
 function SavedEndpointForm({ provider, entry }: { provider: ProviderRecord; entry: ProviderCatalogEntry }) {
   const { endpoint, error } = useSavedEndpoint(provider, entry);
   if (error) return <div className="form-error" role="alert">{t("The saved settings could not be read: {error}", { error })}</div>;
-  if (endpoint === undefined) return <p style={{ fontSize: 12, color: "var(--text-3)", margin: 0 }}>{t("Loading saved settings…")}</p>;
+  if (endpoint === undefined) return <p style={{ fontSize: "var(--fs-body)", color: "var(--text-3)", margin: 0 }}>{t("Loading saved settings…")}</p>;
   return entry.customEndpoint
     ? <CompatFieldsForm entry={entry} provider={provider} saved={endpoint} />
     : <CloudFieldsForm entry={entry} provider={provider} saved={endpoint} />;
@@ -78,7 +78,7 @@ export function ProviderOAuthFields({
   const [model, setModel] = useState(provider.model ?? entry.defaultModel ?? entry.models[0]?.id ?? "");
   return (
     <>
-      <p style={{ fontSize: 12, color: "var(--text-3)", lineHeight: 1.5, margin: 0 }}>{entry.credentialHelp}</p>
+      <p style={{ fontSize: "var(--fs-body)", color: "var(--text-3)", lineHeight: 1.5, margin: 0 }}>{entry.credentialHelp}</p>
       <Field label={t("Default model")}>
         {entry.models.length ? (
           <select className="input" value={model} onChange={(event) => setModel(event.target.value)}>
@@ -105,7 +105,7 @@ function CompatFieldsForm({ entry, provider, saved }: { entry: ProviderCatalogEn
   const [baseUrl, setBaseUrl] = useState(saved?.baseUrl ?? "");
   return (
     <>
-      <p style={{ fontSize: 12, color: "var(--text-3)", lineHeight: 1.5, margin: 0 }}>{entry.credentialHelp}</p>
+      <p style={{ fontSize: "var(--fs-body)", color: "var(--text-3)", lineHeight: 1.5, margin: 0 }}>{entry.credentialHelp}</p>
       <Field label={t("Base URL")}>
         <input
           className="input"
@@ -178,9 +178,9 @@ export function ModelPicker({ entry, provider }: { entry: ProviderCatalogEntry; 
           {check === "running" ? t("Checking...") : t("Check for agent work")}
         </button>
       )}
-      {typeof check === "object" && check.passed && <div style={{ color: "var(--green)", fontSize: 12, marginTop: 4 }}>{t("This model follows instructions and calls tools.")}</div>}
-      {typeof check === "object" && !check.passed && <div style={{ color: "var(--red)", fontSize: 12, marginTop: 4 }}>{t("This model cannot do agent work here: {detail}", { detail: check.detail })}</div>}
-      {error && <div style={{ color: "var(--red)", fontSize: 12, marginTop: 4 }}>{error}</div>}
+      {typeof check === "object" && check.passed && <div style={{ color: "var(--green)", fontSize: "var(--fs-body)", marginTop: 4 }}>{t("This model follows instructions and calls tools.")}</div>}
+      {typeof check === "object" && !check.passed && <div style={{ color: "var(--red)", fontSize: "var(--fs-body)", marginTop: 4 }}>{t("This model cannot do agent work here: {detail}", { detail: check.detail })}</div>}
+      {error && <div style={{ color: "var(--red)", fontSize: "var(--fs-body)", marginTop: 4 }}>{error}</div>}
     </Field>
   );
 }
@@ -190,7 +190,7 @@ function CloudFieldsForm({ entry, provider, saved }: { entry: ProviderCatalogEnt
   const update = (patch: Partial<ProviderEndpoint>) => setState((current) => ({ ...current, ...patch }));
   return (
     <>
-      <p style={{ fontSize: 12, color: "var(--text-3)", lineHeight: 1.5, margin: 0 }}>{entry.credentialHelp}</p>
+      <p style={{ fontSize: "var(--fs-body)", color: "var(--text-3)", lineHeight: 1.5, margin: 0 }}>{entry.credentialHelp}</p>
       <Field label={t("Base URL")}>
         <input className="input" name="cloudBaseUrl" value={state.baseUrl} onChange={(event) => update({ baseUrl: event.target.value })} />
       </Field>

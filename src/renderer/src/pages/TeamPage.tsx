@@ -155,7 +155,7 @@ export function TeamPage({ snapshot, actions, focus }: PageProps) {
           <input className="input" name="modelId" list="hire-model-suggestions" value={hireModelId} disabled={!hireProviderId} placeholder={providers.find((provider) => provider.id === hireProviderId)?.model ?? ""} onChange={(event) => setHireModelId(event.currentTarget.value)} />
         </Field>
         <ModelSuggestions id="hire-model-suggestions" providerId={hireProviderId} providers={providers} catalog={snapshot.providerCatalog} />
-        <p style={{ fontSize: 12, color: "var(--text-3)", margin: 0 }}>{t("Leave the model blank to use the provider's default. A changed model applies from the agent's next session.")}</p>
+        <p style={{ fontSize: "var(--fs-body)", color: "var(--text-3)", margin: 0 }}>{t("Leave the model blank to use the provider's default. A changed model applies from the agent's next session.")}</p>
         <Field label={t("Manager")}>
           <select className="input" name="managerAgentId" defaultValue="">
             <option value="">{t("None")}</option>
@@ -181,13 +181,13 @@ export function TeamPage({ snapshot, actions, focus }: PageProps) {
           <Field label={t("Department")}><input className="input" name="department" defaultValue={editingAgent.department} required /></Field>
           <Field label={t("Monthly budget")}><input className="input" name="budget" type="number" min="0" step="1" defaultValue={editingAgent.budgetCents / 100} /></Field>
           <EditModelFields agent={editingAgent} providers={providers} catalog={snapshot.providerCatalog} />
-          <p style={{ fontSize: 12, color: "var(--text-3)", margin: 0 }}>{t("Leave the model blank to use the provider's default. A changed model applies from the agent's next session.")}</p>
+          <p style={{ fontSize: "var(--fs-body)", color: "var(--text-3)", margin: 0 }}>{t("Leave the model blank to use the provider's default. A changed model applies from the agent's next session.")}</p>
           <Field label={t("Seniority")}>
             {/* The CEO's rank carries company-wide powers, so it is shown, never picked. */}
             {editingAgent.roleLevel === "c_suite" ? (
               <>
                 <input type="hidden" name="roleLevel" value="c_suite" />
-                <div style={{ fontSize: 13, color: "var(--text-2)" }}>{t("CEO: hires officers, grants connectors and skills, and closes goals. This rank cannot be changed.")}</div>
+                <div style={{ fontSize: "var(--fs-body)", color: "var(--text-2)" }}>{t("CEO: hires officers, grants connectors and skills, and closes goals. This rank cannot be changed.")}</div>
               </>
             ) : (
               <select className="input" name="roleLevel" defaultValue={editingAgent.roleLevel}>
@@ -301,8 +301,8 @@ function RosterRow({ row, last, onEdit }: { row: RosterEntry; last: boolean; onE
       <div className="row" style={{ gap: 10, minWidth: 0 }}>
         <Avatar name={row.name} size="sm" bot={!row.human} />
         <div style={{ minWidth: 0 }}>
-          <div style={{ fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{row.name}</div>
-          <div style={{ fontSize: 12, color: "var(--text-3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{row.role}</div>
+          <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{row.name}</div>
+          <div style={{ fontSize: "var(--fs-body)", color: "var(--text-3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{row.role}</div>
         </div>
       </div>
       <div style={{ color: "var(--text-2)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{row.dept}</div>
@@ -310,7 +310,7 @@ function RosterRow({ row, last, onEdit }: { row: RosterEntry; last: boolean; onE
         style={{
           color: "var(--text-2)",
           fontFamily: row.human ? "inherit" : "var(--font-mono)",
-          fontSize: row.human ? 13 : 12,
+          fontSize: "var(--fs-body)",
           overflow: "hidden",
           textOverflow: "ellipsis",
           whiteSpace: "nowrap",
@@ -326,7 +326,7 @@ function RosterRow({ row, last, onEdit }: { row: RosterEntry; last: boolean; onE
             <div style={{ flex: 1, maxWidth: 100 }}>
               <XpBar percent={row.budgetCapCents && row.budgetCapCents > 0 ? (row.budgetCents / row.budgetCapCents) * 100 : 0} label={t("Budget compared with the largest agent budget")} />
             </div>
-            <span className="num mono" style={{ fontSize: 12, color: "var(--text-3)" }}>{money(row.budgetCents)}</span>
+            <span className="num mono" style={{ fontSize: "var(--fs-body)", color: "var(--text-3)" }}>{money(row.budgetCents)}</span>
           </div>
         )}
       </div>

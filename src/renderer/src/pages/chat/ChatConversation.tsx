@@ -239,7 +239,7 @@ export function ChatConversation({
           </div>
           {!atBottom && (
             <button type="button" className="jump-latest" onClick={() => jumpToLatest("smooth")}>
-              <span aria-hidden style={{ fontSize: 13, lineHeight: 1 }}>↓</span>
+              <span aria-hidden style={{ fontSize: "var(--fs-body)", lineHeight: 1 }}>↓</span>
               {t("Jump to latest")}
             </button>
           )}
@@ -298,10 +298,10 @@ function ConversationHeader({
   return (
     <header className="row" style={{ height: 52, padding: "0 24px", borderBottom: "1px solid var(--border-soft)", flexShrink: 0 }}>
       <Icon name={space.visibility === "restricted" ? "lock" : "hash"} color="var(--text-3)" />
-      <span style={{ fontSize: 14, fontWeight: 600 }}>{space.name}</span>
+      <span style={{ fontSize: "var(--fs-body)" }}>{space.name}</span>
       <span
         style={{
-          fontSize: 12,
+          fontSize: "var(--fs-body)",
           color: "var(--text-3)",
           borderLeft: "1px solid var(--border)",
           paddingLeft: 10,
@@ -341,20 +341,20 @@ function MembersButton({ space, members }: { space: ChatSpaceRecord; members: Sp
       trigger={({ toggle }) => (
         <button type="button" onClick={toggle} aria-label={t("Members ({count})", { count: String(members.length) })} style={{ display: "flex", alignItems: "center", gap: 6, border: 0, background: "transparent", cursor: "pointer", padding: 0 }}>
           <AvatarStack names={members.slice(0, 5).map((member) => member.name)} />
-          <span style={{ fontSize: 12, color: "var(--text-3)" }}>{members.length}</span>
+          <span style={{ fontSize: "var(--fs-body)", color: "var(--text-3)" }}>{members.length}</span>
         </button>
       )}
     >
       {() => (
         // A large roster scrolls inside the window instead of running past it.
         <div className="members-roster" style={{ padding: 12, width: 320, maxHeight: "min(480px, calc(100vh - 120px))", overflowY: "auto", display: "flex", flexDirection: "column", gap: 10 }}>
-          <div style={{ fontSize: 12, color: "var(--text-3)" }}>{spaceReaders(space)}</div>
+          <div style={{ fontSize: "var(--fs-body)", color: "var(--text-3)" }}>{spaceReaders(space)}</div>
           {members.map((member) => (
             <div key={member.id} className="row" style={{ gap: 8, alignItems: "flex-start" }}>
               <Avatar name={member.name} size="sm" bot={member.bot} />
               <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: 13, fontWeight: 540 }}>{member.name}</div>
-                <div style={{ fontSize: 12, color: "var(--text-3)" }}>{member.duty}</div>
+                <div style={{ fontSize: "var(--fs-body)" }}>{member.name}</div>
+                <div style={{ fontSize: "var(--fs-body)", color: "var(--text-3)" }}>{member.duty}</div>
               </div>
             </div>
           ))}

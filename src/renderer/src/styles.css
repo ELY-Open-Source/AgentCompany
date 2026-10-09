@@ -108,7 +108,6 @@ body {
   background: var(--bg);
   font-size: var(--fs-body);
   line-height: 1.5;
-  letter-spacing: 0;
   font-synthesis: none;
   -webkit-font-smoothing: none;
   text-rendering: optimizeSpeed;
@@ -181,11 +180,9 @@ a { color: inherit; }
   background: var(--btn-primary-bg);
   box-shadow: 2px 2px 0 0 var(--border-strong);
   font-size: var(--fs-body);
-  letter-spacing: 0;
 }
 .brand-name {
   flex: 1;
-  font-weight: 560;
   font-size: var(--fs-body);
   min-width: 0;
   overflow: hidden;
@@ -224,8 +221,6 @@ a { color: inherit; }
   font-size: var(--fs-caption);
   color: var(--text-3);
   padding: var(--sp-3) var(--sp-2) var(--sp-2);
-  font-weight: 540;
-  letter-spacing: 0;
 }
 .nav-item {
   display: flex;
@@ -236,7 +231,6 @@ a { color: inherit; }
   border-radius: var(--r-sm);
   background: transparent;
   color: var(--text-2);
-  font-weight: 500;
   font-size: var(--fs-body);
   text-align: left;
   width: 100%;
@@ -280,7 +274,6 @@ a { color: inherit; }
 .convo-item.active { background: var(--panel-3); color: var(--text-1); }
 .convo-ceo-badge {
   font-size: var(--fs-caption);
-  font-weight: 560;
   color: var(--accent);
   background: var(--accent-soft);
   padding: 1px 6px;
@@ -332,8 +325,6 @@ a { color: inherit; }
 .org-menu-section-label {
   font-size: var(--fs-caption);
   color: var(--text-3);
-  font-weight: 540;
-  letter-spacing: 0;
   padding: var(--sp-1) var(--sp-2);
 }
 .org-menu-row {
@@ -351,7 +342,7 @@ a { color: inherit; }
   transition: background var(--motion-fast) var(--ease-out), color var(--motion-fast) var(--ease-out);
 }
 .org-menu-row:hover { background: var(--hover); color: var(--text-1); }
-.org-menu-row.active { background: var(--panel-3); color: var(--text-1); font-weight: 540; }
+.org-menu-row.active { background: var(--panel-3); color: var(--text-1); }
 .org-menu-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .org-menu-delete {
   display: inline-flex;
@@ -377,7 +368,6 @@ a { color: inherit; }
 }
 .org-menu-confirm-title {
   font-size: var(--fs-body);
-  font-weight: 600;
   color: var(--text-1);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -398,7 +388,6 @@ a { color: inherit; }
   background: var(--red);
   color: #fff;
   font-size: var(--fs-caption);
-  font-weight: 560;
   cursor: pointer;
 }
 .org-menu-confirm-no {
@@ -476,7 +465,7 @@ a { color: inherit; }
 .topbar select,
 .topbar input,
 .topbar a { -webkit-app-region: no-drag; }
-.crumb { font-size: var(--fs-body); font-weight: 560; color: var(--text-1); }
+.crumb { font-size: var(--fs-body); color: var(--text-1); }
 .crumb-sub { font-size: var(--fs-body); color: var(--text-3); }
 .crumb-sep { color: var(--text-4); }
 .topbar-actions { margin-left: auto; display: flex; align-items: center; gap: var(--sp-2); }
@@ -558,9 +547,7 @@ a { color: inherit; }
 .page-h1 {
   margin: 0 0 var(--sp-1);
   font-family: var(--font-display);
-  font-size: var(--fs-title);
-  font-weight: 600;
-  letter-spacing: 0;
+  font-size: var(--fs-display);
 }
 .page-sub {
   margin: 0 0 var(--sp-6);
@@ -571,8 +558,6 @@ a { color: inherit; }
   margin-bottom: var(--sp-2);
   color: var(--text-3);
   font-size: var(--fs-caption);
-  font-weight: 540;
-  letter-spacing: 0;
 }
 .row { display: flex; align-items: center; gap: var(--sp-2); min-width: 0; }
 .col { display: flex; flex-direction: column; min-width: 0; }
@@ -654,8 +639,6 @@ a { color: inherit; }
 .org-node-text { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .org-node-name {
   font-size: var(--fs-body);
-  font-weight: 560;
-  letter-spacing: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

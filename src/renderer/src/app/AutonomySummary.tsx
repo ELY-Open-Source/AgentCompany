@@ -8,7 +8,7 @@ const RISK_NAMES = { low: () => t("Low"), medium: () => t("Medium"), high: () =>
 export function AutonomySummary({ mode }: { mode: "ai_ceo" | "ai_cofounder" }) {
   const gated = { level: RISK_NAMES[COMPANY_PRESETS.taskRiskCeiling](), amount: dollars(COMPANY_PRESETS.hireReviewAboveCents) };
   return (
-    <section aria-label={t("What this mode allows")} style={{ fontSize: 13, color: "var(--text-2)", lineHeight: 1.6 }}>
+    <section aria-label={t("What this mode allows")} style={{ fontSize: "var(--fs-body)", color: "var(--text-2)", lineHeight: 1.6 }}>
       <ul style={{ margin: 0, paddingLeft: 18 }}>
         <li>{mode === "ai_ceo"
           ? t("Approved without you: tasks above {level} risk, tasks that run commands in a workspace, and hires over {amount} a month.", gated)

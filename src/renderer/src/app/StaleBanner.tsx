@@ -9,7 +9,7 @@ export function StaleBanner({ failure, syncedAt, onRetry }: { failure: SyncFailu
   // Outside the app root, so it stays usable while a dialog makes the app inert.
   return createPortal(
     <div role="alert" className="card" style={{ position: "fixed", top: 8, left: "50%", transform: "translateX(-50%)", zIndex: 900, display: "flex", gap: 10, alignItems: "center", padding: "8px 12px", borderColor: "var(--amber, var(--red))", maxWidth: "min(720px, calc(100vw - 32px))" }}>
-      <div style={{ fontSize: 13, minWidth: 0 }}>
+      <div style={{ fontSize: "var(--fs-body)", minWidth: 0 }}>
         <strong>{t("Not up to date.")}</strong>{" "}
         {syncedAt ? t("Showing data from {time}.", { time: formatTime(syncedAt) }) : null}{" "}
         <span style={{ color: "var(--text-2)", wordBreak: "break-word" }}>{t("Updating failed: {reason} (attempt {count}).", { reason: failure.message, count: failure.attempts })}</span>

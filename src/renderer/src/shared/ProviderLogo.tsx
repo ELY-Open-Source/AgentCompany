@@ -51,7 +51,7 @@ export function ProviderLogo({ providerKey, label, size = 30 }: { providerKey: s
         alt=""
         width={size}
         height={size}
-        style={{ width: size, height: size, borderRadius: 7, objectFit: "cover", background: "#fff", flexShrink: 0 }}
+        style={{ width: size, height: size, objectFit: "cover", background: "#fff", flexShrink: 0 }}
       />
     );
   }
@@ -60,13 +60,11 @@ export function ProviderLogo({ providerKey, label, size = 30 }: { providerKey: s
       style={{
         width: size,
         height: size,
-        borderRadius: 7,
         background: "#a1a1aa",
         color: "#fff",
         display: "grid",
         placeItems: "center",
-        fontSize: Math.round(size * 0.42),
-        fontWeight: 600,
+        fontSize: "var(--fs-body)",
         flexShrink: 0,
       }}
     >

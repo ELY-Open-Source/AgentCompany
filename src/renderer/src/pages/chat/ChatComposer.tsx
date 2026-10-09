@@ -80,7 +80,7 @@ export function ChatComposer({
 
   return (
     <form onSubmit={onSubmit} onInput={() => { if (spaceId && ref.current) noteTyping(spaceId, ref.current.value); }} data-space-id={spaceId ?? undefined} style={{ padding: 14, paddingTop: 4, flexShrink: 0 }}>
-      <div style={{ border: "1px solid var(--border-strong)", borderRadius: 12, background: "var(--panel)", padding: "10px 12px" }}>
+      <div style={{ border: "1px solid var(--border-strong)", background: "var(--panel)", padding: "10px 12px" }}>
         <MentionTextarea
           name="message"
           defaultValue={draft.body}
@@ -111,7 +111,7 @@ export function ChatComposer({
             </span>
           ))}
           <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6 }}>
-            <span className="mono" style={{ fontSize: 12, color: "var(--text-3)" }}>{shortcutLabel("Enter")}</span>
+            <span className="mono" style={{ fontSize: "var(--fs-body)", color: "var(--text-3)" }}>{shortcutLabel("Enter")}</span>
             <Button tone="primary" size="small" type="submit" disabled={locked}><Icon name="send" /> {t("Send")}</Button>
           </div>
         </div>

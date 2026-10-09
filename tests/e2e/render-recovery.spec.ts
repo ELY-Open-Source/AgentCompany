@@ -6,6 +6,7 @@ import { randomUUID } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
 import { seedBuiltinSkillsFixture } from "./builtin-skills-fixture";
 import { onboard } from "./onboard";
+import { offGridText } from "./pixel-grid";
 
 test("a record that breaks one page leaves the rest of the app working", async () => {
   const profileDir = join(tmpdir(), `agentcompany-new-e2e-render-${randomUUID()}`);
@@ -35,6 +36,7 @@ test("a record that breaks one page leaves the rest of the app working", async (
     await expect(failure).toContainText("Approval risk tone is missing.");
     // A failure reads as a game over, with Continue to try again; the same fault fails the same way.
     await expect(failure).toContainText("GAME OVER");
+    expect(await offGridText(page)).toEqual([]);
     await failure.getByRole("button", { name: "Continue" }).click();
     await expect(failure).toContainText("Approval risk tone is missing.");
     await page.getByRole("button", { name: "Home" }).click();

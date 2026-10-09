@@ -77,23 +77,23 @@ function FileRow({
       <div className="row" style={{ gap: 10, minWidth: 0 }}>
         <FileIcon kind={file.kind} />
         <div style={{ display: "grid", gap: 3, minWidth: 0 }}>
-          <span style={{ fontWeight: 480, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{file.name}</span>
-          <span className="mono" style={{ color: "var(--text-3)", fontSize: 10, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{file.name}</span>
+          <span className="mono" style={{ color: "var(--text-3)", fontSize: "var(--fs-body)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
             sha:{shortChecksum(file.sha256)} · obj:{shortObjectRef(file.storagePath)}
           </span>
         </div>
         {file.pinned && <Pill tone="violet" dot>{t("Pinned")}</Pill>}
       </div>
-      <div className="num mono" style={{ color: "var(--text-3)", fontSize: 12 }}>{formatBytes(file.sizeBytes)}</div>
+      <div className="num mono" style={{ color: "var(--text-3)", fontSize: "var(--fs-body)" }}>{formatBytes(file.sizeBytes)}</div>
       <div className="row" style={{ gap: 8, minWidth: 0 }}>
         <Avatar name={owner} size="sm" bot={isAgentOwner(file)} />
         <span style={{ color: "var(--text-2)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{owner}</span>
       </div>
       <div className="row" style={{ gap: 6, minWidth: 0 }}>
         <ScanPill file={file} />
-        <span className="mono" style={{ color: "var(--text-3)", fontSize: 12 }}>{grantCount}</span>
+        <span className="mono" style={{ color: "var(--text-3)", fontSize: "var(--fs-body)" }}>{grantCount}</span>
       </div>
-      <div style={{ color: "var(--text-3)", fontSize: 12 }}>{formatRelative(file.updatedAt ?? file.createdAt)}</div>
+      <div style={{ color: "var(--text-3)", fontSize: "var(--fs-body)" }}>{formatRelative(file.updatedAt ?? file.createdAt)}</div>
       <div style={{ textAlign: "right" }} onClick={(event) => event.stopPropagation()}>
         <Popover trigger={({ toggle }) => <IconButton icon="more" label={t("Actions for {name}", { name: file.name })} onClick={toggle} />}>
           {(close) => (

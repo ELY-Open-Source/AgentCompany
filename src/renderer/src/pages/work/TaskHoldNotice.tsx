@@ -14,9 +14,9 @@ export function TaskHoldNotice({ hold }: { hold: TaskHold }) {
       : t("Waiting on you.");
   const color = hold.waitingOn === "operator" ? "var(--red)" : "var(--amber)";
   return (
-    <div role="status" style={{ marginBottom: 12, fontSize: 13, color, lineHeight: 1.5 }}>
+    <div role="status" style={{ marginBottom: 12, fontSize: "var(--fs-body)", color, lineHeight: 1.5 }}>
       <div>{hold.reason}</div>
-      <div style={{ fontWeight: 600 }}>{next}</div>
+      <div>{next}</div>
     </div>
   );
 }

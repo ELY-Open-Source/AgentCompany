@@ -20,14 +20,11 @@ export function FileIcon({ kind, big = false }: { kind: string; big?: boolean })
       style={{
         width: big ? 28 : 22,
         height: big ? 28 : 22,
-        borderRadius: big ? 6 : 4,
         background: `${map.color}14`,
         color: map.color,
         display: "grid",
         placeItems: "center",
-        fontSize: big ? 9 : 8,
-        fontWeight: 700,
-        letterSpacing: 0.5,
+        fontSize: "var(--fs-body)",
       }}
     >
       {label}

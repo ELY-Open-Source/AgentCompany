@@ -97,14 +97,14 @@ export function DocumentsPanel({
             style={{ display: "grid", justifyItems: "start", gap: 2 }}
           >
             <span>{doc.title}</span>
-            <span style={{ fontSize: 12, color: "var(--text-3)" }}>{doc.docType} · v{doc.version} · {formatTime(doc.updatedAt)}</span>
+            <span style={{ fontSize: "var(--fs-body)", color: "var(--text-3)" }}>{doc.docType} · v{doc.version} · {formatTime(doc.updatedAt)}</span>
           </button>
         ))}
       </div>
       {selected && (
         <article aria-label={selected.title} style={{ minWidth: 0 }}>
           <div className="row" style={{ gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
-            <h2 style={{ margin: 0, fontSize: 18 }}>{shown?.title ?? selected.title}</h2>
+            <h2 style={{ margin: 0, fontSize: "var(--fs-display)" }}>{shown?.title ?? selected.title}</h2>
             <Pill>{selected.docType}</Pill>
             <Pill tone={selected.status === "approved" ? "green" : undefined}>{documentStatusLabel(shown?.status ?? selected.status)}</Pill>
           </div>

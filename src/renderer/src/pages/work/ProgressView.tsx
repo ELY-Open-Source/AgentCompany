@@ -19,7 +19,7 @@ export function ProgressView({ tasks, goals, projects }: { tasks: TaskRecord[]; 
         return (
           <section key={goal.id} className="card" style={{ padding: 18 }}>
             <div className="row" style={{ gap: 12 }}>
-              <span style={{ fontWeight: 560, fontSize: 14, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
+              <span style={{ fontSize: "var(--fs-body)", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
                 {goal.title}
               </span>
               <CompletionReadout tasks={linked} />
@@ -34,7 +34,7 @@ export function ProgressView({ tasks, goals, projects }: { tasks: TaskRecord[]; 
                     <div key={project.id} className="row" style={{ gap: 12 }}>
                       <span
                         style={{
-                          fontSize: 13,
+                          fontSize: "var(--fs-body)",
                           color: "var(--text-2)",
                           minWidth: 0,
                           overflow: "hidden",
@@ -59,7 +59,7 @@ export function ProgressView({ tasks, goals, projects }: { tasks: TaskRecord[]; 
       {unlinked.length > 0 && (
         <section className="card" style={{ padding: 18 }}>
           <div className="row" style={{ gap: 12 }}>
-            <span style={{ fontWeight: 560, fontSize: 14, color: "var(--text-2)", flex: 1 }}>{t("Unlinked tasks")}</span>
+            <span style={{ fontSize: "var(--fs-body)", color: "var(--text-2)", flex: 1 }}>{t("Unlinked tasks")}</span>
             <CompletionReadout tasks={unlinked} />
           </div>
           <StatusBar tasks={unlinked} height={6} style={{ marginTop: 12 }} />
@@ -80,7 +80,7 @@ function counts(tasks: TaskRecord[]): Map<TaskStatus, number> {
 function StatusBar({ tasks, height, style }: { tasks: TaskRecord[]; height: number; style?: React.CSSProperties }) {
   const byStatus = counts(tasks);
   if (tasks.length === 0) {
-    return <div style={{ height, borderRadius: height, background: "var(--panel-3)", ...style }} />;
+    return <div style={{ height, background: "var(--panel-3)", ...style }} />;
   }
   return (
     <div style={{ display: "flex", gap: 2, height, ...style }}>
@@ -93,7 +93,6 @@ function StatusBar({ tasks, height, style }: { tasks: TaskRecord[]; height: numb
             style={{
               flex: count,
               background: segment.tone,
-              borderRadius: height,
               minWidth: height,
             }}
           />
@@ -108,8 +107,8 @@ function Legend({ tasks }: { tasks: TaskRecord[] }) {
   return (
     <div className="row" style={{ gap: 14, marginTop: 10, flexWrap: "wrap" }}>
       {SEGMENTS.map((segment) => (
-        <span key={segment.id} className="row" style={{ gap: 6, fontSize: 12, color: "var(--text-3)" }}>
-          <span style={{ width: 8, height: 8, borderRadius: 2, background: segment.tone, flexShrink: 0 }} />
+        <span key={segment.id} className="row" style={{ gap: 6, fontSize: "var(--fs-body)", color: "var(--text-3)" }}>
+          <span style={{ width: 8, height: 8, background: segment.tone, flexShrink: 0 }} />
           <span className="num">{byStatus.get(segment.id) ?? 0}</span>
           {segment.label}
         </span>
@@ -121,7 +120,7 @@ function Legend({ tasks }: { tasks: TaskRecord[] }) {
 function CompletionReadout({ tasks }: { tasks: TaskRecord[] }) {
   const done = tasks.filter((task) => task.status === TASK_STATUS.DONE).length;
   return (
-    <span className="num" style={{ color: "var(--text-3)", fontSize: 13, flexShrink: 0 }}>
+    <span className="num" style={{ color: "var(--text-3)", fontSize: "var(--fs-body)", flexShrink: 0 }}>
       {done} / {tasks.length}
     </span>
   );

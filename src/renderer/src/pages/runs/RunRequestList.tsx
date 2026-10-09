@@ -19,9 +19,9 @@ export function RunRequestList({ loaded }: { loaded: LoadedRequests | null }) {
   return (
     <div style={{ marginBottom: 20 }}>
       <div className="section-label" style={{ marginBottom: 8 }}>{t("Model calls ({count})", { count: String(requests.length) })}</div>
-      {requests.length === 0 && <div style={{ fontSize: 13, color: "var(--text-3)" }}>{t("This run made no model call.")}</div>}
+      {requests.length === 0 && <div style={{ fontSize: "var(--fs-body)", color: "var(--text-3)" }}>{t("This run made no model call.")}</div>}
       {requests.map((request, index) => (
-        <div key={request.id} className="row" style={{ gap: 10, fontSize: 13, padding: "6px 0", borderBottom: "1px solid var(--border-soft)" }}>
+        <div key={request.id} className="row" style={{ gap: 10, fontSize: "var(--fs-body)", padding: "6px 0", borderBottom: "1px solid var(--border-soft)" }}>
           <span className="mono" style={{ color: "var(--text-3)", width: 24 }}>{index + 1}</span>
           <span style={{ width: 96 }}>{purposeLabel(request.purpose)}</span>
           <span className="mono" style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>{request.model}</span>

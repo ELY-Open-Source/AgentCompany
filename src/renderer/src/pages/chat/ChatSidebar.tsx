@@ -84,7 +84,7 @@ export function ChatSidebar({
   return (
     <aside className="secondary-pane" style={{ width: paneWidth, position: "relative" }}>
       <div className="row" style={{ padding: "4px 8px 12px" }}>
-        <div style={{ fontSize: 14, fontWeight: 600 }}>{t("Messages")}</div>
+        <div style={{ fontSize: "var(--fs-body)" }}>{t("Messages")}</div>
         <IconButton icon="plus" label={t("New space")} onClick={onCreateSpace} />
       </div>
       <div className="pane-scroll">
@@ -147,7 +147,6 @@ function ConversationRow({
           style={{
             width: 22,
             height: 22,
-            borderRadius: 6,
             background: "var(--panel-3)",
             display: "inline-flex",
             alignItems: "center",
@@ -163,7 +162,6 @@ function ConversationRow({
         <span className="row" style={{ gap: 8 }}>
           <span
             style={{
-              fontWeight: conversation.unread > 0 ? 600 : 520,
               overflow: "hidden",
               textOverflow: "ellipsis",
               whiteSpace: "nowrap",
@@ -174,14 +172,14 @@ function ConversationRow({
             {conversation.title}
           </span>
           {conversation.isCeo && <span className="convo-ceo-badge">{t("CEO")}</span>}
-          <span style={{ fontSize: 11, color: "var(--text-3)", flexShrink: 0 }}>
+          <span style={{ fontSize: "var(--fs-body)", color: "var(--text-3)", flexShrink: 0 }}>
             {conversation.preview ? formatRelative(conversation.lastActivityAt) : ""}
           </span>
         </span>
         <span className="row" style={{ gap: 8 }}>
           <span
             style={{
-              fontSize: 12,
+              fontSize: "var(--fs-body)",
               color: "var(--text-3)",
               overflow: "hidden",
               textOverflow: "ellipsis",

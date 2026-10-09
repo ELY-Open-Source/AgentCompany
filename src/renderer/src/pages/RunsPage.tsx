@@ -90,8 +90,8 @@ export function RunsPage({ snapshot, actions, navigate, focus }: PageProps) {
     <div className="split-main">
       <aside className="secondary-pane" style={{ width: 340 }}>
         <div style={{ padding: "12px 12px 8px" }}>
-          <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>{t("Runs")}</div>
-          <div className="row" style={{ gap: 8, marginBottom: 8, fontSize: 12, color: "var(--text-3)" }}>
+          <div style={{ fontSize: "var(--fs-body)", marginBottom: 8 }}>{t("Runs")}</div>
+          <div className="row" style={{ gap: 8, marginBottom: 8, fontSize: "var(--fs-body)", color: "var(--text-3)" }}>
             <span>{t("{n} queued", { n: queued })}</span><span>·</span><span>{t("{n} running", { n: running })}</span><span>·</span><span>{t("{n} failed", { n: failed })}</span>
           </div>
           <input
@@ -118,10 +118,10 @@ export function RunsPage({ snapshot, actions, navigate, focus }: PageProps) {
                 onClick={() => setSelectedId(run.id)}
               >
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 14, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  <div style={{ fontSize: "var(--fs-body)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     {task?.title ?? run.taskId}
                   </div>
-                  <div style={{ fontSize: 12, color: "var(--text-3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  <div style={{ fontSize: "var(--fs-body)", color: "var(--text-3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     {agent?.name ?? t("Agent")} · {runTriggerLabel(run.trigger)}
                   </div>
                 </div>
@@ -129,11 +129,11 @@ export function RunsPage({ snapshot, actions, navigate, focus }: PageProps) {
               </button>
             );
           })}
-          {filtered.length === 0 && <div style={{ padding: 16, fontSize: 14, color: "var(--text-3)" }}>{t("No runs")}</div>}
+          {filtered.length === 0 && <div style={{ padding: 16, fontSize: "var(--fs-body)", color: "var(--text-3)" }}>{t("No runs")}</div>}
           {historyError && <div className="form-error" role="alert" style={{ padding: "0 16px" }}>{historyError}</div>}
           <div style={{ padding: 12, display: "flex", justifyContent: "center" }}>
             {olderDone
-              ? <span style={{ fontSize: 12, color: "var(--text-3)" }}>{t("These are all the runs.")}</span>
+              ? <span style={{ fontSize: "var(--fs-body)", color: "var(--text-3)" }}>{t("These are all the runs.")}</span>
               : <Button size="small" onClick={loadOlder}>{t("Show older runs")}</Button>}
           </div>
         </div>
@@ -142,7 +142,7 @@ export function RunsPage({ snapshot, actions, navigate, focus }: PageProps) {
         {selected ? (
           <RunDetail key={selected.id} run={selected} tasks={tasks} agents={agents} providers={providers} actions={actions} onOpenTask={(taskId) => navigate("work", { kind: "task", id: taskId })} />
         ) : (
-          <div style={{ display: "grid", placeItems: "center", height: "100%", color: "var(--text-3)", fontSize: 14 }}>
+          <div style={{ display: "grid", placeItems: "center", height: "100%", color: "var(--text-3)", fontSize: "var(--fs-body)" }}>
             {t("Select a run")}
           </div>
         )}
@@ -190,10 +190,10 @@ function RunDetail({ run, tasks, agents, providers, actions, onOpenTask }: {
       <div className="row" style={{ gap: 10, marginBottom: 16 }}>
         {agent && <Avatar name={agent.name} size="sm" bot />}
         <div>
-          <button type="button" className="link-button" style={{ fontSize: 16, fontWeight: 600 }} aria-label={t("Open task {title}", { title: task?.title ?? run.taskId })} onClick={() => onOpenTask(run.taskId)}>
+          <button type="button" className="link-button" style={{ fontSize: "var(--fs-body)" }} aria-label={t("Open task {title}", { title: task?.title ?? run.taskId })} onClick={() => onOpenTask(run.taskId)}>
             {task?.title ?? run.taskId}
           </button>
-          <div style={{ fontSize: 12, color: "var(--text-3)" }}>{run.id}</div>
+          <div style={{ fontSize: "var(--fs-body)", color: "var(--text-3)" }}>{run.id}</div>
         </div>
         <Pill tone={runTone(run.state)}>{runLabel(run.state)}</Pill>
         {run.state === "running" && <Button size="small" onClick={stop} disabled={busy}>{t("Stop")}</Button>}
@@ -201,13 +201,13 @@ function RunDetail({ run, tasks, agents, providers, actions, onOpenTask }: {
         {run.state === "failed" && <Button size="small" onClick={again} disabled={busy}>{busy ? t("Running…") : t("Retry")}</Button>}
         {(run.state === "stopped" || run.state === "superseded") && <Button size="small" onClick={again} disabled={busy}>{busy ? t("Running…") : t("Resume")}</Button>}
       </div>
-      {run.state === "queued" && <div style={{ fontSize: 12, color: "var(--text-3)", marginBottom: 8 }}>{t("A cancelled session can start again on the next heartbeat; block the task to keep it stopped.")}</div>}
+      {run.state === "queued" && <div style={{ fontSize: "var(--fs-body)", color: "var(--text-3)", marginBottom: 8 }}>{t("A cancelled session can start again on the next heartbeat; block the task to keep it stopped.")}</div>}
       {(run.state === "failed" || run.state === "stopped" || run.state === "superseded") && (
-        <div style={{ fontSize: 12, color: "var(--text-3)", marginBottom: 8 }}>{t("A new session on the task picks up from what earlier sessions did and where they stopped.")}</div>
+        <div style={{ fontSize: "var(--fs-body)", color: "var(--text-3)", marginBottom: 8 }}>{t("A new session on the task picks up from what earlier sessions did and where they stopped.")}</div>
       )}
       {controlError && <div className="form-error" role="alert">{controlError}</div>}
 
-      <div style={{ display: "grid", gridTemplateColumns: "120px 1fr", gap: "8px 16px", fontSize: 14, marginBottom: 20 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "120px 1fr", gap: "8px 16px", fontSize: "var(--fs-body)", marginBottom: 20 }}>
         <MetaLabel>{t("Agent")}</MetaLabel><div>{agent?.name ?? "—"} ({agent?.role ?? "—"})</div>
         <MetaLabel>{t("Provider")}</MetaLabel><div>{provider?.label ?? "—"}</div>
         <MetaLabel>{t("Model")}</MetaLabel><div>{run.runModel ?? t("Chosen when the session starts")}</div>
@@ -216,7 +216,7 @@ function RunDetail({ run, tasks, agents, providers, actions, onOpenTask }: {
         {run.startedAt && (<><MetaLabel>{t("Started")}</MetaLabel><div>{formatRelative(run.startedAt)}</div></>)}
         {run.completedAt && (<><MetaLabel>{t("Completed")}</MetaLabel><div>{formatRelative(run.completedAt)}</div></>)}
         {durationMs !== null && (<><MetaLabel>{t("Duration")}</MetaLabel><div>{formatDuration(durationMs)}</div></>)}
-        <MetaLabel>{t("Context")}</MetaLabel><div className="mono" style={{ fontSize: 12, overflow: "hidden", textOverflow: "ellipsis" }}>{run.executionContextId}</div>
+        <MetaLabel>{t("Context")}</MetaLabel><div className="mono" style={{ fontSize: "var(--fs-body)", overflow: "hidden", textOverflow: "ellipsis" }}>{run.executionContextId}</div>
       </div>
 
       <RunRequestList loaded={loadedRequests} />
@@ -224,28 +224,28 @@ function RunDetail({ run, tasks, agents, providers, actions, onOpenTask }: {
       {run.state === "superseded" && run.errorMessage && (
         <div className="card" style={{ padding: 16, marginBottom: 16 }}>
           <div className="section-label" style={{ marginBottom: 8 }}>{t("Why it did not run")}</div>
-          <div style={{ fontSize: 14, color: "var(--text-1)", whiteSpace: "pre-wrap", lineHeight: 1.5 }}>{run.errorMessage}</div>
+          <div style={{ fontSize: "var(--fs-body)", color: "var(--text-1)", whiteSpace: "pre-wrap", lineHeight: 1.5 }}>{run.errorMessage}</div>
         </div>
       )}
       {run.state === "failed" && run.errorMessage && (
         <div className="card" style={{ padding: 16, marginBottom: 16, borderColor: "var(--red)" }}>
           <div className="section-label" style={{ color: "var(--red)", marginBottom: 8 }}>{t("Error")}</div>
-          <div style={{ fontSize: 14, color: "var(--text-1)", whiteSpace: "pre-wrap", lineHeight: 1.5 }}>{run.errorMessage}</div>
+          <div style={{ fontSize: "var(--fs-body)", color: "var(--text-1)", whiteSpace: "pre-wrap", lineHeight: 1.5 }}>{run.errorMessage}</div>
         </div>
       )}
 
       {run.capabilityWarnings && (
         <div className="card" style={{ padding: 16, marginBottom: 16, borderColor: "var(--amber)" }}>
           <div className="section-label" style={{ color: "var(--amber)", marginBottom: 8 }}>{t("Missing this run")}</div>
-          <div style={{ fontSize: 14, color: "var(--text-1)", whiteSpace: "pre-wrap", lineHeight: 1.5 }}>{run.capabilityWarnings}</div>
+          <div style={{ fontSize: "var(--fs-body)", color: "var(--text-1)", whiteSpace: "pre-wrap", lineHeight: 1.5 }}>{run.capabilityWarnings}</div>
         </div>
       )}
 
       {request && (
         <div className="card" style={{ padding: 16, marginBottom: 16 }}>
           <div className="section-label" style={{ marginBottom: 8 }}>{t("Provider request")}</div>
-          <div style={{ display: "grid", gridTemplateColumns: "120px 1fr", gap: "8px 16px", fontSize: 14 }}>
-            <MetaLabel>{t("Request ID")}</MetaLabel><div className="mono" style={{ fontSize: 12, overflow: "hidden", textOverflow: "ellipsis" }}>{request.id}</div>
+          <div style={{ display: "grid", gridTemplateColumns: "120px 1fr", gap: "8px 16px", fontSize: "var(--fs-body)" }}>
+            <MetaLabel>{t("Request ID")}</MetaLabel><div className="mono" style={{ fontSize: "var(--fs-body)", overflow: "hidden", textOverflow: "ellipsis" }}>{request.id}</div>
             <MetaLabel>{t("Model")}</MetaLabel><div>{request.model}</div>
             <MetaLabel>{t("State")}</MetaLabel><div>{requestStateLabel(request.state)}</div>
             <MetaLabel>{t("Input chars")}</MetaLabel><div className="num">{request.inputCharCount.toLocaleString()}</div>
@@ -257,7 +257,7 @@ function RunDetail({ run, tasks, agents, providers, actions, onOpenTask }: {
             <div style={{ marginTop: 12 }}>
               <div className="section-label" style={{ marginBottom: 6 }}>{t("Response")}</div>
               <div style={{
-                fontSize: 12,
+                fontSize: "var(--fs-body)",
                 color: "var(--text-2)",
                 whiteSpace: "pre-wrap",
                 lineHeight: 1.5,
@@ -265,7 +265,6 @@ function RunDetail({ run, tasks, agents, providers, actions, onOpenTask }: {
                 overflow: "auto",
                 padding: 10,
                 background: "var(--panel-3)",
-                borderRadius: 8,
                 fontFamily: "var(--font-mono)",
               }}>
                 {request.responseText}

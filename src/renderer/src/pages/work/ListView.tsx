@@ -43,8 +43,8 @@ export function ListView({
             style={{ gridTemplateColumns: GRID, borderBottom: last ? "none" : "1px solid var(--border-soft)" }}
           >
             <div className="row" style={{ gap: 8, minWidth: 0, overflow: "hidden" }}>
-              {task.risk === "high" && <span style={{ width: 3, height: 12, background: "var(--red)", borderRadius: 2, flexShrink: 0 }} />}
-              <span style={{ fontWeight: 480, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {task.risk === "high" && <span style={{ width: 3, height: 12, background: "var(--red)", flexShrink: 0 }} />}
+              <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                 {task.title}
               </span>
               {project && <span style={{ flexShrink: 0 }}><Pill>{truncate(project.name, 24)}</Pill></span>}

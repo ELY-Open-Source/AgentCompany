@@ -46,7 +46,7 @@ export function SettingsPage({ snapshot, actions, focus }: PageProps) {
   return (
     <div className="split-main">
       <aside className="secondary-pane">
-        <div style={{ fontSize: 14, fontWeight: 600, padding: "4px 8px 14px" }}>{t("Settings")}</div>
+        <div style={{ fontSize: "var(--fs-body)", padding: "4px 8px 14px" }}>{t("Settings")}</div>
         <div className="pane-scroll">
           <NavGroup items={TABS} active={tab} onChange={(next) => requestLeave(() => setTab(next))} />
         </div>

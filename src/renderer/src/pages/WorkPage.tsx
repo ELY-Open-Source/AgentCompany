@@ -122,7 +122,7 @@ export function WorkPage({ snapshot, actions, navigate, focus }: PageProps) {
               ? t("Goal: {title}", { title: goals.find((goal) => goal.id === scope.id)?.title ?? scope.id })
               : t("Project: {name}", { name: projects.find((project) => project.id === scope.id)?.name ?? scope.id })}
           </Pill>
-          <button type="button" className="link-button" style={{ fontSize: 12 }} onClick={() => setScope(null)}>{t("Show all work")}</button>
+          <button type="button" className="link-button" style={{ fontSize: "var(--fs-body)" }} onClick={() => setScope(null)}>{t("Show all work")}</button>
         </div>
       )}
       <p className="page-sub">
@@ -287,9 +287,9 @@ function BoardView({
         return (
           <div key={column.id} style={{ display: "flex", flexDirection: "column", minWidth: 0, minHeight: 0 }}>
             <div className="row" style={{ padding: "4px 6px 8px", flexShrink: 0 }}>
-              <span style={{ width: 8, height: 8, borderRadius: 2, background: column.tone, flexShrink: 0 }} />
-              <span style={{ fontSize: 12, fontWeight: 540 }}>{column.label}</span>
-              <span className="num" style={{ fontSize: 12, color: "var(--text-3)" }}>{columnTasks.length}</span>
+              <span style={{ width: 8, height: 8, background: column.tone, flexShrink: 0 }} />
+              <span style={{ fontSize: "var(--fs-body)" }}>{column.label}</span>
+              <span className="num" style={{ fontSize: "var(--fs-body)", color: "var(--text-3)" }}>{columnTasks.length}</span>
               <IconButton icon="plus" label={t("Add task")} onClick={onCreate} />
             </div>
             <div style={{ flex: 1, minHeight: 0, overflowY: "auto", display: "flex", flexDirection: "column", gap: 8, paddingBottom: 24 }}>
@@ -342,7 +342,6 @@ function TaskCard({
       style={{
         background: "var(--panel)",
         border: "1px solid var(--border)",
-        borderRadius: 10,
         padding: 12,
         display: "flex",
         flexDirection: "column",
@@ -352,15 +351,13 @@ function TaskCard({
       }}
     >
       <div style={{ display: "flex", alignItems: "flex-start", gap: 6 }}>
-        {task.priority === "high" && <span style={{ width: 3, height: 14, background: "var(--red)", borderRadius: 2, marginTop: 2, flexShrink: 0 }} />}
+        {task.priority === "high" && <span style={{ width: 3, height: 14, background: "var(--red)", marginTop: 2, flexShrink: 0 }} />}
         <div
           style={{
             flex: 1,
             minWidth: 0,
-            fontSize: 14,
-            fontWeight: 480,
+            fontSize: "var(--fs-body)",
             lineHeight: 1.35,
-            letterSpacing: "-0.005em",
             color: task.status === "done" ? "var(--text-3)" : "var(--text-1)",
             display: "-webkit-box",
             WebkitLineClamp: 3,

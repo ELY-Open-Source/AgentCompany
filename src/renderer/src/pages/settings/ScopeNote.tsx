@@ -10,5 +10,5 @@ export function ScopeNote({ scope, company }: { scope: SettingScope; company: st
     : scope === "company_folders"
       ? t("Applies to {company} only; the folders are on this computer.", { company })
       : t("Applies to {company} only.", { company });
-  return <div role="note" className="scope-note" style={{ fontSize: 12, color: "var(--text-3)", margin: "4px 0 10px" }}>{text}</div>;
+  return <div role="note" className="scope-note" style={{ fontSize: "var(--fs-body)", color: "var(--text-3)", margin: "4px 0 10px" }}>{text}</div>;
 }

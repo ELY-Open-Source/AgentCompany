@@ -48,7 +48,7 @@ export function DisconnectProviderDialog({ orgId, provider, revokesRemotely, act
       ) : impact === null ? (
         state.kind !== "error" && <p style={{ margin: 0, color: "var(--text-3)" }}>{t("Checking what this affects…")}</p>
       ) : (
-        <ul style={{ margin: 0, paddingLeft: 18, lineHeight: 1.6, fontSize: 13 }}>
+        <ul style={{ margin: 0, paddingLeft: 18, lineHeight: 1.6, fontSize: "var(--fs-body)" }}>
           <li>{impact.agents.length
             ? t("Agents on this provider stop working until it is reconnected or they move to another provider: {names}.", { names: impact.agents.join(", ") })
             : t("No agent uses this provider.")}</li>

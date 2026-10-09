@@ -115,12 +115,12 @@ function GoalCard({
   return (
     <section className="card">
       <div className="card-label" style={{ marginBottom: 12 }}>{t("Quarter goal")}</div>
-      <div style={{ fontSize: 16, fontWeight: 540, lineHeight: 1.4, letterSpacing: "-0.01em", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", minHeight: 44 }}>
+      <div style={{ fontSize: "var(--fs-body)", lineHeight: 1.4, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", minHeight: 44 }}>
         {goal ? goal.title : t("Set the first goal for {organizationName}.", { organizationName })}
       </div>
       <div className="row" style={{ alignItems: "baseline", gap: 8, marginTop: 16 }}>
-        <span className="num" style={{ fontSize: 18, fontWeight: 600 }}>{progress ? `${percent}%` : "—"}</span>
-        <span style={{ fontSize: 12, color: "var(--text-3)" }}>{progress?.pace ? statusLabel(progress.pace) : t("no target date")}</span>
+        <span className="num" style={{ fontSize: "var(--fs-display)" }}>{progress ? `${percent}%` : "—"}</span>
+        <span style={{ fontSize: "var(--fs-body)", color: "var(--text-3)" }}>{progress?.pace ? statusLabel(progress.pace) : t("no target date")}</span>
         {goal && <TargetDate goal={goal} actions={actions} />}
       </div>
       <div style={{ marginTop: 12 }}><XpBar percent={percent} label={t("Goal progress")} /></div>
@@ -152,21 +152,21 @@ function SpendCard({
     <section className="card">
       <div className="card-label" style={{ marginBottom: 12 }}>{t("Monthly budget")}</div>
       <div className="row" style={{ alignItems: "baseline", gap: 6 }}>
-        <span className="num" style={{ fontSize: 18, fontWeight: 600 }}>{money(totalBudgetCents)}</span>
-        <span style={{ fontSize: 12, color: "var(--text-3)" }}>{capCents > 0 ? `/ ${money(capCents)}` : t("allocated")}</span>
+        <span className="num" style={{ fontSize: "var(--fs-display)" }}>{money(totalBudgetCents)}</span>
+        <span style={{ fontSize: "var(--fs-body)", color: "var(--text-3)" }}>{capCents > 0 ? `/ ${money(capCents)}` : t("allocated")}</span>
       </div>
       <div style={{ marginTop: 12 }}><XpBar percent={fillPct} label={t("Budget allocated")} /></div>
       <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 8 }}>
         {connected.slice(0, 3).map((provider) => {
           const allocatedCents = agents.filter((agent) => agent.modelProviderId === provider.id).reduce((sum, agent) => sum + agent.budgetCents, 0);
           return (
-            <div key={provider.id} className="row" style={{ fontSize: 14 }}>
+            <div key={provider.id} className="row" style={{ fontSize: "var(--fs-body)" }}>
               <span style={{ color: "var(--text-2)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{provider.label}</span>
-              <span className="num mono" style={{ marginLeft: "auto", color: "var(--text-1)", fontWeight: 500 }}>{money(allocatedCents)}</span>
+              <span className="num mono" style={{ marginLeft: "auto", color: "var(--text-1)" }}>{money(allocatedCents)}</span>
             </div>
           );
         })}
-        {connected.length === 0 && <span style={{ fontSize: 14, color: "var(--text-3)" }}>{t("No providers connected")}</span>}
+        {connected.length === 0 && <span style={{ fontSize: "var(--fs-body)", color: "var(--text-3)" }}>{t("No providers connected")}</span>}
       </div>
     </section>
   );
@@ -188,7 +188,7 @@ function RunActivityCard({
     <section className="card">
       <div className="row" style={{ marginBottom: 12 }}>
         <span className="card-label">{t("Agent runs")}</span>
-        <button type="button" className="link-button" style={{ marginLeft: "auto", fontSize: 12 }} onClick={onViewAll}>{t("All runs")} →</button>
+        <button type="button" className="link-button" style={{ marginLeft: "auto", fontSize: "var(--fs-body)" }} onClick={onViewAll}>{t("All runs")} →</button>
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         {recent.map((run) => {
@@ -198,15 +198,15 @@ function RunActivityCard({
             <div key={run.id} className="row" style={{ gap: 10 }}>
               {agent && <Avatar name={agent.name} size="sm" bot />}
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{task?.title ?? run.taskId}</div>
-                <div style={{ fontSize: 12, color: "var(--text-3)" }}>{agent?.name ?? t("Agent")} · {runTriggerLabel(run.trigger)}</div>
+                <div style={{ fontSize: "var(--fs-body)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{task?.title ?? run.taskId}</div>
+                <div style={{ fontSize: "var(--fs-body)", color: "var(--text-3)" }}>{agent?.name ?? t("Agent")} · {runTriggerLabel(run.trigger)}</div>
               </div>
               <Pill tone={runStateTone(run.state)}>{runStateLabel(run.state)}</Pill>
-              <span className="mono" style={{ fontSize: 12, color: "var(--text-3)", flexShrink: 0 }}>{formatRelative(run.createdAt)}</span>
+              <span className="mono" style={{ fontSize: "var(--fs-body)", color: "var(--text-3)", flexShrink: 0 }}>{formatRelative(run.createdAt)}</span>
             </div>
           );
         })}
-        {recent.length === 0 && <div style={{ fontSize: 14, color: "var(--text-3)" }}>{t("No runs yet")}</div>}
+        {recent.length === 0 && <div style={{ fontSize: "var(--fs-body)", color: "var(--text-3)" }}>{t("No runs yet")}</div>}
       </div>
     </section>
   );
@@ -230,7 +230,7 @@ function RecentMessagesCard({
     <section className="card">
       <div className="row" style={{ marginBottom: 12 }}>
         <span className="card-label">{t("Recent messages")}</span>
-        <button type="button" className="link-button" style={{ marginLeft: "auto", fontSize: 12 }} onClick={onViewAll}>{t("Open chat")} →</button>
+        <button type="button" className="link-button" style={{ marginLeft: "auto", fontSize: "var(--fs-body)" }} onClick={onViewAll}>{t("Open chat")} →</button>
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         {recent.map((msg) => {
@@ -244,16 +244,16 @@ function RecentMessagesCard({
               <Avatar name={name} size="sm" bot={msg.senderType === "agent"} />
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div className="row" style={{ gap: 6 }}>
-                  <span style={{ fontSize: 14, fontWeight: 540 }}>{name}</span>
-                  {space && <span style={{ fontSize: 12, color: "var(--text-3)" }}>#{space.name}</span>}
-                  <span className="mono" style={{ marginLeft: "auto", fontSize: 12, color: "var(--text-3)", flexShrink: 0 }}>{formatTime(msg.createdAt)}</span>
+                  <span style={{ fontSize: "var(--fs-body)" }}>{name}</span>
+                  {space && <span style={{ fontSize: "var(--fs-body)", color: "var(--text-3)" }}>#{space.name}</span>}
+                  <span className="mono" style={{ marginLeft: "auto", fontSize: "var(--fs-body)", color: "var(--text-3)", flexShrink: 0 }}>{formatTime(msg.createdAt)}</span>
                 </div>
-                <div style={{ fontSize: 14, color: "var(--text-2)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", lineHeight: 1.4 }}>{preview}</div>
+                <div style={{ fontSize: "var(--fs-body)", color: "var(--text-2)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", lineHeight: 1.4 }}>{preview}</div>
               </div>
             </div>
           );
         })}
-        {recent.length === 0 && <div style={{ fontSize: 14, color: "var(--text-3)" }}>{t("No messages yet")}</div>}
+        {recent.length === 0 && <div style={{ fontSize: "var(--fs-body)", color: "var(--text-3)" }}>{t("No messages yet")}</div>}
       </div>
     </section>
   );
@@ -313,7 +313,7 @@ function TargetDate({ goal, actions }: { goal: GoalRecord; actions: PageProps["a
   };
   return (
     <span style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 6 }}>
-      <input className="input" type="date" aria-label={t("Target date")} value={value} onChange={(event) => change(event.target.value)} style={{ height: 26, padding: "0 6px", fontSize: 12 }} />
+      <input className="input" type="date" aria-label={t("Target date")} value={value} onChange={(event) => change(event.target.value)} style={{ height: 26, padding: "0 6px", fontSize: "var(--fs-body)" }} />
       {error && <span className="form-error" role="alert">{error}</span>}
     </span>
   );

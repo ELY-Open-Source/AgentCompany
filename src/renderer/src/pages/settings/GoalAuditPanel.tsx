@@ -20,11 +20,11 @@ export function GoalAuditPanel({ organization, providers, actions }: { organizat
   return (
     <section>
       <div className="section-label" style={{ marginBottom: 6 }}>{t("Goal audit")}</div>
-      <p style={{ color: "var(--text-2)", fontSize: 13, margin: "0 0 12px" }}>
+      <p style={{ color: "var(--text-2)", fontSize: "var(--fs-body)", margin: "0 0 12px" }}>
         {t("An independent model checks every goal before it closes. Pick one your agents do not use, ideally from another provider.")}
       </p>
       {!organization.auditModelId && (
-        <p style={{ color: "var(--red)", fontSize: 13, margin: "0 0 12px" }}>{t("No auditor is set, so goals cannot be closed yet.")}</p>
+        <p style={{ color: "var(--red)", fontSize: "var(--fs-body)", margin: "0 0 12px" }}>{t("No auditor is set, so goals cannot be closed yet.")}</p>
       )}
       <form className="row" style={{ gap: 10, alignItems: "flex-end" }} onSubmit={save}>
         <Field label={t("Provider")}>
@@ -38,7 +38,7 @@ export function GoalAuditPanel({ organization, providers, actions }: { organizat
         </Field>
         <Button type="submit">{t("Save")}</Button>
       </form>
-      {error && <p style={{ color: "var(--red)", fontSize: 13, margin: "8px 0 0" }}>{error}</p>}
+      {error && <p style={{ color: "var(--red)", fontSize: "var(--fs-body)", margin: "8px 0 0" }}>{error}</p>}
     </section>
   );
 }

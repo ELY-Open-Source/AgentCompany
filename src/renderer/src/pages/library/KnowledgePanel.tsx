@@ -131,7 +131,7 @@ export function KnowledgePanel({
               style={{ display: "grid", justifyItems: "start", gap: 2 }}
             >
               <span>{entry.topic}</span>
-              <span style={{ fontSize: 12, color: "var(--text-3)" }}>{entry.category} · {entry.scopeType} · {entry.importance}</span>
+              <span style={{ fontSize: "var(--fs-body)", color: "var(--text-3)" }}>{entry.category} · {entry.scopeType} · {entry.importance}</span>
             </button>
           ))}
         </div>
@@ -139,7 +139,7 @@ export function KnowledgePanel({
       {selected && (
         <article aria-label={selected.topic} style={{ minWidth: 0 }}>
           <div className="row" style={{ gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
-            <h2 style={{ margin: 0, fontSize: 18 }}>{selected.topic}</h2>
+            <h2 style={{ margin: 0, fontSize: "var(--fs-display)" }}>{selected.topic}</h2>
             <Pill>{selected.category}</Pill>
             <Pill>{selected.scopeType}</Pill>
             <Pill tone={entryState(selected, now) === "active" ? "green" : "amber"}>{entryState(selected, now)}</Pill>
@@ -155,7 +155,7 @@ export function KnowledgePanel({
           <ol style={{ display: "grid", gap: 10, paddingLeft: 18 }}>
             {revisions.map((revision) => (
               <li key={revision.revision}>
-                <div style={{ fontSize: 12, color: "var(--text-3)" }}>
+                <div style={{ fontSize: "var(--fs-body)", color: "var(--text-3)" }}>
                   r{revision.revision} · {formatTime(revision.createdAt)} · {revision.changedByType} · {revision.reason}
                 </div>
                 <div style={{ whiteSpace: "pre-wrap" }}>{revision.content}</div>

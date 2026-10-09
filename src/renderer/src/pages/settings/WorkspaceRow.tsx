@@ -33,8 +33,8 @@ export function WorkspaceRow({ workspace, projects, focused, actions }: { worksp
     <div role="group" aria-label={workspace.name} aria-current={focused ? "true" : undefined} style={{ padding: "8px 0", borderBottom: "1px solid var(--border-soft)", background: focused ? "var(--accent-soft)" : undefined }}>
       <div className="row" style={{ gap: 8 }}>
         <div style={{ minWidth: 0, flex: 1 }}>
-          <div style={{ fontWeight: 540 }}>{workspace.name}</div>
-          <div style={{ fontSize: 12, color: "var(--text-3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{workspace.localPath}</div>
+          <div>{workspace.name}</div>
+          <div style={{ fontSize: "var(--fs-body)", color: "var(--text-3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{workspace.localPath}</div>
         </div>
         {workspace.isPrimary
           ? <Pill tone="violet">{t("Primary")}</Pill>
@@ -44,7 +44,7 @@ export function WorkspaceRow({ workspace, projects, focused, actions }: { worksp
       </div>
       {confirmRemove && (
         <div className="row" role="alertdialog" aria-label={t("Remove this workspace?")} style={{ gap: 8, marginTop: 6 }}>
-          <span style={{ fontSize: 13 }}>{t("Remove this workspace? Its folder stays on disk.")}</span>
+          <span style={{ fontSize: "var(--fs-body)" }}>{t("Remove this workspace? Its folder stays on disk.")}</span>
           <Button size="small" tone="primary" onClick={() => act(() => actions.run(() => window.agentCompany.deleteWorkspace({ orgId, workspaceId: workspace.id })))}>{t("Remove")}</Button>
           <Button size="small" tone="ghost" onClick={() => { setConfirmRemove(false); setError(null); }}>{t("Cancel")}</Button>
         </div>

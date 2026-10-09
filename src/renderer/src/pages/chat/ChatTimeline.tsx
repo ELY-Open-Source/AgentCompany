@@ -97,7 +97,7 @@ export function ChatTimeline({
       </div>,
     );
   } else {
-    elements.push(<div key="history-start" style={{ textAlign: "center", fontSize: 12, color: "var(--text-3)", marginBottom: 16 }}>{t("This is the start of the conversation.")}</div>);
+    elements.push(<div key="history-start" style={{ textAlign: "center", fontSize: "var(--fs-body)", color: "var(--text-3)", marginBottom: 16 }}>{t("This is the start of the conversation.")}</div>);
   }
   let lastDay = "";
   for (const message of visible) {
@@ -138,7 +138,7 @@ function DayDivider({ label }: { label: string }) {
   return (
     <div className="row" style={{ gap: 12, margin: "8px 0 16px" }}>
       <div style={{ flex: 1, height: 1, background: "var(--border-soft)" }} />
-      <div style={{ fontSize: 12, color: "var(--text-3)", fontWeight: 540 }}>{label}</div>
+      <div style={{ fontSize: "var(--fs-body)", color: "var(--text-3)" }}>{label}</div>
       <div style={{ flex: 1, height: 1, background: "var(--border-soft)" }} />
     </div>
   );
@@ -146,14 +146,14 @@ function DayDivider({ label }: { label: string }) {
 
 function ApprovalInline({ approval, onApprove, onDecline }: { approval: ApprovalRecord; onApprove: () => void; onDecline: () => void }) {
   return (
-    <div style={{ margin: "14px 0 18px 44px", maxWidth: 480, border: "1px solid var(--border-strong)", borderRadius: 12, background: "var(--panel)", padding: 14 }}>
+    <div style={{ margin: "14px 0 18px 44px", maxWidth: 480, border: "1px solid var(--border-strong)", background: "var(--panel)", padding: 14 }}>
       <div className="row" style={{ marginBottom: 8 }}>
         <Icon name="approve" color="var(--amber)" />
-        <span style={{ fontSize: 12, color: "var(--amber)", fontWeight: 540 }}>{t("Approval needed")}</span>
+        <span style={{ fontSize: "var(--fs-body)", color: "var(--amber)" }}>{t("Approval needed")}</span>
         <Pill tone={approval.risk === "high" ? "red" : approval.risk === "medium" ? "amber" : undefined}>{riskLabel(approval.risk)}</Pill>
       </div>
-      <div style={{ fontSize: 14, fontWeight: 540, marginBottom: 4 }}>{approval.title}</div>
-      <div style={{ fontSize: 12, color: "var(--text-3)", marginBottom: 12, lineHeight: 1.5 }}>{approval.details}</div>
+      <div style={{ fontSize: "var(--fs-body)", marginBottom: 4 }}>{approval.title}</div>
+      <div style={{ fontSize: "var(--fs-body)", color: "var(--text-3)", marginBottom: 12, lineHeight: 1.5 }}>{approval.details}</div>
       <div className="row" style={{ gap: 6 }}>
         <Button tone="primary" size="small" onClick={onApprove}>{t("Approve")}</Button>
         <Button size="small" onClick={onDecline}>{t("Decline")}</Button>

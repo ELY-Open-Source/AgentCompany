@@ -168,15 +168,15 @@ export function Onboarding({
         <div>
           <div className="row" style={{ gap: 8 }}>
             <div className="brand-mark">A</div>
-            <div style={{ fontWeight: 540 }}>AgentCompany</div>
+            <div>AgentCompany</div>
             {cancel && step !== "connectors" && (
               <button type="button" className="button ghost" style={{ marginLeft: "auto" }} onClick={cancel}>
                 {t("Cancel")}
               </button>
             )}
           </div>
-          <h1 className="page-h1" style={{ fontSize: 24, marginTop: 32, letterSpacing: "-0.02em" }}>{t("Start your AI company.")}</h1>
-          <p className="page-sub" style={{ maxWidth: 460, fontSize: 14, lineHeight: 1.55 }}>
+          <h1 className="page-h1" style={{ fontSize: "var(--fs-display)", marginTop: 32 }}>{t("Start your AI company.")}</h1>
+          <p className="page-sub" style={{ maxWidth: 460, fontSize: "var(--fs-body)", lineHeight: 1.55 }}>
             {t("Stand up the workspace, bind the provider, and queue the first operating loop.")}
           </p>
           <div className="onboarding-steps">
@@ -189,10 +189,10 @@ export function Onboarding({
           <div className="card-label" style={{ marginBottom: 10 }}>{t("Runtime selected")}</div>
           <div className="row" style={{ gap: 10 }}>
             <Icon name="bot" />
-            <strong style={{ fontSize: 14 }}>{selectedProvider.label}</strong>
+            <strong style={{ fontSize: "var(--fs-body)" }}>{selectedProvider.label}</strong>
             {draft.providerModel && <Pill tone="violet">{draft.providerModel}</Pill>}
           </div>
-          <div style={{ marginTop: 10, fontSize: 12, color: "var(--text-3)" }}>
+          <div style={{ marginTop: 10, fontSize: "var(--fs-body)", color: "var(--text-3)" }}>
             {t("We never embed the key in the build. Credentials encrypt locally via OS-protected storage.")}
           </div>
         </div>
@@ -201,7 +201,7 @@ export function Onboarding({
       <form className="onboarding-panel" onSubmit={submit} noValidate>
         <div key={step} className="step-view">
           {restored && step !== "connectors" && (
-            <p role="status" style={{ fontSize: 13, color: "var(--text-2)", margin: "0 0 12px" }}>
+            <p role="status" style={{ fontSize: "var(--fs-body)", color: "var(--text-2)", margin: "0 0 12px" }}>
               {t("Your progress was restored. Keys are never saved before launch, so enter yours again.")}
             </p>
           )}
@@ -249,7 +249,7 @@ export function Onboarding({
             />
           )}
         </div>
-        {error && <div style={{ color: "var(--red)", marginTop: 16, fontSize: 14 }}>{error}</div>}
+        {error && <div style={{ color: "var(--red)", marginTop: 16, fontSize: "var(--fs-body)" }}>{error}</div>}
       </form>
       </main>
     </div>
@@ -284,10 +284,10 @@ function WelcomeStep({
         />
       </div>
       <RestartForLanguage language={language} />
-      <p style={{ color: "var(--text-2)", fontSize: 14, lineHeight: 1.55 }}>
+      <p style={{ color: "var(--text-2)", fontSize: "var(--fs-body)", lineHeight: 1.55 }}>
         {t("AgentCompany sets up your operating loop in six steps. Bring an API key, pick a runtime for the founding CEO, and we'll wire up the first goal, project, and task.")}
       </p>
-      <ul style={{ paddingLeft: 20, color: "var(--text-2)", lineHeight: 1.8, margin: 0, fontSize: 14 }}>
+      <ul style={{ paddingLeft: 20, color: "var(--text-2)", lineHeight: 1.8, margin: 0, fontSize: "var(--fs-body)" }}>
         <li>{t("Connect one model provider (OpenAI, Anthropic, xAI, or Groq).")}</li>
         <li>{t("Name the company and the human board chair.")}</li>
         <li>{t("Pick execution mode and bind the workspace path.")}</li>
@@ -333,7 +333,7 @@ function ModeStep({ draft, onChange, onBack, onNext }: StepProps) {
   return (
     <div className="form-grid">
       <h2 className="page-h1">{t("Mode")}</h2>
-      <p style={{ color: "var(--text-3)", fontSize: 14 }}>{t("How autonomous should the CEO be?")}</p>
+      <p style={{ color: "var(--text-3)", fontSize: "var(--fs-body)" }}>{t("How autonomous should the CEO be?")}</p>
       <ModeCard
         title={t("AI CEO")}
         description={t("Runs on its own: approves its risky work and large hires, and writes deliverables without review.")}

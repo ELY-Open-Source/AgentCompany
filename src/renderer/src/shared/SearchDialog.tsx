@@ -133,7 +133,7 @@ export function SearchDialog({
             className="input"
             value={filter}
             onChange={(event) => setFilter(event.target.value as SearchFilter)}
-            style={{ width: 150, height: 28, padding: "2px 8px", fontSize: 12 }}
+            style={{ width: 150, height: 28, padding: "2px 8px", fontSize: "var(--fs-body)" }}
           >
             <option value="all">{t("All")}</option>
             {SEARCH_ENTITY_TYPES.map((type) => <option key={type} value={type}>{LABELS[type]}</option>)}
@@ -141,7 +141,7 @@ export function SearchDialog({
           <Button size="small" onClick={onClose}>{t("Close")}</Button>
         </div>
         <div className="search-results" aria-busy={searching}>
-          {searching && <div role="status" style={{ padding: 8, fontSize: 13, color: "var(--text-3)" }}>{t("Searching…")}</div>}
+          {searching && <div role="status" style={{ padding: 8, fontSize: "var(--fs-body)", color: "var(--text-3)" }}>{t("Searching…")}</div>}
           {current?.error && <div className="form-error" role="alert">{t("Search failed: {reason}", { reason: current.error })}</div>}
           {visibleResults.map((result) => (
             <button
@@ -152,17 +152,17 @@ export function SearchDialog({
             >
               <Pill>{LABELS[result.entityType]}</Pill>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 14, fontWeight: 540, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{result.title}</div>
-                <div style={{ fontSize: 12, color: "var(--text-3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{result.preview}</div>
+                <div style={{ fontSize: "var(--fs-body)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{result.title}</div>
+                <div style={{ fontSize: "var(--fs-body)", color: "var(--text-3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{result.preview}</div>
               </div>
-              <span style={{ fontSize: 12, color: "var(--text-3)" }}>{result.facets.type}</span>
+              <span style={{ fontSize: "var(--fs-body)", color: "var(--text-3)" }}>{result.facets.type}</span>
             </button>
           ))}
           {current && !current.error && current.total === 0 && (
-            <div role="status" style={{ padding: 8, fontSize: 13, color: "var(--text-3)" }}>{t("Nothing matches “{words}”.", { words: trimmed })}</div>
+            <div role="status" style={{ padding: 8, fontSize: "var(--fs-body)", color: "var(--text-3)" }}>{t("Nothing matches “{words}”.", { words: trimmed })}</div>
           )}
           {current && current.total > 0 && (
-            <div className="row" style={{ padding: "6px 8px", fontSize: 12, color: "var(--text-3)" }}>
+            <div className="row" style={{ padding: "6px 8px", fontSize: "var(--fs-body)", color: "var(--text-3)" }}>
               <span role="status">{t("Showing {shown} of {total}", { shown: current.results.length, total: current.total })}</span>
               {current.results.length < current.total && (
                 <span style={{ marginLeft: "auto" }}><Button size="small" onClick={showMore} disabled={loadingMore}>{loadingMore ? t("Loading…") : t("Show more")}</Button></span>

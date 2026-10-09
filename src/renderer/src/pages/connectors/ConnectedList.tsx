@@ -68,7 +68,7 @@ export function ConnectedList({
           const grantable = agents.filter((agent) => agent.roleLevel !== "c_suite" && !grants.some((grant) => grant.agentId === agent.id && grant.toolkitSlug === account.toolkitSlug));
           const busy = busySlug !== null;
           return (
-            <div key={account.id} style={{ border: "1px solid var(--border)", borderRadius: 12, padding: 14, background: "var(--panel)" }}>
+            <div key={account.id} style={{ border: "1px solid var(--border)", padding: 14, background: "var(--panel)" }}>
               <div className="row" style={{ gap: 10 }}>
                 <ToolkitTile
                   name={account.toolkitName}
@@ -76,8 +76,8 @@ export function ConnectedList({
                   logoUrl={logoBySlug.get(account.toolkitSlug) ?? null}
                   size={30}
                 />
-                <span style={{ fontWeight: 600, fontSize: 13.5 }}>{account.toolkitName}</span>
-                <span style={{ color: "var(--text-2)", fontSize: 12.5 }}>{account.label}</span>
+                <span style={{ fontSize: "var(--fs-body)" }}>{account.toolkitName}</span>
+                <span style={{ color: "var(--text-2)", fontSize: "var(--fs-body)" }}>{account.label}</span>
                 <Pill tone={STATUS_TONE[account.status]} dot>{account.status.charAt(0) + account.status.slice(1).toLowerCase()}</Pill>
                 {account.pendingAccountId && <Pill tone="amber" dot>{t("Reconnect waiting for authorization")}</Pill>}
                 <span className="row" style={{ gap: 6, marginLeft: "auto" }}>

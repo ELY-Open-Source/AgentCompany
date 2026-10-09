@@ -727,7 +727,7 @@ export const zh: Record<string, string> = {
   "Copy failed": "复制失败",
   "Checking account status with Composio…": "正在向 Composio 核对账号状态…",
   "Account status checked with Composio at {time}.": "已于 {time} 向 Composio 核对账号状态。",
-  "Account status could not be checked with Composio: {reason}. The statuses below may be out of date.": "无法向 Composio 核对账号状态：{reason}。下方状态可能已过时。",
+  "Account status could not be checked with Composio, so the statuses below may be out of date. Reason: {reason}": "无法向 Composio 核对账号状态，下方状态可能已过时。原因：{reason}",
   "{name} ({label}) is connected.": "{name}（{label}）已连接。",
   "{name} ({label}) is still not connected. If you finished signing in, check again; otherwise connect again.": "{name}（{label}）仍未连接。如果已经完成登录，请再次检查；否则请重新连接。",
   "Check again": "再次检查",

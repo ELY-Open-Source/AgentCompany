@@ -140,7 +140,7 @@ export function ProvidersPanel({ orgId, companyName, employeeId, providers, auth
           )
         )}
         {active && (
-          <p style={{ fontSize: 12, color: "var(--text-3)", margin: 0 }}>
+          <p style={{ fontSize: "var(--fs-body)", color: "var(--text-3)", margin: 0 }}>
             {t("The default model reaches {following} agents without their own model; {own} keep their own. Sessions already started keep the model they began with.", { following: defaultModelReach(agents, active.id).following, own: defaultModelReach(agents, active.id).ownModel })}
           </p>
         )}
@@ -170,7 +170,7 @@ export function ProvidersPanel({ orgId, companyName, employeeId, providers, auth
           <>
             <ModelPicker entry={modelForEntry} provider={modelFor} />
             {modelError && <div className="form-error" role="alert">{modelError}</div>}
-            <p style={{ fontSize: 12, color: "var(--text-3)", margin: 0 }}>
+            <p style={{ fontSize: "var(--fs-body)", color: "var(--text-3)", margin: 0 }}>
             {t("The default model reaches {following} agents without their own model; {own} keep their own. Sessions already started keep the model they began with.", { following: defaultModelReach(agents, modelFor.id).following, own: defaultModelReach(agents, modelFor.id).ownModel })}
           </p>
           </>
@@ -215,7 +215,7 @@ function ProviderPricesRow({ orgId, provider, actions }: { orgId: string; provid
   );
   return (
     <div className="table-row" style={{ gridTemplateColumns: PRICE_GRID, minWidth: 640 }}>
-      <div style={{ fontWeight: 540 }}>{provider.label}{provider.inputCentsPerMtok === null && <div style={{ fontSize: 12, color: "var(--text-3)" }}>{t("Unpriced: spend is not counted")}</div>}</div>
+      <div>{provider.label}{provider.inputCentsPerMtok === null && <div style={{ fontSize: "var(--fs-body)", color: "var(--text-3)" }}>{t("Unpriced: spend is not counted")}</div>}</div>
       {field(t("input"), input, setInput)}
       {field(t("cached input"), cached, setCached)}
       {field(t("output"), output, setOutput)}
@@ -259,18 +259,17 @@ function ProviderRow({
         padding: 14,
         background: "var(--panel)",
         border: "1px solid var(--border)",
-        borderRadius: 10,
       }}
     >
       <ProviderLogo providerKey={provider.providerKey} label={provider.label} />
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 13.5, fontWeight: 540, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{provider.label}</div>
-        <div style={{ fontSize: 12, color: "var(--text-3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        <div style={{ fontSize: "var(--fs-body)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{provider.label}</div>
+        <div style={{ fontSize: "var(--fs-body)", color: "var(--text-3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
           {provider.model ? `${provider.model} · ` : ""}{readableAuth(provider.authType)}{authProfile ? ` · ${credentialSourceLabel(authProfile.sourceType)}` : ""}
         </div>
       </div>
       <ProviderHealth provider={provider} />
-      <div className="num mono" style={{ fontSize: 13, minWidth: 72, textAlign: "right" }}>
+      <div className="num mono" style={{ fontSize: "var(--fs-body)", minWidth: 72, textAlign: "right" }}>
         {boundCount === 1 ? t("{count} agent", { count: boundCount }) : t("{count} agents", { count: boundCount })}
       </div>
       <span className="reveal row" style={{ gap: 6 }}>
@@ -308,14 +307,13 @@ function ProviderCard({ provider, onConnect }: { provider: ProviderRecord; onCon
         padding: 14,
         background: "var(--panel)",
         border: "1px solid var(--border)",
-        borderRadius: 10,
         minWidth: 0,
       }}
     >
       <ProviderLogo providerKey={provider.providerKey} label={provider.label} />
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 13.5, fontWeight: 540, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{provider.label}</div>
-        <div style={{ fontSize: 12, color: "var(--text-3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        <div style={{ fontSize: "var(--fs-body)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{provider.label}</div>
+        <div style={{ fontSize: "var(--fs-body)", color: "var(--text-3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
           {readableAuth(provider.authType)}
         </div>
       </div>

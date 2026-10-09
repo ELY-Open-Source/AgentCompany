@@ -144,7 +144,7 @@ export function WorkspacePanel({
 function KeyValue({ label, value }: { label: string; value: string }) {
   return (
     <div className="row" style={{ padding: "6px 0", borderBottom: "1px solid var(--border-soft)" }}>
-      <span style={{ color: "var(--text-3)", width: 120, flexShrink: 0, fontSize: 12 }}>{label}</span>
+      <span style={{ color: "var(--text-3)", width: 120, flexShrink: 0, fontSize: "var(--fs-body)" }}>{label}</span>
       <span style={{ flex: 1, color: "var(--text-1)", overflow: "hidden", textOverflow: "ellipsis" }}>{value}</span>
     </div>
   );

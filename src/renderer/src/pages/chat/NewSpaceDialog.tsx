@@ -7,7 +7,7 @@ import { t } from "../../i18n/i18n";
 export type SpaceType = "company" | "division" | "department" | "project" | "pod" | "ad_hoc" | "direct";
 export type Visibility = "workspace" | "restricted";
 
-const hint = { fontSize: 12, color: "var(--text-3)", margin: 0, lineHeight: 1.5 } as const;
+const hint = { fontSize: "var(--fs-body)", color: "var(--text-3)", margin: 0, lineHeight: 1.5 } as const;
 
 /** Each choice says what it changes: who is a member, who can read it, and which agents a message wakes. */
 export function NewSpaceDialog({ open, employee, employees, agents, onClose, onSubmit }: {

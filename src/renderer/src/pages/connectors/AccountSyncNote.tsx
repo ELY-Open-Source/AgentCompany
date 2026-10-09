@@ -7,14 +7,14 @@ import type { AccountSync } from "./useConnectorCatalog";
 export function AccountSyncNote({ sync, onRetry }: { sync: AccountSync; onRetry: () => void }) {
   if (sync.phase === "failed") {
     return (
-      <div role="alert" className="row" style={{ gap: 10, fontSize: 13, marginBottom: 14, color: "var(--red)" }}>
-        <span style={{ flex: 1, minWidth: 0, wordBreak: "break-word" }}>{t("Account status could not be checked with Composio: {reason}. The statuses below may be out of date.", { reason: sync.message })}</span>
+      <div role="alert" className="row" style={{ gap: 10, fontSize: "var(--fs-body)", marginBottom: 14, color: "var(--red)" }}>
+        <span style={{ flex: 1, minWidth: 0, wordBreak: "break-word" }}>{t("Account status could not be checked with Composio, so the statuses below may be out of date. Reason: {reason}", { reason: sync.message })}</span>
         <Button size="small" onClick={onRetry}>{t("Retry")}</Button>
       </div>
     );
   }
   return (
-    <div role="status" style={{ fontSize: 12, marginBottom: 14, color: "var(--text-3)" }}>
+    <div role="status" style={{ fontSize: "var(--fs-body)", marginBottom: 14, color: "var(--text-3)" }}>
       {sync.phase === "syncing" ? t("Checking account status with Composio…") : t("Account status checked with Composio at {time}.", { time: formatTime(sync.at) })}
     </div>
   );

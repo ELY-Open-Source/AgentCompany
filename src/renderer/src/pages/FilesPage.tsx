@@ -119,7 +119,7 @@ export function FilesPage({ snapshot, actions, focus }: PageProps) {
 
           <div className="row" style={{ marginBottom: 10 }}>
             <div className="section-label">{labelFor(section)}</div>
-            <div style={{ marginLeft: "auto", fontSize: 12, color: "var(--text-3)" }}>{t("Modified")} ↓</div>
+            <div style={{ marginLeft: "auto", fontSize: "var(--fs-body)", color: "var(--text-3)" }}>{t("Modified")} ↓</div>
           </div>
 
           {view === "list" ? (

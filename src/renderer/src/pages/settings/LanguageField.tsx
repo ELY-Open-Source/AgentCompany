@@ -20,7 +20,7 @@ export function LanguageField({ uiPreferences, actions }: { uiPreferences: UiPre
         <option value="en">{NAMES.en}</option>
         <option value="zh">{NAMES.zh}</option>
       </select>
-      <span style={{ fontSize: 12, color: "var(--text-3)" }}>{t("Changes only what you see; agents keep the company's working language.")}</span>
+      <span style={{ fontSize: "var(--fs-body)", color: "var(--text-3)" }}>{t("Changes only what you see; agents keep the company's working language.")}</span>
       <RestartForLanguage language={uiPreferences.language} />
     </Field>
   );
@@ -47,12 +47,12 @@ export function RestartForLanguage({ language }: { language: UiLanguage }) {
   };
   return (
     <>
-      <span className="row" style={{ gap: 8, fontSize: 12 }} role="status">
+      <span className="row" style={{ gap: 8, fontSize: "var(--fs-body)" }} role="status">
         {t("{language} applies after a restart.", { language: NAMES[language] })}
         <Button size="small" onClick={confirm}>{t("Restart now")}</Button>
       </span>
       <Dialog title={t("Restart to switch language?")} open={confirming} submitLabel={t("Restart now")} onClose={() => setConfirming(false)} onSubmit={(event) => { event.preventDefault(); restart(); }}>
-        <ul style={{ margin: 0, paddingLeft: 18, lineHeight: 1.6, fontSize: 13 }}>
+        <ul style={{ margin: 0, paddingLeft: 18, lineHeight: 1.6, fontSize: "var(--fs-body)" }}>
           <li>{t("Text you typed but have not sent or saved is lost.")}</li>
           <li>{running === null
             ? t("Counting running agent sessions…")

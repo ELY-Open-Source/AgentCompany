@@ -25,7 +25,7 @@ export function ProviderStep({
   return (
     <div className="form-grid">
       <h2 className="page-h1">{t("Provider")}</h2>
-      <p style={{ color: "var(--text-3)", fontSize: 14 }}>
+      <p style={{ color: "var(--text-3)", fontSize: "var(--fs-body)" }}>
         {t("Pick the runtime for the founding CEO. You can attach more providers in Settings later.")}
       </p>
       <div className="option-grid">
@@ -112,7 +112,7 @@ function ProviderCredentialFields({
   return (
     <div className="provider-inline-form">
       {selected.credentialHelp && (
-        <div style={{ fontSize: 13, color: "var(--text-3)", lineHeight: 1.5 }}>{selected.credentialHelp}</div>
+        <div style={{ fontSize: "var(--fs-body)", color: "var(--text-3)", lineHeight: 1.5 }}>{selected.credentialHelp}</div>
       )}
       {isOAuthLike ? (
         <ProviderOAuthConnect
@@ -160,7 +160,7 @@ function ProviderCredentialFields({
           {loading ? t("Getting models...") : fetched ? t("Reload models") : t("Get models")}
         </Button>
       )}
-      {loadError && <div style={{ color: "var(--red)", fontSize: 12 }}>{loadError}</div>}
+      {loadError && <div style={{ color: "var(--red)", fontSize: "var(--fs-body)" }}>{loadError}</div>}
       {(hasCredential || isCustom) && (
         <Field label={t("Model")}>
           {fetched || showCuratedList ? (

@@ -4,7 +4,8 @@ import { useState, type ReactNode, type KeyboardEvent } from "react";
 import type { AgentRecord, TaskRecord } from "../../../../shared/domain";
 import { t } from "../../i18n/i18n";
 
-const CHART_H = 116;
+/** Plot height; axis labels sit below it as HTML text. */
+const PLOT_H = 100;
 const CHART_W = 260;
 const BAR_GAP = 4;
 
@@ -30,7 +31,7 @@ function ChartCard({ title, readout, values, point, onPoint, children }: {
   };
   return (
     <section className="card metric-card" aria-label={title}>
-      <div className="row" style={{ marginBottom: 12, gap: 8 }}>
+      <div style={{ display: "grid", gap: 4, marginBottom: 12 }}>
         <span className="card-label">{title}</span>
         <span className="metric-readout num" aria-live="polite">{readout}</span>
       </div>
@@ -60,28 +61,27 @@ export function AgentWorkloadChart({ agents, tasks }: { agents: AgentRecord[]; t
 
   return (
     <ChartCard title={t("Agent workload")} readout={readout} values={data.map((d) => `${d.label}: ${d.count}`)} point={hover} onPoint={setHover}>
-      <svg viewBox={`0 0 ${CHART_W} ${CHART_H}`} style={{ width: "100%", height: CHART_H }}>
+      <svg viewBox={`0 0 ${CHART_W} ${PLOT_H}`} preserveAspectRatio="none" shapeRendering="crispEdges" style={{ width: "100%", height: PLOT_H }}>
         {data.map((d, i) => {
-          const h = (d.count / max) * (CHART_H - 22);
+          const h = (d.count / max) * (PLOT_H - 6);
           const x = i * (barW + BAR_GAP);
           return (
             <g key={d.key} onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)}>
-              <rect x={x} y={0} width={barW} height={CHART_H - 16} fill="transparent" />
+              <rect x={x} y={0} width={barW} height={PLOT_H} fill="transparent" />
               <rect
                 x={x}
-                y={CHART_H - h - 16}
+                y={PLOT_H - h}
                 width={barW}
                 height={Math.max(2, h)}
-                rx={4}
                 fill="var(--accent)"
                 opacity={hover === null || hover === i ? 0.85 : 0.32}
                 style={{ transition: "opacity var(--motion-fast) var(--ease-out)" }}
               />
-              <text x={x + barW / 2} y={CHART_H - 2} textAnchor="middle" fontSize="9" fill="var(--text-3)">{d.label}</text>
             </g>
           );
         })}
       </svg>
+      <ChartAxis labels={data.map((d) => d.label)} />
     </ChartCard>
   );
 }
@@ -96,28 +96,27 @@ export function RunActivityChart({ days }: { days: UsageDays }) {
 
   return (
     <ChartCard title={t("Run activity")} readout={readout} values={buckets.map((b) => `${b.label}: ${b.count}`)} point={hover} onPoint={setHover}>
-      <svg viewBox={`0 0 ${CHART_W} ${CHART_H}`} style={{ width: "100%", height: CHART_H }}>
+      <svg viewBox={`0 0 ${CHART_W} ${PLOT_H}`} preserveAspectRatio="none" shapeRendering="crispEdges" style={{ width: "100%", height: PLOT_H }}>
         {buckets.map((b, i) => {
-          const h = (b.count / max) * (CHART_H - 24);
+          const h = (b.count / max) * (PLOT_H - 6);
           const x = i * (barW + BAR_GAP);
           return (
             <g key={`${b.label}-${i}`} onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)}>
-              <rect x={x} y={0} width={barW} height={CHART_H - 16} fill="transparent" />
+              <rect x={x} y={0} width={barW} height={PLOT_H} fill="transparent" />
               <rect
                 x={x}
-                y={CHART_H - h - 16}
+                y={PLOT_H - h}
                 width={barW}
                 height={Math.max(2, h)}
-                rx={4}
                 fill="var(--text-1)"
                 opacity={hover === null || hover === i ? 0.82 : 0.28}
                 style={{ transition: "opacity var(--motion-fast) var(--ease-out)" }}
               />
-              <text x={x + barW / 2} y={CHART_H - 2} textAnchor="middle" fontSize="9" fill="var(--text-3)">{b.label}</text>
             </g>
           );
         })}
       </svg>
+      <ChartAxis labels={buckets.map((b) => b.label)} />
     </ChartCard>
   );
 }
@@ -139,16 +138,18 @@ export function AcceptanceChart({ days }: { days: UsageDays }) {
       readout={t("{accepted} done · {returned} sent back · sessions: {ok} ended, {failed} failed", { accepted, returned, ok: completed, failed })}
       values={[judged > 0 ? t("{rate}% of judged work accepted", { rate }) : t("No work judged yet")]}
     >
-      <svg viewBox="0 0 100 100" style={{ width: 96, height: 96, margin: "4px auto", display: "block" }}>
-        <circle cx="50" cy="50" r="42" fill="none" stroke="var(--panel-3)" strokeWidth="8" />
-        <circle
-          cx="50" cy="50" r="42" fill="none" stroke="var(--green)" strokeWidth="8"
-          strokeDasharray={circumference} strokeDashoffset={offset}
-          strokeLinecap="round" transform="rotate(-90 50 50)"
-          style={{ transition: "stroke-dashoffset var(--motion-slow) var(--ease-out)" }}
-        />
-        <text x="50" y="50" textAnchor="middle" dominantBaseline="central" fontSize="20" fontWeight="600" fill="var(--text-1)">{judged > 0 ? `${rate}%` : "—"}</text>
-      </svg>
+      <div style={{ position: "relative", width: 96, height: 96, margin: "4px auto" }}>
+        <svg viewBox="0 0 100 100" shapeRendering="crispEdges" style={{ width: 96, height: 96, display: "block" }}>
+          <circle cx="50" cy="50" r="42" fill="none" stroke="var(--panel-3)" strokeWidth="8" />
+          <circle
+            cx="50" cy="50" r="42" fill="none" stroke="var(--green)" strokeWidth="8"
+            strokeDasharray={circumference} strokeDashoffset={offset}
+            transform="rotate(-90 50 50)"
+            style={{ transition: "stroke-dashoffset var(--motion-slow) var(--ease-out)" }}
+          />
+        </svg>
+        <span className="num" style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", fontSize: "var(--fs-display)" }}>{judged > 0 ? `${rate}%` : "—"}</span>
+      </div>
     </ChartCard>
   );
 }
@@ -161,7 +162,7 @@ export function CostTrendChart({ days }: { days: UsageDays }) {
   const max = Math.max(1, ...tokenBuckets.map((b) => b.tokens));
   const coords = tokenBuckets.map((b, i) => ({
     x: (i / 6) * (CHART_W - 10) + 5,
-    y: CHART_H - 20 - (b.tokens / max) * (CHART_H - 30),
+    y: PLOT_H - 4 - (b.tokens / max) * (PLOT_H - 8),
     b,
   }));
   const points = coords.map((c) => `${c.x},${c.y}`).join(" ");
@@ -175,17 +176,29 @@ export function CostTrendChart({ days }: { days: UsageDays }) {
 
   return (
     <ChartCard title={t("Token usage")} readout={readout} values={tokenBuckets.map((b) => `${b.label}: ${compact(b.tokens)}`)} point={hover} onPoint={setHover}>
-      <svg viewBox={`0 0 ${CHART_W} ${CHART_H}`} style={{ width: "100%", height: CHART_H }}>
-        <polyline points={points} fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
-        {coords.map((c, i) => (
-          <g key={`${c.b.label}-${i}`} onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)}>
-            <circle cx={c.x} cy={c.y} r="9" fill="transparent" />
-            <circle cx={c.x} cy={c.y} r={hover === i ? 4 : 3} fill="var(--accent)" style={{ transition: "r var(--motion-fast) var(--ease-out)" }} />
-            <text x={c.x} y={CHART_H - 2} textAnchor="middle" fontSize="9" fill="var(--text-3)">{c.b.label}</text>
-          </g>
-        ))}
+      <svg viewBox={`0 0 ${CHART_W} ${PLOT_H}`} shapeRendering="crispEdges" style={{ width: "100%", height: PLOT_H }}>
+        <polyline points={points} fill="none" stroke="var(--accent)" strokeWidth="2" />
+        {coords.map((c, i) => {
+          const side = hover === i ? 8 : 6;
+          return (
+            <g key={`${c.b.label}-${i}`} onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)}>
+              <rect x={c.x - 9} y={c.y - 9} width={18} height={18} fill="transparent" />
+              <rect x={c.x - side / 2} y={c.y - side / 2} width={side} height={side} fill="var(--accent)" />
+            </g>
+          );
+        })}
       </svg>
+      <ChartAxis labels={tokenBuckets.map((b) => b.label)} />
     </ChartCard>
+  );
+}
+
+/** Axis labels as pixel text, one evenly spaced cell per datum under the plot. */
+function ChartAxis({ labels }: { labels: string[] }) {
+  return (
+    <div aria-hidden="true" style={{ display: "flex", marginTop: 2, fontSize: "var(--fs-caption)", color: "var(--text-3)" }}>
+      {labels.map((label, index) => <span key={index} style={{ flex: 1, textAlign: "center", overflow: "hidden", whiteSpace: "nowrap" }}>{label}</span>)}
+    </div>
   );
 }
 

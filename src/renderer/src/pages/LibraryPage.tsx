@@ -31,7 +31,7 @@ export function LibraryPage({ snapshot, actions, focus }: PageProps) {
   return (
     <div className="split-main">
       <aside className="secondary-pane">
-        <div style={{ fontSize: 14, fontWeight: 600, padding: "4px 8px 14px" }}>{t("Library")}</div>
+        <div style={{ fontSize: "var(--fs-body)", padding: "4px 8px 14px" }}>{t("Library")}</div>
         <div className="nav" style={{ gap: 1 }}>
           {TABS.map((item) => (
             <button

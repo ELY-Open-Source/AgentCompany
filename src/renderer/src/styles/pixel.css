@@ -77,7 +77,7 @@
 
 /* Game over: a framed panel with a blinking banner and Continue. */
 .game-over { display: grid; gap: 12px; max-width: 520px; text-align: center; justify-items: center; }
-.game-over-banner { font-size: var(--fs-display); color: var(--red); letter-spacing: 0.1em; animation: px-blink 1.2s steps(1, end) infinite; }
+.game-over-banner { font-size: var(--fs-display); color: var(--red); animation: px-blink 1.2s steps(1, end) infinite; }
 .game-over-error { font-size: var(--fs-caption); color: var(--text-2); word-break: break-word; }
 .game-over-note { color: var(--text-3); }
 

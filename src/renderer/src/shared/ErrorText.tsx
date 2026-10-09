@@ -17,7 +17,7 @@ export function ErrorText({ message, action }: { message: string; action?: { lab
     });
   };
   return (
-    <div role="alert" className="row" style={{ gap: 10, alignItems: "flex-start", fontSize: 13, color: "var(--red)", marginBottom: 14 }}>
+    <div role="alert" className="row" style={{ gap: 10, alignItems: "flex-start", fontSize: "var(--fs-body)", color: "var(--red)", marginBottom: 14 }}>
       <span style={{ flex: 1, minWidth: 0, whiteSpace: "pre-wrap", wordBreak: "break-word", userSelect: "text" }}>{message}</span>
       <Button size="small" onClick={copyMessage}>{copy === "copied" ? t("Copied") : copy === "failed" ? t("Copy failed") : t("Copy")}</Button>
       {action && <Button size="small" onClick={action.onClick}>{action.label}</Button>}

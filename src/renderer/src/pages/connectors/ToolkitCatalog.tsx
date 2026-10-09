@@ -20,7 +20,7 @@ export function ToolkitTile({ name, slug, logoUrl, size = 34 }: { name: string; 
         alt=""
         width={size}
         height={size}
-        style={{ width: size, height: size, borderRadius: 9, objectFit: "cover", flexShrink: 0 }}
+        style={{ width: size, height: size, objectFit: "cover", flexShrink: 0 }}
       />
     );
   }
@@ -29,14 +29,12 @@ export function ToolkitTile({ name, slug, logoUrl, size = 34 }: { name: string; 
       style={{
         width: size,
         height: size,
-        borderRadius: 9,
         background: tileColor(slug),
         color: "#fff",
         display: "inline-flex",
         alignItems: "center",
         justifyContent: "center",
-        fontSize: size * 0.44,
-        fontWeight: 600,
+        fontSize: "var(--fs-body)",
         flexShrink: 0,
       }}
     >
@@ -67,14 +65,14 @@ export function ToolkitCatalog({
     <section>
       <div className="row" style={{ marginBottom: 12, gap: 10 }}>
         <div className="section-label" style={{ flex: 1 }}>{t("Catalog")}</div>
-        <div className="row" style={{ gap: 6, background: "var(--panel-2)", borderRadius: 8, padding: "5px 10px", width: 240 }}>
+        <div className="row" style={{ gap: 6, background: "var(--panel-2)", padding: "5px 10px", width: 240 }}>
           <Icon name="search" color="var(--text-3)" />
           <input
             aria-label={t("Search connectors")}
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder={t("Search connectors")}
-            style={{ border: 0, outline: 0, background: "transparent", fontSize: 13, flex: 1, minWidth: 0, color: "var(--text-1)" }}
+            style={{ border: 0, outline: 0, background: "transparent", fontSize: "var(--fs-body)", flex: 1, minWidth: 0, color: "var(--text-1)" }}
           />
         </div>
       </div>
@@ -86,7 +84,6 @@ export function ToolkitCatalog({
               key={entry.slug}
               style={{
                 border: "1px solid var(--border)",
-                borderRadius: 12,
                 padding: 12,
                 background: "var(--panel)",
                 display: "flex",
@@ -95,7 +92,7 @@ export function ToolkitCatalog({
               }}
             >
               <ToolkitTile name={entry.name} slug={entry.slug} logoUrl={entry.logoUrl} />
-              <span style={{ fontWeight: 600, fontSize: 13.5, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              <span style={{ fontSize: "var(--fs-body)", flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                 {entry.name}
               </span>
               {connected ? (

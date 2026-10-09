@@ -7,8 +7,6 @@
 .card-label {
   color: var(--text-3);
   font-size: var(--fs-caption);
-  font-weight: 540;
-  letter-spacing: 0;
 }
 
 .button {
@@ -121,8 +119,6 @@
   border-radius: 0;
   color: #fff;
   font-size: var(--fs-caption);
-  font-weight: 600;
-  letter-spacing: 0;
 }
 .avatar.bot { border-radius: var(--r-sm); }
 .avatar.sm { width: 24px; height: 24px; font-size: var(--fs-body); }
@@ -132,7 +128,7 @@
 .avatar-stack > .avatar-ring { margin-left: -6px; border: 2px solid var(--panel); border-radius: 0; }
 .avatar-stack > .avatar-ring:first-child { margin-left: 0; }
 
-.num { font-variant-numeric: tabular-nums; letter-spacing: 0; }
+.num { font-variant-numeric: tabular-nums; }
 .mono { font-family: var(--font-mono); }
 
 .input {
@@ -157,7 +153,7 @@ textarea.input { min-height: 84px; resize: vertical; line-height: 1.5; }
   color: var(--text-2);
   font-size: var(--fs-caption);
 }
-.field > span { color: var(--text-2); font-weight: 500; }
+.field > span { color: var(--text-2); }
 .checkbox-row {
   display: flex;
   align-items: center;
@@ -180,8 +176,6 @@ textarea.input { min-height: 84px; resize: vertical; line-height: 1.5; }
   padding: var(--sp-2) var(--sp-4);
   font-size: var(--fs-caption);
   color: var(--text-3);
-  font-weight: 540;
-  letter-spacing: 0;
   background: var(--panel-2);
   border-bottom: 1px solid var(--border-soft);
 }
@@ -198,7 +192,6 @@ textarea.input { min-height: 84px; resize: vertical; line-height: 1.5; }
 }
 .metric-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); border-color: var(--border-strong); }
 .metric-readout {
-  margin-left: auto;
   font-size: var(--fs-caption);
   color: var(--text-3);
   font-variant-numeric: tabular-nums;
@@ -285,7 +278,6 @@ textarea.input { min-height: 84px; resize: vertical; line-height: 1.5; }
   color: var(--text-1);
   font: inherit;
   font-size: var(--fs-body);
-  font-weight: 540;
   cursor: pointer;
   box-shadow: 0 8px 24px rgba(16, 16, 24, 0.18);
 }
@@ -319,14 +311,14 @@ textarea.input { min-height: 84px; resize: vertical; line-height: 1.5; }
 .md-body p { margin: 0 0 6px; white-space: pre-wrap; }
 .md-body ul, .md-body ol { margin: 0 0 6px; padding-left: 22px; }
 .md-body li > ul, .md-body li > ol { margin: 2px 0; }
-.md-body h1, .md-body h2, .md-body h3 { font-size: var(--fs-body); font-weight: 600; margin: 8px 0 4px; }
+.md-body h1, .md-body h2, .md-body h3 { font-size: var(--fs-body); margin: 8px 0 4px; }
 .md-body blockquote { margin: 0 0 6px; padding-left: 10px; border-left: 3px solid var(--border-strong); color: var(--text-2); }
 .md-body code { font-family: var(--font-mono); background: var(--panel-3); padding: 1px 5px; border-radius: 0; font-size: 0.92em; }
 .md-body pre { margin: 0 0 6px; padding: 10px 12px; background: var(--panel-3); border-radius: 0; overflow-x: auto; }
 .md-body pre code { background: transparent; padding: 0; white-space: pre; }
 .md-body table { border-collapse: collapse; margin: 0 0 6px; display: block; overflow-x: auto; max-width: 100%; }
 .md-body th, .md-body td { border: 1px solid var(--border); padding: 4px 8px; text-align: left; }
-.md-body th { background: var(--panel-2); font-weight: 600; }
+.md-body th { background: var(--panel-2); }
 
 /* A link to another object, styled as text the reader can follow. */
 .link-button { border: 0; background: transparent; padding: 0; color: var(--accent); cursor: pointer; font: inherit; text-align: inherit; }

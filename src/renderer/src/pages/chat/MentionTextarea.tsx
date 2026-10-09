@@ -125,7 +125,6 @@ export function MentionTextarea({
           marginBottom: 4,
           background: "var(--panel)",
           border: "1px solid var(--border)",
-          borderRadius: 10,
           boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
           maxHeight: 200,
           overflow: "auto",
@@ -149,13 +148,13 @@ export function MentionTextarea({
                 border: 0,
                 background: i === index ? "var(--accent-soft)" : "transparent",
                 cursor: "pointer",
-                fontSize: 14,
+                fontSize: "var(--fs-body)",
                 color: "var(--text-1)",
                 textAlign: "left",
               }}
             >
               <Avatar name={c.displayName} size="sm" bot={c.bot} />
-              <span style={{ fontWeight: 500 }}>{c.label}</span>
+              <span>{c.label}</span>
             </button>
           ))}
         </div>
@@ -175,7 +174,7 @@ export function MentionTextarea({
           border: 0,
           resize: "none",
           outline: "none",
-          fontSize: 14,
+          fontSize: "var(--fs-body)",
           color: "var(--text-1)",
           background: "transparent",
           padding: 0,

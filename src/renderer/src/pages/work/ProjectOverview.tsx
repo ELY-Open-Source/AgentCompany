@@ -53,7 +53,7 @@ function ProjectCard({
     <article className="card" style={{ padding: 14, minWidth: 0 }}>
       <div className="row" style={{ alignItems: "flex-start", gap: 10 }}>
         <div style={{ minWidth: 0, flex: 1 }}>
-          <div style={{ fontWeight: 560, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{project.name}</div>
+          <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{project.name}</div>
           <div className="row" style={{ marginTop: 8, gap: 6, flexWrap: "wrap" }}>
             <Pill>{project.status.replace(/_/g, " ")}</Pill>
             <Pill>{t("{done} / {total} tasks", { done, total: tasks.length })}</Pill>
@@ -64,7 +64,7 @@ function ProjectCard({
         {lead && (
           <div className="row" style={{ gap: 6, flexShrink: 0 }}>
             <Avatar name={lead.name} size="sm" bot />
-            <span style={{ fontSize: 12, color: "var(--text-2)" }}>{lead.name}</span>
+            <span style={{ fontSize: "var(--fs-body)", color: "var(--text-2)" }}>{lead.name}</span>
           </div>
         )}
       </div>

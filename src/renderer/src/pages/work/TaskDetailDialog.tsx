@@ -147,7 +147,7 @@ export function TaskDetailDialog({
       <div className="modal" style={{ maxWidth: 560 }}>
         {confirmClose && <DiscardConfirm onKeep={() => setConfirmClose(false)} onDiscard={onClose} />}
         <div className="row" style={{ alignItems: "flex-start", gap: 10, marginBottom: 8 }}>
-          {task.priority === "high" && <span style={{ width: 3, height: 18, background: "var(--red)", borderRadius: 2, marginTop: 2, flexShrink: 0 }} />}
+          {task.priority === "high" && <span style={{ width: 3, height: 18, background: "var(--red)", marginTop: 2, flexShrink: 0 }} />}
           <h2 className="modal-title" style={{ margin: 0, flex: 1 }}>{task.title}</h2>
           <IconButton icon="edit" label={t("Edit")} onClick={() => { setEditError(null); setEditing(true); }} />
           <IconButton icon="x" label={t("Close")} onClick={requestClose} />
@@ -244,9 +244,9 @@ function OverviewTab({ task, assignee, project, goal, workspace, provider, runs,
     <>
       {task.hold && <TaskHoldNotice hold={task.hold} />}
       {task.description && (
-        <p style={{ margin: "0 0 14px", color: "var(--text-2)", fontSize: 14, lineHeight: 1.55, whiteSpace: "pre-wrap" }}>{task.description}</p>
+        <p style={{ margin: "0 0 14px", color: "var(--text-2)", fontSize: "var(--fs-body)", lineHeight: 1.55, whiteSpace: "pre-wrap" }}>{task.description}</p>
       )}
-      <div style={{ display: "grid", gridTemplateColumns: "100px 1fr", gap: "8px 14px", fontSize: 12 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "100px 1fr", gap: "8px 14px", fontSize: "var(--fs-body)" }}>
         <MetaLabel>{t("Assignee")}</MetaLabel>
         <div className="row" style={{ gap: 8 }}>
           {assignee ? (<><Avatar name={assignee.name} size="sm" bot /><span>{assignee.name}</span>{provider && <span style={{ color: "var(--text-3)" }}>({provider.label})</span>}</>) : <span style={{ color: "var(--text-4)" }}>{t("Unassigned")}</span>}
@@ -266,14 +266,14 @@ function OverviewTab({ task, assignee, project, goal, workspace, provider, runs,
                   <button type="button" className="link-button" aria-label={t("Open run {id}", { id: run.id })} onClick={() => navigate("runs", { kind: "run", id: run.id })}>
                     <Pill tone={runTone(run.state)}>{prettyRunState(run.state)}</Pill>
                   </button>
-                  <span style={{ color: "var(--text-3)", fontSize: 12 }}>{runTriggerLabel(run.trigger)}</span>
-                  <span className="num" style={{ marginLeft: "auto", color: "var(--text-3)", fontSize: 12 }}>{formatRelative(run.createdAt)}</span>
+                  <span style={{ color: "var(--text-3)", fontSize: "var(--fs-body)" }}>{runTriggerLabel(run.trigger)}</span>
+                  <span className="num" style={{ marginLeft: "auto", color: "var(--text-3)", fontSize: "var(--fs-body)" }}>{formatRelative(run.createdAt)}</span>
                 </div>
                 {run.state === "failed" && run.errorMessage && (
-                  <span style={{ color: "var(--red)", fontSize: 12, paddingLeft: 4 }}>{run.errorMessage}</span>
+                  <span style={{ color: "var(--red)", fontSize: "var(--fs-body)", paddingLeft: 4 }}>{run.errorMessage}</span>
                 )}
                 {run.capabilityWarnings && (
-                  <span style={{ color: "var(--amber)", fontSize: 12, paddingLeft: 4, whiteSpace: "pre-wrap" }}>{t("Missing this run")}: {run.capabilityWarnings}</span>
+                  <span style={{ color: "var(--amber)", fontSize: "var(--fs-body)", paddingLeft: 4, whiteSpace: "pre-wrap" }}>{t("Missing this run")}: {run.capabilityWarnings}</span>
                 )}
               </div>
             ))}
@@ -287,13 +287,13 @@ function OverviewTab({ task, assignee, project, goal, workspace, provider, runs,
 function SubtasksTab({ subtasks, agents, onOpenTask }: { subtasks: TaskRecord[]; agents: AgentRecord[]; onOpenTask: (taskId: string) => void }) {
   return (
     <div style={{ minHeight: 60 }}>
-      {subtasks.length === 0 && <div style={{ fontSize: 14, color: "var(--text-3)" }}>{t("No subtasks")}</div>}
+      {subtasks.length === 0 && <div style={{ fontSize: "var(--fs-body)", color: "var(--text-3)" }}>{t("No subtasks")}</div>}
       {subtasks.map((st) => {
         const owner = agents.find((a) => a.id === st.assigneeAgentId);
         return (
           <div key={st.id} className="row" style={{ gap: 10, padding: "8px 0", borderBottom: "1px solid var(--border-soft)" }}>
             <Icon name={st.status === TASK_STATUS.DONE ? "check" : "work"} color={st.status === TASK_STATUS.DONE ? "var(--green)" : "var(--text-3)"} />
-            <button type="button" className="link-button" aria-label={t("Open task {title}", { title: st.title })} onClick={() => onOpenTask(st.id)} style={{ flex: 1, fontSize: 14, fontWeight: 480, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textAlign: "left" }}>{st.title}</button>
+            <button type="button" className="link-button" aria-label={t("Open task {title}", { title: st.title })} onClick={() => onOpenTask(st.id)} style={{ flex: 1, fontSize: "var(--fs-body)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textAlign: "left" }}>{st.title}</button>
             <Pill>{prettyStatus(st.status)}</Pill>
             {owner && <Avatar name={owner.name} size="sm" bot />}
           </div>
@@ -312,18 +312,18 @@ function ActivityTab({ audit, approvals, onOpenApproval }: { audit: AuditEventRe
           {approvals.map((a) => (
             <div key={a.id} className="row" style={{ gap: 8, padding: "6px 0" }}>
               <Pill tone={a.state === "approved" ? "green" : a.state === "pending" ? "amber" : "red"}>{approvalStateLabel(a.state)}</Pill>
-              <button type="button" className="link-button" style={{ fontSize: 12 }} aria-label={t("Open approval {title}", { title: a.title })} onClick={() => onOpenApproval(a.id)}>{a.title}</button>
-              <span className="mono" style={{ marginLeft: "auto", fontSize: 12, color: "var(--text-3)" }}>{formatRelative(a.createdAt)}</span>
+              <button type="button" className="link-button" style={{ fontSize: "var(--fs-body)" }} aria-label={t("Open approval {title}", { title: a.title })} onClick={() => onOpenApproval(a.id)}>{a.title}</button>
+              <span className="mono" style={{ marginLeft: "auto", fontSize: "var(--fs-body)", color: "var(--text-3)" }}>{formatRelative(a.createdAt)}</span>
             </div>
           ))}
         </div>
       )}
       <div className="section-label">{t("Events")}</div>
-      {audit.length === 0 && <div style={{ fontSize: 14, color: "var(--text-3)" }}>{t("No events")}</div>}
+      {audit.length === 0 && <div style={{ fontSize: "var(--fs-body)", color: "var(--text-3)" }}>{t("No events")}</div>}
       {audit.map((e) => (
         <div key={e.id} className="row" style={{ gap: 8, padding: "5px 0" }}>
-          <span className="mono" style={{ fontSize: 12, color: "var(--text-3)", flexShrink: 0 }}>{formatRelative(e.createdAt)}</span>
-          <span style={{ fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{taskEventLabel(e.action)}</span>
+          <span className="mono" style={{ fontSize: "var(--fs-body)", color: "var(--text-3)", flexShrink: 0 }}>{formatRelative(e.createdAt)}</span>
+          <span style={{ fontSize: "var(--fs-body)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{taskEventLabel(e.action)}</span>
         </div>
       ))}
     </div>
@@ -339,9 +339,9 @@ function EditOverlay({ onEdited, task, companyLanguage, agents, allTasks, projec
   const beneath = descendantIds(task.id, allTasks);
   const otherTasks = allTasks.filter((t) => t.id !== task.id && t.orgId === task.orgId && !beneath.has(t.id));
   return (
-    <div style={{ position: "absolute", inset: 0, background: "var(--bg)", borderRadius: 14, padding: 24, overflow: "auto", zIndex: 2 }}>
+    <div style={{ position: "absolute", inset: 0, background: "var(--bg)", padding: 24, overflow: "auto", zIndex: 2 }}>
       <form onSubmit={submit} onInput={onEdited} onChange={onEdited} aria-busy={busy}>
-        <h3 style={{ margin: "0 0 14px", fontSize: 15, fontWeight: 600 }}>{t("Edit task")}</h3>
+        <h3 style={{ margin: "0 0 14px", fontSize: "var(--fs-body)" }}>{t("Edit task")}</h3>
         <Field label={t("Title")}><input className="input" name="title" defaultValue={task.title} required /></Field>
         <Field label={t("Description")}><textarea className="input" name="description" rows={4} defaultValue={task.description} /></Field>
         <Field label={t("Assignee")}>
@@ -423,10 +423,10 @@ function DeleteConfirm({ impact, onConfirm, onCancel }: { impact: TaskDeleteImpa
     impact.pendingApprovals > 0 && t("{n} pending approvals for it stay pending.", { n: impact.pendingApprovals }),
   ].filter((line): line is string => typeof line === "string");
   return (
-    <div role="alertdialog" aria-label={t("Delete this task?")} style={{ marginTop: 12, padding: 12, border: "1px solid var(--red)", borderRadius: 10 }}>
-      <div style={{ fontWeight: 600, marginBottom: 6 }}>{t("Delete this task?")}</div>
-      {lines.length === 0 && <div style={{ fontSize: 13, color: "var(--text-2)" }}>{t("Nothing else is affected.")}</div>}
-      {lines.map((line) => <div key={line} style={{ fontSize: 13, color: "var(--text-2)" }}>{line}</div>)}
+    <div role="alertdialog" aria-label={t("Delete this task?")} style={{ marginTop: 12, padding: 12, border: "1px solid var(--red)" }}>
+      <div style={{ marginBottom: 6 }}>{t("Delete this task?")}</div>
+      {lines.length === 0 && <div style={{ fontSize: "var(--fs-body)", color: "var(--text-2)" }}>{t("Nothing else is affected.")}</div>}
+      {lines.map((line) => <div key={line} style={{ fontSize: "var(--fs-body)", color: "var(--text-2)" }}>{line}</div>)}
       {impact.running > 0 && <div className="form-error" role="alert">{t("A session is running; stop it or wait for it before deleting.")}</div>}
       <div className="row" style={{ gap: 8, marginTop: 10 }}>
         <Button tone="primary" size="small" onClick={onConfirm} disabled={impact.running > 0}>{t("Delete task")}</Button>

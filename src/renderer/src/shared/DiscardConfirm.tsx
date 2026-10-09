@@ -7,7 +7,7 @@ export function DiscardConfirm({ onKeep, onDiscard }: { onKeep: () => void; onDi
   return (
     <Modal label={t("Discard your changes?")} role="alertdialog" onEscape={onKeep} onBackdrop={onKeep}>
       <div className="modal" style={{ maxWidth: 360 }}>
-        <p style={{ margin: "0 0 12px", fontSize: 14 }}>{t("Discard your changes?")}</p>
+        <p style={{ margin: "0 0 12px", fontSize: "var(--fs-body)" }}>{t("Discard your changes?")}</p>
         <div className="modal-actions">
           <Button tone="ghost" onClick={onKeep}>{t("Keep editing")}</Button>
           <Button tone="primary" onClick={onDiscard}>{t("Discard")}</Button>
