@@ -1,9 +1,12 @@
+import { setAutonomousPaused, updateUiPreferences } from "./app-state";
+import { updateOrganizationProfile } from "./organization-profile";
+import { setGoalDueDate, validDueAt } from "./goal-due-date";
 import type { StatusCause } from "./task-mutations";
 import type { TaskDeleteImpact } from "../../shared/domain";
 import type { DatabaseSync } from "node:sqlite";
 import { APPROVAL_STATE, RISK_LEVEL, TASK_STATUS, WRITING_MODE, type RiskLevel } from "../../shared/domain";
 import { createId } from "../../shared/ids";
-import type { CreateAgentInput, CreateGoalInput, CreateOrganizationInput, CreateProjectInput, CreateTaskInput, CreateWorkspaceInput, DeleteTaskInput, SetGoalDueDateInput, SetTaskBlockedInput, UpdateAgentInput, UpdateEmployeeProfileInput, UpdateTaskInput } from "../../shared/commands";
+import type { CreateAgentInput, CreateGoalInput, CreateOrganizationInput, CreateProjectInput, CreateTaskInput, CreateWorkspaceInput, DeleteTaskInput, SetGoalDueDateInput, SetTaskBlockedInput, UpdateAgentInput, UpdateOrganizationInput, UpdateEmployeeProfileInput, UpdateTaskInput } from "../../shared/commands";
 import { AuditService } from "./audit-service";
 import { ensureAgentHeartbeat, resolveGoalKickoff, type GoalKickoffPlan } from "./goal-kickoff";
 import { PolicyService } from "./policy-service";
@@ -33,6 +36,12 @@ export class OrganizationService {
     return seedOrganization(this.db, input);
   }
 
+  updateOrganization(input: UpdateOrganizationInput): void {
+    updateOrganizationProfile(this.db, input);
+  }
+
+
+
   setActiveOrganization(orgId: string): void {
     const row = this.db.prepare("select id from organizations where id = ?").get(orgId) as { id: string } | undefined;
     if (!row) throw new Error("Organization was not found.");
@@ -53,30 +62,12 @@ export class OrganizationService {
     });
   }
 
-  /**
-   * The global handbrake: while paused, the autonomous queue stops enqueuing
-   * and claiming runs (the run already in flight finishes). Survives
-   * restarts, so a runaway conversation stays stopped until the operator
-   * resumes it.
-   */
   setAutonomousPaused(paused: boolean): void {
-    this.db.prepare(`
-      insert into app_state(id, active_org_id, autorun_paused, updated_at)
-      values (1, null, ?, ?)
-      on conflict(id) do update set autorun_paused = excluded.autorun_paused, updated_at = excluded.updated_at
-    `).run(paused ? 1 : 0, new Date().toISOString());
+    setAutonomousPaused(this.db, paused);
   }
 
   updateUiPreferences(input: { theme?: "system" | "light" | "dark"; language?: "en" | "zh" }): void {
-    const current = this.db.prepare("select theme, language from app_state where id = 1")
-      .get() as { theme: string; language: string } | undefined;
-    const theme = input.theme ?? current?.theme ?? "system";
-    const language = input.language ?? current?.language ?? "en";
-    this.db.prepare(`
-      insert into app_state(id, active_org_id, theme, language, updated_at)
-      values (1, null, ?, ?, ?)
-      on conflict(id) do update set theme = excluded.theme, language = excluded.language, updated_at = excluded.updated_at
-    `).run(theme, language, new Date().toISOString());
+    updateUiPreferences(this.db, input);
   }
 
   deleteOrganization(orgId: string): void {
@@ -478,12 +469,10 @@ export class OrganizationService {
     return this.tasks.deleteImpact(orgId, taskId);
   }
 
-  /** Sets or clears when a goal is planned to be reached. */
+
+
   setGoalDueDate(input: SetGoalDueDateInput): void {
-    const result = this.db.prepare("update goals set due_at = ?, updated_at = ? where id = ? and org_id = ?")
-      .run(validDueAt(input.dueAt), new Date().toISOString(), input.goalId, input.orgId);
-    if (result.changes === 0) throw new Error("Goal was not found.");
-    this.audit.record({ orgId: input.orgId, entityType: "goal", entityId: input.goalId, actorType: "employee", actorId: null, action: "due_date_set", payload: { dueAt: input.dueAt } });
+    setGoalDueDate(this.db, input);
   }
 
   setTaskBlocked(input: SetTaskBlockedInput): void {
@@ -501,14 +490,4 @@ export class OrganizationService {
   agentSetTaskStatus(input: { orgId: string; taskId: string; status: string; agentId: string; evidence: string | null }): string {
     return this.tasks.agentSetStatus(input);
   }
-}
-
-/** A target date is an exact ISO UTC time on a real calendar day; anything else is refused rather than stored shifted. */
-function validDueAt(dueAt: string | null): string | null {
-  if (dueAt === null) return null;
-  const exact = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{3})?Z$/.test(dueAt);
-  const time = new Date(dueAt);
-  const normalized = dueAt.length === 20 ? dueAt.replace("Z", ".000Z") : dueAt;
-  if (!exact || Number.isNaN(time.getTime()) || time.toISOString() !== normalized) throw new Error(`"${dueAt}" is not a date.`);
-  return normalized;
 }

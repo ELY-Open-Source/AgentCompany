@@ -76,6 +76,18 @@ test("the pinned CEO conversation is the Messages front door", async () => {
     await page.getByRole("button", { name: "Settings" }).click();
     await expect(page.getByRole("note").filter({ hasText: "Applies to FlowPilot only." })).toBeVisible();
     await expect(page.getByRole("note").filter({ hasText: "Applies to every company in this app." })).toBeVisible();
+    // How the company runs can be changed after onboarding.
+    const editCompany = async (mode: string, autoHires: boolean) => {
+      await page.getByRole("button", { name: "Edit company" }).click();
+      await page.getByLabel("Who runs the work").selectOption(mode);
+      await page.getByLabel("Auto-approve hires").setChecked(autoHires);
+      await page.getByRole("button", { name: "Save" }).click();
+    };
+    await editCompany("ai_cofounder", false);
+    await expect(page.getByText("AI Co-Founder", { exact: true })).toBeVisible();
+    await expect(page.getByText("Hires require approval")).toBeVisible();
+    await editCompany("ai_ceo", true);
+    await expect(page.getByText("AI CEO", { exact: true })).toBeVisible();
 
     // A goal's pace is measured against its target date; without one, no pace is claimed.
     await page.getByRole("button", { name: "Home" }).click();

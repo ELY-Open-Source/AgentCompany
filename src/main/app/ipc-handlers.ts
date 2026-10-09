@@ -184,6 +184,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
   });
   handle("createGoal", (input) => mutate(() => organization.createGoal(input)));
   handle("setGoalDueDate", (input) => mutate(() => organization.setGoalDueDate(input)));
+  handle("updateOrganization", (input) => mutate(() => organization.updateOrganization(input)));
   handle("createProject", (input) => mutate(() => organization.createProject(input)));
   handle("createWorkspace", (input) => mutate(() => organization.createWorkspace(input)));
   handle("createDocument", (input) => mutate(() => documents.create(input)));

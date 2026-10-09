@@ -1,3 +1,4 @@
+import { CompanyDialog } from "./CompanyDialog";
 import { ScopeNote } from "./ScopeNote";
 import { useState, type FormEvent } from "react";
 import type {
@@ -40,6 +41,7 @@ export function WorkspacePanel({
   actions: SnapshotActions;
 }) {
   const [createOpen, setCreateOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
 
   const chooseDirectory = async (form: HTMLFormElement) => {
     const result = await window.agentCompany.pickDirectory();
@@ -62,8 +64,12 @@ export function WorkspacePanel({
 
   return (
     <div className="page">
-      <h1 className="page-h1">{t("General")}</h1>
+      <div className="row" style={{ alignItems: "baseline" }}>
+        <h1 className="page-h1">{t("General")}</h1>
+        <span style={{ marginLeft: "auto" }}><Button onClick={() => setEditOpen(true)}><Icon name="edit" size={14} /> {t("Edit company")}</Button></span>
+      </div>
       <ScopeNote scope="company" company={organization.name} />
+      <CompanyDialog key={editOpen ? "open" : "closed"} organization={organization} open={editOpen} actions={actions} onClose={() => setEditOpen(false)} />
 
       <div className="row" style={{ gap: 8, margin: "16px 0 24px" }}>
         <Pill tone="violet" dot>{organization.executionMode === "ai_ceo" ? t("AI CEO") : t("AI Co-Founder")}</Pill>

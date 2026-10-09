@@ -88,6 +88,7 @@ export const IPC_CHANNELS = {
   cancelQueuedRun: "agentcompany:cancel-queued-run",
   runHistory: "agentcompany:run-history",
   setGoalDueDate: "agentcompany:set-goal-due-date",
+  updateOrganization: "agentcompany:update-organization",
   revokeConnector: "agentcompany:revoke-connector",
   search: "agentcompany:search",
   rendererEvent: "agentcompany:renderer-event",

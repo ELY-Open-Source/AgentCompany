@@ -95,6 +95,7 @@ const api: DesktopApi = {
   cancelQueuedRun: (input) => invoke(IPC_CHANNELS.cancelQueuedRun, input),
   runHistory: (input) => invoke(IPC_CHANNELS.runHistory, input),
   setGoalDueDate: (input) => invoke(IPC_CHANNELS.setGoalDueDate, input),
+  updateOrganization: (input) => invoke(IPC_CHANNELS.updateOrganization, input),
   revokeConnector: (input) => invoke(IPC_CHANNELS.revokeConnector, input),
   refreshComposioAccounts: (input) => invoke(IPC_CHANNELS.refreshComposioAccounts, input),
   search: (input) => invoke(IPC_CHANNELS.search, input),

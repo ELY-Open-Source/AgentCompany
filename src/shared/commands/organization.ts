@@ -144,6 +144,18 @@ export interface CreateGoalInput {
   dueAt?: string | null;
 }
 
+/** The company's profile and how it runs, as set after onboarding; changes apply to work from now on. */
+export interface UpdateOrganizationInput {
+  orgId: string;
+  name: string;
+  description: string;
+  mission: string;
+  goal: string;
+  executionMode: "ai_ceo" | "ai_cofounder";
+  autoApproveHires: boolean;
+  reviewDeliverables: boolean;
+}
+
 export interface SetGoalDueDateInput {
   orgId: string;
   goalId: string;
