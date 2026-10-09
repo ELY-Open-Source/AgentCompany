@@ -1,3 +1,4 @@
+import { closeChatWakeTask } from "./chat-wake-close";
 import type { DatabaseSync } from "node:sqlite";
 import type { RunTaskInput } from "../../shared/commands";
 import { TASK_STATUS, WRITING_MODE } from "../../shared/domain";
@@ -436,18 +437,7 @@ export class TaskExecutionService {
       set state = ?, provider_request_id = coalesce(?, provider_request_id), completed_at = ?, error_message = null
       where id = ? and org_id = ?
     `).run(TASK_RUN_STATE.COMPLETED, providerRequestId, new Date().toISOString(), runId, orgId);
-    if (!checkpoint) this.closeChatWakeTask(orgId, runId);
-  }
-
-  /** A chat-wake task only carries its reply run, so the run completing closes it; left open it would strand forever. */
-  private closeChatWakeTask(orgId: string, runId: string): void {
-    const run = this.db.prepare("select r.task_id, t.origin from task_runs r join tasks t on t.id = r.task_id where r.id = ? and r.org_id = ?")
-      .get(runId, orgId) as { task_id: string; origin: string | null } | undefined;
-    if (!run || run.origin !== "chat_wake") return;
-    const task = this.db.prepare("select status from tasks where id = ? and org_id = ?")
-      .get(run.task_id, orgId) as { status: string } | undefined;
-    if (!task || (task.status !== TASK_STATUS.BACKLOG && task.status !== TASK_STATUS.IN_PROGRESS)) return;
-    this.organization.updateTaskStatus(orgId, run.task_id, TASK_STATUS.DONE);
+    if (!checkpoint) closeChatWakeTask(this.db, orgId, runId);
   }
 
   /** The operator stopped the run: not a failure, no retry budget spent, no memory recorded. */
@@ -456,7 +446,7 @@ export class TaskExecutionService {
       update task_runs set state = ?, provider_request_id = coalesce(?, provider_request_id), completed_at = ?, error_message = ?
       where id = ? and org_id = ?
     `).run(TASK_RUN_STATE.STOPPED, providerRequestId, new Date().toISOString(), reason, runId, orgId);
-    this.closeChatWakeTask(orgId, runId);
+    closeChatWakeTask(this.db, orgId, runId);
     this.audit.record({ orgId, entityType: "task_run", entityId: runId, actorType: "system", actorId: null, action: "stopped", payload: { ...payload, reason } });
   }
 
@@ -466,7 +456,7 @@ export class TaskExecutionService {
     console.info(`[task-run] run ${runId} ${message}`);
     this.db.prepare("update task_runs set state = ?, completed_at = ?, error_message = ? where id = ? and org_id = ?")
       .run(TASK_RUN_STATE.SUPERSEDED, new Date().toISOString(), message, runId, orgId);
-    this.closeChatWakeTask(orgId, runId);
+    closeChatWakeTask(this.db, orgId, runId);
     this.audit.record({
       orgId,
       entityType: "task_run",

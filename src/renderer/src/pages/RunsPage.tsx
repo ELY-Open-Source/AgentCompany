@@ -90,7 +90,7 @@ export function RunsPage({ snapshot, actions, navigate, focus }: PageProps) {
       </aside>
       <div style={{ flex: 1, minWidth: 0, overflow: "auto", padding: 24 }}>
         {selected ? (
-          <RunDetail run={selected} tasks={tasks} agents={agents} providers={providers} providerRequests={providerRequests} actions={actions} onOpenTask={(taskId) => navigate("work", { kind: "task", id: taskId })} />
+          <RunDetail key={selected.id} run={selected} tasks={tasks} agents={agents} providers={providers} providerRequests={providerRequests} actions={actions} onOpenTask={(taskId) => navigate("work", { kind: "task", id: taskId })} />
         ) : (
           <div style={{ display: "grid", placeItems: "center", height: "100%", color: "var(--text-3)", fontSize: 14 }}>
             {t("Select a run")}
@@ -118,12 +118,19 @@ function RunDetail({ run, tasks, agents, providers, providerRequests, actions, o
   const started = run.startedAt ? new Date(run.startedAt) : null;
   const completed = run.completedAt ? new Date(run.completedAt) : null;
   const durationMs = started && completed ? completed.getTime() - started.getTime() : null;
-  const [stopError, setStopError] = useState<string | null>(null);
-  const stop = (runId: string) => {
-    setStopError(null);
-    actions.run(() => window.agentCompany.stopRun({ runId }))
-      .catch((error: unknown) => setStopError(error instanceof Error ? error.message : String(error)));
+  // Stop a running session, cancel one not yet started, or start a new session that picks up from the journal.
+  const [controlError, setControlError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const control = (operation: () => Promise<unknown>) => {
+    setControlError(null);
+    setBusy(true);
+    operation()
+      .catch((error: unknown) => setControlError(error instanceof Error ? error.message : String(error)))
+      .finally(() => setBusy(false));
   };
+  const stop = () => control(() => actions.run(() => window.agentCompany.stopRun({ runId: run.id })));
+  const cancel = () => control(() => actions.run(() => window.agentCompany.cancelQueuedRun({ orgId: run.orgId, runId: run.id })));
+  const again = () => control(() => actions.run(() => window.agentCompany.runTask({ orgId: run.orgId, taskId: run.taskId })));
 
   return (
     <div>
@@ -136,9 +143,16 @@ function RunDetail({ run, tasks, agents, providers, providerRequests, actions, o
           <div style={{ fontSize: 12, color: "var(--text-3)" }}>{run.id}</div>
         </div>
         <Pill tone={runTone(run.state)}>{runLabel(run.state)}</Pill>
-        {run.state === "running" && <Button size="small" onClick={() => stop(run.id)}>{t("Stop")}</Button>}
+        {run.state === "running" && <Button size="small" onClick={stop} disabled={busy}>{t("Stop")}</Button>}
+        {run.state === "queued" && <Button size="small" onClick={cancel} disabled={busy}>{t("Cancel run")}</Button>}
+        {run.state === "failed" && <Button size="small" onClick={again} disabled={busy}>{busy ? t("Running…") : t("Retry")}</Button>}
+        {(run.state === "stopped" || run.state === "superseded") && <Button size="small" onClick={again} disabled={busy}>{busy ? t("Running…") : t("Resume")}</Button>}
       </div>
-      {stopError && <div className="form-error" role="alert">{stopError}</div>}
+      {run.state === "queued" && <div style={{ fontSize: 12, color: "var(--text-3)", marginBottom: 8 }}>{t("A cancelled session can start again on the next heartbeat; block the task to keep it stopped.")}</div>}
+      {(run.state === "failed" || run.state === "stopped" || run.state === "superseded") && (
+        <div style={{ fontSize: 12, color: "var(--text-3)", marginBottom: 8 }}>{t("A new session on the task picks up from what earlier sessions did and where they stopped.")}</div>
+      )}
+      {controlError && <div className="form-error" role="alert">{controlError}</div>}
 
       <div style={{ display: "grid", gridTemplateColumns: "120px 1fr", gap: "8px 16px", fontSize: 14, marginBottom: 20 }}>
         <MetaLabel>{t("Agent")}</MetaLabel><div>{agent?.name ?? "—"} ({agent?.role ?? "—"})</div>

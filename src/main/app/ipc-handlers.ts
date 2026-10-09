@@ -37,6 +37,7 @@ import { coalesce } from "./coalesce";
 import { normalizeExternalBrowserUrl } from "./external-url";
 import { resumeGoal } from "../services/goal-review-service";
 import { stopAllRuns, stopRun } from "../services/run-control";
+import { cancelQueuedRun } from "../services/run-cancel";
 
 export interface IpcDeps {
   connection: DatabaseConnection;
@@ -166,6 +167,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
   handle("updateTask", (input) => mutate(() => organization.updateTask(input)));
   handle("setTaskBlocked", (input) => mutate(() => organization.setTaskBlocked(input)));
   handle("taskDeleteImpact", (input) => ok(organization.taskDeleteImpact(input.orgId, input.taskId)));
+  handle("cancelQueuedRun", (input) => mutate(() => cancelQueuedRun(deps.connection.db, input.orgId, input.runId)));
   handle("deleteTask", (input) => mutate(() => organization.deleteTask(input)));
   handle("updateTaskStatus", (input) => mutate(() => organization.updateTaskStatus(input.orgId, input.taskId, input.status)));
   handle("runTask", async (input) => {

@@ -205,6 +205,8 @@ export interface DesktopApi {
   setTaskBlocked(input: SetTaskBlockedInput): Promise<DesktopResult<AppSnapshot>>;
   /** What deleting a task would remove, keep and close. */
   taskDeleteImpact(input: { orgId: string; taskId: string }): Promise<DesktopResult<TaskDeleteImpact>>;
+  /** Cancels a run that has not started yet. */
+  cancelQueuedRun(input: { orgId: string; runId: string }): Promise<DesktopResult<AppSnapshot>>;
   chatSpaceHistory(input: { orgId: string; spaceId: string; beforeMessageId: string | null } & ({ limit: number } | { fromMessageId: string })): Promise<DesktopResult<SpaceHistoryPage>>;
   revokeConnector(input: RevokeConnectorInput): Promise<DesktopResult<AppSnapshot>>;
   search(input: SearchInput): Promise<DesktopResult<SearchResultRecord[]>>;
