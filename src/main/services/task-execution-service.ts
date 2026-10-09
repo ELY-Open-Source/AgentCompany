@@ -11,7 +11,7 @@ import { SkillService } from "./skill-service";
 import { runAgentLoop, runTools } from "./agent-run-loop";
 import type { RunModel } from "./skill-runtime";
 import { combineMidRunPolls, createGoalChangePoller } from "./goal-change-poller";
-import { recordRunAction, runJournalLines } from "./run-journal";
+import { recordRunAction, unresolvedActionFailure, runJournalLines } from "./run-journal";
 import { classifyProviderFailure } from "./provider-failure";
 import { runStopReason, SESSION_TIME_LIMIT_MESSAGE, SESSION_TIME_LIMIT_MS, withRunControl } from "./run-control";
 import type { AgentToolContext } from "./agent-tools";
@@ -145,7 +145,7 @@ export class TaskExecutionService {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       console.error(`[task-run] run ${runId} failed before execution: ${message}`);
-      this.failRun(orgId, runId, null, message, false);
+      this.failRun(orgId, runId, null, message, null);
       this.audit.record({
         orgId,
         entityType: "task_run",
@@ -277,15 +277,18 @@ export class TaskExecutionService {
         });
         if (delivered) this.notifyDataChanged();
       }
-      this.completeRun(orgId, runId, result.lastRequestId, result.hitStepLimit);
-      if (task.origin === null) recordRunMemory(this.db, { orgId, runId, projectId: task.project_id, taskTitle: task.title, outcome: "completed", text: result.finalText });
+      // Real work whose writes or external actions failed and were not redone has not succeeded, whatever the model said last.
+      const actionFailure = result.hitStepLimit || task.origin !== null ? null : unresolvedActionFailure(this.db, runId);
+      if (actionFailure) this.failRun(orgId, runId, result.lastRequestId, actionFailure, null);
+      else this.completeRun(orgId, runId, result.lastRequestId, result.hitStepLimit);
+      if (task.origin === null) recordRunMemory(this.db, { orgId, runId, projectId: task.project_id, taskTitle: task.title, outcome: actionFailure ? "failed" : "completed", text: actionFailure ?? result.finalText });
       this.audit.record({
         orgId,
         entityType: "task_run",
         entityId: runId,
         actorType: "system",
         actorId: null,
-        action: "completed",
+        action: actionFailure ? "failed" : "completed",
         payload: {
           taskId: task.id,
           agentId: agent.id,
@@ -315,7 +318,7 @@ export class TaskExecutionService {
         throw new Error(stopReason);
       }
       const failure = classifyProviderFailure(error, Date.now());
-      this.failRun(orgId, runId, providerRequestId, message, failure.transient);
+      this.failRun(orgId, runId, providerRequestId, message, failure.transient ? "transient" : null);
       if (failure.transient) this.cooldowns.park(provider, message, failure.retryAfterMs);
       else if (task.origin === null) recordRunMemory(this.db, { orgId, runId, projectId: task.project_id, taskTitle: task.title, outcome: "failed", text: message });
       this.audit.record({
@@ -434,12 +437,7 @@ export class TaskExecutionService {
     if (!checkpoint) this.closeChatWakeTask(orgId, runId);
   }
 
-  /**
-   * A chat-wake task exists only to carry its reply run — the reply is the
-   * whole deliverable. The run completing therefore closes the task; left
-   * open it would strand forever (a task with a completed run is never
-   * enqueued again) and pile zombie "Reply to ..." rows onto the board.
-   */
+  /** A chat-wake task only carries its reply run, so the run completing closes it; left open it would strand forever. */
   private closeChatWakeTask(orgId: string, runId: string): void {
     const run = this.db.prepare("select r.task_id, t.origin from task_runs r join tasks t on t.id = r.task_id where r.id = ? and r.org_id = ?")
       .get(runId, orgId) as { task_id: string; origin: string | null } | undefined;
@@ -479,12 +477,12 @@ export class TaskExecutionService {
     return runId;
   }
 
-  private failRun(orgId: string, runId: string, providerRequestId: string | null, errorMessage: string, transient: boolean): void {
+  private failRun(orgId: string, runId: string, providerRequestId: string | null, errorMessage: string, failureKind: "transient" | null): void {
     this.db.prepare(`
       update task_runs
       set state = ?, provider_request_id = coalesce(?, provider_request_id), completed_at = ?, error_message = ?, failure_kind = ?
       where id = ? and org_id = ?
-    `).run(TASK_RUN_STATE.FAILED, providerRequestId, new Date().toISOString(), errorMessage, transient ? "transient" : null, runId, orgId);
+    `).run(TASK_RUN_STATE.FAILED, providerRequestId, new Date().toISOString(), errorMessage, failureKind, runId, orgId);
   }
 
   private resolveSkillRuntimeSnapshot(orgId: string, agentId: string, runId: string, maxTokens: number, taskText: string, runModel: RunModel, houseStyle: boolean): SkillRuntimeSnapshotRow | null {
@@ -498,6 +496,4 @@ export class TaskExecutionService {
     if (!snapshot) throw new Error("Skill runtime snapshot was not found.");
     return snapshot;
   }
-
-
 }

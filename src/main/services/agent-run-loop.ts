@@ -105,19 +105,24 @@ export async function runAgentLoop(deps: AgentRunLoopDeps, input: AgentRunLoopIn
     lastText = turn.text.trim() || lastText;
     messages.push({ role: "assistant", text: turn.text, toolCalls: turn.toolCalls, ...(turn.replay ? { replay: turn.replay } : {}) });
     const results: Array<{ toolCallId: string; toolName: string; output: string }> = [];
+    // A call refused before it ran is still journaled, so a run that never redoes it cannot pass as completed.
+    const refuse = (call: ToolCall, output: string) => {
+      input.onToolCompleted?.(call, output);
+      results.push({ toolCallId: call.id, toolName: call.name, output });
+    };
     for (const [index, call] of turn.toolCalls.entries()) {
       throwIfRunStopped();
       if (index >= MAX_TOOL_CALLS_PER_TURN) {
-        results.push({ toolCallId: call.id, toolName: call.name, output: `ERROR: not run: this turn asked for ${turn.toolCalls.length} tool calls; the limit is ${MAX_TOOL_CALLS_PER_TURN}. Repeat the ones you still need.` });
+        refuse(call, `ERROR: not run: this turn asked for ${turn.toolCalls.length} tool calls; the limit is ${MAX_TOOL_CALLS_PER_TURN}. Repeat the ones you still need.`);
         continue;
       }
       if (call.argumentsError) {
         console.warn(`[run-loop] ${call.name} not run: arguments ${call.argumentsError}`);
-        results.push({ toolCallId: call.id, toolName: call.name, output: unreadableArguments(call) });
+        refuse(call, unreadableArguments(call));
         continue;
       }
       if (call.name === "complete_goal" && goalAudits >= MAX_GOAL_AUDITS_PER_SESSION) {
-        results.push({ toolCallId: call.id, toolName: call.name, output: `ERROR: this session already ran ${MAX_GOAL_AUDITS_PER_SESSION} goal audits. Close the gaps they named, then try again next session.` });
+        refuse(call, `ERROR: this session already ran ${MAX_GOAL_AUDITS_PER_SESSION} goal audits. Close the gaps they named, then try again next session.`);
         continue;
       }
       if (call.name === "complete_goal") goalAudits += 1;
