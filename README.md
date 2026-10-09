@@ -33,6 +33,8 @@ pnpm verify:ci
 
 Typecheck, lint, unit, contract, integration, and Electron e2e.
 
+These run against scripted model replies, so they prove routing and state, not real-model behavior. `pnpm test:live` runs real tasks on a real provider and checks that the model reads the evidence it is given, ignores instructions planted in what it reads, and does not redo finished work. Set `AGENTCOMPANY_LIVE_PROVIDER` (a catalog key such as `openai`), `AGENTCOMPANY_LIVE_SECRET` and `AGENTCOMPANY_LIVE_MODEL`; it fails without them and spends real tokens.
+
 ## Build installers
 
 ```sh

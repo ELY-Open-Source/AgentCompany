@@ -17,6 +17,7 @@
     "test:unit": "vitest run tests/unit",
     "test:contract": "vitest run tests/contract",
     "test:integration": "vitest run tests/integration",
+    "test:live": "vitest run tests/live",
     "test": "pnpm test:unit && pnpm test:contract && pnpm test:integration",
     "test:e2e": "pnpm build && playwright test -c tests/e2e/playwright.config.ts",
     "verify": "pnpm verify:ci",
