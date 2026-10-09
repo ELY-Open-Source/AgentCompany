@@ -1,6 +1,6 @@
 import { loadViewState } from "./view-state";
 import { loadOnboardingDraft } from "./onboarding-progress";
-import type { DatabaseSync, StatementSync } from "node:sqlite";
+import type { DatabaseSync, StatementSync, SQLInputValue } from "node:sqlite";
 import type { AppSnapshot } from "../../shared/domain";
 import { PROVIDER_CATALOG } from "../../shared/provider-catalog";
 import { IntegrationKeyStore } from "./integration-key-store";
@@ -17,8 +17,8 @@ type ProviderUsageWindowRow = Pick<
   | "costCents" | "inputTokens" | "outputTokens" | "requestsWithoutUsage" | "unpricedRequests"
 >;
 
-function all<T>(statement: StatementSync): T[] {
-  return statement.all() as T[];
+function all<T>(statement: StatementSync, ...params: SQLInputValue[]): T[] {
+  return statement.all(...params) as T[];
 }
 
 function toBool(value: unknown): boolean {
@@ -37,8 +37,14 @@ function list<T>(db: DatabaseSync, table: string, orderBy: string): T[] {
   return all<Row>(db.prepare(`select * from ${table} order by ${orderBy}`)).map((row) => camel(row) as T);
 }
 
-function recentList<T>(db: DatabaseSync, table: string, orderBy: string, limit: number): T[] {
-  return all<Row>(db.prepare(`select * from ${table} order by ${orderBy} limit ${limit}`)).map((row) => camel(row) as T);
+/** The newest rows of the shown company only, so another company's activity never pushes its history out of the window. */
+function recentInOrg<T>(db: DatabaseSync, table: string, orderBy: string, limit: number, orgId: string | null): T[] {
+  return all<Row>(db.prepare(`select * from ${table} where org_id = ? order by ${orderBy} limit ${limit}`), orgId ?? "").map((row) => camel(row) as T);
+}
+
+/** Exactly the rows of the loaded messages, so every shown message has its attachments, mentions and commands. */
+function forMessages<T>(db: DatabaseSync, table: string, orderBy: string, messageIds: string[]): T[] {
+  return all<Row>(db.prepare(`select * from ${table} where message_id in (select value from json_each(?)) order by ${orderBy}`), JSON.stringify(messageIds)).map((row) => camel(row) as T);
 }
 
 export class SnapshotService {
@@ -55,7 +61,8 @@ export class SnapshotService {
     const agents = list<AppSnapshot["agents"][number]>(this.db, "agents", "created_at asc")
       .map((agent) => ({ ...agent, heartbeatEnabled: toBool(agent.heartbeatEnabled) }));
     const holds = taskHolds(this.db, new Date());
-    const chatMessages = recentList<AppSnapshot["chatMessages"][number]>(this.db, "chat_messages", "created_at desc, rowid desc", 500).reverse();
+    const chatMessages = recentInOrg<AppSnapshot["chatMessages"][number]>(this.db, "chat_messages", "created_at desc, rowid desc", 500, activeOrgId).reverse();
+    const loadedMessageIds = chatMessages.map((message) => message.id);
     const tasks = list<AppSnapshot["tasks"][number]>(this.db, "tasks", "created_at asc")
       .map((task) => ({ ...task, requiresFilesystem: toBool(task.requiresFilesystem), hold: holds.get(task.id) ?? null }));
     const workspaces = list<AppSnapshot["workspaces"][number]>(this.db, "workspaces", "created_at asc")
@@ -99,7 +106,7 @@ export class SnapshotService {
       workspaces,
       goals: list(this.db, "goals", "created_at asc"),
       projects: list(this.db, "projects", "created_at asc"),
-      taskRuns: recentList<AppSnapshot["taskRuns"][number]>(this.db, "task_runs", "created_at desc, rowid desc", 200).reverse(),
+      taskRuns: recentInOrg<AppSnapshot["taskRuns"][number]>(this.db, "task_runs", "created_at desc, rowid desc", 200, activeOrgId).reverse(),
       approvals: list(this.db, "approvals", "created_at desc"),
       chatSpaces: list(this.db, "chat_spaces", "created_at asc"),
       chatMemberships: list(this.db, "chat_memberships", "space_id asc, principal_type asc, principal_id asc"),
@@ -113,13 +120,13 @@ export class SnapshotService {
       // Every thread a loaded message belongs to, plus the most recently active ones, so no shown message loses its thread.
       chatThreads: all<Row>(this.db.prepare(`
         select * from chat_threads
-        where id in (select thread_id from (select thread_id from chat_messages order by created_at desc, rowid desc limit 500))
-          or id in (select id from chat_threads order by updated_at desc limit 200)
+        where id in (select thread_id from chat_messages where id in (select value from json_each(?)))
+          or id in (select id from chat_threads where org_id = ? order by updated_at desc limit 200)
         order by updated_at desc
-      `)).map((row) => camel(row) as unknown as AppSnapshot["chatThreads"][number]),
-      chatAttachments: recentList(this.db, "chat_attachments", "message_id desc", 500),
-      chatMentions: recentList(this.db, "chat_mentions", "message_id desc, offset_start asc", 500),
-      chatSlashInvocations: recentList(this.db, "chat_slash_invocations", "created_at desc", 200),
+      `), JSON.stringify(loadedMessageIds), activeOrgId ?? "").map((row) => camel(row) as unknown as AppSnapshot["chatThreads"][number]),
+      chatAttachments: forMessages(this.db, "chat_attachments", "message_id desc", loadedMessageIds),
+      chatMentions: forMessages(this.db, "chat_mentions", "message_id desc, offset_start asc", loadedMessageIds),
+      chatSlashInvocations: forMessages(this.db, "chat_slash_invocations", "created_at desc", loadedMessageIds),
       boardInterventions: list(this.db, "board_interventions", "created_at asc"),
       chatPresence: list(this.db, "chat_presence", "last_seen_at desc"),
       chatReadStates: list(this.db, "chat_read_state", "last_read_at desc"),
@@ -139,8 +146,8 @@ export class SnapshotService {
                execution_mode, policy_decision, external_response_id, stream_event_count,
                cancelled_at, created_at, completed_at, agent_id, task_run_id,
                input_tokens, output_tokens, cached_input_tokens, reasoning_tokens, cost_cents
-        from provider_requests order by created_at desc limit 100
-      `)).map((row) => camel(row) as unknown as AppSnapshot["providerRequests"][number]),
+        from provider_requests where org_id = ? order by created_at desc limit 100
+      `), activeOrgId ?? "").map((row) => camel(row) as unknown as AppSnapshot["providerRequests"][number]),
       providerRateLimits,
       usageStats: buildUsageStats(this.db, new Date()),
       providerRateLimitObservations,
@@ -162,7 +169,7 @@ export class SnapshotService {
       employeeIdentities,
       serviceIdentities: list(this.db, "service_identities", "created_at desc"),
       roleGrants: list(this.db, "role_grants", "created_at desc"),
-      accessDecisions: recentList<AppSnapshot["accessDecisions"][number]>(this.db, "access_decisions", "created_at desc", 200),
+      accessDecisions: recentInOrg<AppSnapshot["accessDecisions"][number]>(this.db, "access_decisions", "created_at desc", 200, activeOrgId),
       orgDepartments: list(this.db, "org_departments", "name asc"),
       hiringPolicies: list(this.db, "hiring_policies", "department_name asc"),
       approvalRoutingRules: list(this.db, "approval_routing_rules", "created_at asc"),
@@ -170,7 +177,7 @@ export class SnapshotService {
       featureFlags,
       sloTargets: list(this.db, "slo_targets", "signal_key asc"),
       operationalEvents,
-      auditEvents: recentList<AppSnapshot["auditEvents"][number]>(this.db, "audit_events", "created_at desc", 200),
+      auditEvents: recentInOrg<AppSnapshot["auditEvents"][number]>(this.db, "audit_events", "created_at desc", 200, activeOrgId),
       documents: list(this.db, "documents", "updated_at desc"),
       knowledgeEntries: list(this.db, "knowledge_entries", "updated_at desc"),
       automationRules: list<AppSnapshot["automationRules"][number]>(this.db, "automation_rules", "priority asc")
