@@ -328,3 +328,18 @@ textarea.input { min-height: 84px; resize: vertical; line-height: 1.5; }
   z-index: 2;
 }
 .pane-resize-handle:hover { background: color-mix(in srgb, var(--accent) 35%, transparent); }
+
+/* Chat message markdown: soft line breaks stay visible, code and tables scroll instead of overflowing. */
+.md-body > :first-child { margin-top: 0; }
+.md-body > :last-child { margin-bottom: 0; }
+.md-body p { margin: 0 0 6px; white-space: pre-wrap; }
+.md-body ul, .md-body ol { margin: 0 0 6px; padding-left: 22px; }
+.md-body li > ul, .md-body li > ol { margin: 2px 0; }
+.md-body h1, .md-body h2, .md-body h3 { font-size: 15px; font-weight: 600; margin: 8px 0 4px; }
+.md-body blockquote { margin: 0 0 6px; padding-left: 10px; border-left: 3px solid var(--border-strong); color: var(--text-2); }
+.md-body code { font-family: var(--font-mono); background: var(--panel-3); padding: 1px 5px; border-radius: 4px; font-size: 0.92em; }
+.md-body pre { margin: 0 0 6px; padding: 10px 12px; background: var(--panel-3); border-radius: 8px; overflow-x: auto; }
+.md-body pre code { background: transparent; padding: 0; white-space: pre; }
+.md-body table { border-collapse: collapse; margin: 0 0 6px; display: block; overflow-x: auto; max-width: 100%; }
+.md-body th, .md-body td { border: 1px solid var(--border); padding: 4px 8px; text-align: left; }
+.md-body th { background: var(--panel-2); font-weight: 600; }

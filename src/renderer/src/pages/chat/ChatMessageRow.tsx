@@ -10,6 +10,7 @@ import type {
 import { formatTime } from "../types";
 import { messageAttachments, senderName, type MessageContext } from "./chat-helpers";
 import type { ThreadLink } from "./thread-links";
+import { MessageMarkdown } from "./MessageMarkdown";
 import type { ChatReplyStatus } from "../../../../shared/chat-domain";
 import { t } from "../../i18n/i18n";
 
@@ -110,7 +111,7 @@ export function ChatMessageRow({
             </div>
           </form>
         ) : (
-          <div style={{ fontSize: 14, color: "var(--text-1)", lineHeight: 1.5, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+          <div style={{ fontSize: 14, color: "var(--text-1)", lineHeight: 1.5, wordBreak: "break-word" }}>
             {renderBody(message.bodyMd, messageMentions, context)}
           </div>
         )}
@@ -158,8 +159,6 @@ function replyStatusText(status: ChatReplyStatus, context: MessageContext): stri
 }
 
 function renderBody(body: string, mentions: ChatMentionRecord[], context: MessageContext): ReactNode {
-  if (mentions.length === 0) return formatInline(body, "b");
-  const parts: ReactNode[] = [];
   const ordered = [...mentions].sort((a, b) => a.offsetStart - b.offsetStart);
   let lastIndex = 0;
   for (const mention of ordered) {
@@ -167,14 +166,14 @@ function renderBody(body: string, mentions: ChatMentionRecord[], context: Messag
     if (mention.offsetStart < 0 || mention.offsetEnd > body.length || mention.offsetStart >= mention.offsetEnd) {
       throw new Error("Message mention offset is invalid.");
     }
-    const token = body.slice(mention.offsetStart, mention.offsetEnd);
-    if (!token.startsWith("@")) throw new Error("Message mention token is invalid.");
-    if (mention.offsetStart > lastIndex) parts.push(...formatInline(body.slice(lastIndex, mention.offsetStart), `s${lastIndex}`));
-    const label = mentionLabel(mention, context);
+    if (!body.slice(mention.offsetStart, mention.offsetEnd).startsWith("@")) throw new Error("Message mention token is invalid.");
+    lastIndex = mention.offsetEnd;
+  }
+  const renderMention = (index: number) => {
+    const mention = ordered[index];
     const failed = mention.wakeState === "failed";
-    parts.push(
+    return (
       <span
-        key={`m-${mention.messageId}-${mention.offsetStart}`}
         title={failed ? t("Agent could not be reached") : undefined}
         style={{
           background: failed ? "rgba(255,100,80,0.1)" : "var(--accent-soft)",
@@ -185,37 +184,11 @@ function renderBody(body: string, mentions: ChatMentionRecord[], context: Messag
           textDecoration: failed ? "line-through" : undefined,
         }}
       >
-        @{label}
-      </span>,
+        @{mentionLabel(mention, context)}
+      </span>
     );
-    lastIndex = mention.offsetEnd;
-  }
-  if (lastIndex < body.length) parts.push(...formatInline(body.slice(lastIndex), `s${lastIndex}`));
-  return parts;
-}
-
-/**
- * Renders the light markdown agents and people use in chat — **bold**, *italic*,
- * `code`, and [text](https://link) — into React nodes. Links are restricted to
- * http(s) and nothing is ever set as raw HTML, so message bodies stay inert. A
- * message with no markdown comes back as a single plain string.
- */
-function formatInline(text: string, keyPrefix: string): ReactNode[] {
-  const pattern = /(\*\*([^*\n]+)\*\*|\*([^*\n]+)\*|`([^`\n]+)`|\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\))/g;
-  const nodes: ReactNode[] = [];
-  let lastIndex = 0;
-  let token = 0;
-  for (let match = pattern.exec(text); match; match = pattern.exec(text)) {
-    if (match.index > lastIndex) nodes.push(text.slice(lastIndex, match.index));
-    const key = `${keyPrefix}-${token++}`;
-    if (match[2] !== undefined) nodes.push(<strong key={key}>{match[2]}</strong>);
-    else if (match[3] !== undefined) nodes.push(<em key={key}>{match[3]}</em>);
-    else if (match[4] !== undefined) nodes.push(<code key={key} className="mono" style={{ background: "var(--panel-3)", padding: "1px 5px", borderRadius: 4, fontSize: "0.92em" }}>{match[4]}</code>);
-    else nodes.push(<a key={key} href={match[6]} target="_blank" rel="noreferrer" style={{ color: "var(--accent)" }}>{match[5]}</a>);
-    lastIndex = pattern.lastIndex;
-  }
-  if (lastIndex < text.length) nodes.push(text.slice(lastIndex));
-  return nodes;
+  };
+  return <MessageMarkdown body={body} mentions={ordered.map((mention) => ({ start: mention.offsetStart, end: mention.offsetEnd }))} renderMention={renderMention} />;
 }
 
 function mentionLabel(mention: ChatMentionRecord, context: MessageContext): string {
