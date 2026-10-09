@@ -1,3 +1,4 @@
+import type { RunRequestRecord } from "./provider-runtime-domain";
 import type { ApprovalDrift } from "./approval-pin";
 import type { DesktopResult } from "./result";
 import type { AppSnapshot, SearchResultRecord } from "./domain";
@@ -207,6 +208,8 @@ export interface DesktopApi {
   grantConnector(input: GrantConnectorInput): Promise<DesktopResult<AppSnapshot>>;
   /** Approved deliverables whose content changed or vanished since approval, checked on disk now. */
   approvalDrifts(input: { orgId: string }): Promise<DesktopResult<Record<string, ApprovalDrift>>>;
+  /** Every model call a task run made, in order: turns, goal audits and model checks. */
+  runRequests(input: { orgId: string; runId: string }): Promise<DesktopResult<RunRequestRecord[]>>;
   revokeConnector(input: RevokeConnectorInput): Promise<DesktopResult<AppSnapshot>>;
   search(input: SearchInput): Promise<DesktopResult<SearchResultRecord[]>>;
   subscribe(callback: (event: RendererEvent) => void): () => void;

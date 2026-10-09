@@ -37,7 +37,7 @@ describe("monthly quota reservation", () => {
       markModelChecked(connection.db, providerId, "gpt-5.4");
       providers.updatePolicy({ orgId, providerId, dataPolicy: PROVIDER_DATA_POLICY.STANDARD, backgroundEnabled: false, monthlyRequestLimit: 1, workspaceScope: "organization", contextWindowTokens: 128_000 });
     });
-    const call = () => providers.runToolTurn({ orgId, providerId, workspaceId: null, instructions: "i", messages: [{ role: "user", text: "u" }], tools: [] });
+    const call = () => providers.runToolTurn({ purpose: "agent_turn", orgId, providerId, workspaceId: null, instructions: "i", messages: [{ role: "user", text: "u" }], tools: [] });
     const first = call();
     const second = call();
     await expect(second).rejects.toThrow(PROVIDER_MONTHLY_LIMIT_MESSAGE);

@@ -207,6 +207,7 @@ async function runAudit(
     fitContextBudget(instructions, messages, auditTools, auditor.inputBudgetTokens, iteration);
     throwIfRunStopped();
     const turn = await untilStopped(args.providers.runToolTurn({
+      purpose: "goal_audit",
       orgId: args.ctx.orgId,
       providerId: auditor.providerId,
       model: auditor.model,

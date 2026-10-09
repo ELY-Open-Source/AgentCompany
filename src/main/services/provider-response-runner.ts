@@ -9,7 +9,7 @@ import type { OperationsService } from "./operations-service";
 import type { ProviderAdapterRegistry } from "./provider-adapters";
 import type { ProviderBackgroundService } from "./provider-background-service";
 import type { ProviderRateLimitRegistry } from "./provider-rate-limit-registry";
-import type { ProviderRequestStore } from "./provider-request-store";
+import type { ProviderRequestStore, RequestPurpose } from "./provider-request-store";
 import type { ProviderResponseObserver } from "./provider-response-observer";
 import { hashPrompt, readProviderResponseId, requireStreamText } from "./provider-response-utils";
 import { incompleteTurn, type AgentTurnMessage, type AgentTurnResult, type ToolDefinition, type ToolTurnFn } from "./provider-tool-turn";
@@ -116,6 +116,8 @@ export class ProviderResponseRunner {
     tools: ToolDefinition[];
     /** A model chosen for this call (a goal auditor's), outside the session's pinned model and account. */
     model?: string;
+    /** What the call is for, recorded with the request so a run's chain reads plainly. */
+    purpose: "agent_turn" | "goal_audit";
   }): Promise<AgentTurnResult & { requestId: string }> {
     const provider = loadConfiguredProvider(this.deps.db, input.orgId, input.providerId);
     const workspaceId = this.normalizeWorkspaceId(input.orgId, input.workspaceId ?? null);
@@ -145,13 +147,13 @@ export class ProviderResponseRunner {
     const known = readModelCheck(this.deps.db, provider.id, model, requireCredentialId(provider));
     const problem = known ? (known.passed ? null : known.detail) : await this.probeModel(caller);
     if (problem) throw new Error(modelCheckFailure(provider.provider_key, model, problem));
-    return this.callTurn(caller, { instructions: input.instructions, messages: input.messages, tools: input.tools });
+    return this.callTurn(caller, { instructions: input.instructions, messages: input.messages, tools: input.tools }, input.purpose);
   }
 
   /** Probes a model for agent work and remembers the verdict; a request that fails records nothing. */
   private async probeModel(caller: TurnCaller): Promise<string | null> {
     const probe = modelCheckTurn();
-    const problem = modelCheckProblem(await this.callTurn(caller, probe), probe.code);
+    const problem = modelCheckProblem(await this.callTurn(caller, probe, "model_check"), probe.code);
     const { owner } = caller;
     recordModelCheck(this.deps.db, { orgId: caller.orgId, providerId: owner.id, model: owner.model, credentialId: requireCredentialId(owner), problem, now: new Date() });
     console.info(`[model-check] ${owner.provider_key} ${owner.model}: ${problem ?? "passed"}`);
@@ -171,7 +173,7 @@ export class ProviderResponseRunner {
     return problem === null ? { passed: true } : { passed: false, detail: problem };
   }
 
-  private async callTurn(caller: TurnCaller, request: { instructions: string | null; messages: AgentTurnMessage[]; tools: ToolDefinition[] }): Promise<AgentTurnResult & { requestId: string }> {
+  private async callTurn(caller: TurnCaller, request: { instructions: string | null; messages: AgentTurnMessage[]; tools: ToolDefinition[] }, purpose: RequestPurpose): Promise<AgentTurnResult & { requestId: string }> {
     const { orgId, owner, workspaceId, agent, taskRunId, turn } = caller;
     const model = owner.model;
     // Every request, a probe or the work, passes the provider's policy and quota and the agent's budget.
@@ -192,6 +194,7 @@ export class ProviderResponseRunner {
       inputCharCount: turnInputChars,
       executionMode: PROVIDER_EXECUTION_MODE.FOREGROUND,
       createdAt: new Date().toISOString(),
+      purpose,
     });
     const startedAt = Date.now();
     try {
@@ -395,6 +398,7 @@ export class ProviderResponseRunner {
       inputCharCount: promptChars(execution.prompt, execution.instructions),
       executionMode: execution.executionMode,
       createdAt: new Date().toISOString(),
+      purpose: "manual",
     });
   }
 

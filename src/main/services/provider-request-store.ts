@@ -1,3 +1,4 @@
+import type { RunRequestRecord } from "../../shared/provider-runtime-domain";
 import type { DatabaseSync } from "node:sqlite";
 import { PROVIDER_EXECUTION_MODE, PROVIDER_REQUEST_STATE, type ProviderExecutionMode } from "../../shared/domain";
 import { createId } from "../../shared/ids";
@@ -29,6 +30,19 @@ export interface CreateProviderRequestInput {
   taskRunId?: string | null;
   /** The agent's department at call time, which its spend is charged to. */
   department?: string | null;
+  /** What the call was for: a run's turn, a goal audit, a model probe, or a request made by hand. */
+  purpose: RequestPurpose;
+}
+
+export type RequestPurpose = "agent_turn" | "goal_audit" | "model_check" | "manual";
+
+/** Every model call a run made, in the order it made them, whatever their outcome. */
+export function requestsForRun(db: DatabaseSync, orgId: string, runId: string): RunRequestRecord[] {
+  return db.prepare(`
+    select id, purpose, model, state, error_message as errorMessage, input_tokens as inputTokens, output_tokens as outputTokens,
+           cost_cents as costCents, created_at as createdAt, completed_at as completedAt
+    from provider_requests where org_id = ? and task_run_id = ? order by rowid
+  `).all(orgId, runId) as unknown as RunRequestRecord[];
 }
 
 export interface ProviderRequestProgressInput {
@@ -116,9 +130,9 @@ export class ProviderRequestStore {
         id, org_id, provider_id, provider_key, workspace_id, model, prompt_sha256,
         response_text, raw_response_json, state, error_message, input_char_count,
         output_char_count, execution_mode, policy_decision, external_response_id,
-        stream_event_count, cancelled_at, created_at, completed_at, agent_id, task_run_id, department
+        stream_event_count, cancelled_at, created_at, completed_at, agent_id, task_run_id, department, purpose
       )
-      values (?, ?, ?, ?, ?, ?, ?, null, null, ?, null, ?, 0, ?, ?, null, 0, null, ?, null, ?, ?, ?)
+      values (?, ?, ?, ?, ?, ?, ?, null, null, ?, null, ?, 0, ?, ?, null, 0, null, ?, null, ?, ?, ?, ?)
     `).run(
       requestId,
       input.orgId,
@@ -135,6 +149,7 @@ export class ProviderRequestStore {
       input.agentId ?? null,
       input.taskRunId ?? null,
       input.department ?? null,
+      input.purpose,
     );
     return requestId;
   }

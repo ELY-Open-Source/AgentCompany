@@ -1,3 +1,4 @@
+import { RunRequestList } from "./runs/RunRequestList";
 import { useMemo, useState } from "react";
 import { Avatar, Button, Pill, Segmented } from "../shared/ui";
 import type { AgentRecord, ProviderRecord, TaskRecord, TaskRunRecord } from "../../../shared/domain";
@@ -146,6 +147,8 @@ function RunDetail({ run, tasks, agents, providers, providerRequests, actions }:
         {durationMs !== null && (<><MetaLabel>{t("Duration")}</MetaLabel><div>{formatDuration(durationMs)}</div></>)}
         <MetaLabel>{t("Context")}</MetaLabel><div className="mono" style={{ fontSize: 12, overflow: "hidden", textOverflow: "ellipsis" }}>{run.executionContextId}</div>
       </div>
+
+      <RunRequestList orgId={run.orgId} runId={run.id} state={run.state} />
 
       {run.state === "superseded" && run.errorMessage && (
         <div className="card" style={{ padding: 16, marginBottom: 16 }}>

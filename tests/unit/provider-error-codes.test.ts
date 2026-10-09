@@ -118,7 +118,7 @@ describe("provider errors keep their status and machine code", () => {
       providers.saveCredential({ orgId, providerId, secret: "sk-test", model: "gpt-5.4" });
       markModelChecked(connection.db, providerId, "gpt-5.4");
     });
-    const call = () => providers.runToolTurn({ orgId, providerId, workspaceId: null, instructions: "i", messages: [{ role: "user", text: "u" }], tools: [] });
+    const call = () => providers.runToolTurn({ purpose: "agent_turn", orgId, providerId, workspaceId: null, instructions: "i", messages: [{ role: "user", text: "u" }], tools: [] });
     await expect(call()).rejects.toThrow("Overloaded");
     expect(connection.db.prepare("select error_status, error_code from provider_requests").get()).toEqual({ error_status: 529, error_code: "overloaded_error" });
 

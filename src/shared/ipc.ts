@@ -88,6 +88,7 @@ export const IPC_CHANNELS = {
   refreshComposioAccounts: "agentcompany:refresh-composio-accounts",
   grantConnector: "agentcompany:grant-connector",
   approvalDrifts: "agentcompany:approval-drifts",
+  runRequests: "agentcompany:run-requests",
   revokeConnector: "agentcompany:revoke-connector",
   search: "agentcompany:search",
   rendererEvent: "agentcompany:renderer-event",

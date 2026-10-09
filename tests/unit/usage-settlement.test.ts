@@ -22,7 +22,7 @@ describe("usage settlement", () => {
     const store = new ProviderRequestStore(connection.db);
     const call = () => store.create({
       orgId, provider: provider as never, model: "claude", workspaceId: null, promptSha256: "sha", inputCharCount: 40,
-      executionMode: PROVIDER_EXECUTION_MODE.FOREGROUND, createdAt: new Date().toISOString(),
+      executionMode: PROVIDER_EXECUTION_MODE.FOREGROUND, createdAt: new Date().toISOString(), purpose: "manual",
     });
     const priced = call();
     store.settleUsage({

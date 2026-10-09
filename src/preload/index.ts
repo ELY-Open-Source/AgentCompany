@@ -95,6 +95,7 @@ const api: DesktopApi = {
   disconnectComposioToolkit: (input) => invoke(IPC_CHANNELS.disconnectComposioToolkit, input),
   grantConnector: (input) => invoke(IPC_CHANNELS.grantConnector, input),
   approvalDrifts: (input) => invoke(IPC_CHANNELS.approvalDrifts, input),
+  runRequests: (input) => invoke(IPC_CHANNELS.runRequests, input),
   revokeConnector: (input) => invoke(IPC_CHANNELS.revokeConnector, input),
   refreshComposioAccounts: (input) => invoke(IPC_CHANNELS.refreshComposioAccounts, input),
   search: (input) => invoke(IPC_CHANNELS.search, input),

@@ -65,6 +65,7 @@ export class ProviderBackgroundService {
       inputCharCount: promptChars(execution.prompt, execution.instructions),
       executionMode: PROVIDER_EXECUTION_MODE.BACKGROUND,
       createdAt: new Date().toISOString(),
+      purpose: "manual",
     });
     input.onRequestCreated?.(requestId);
     const startedAt = Date.now();

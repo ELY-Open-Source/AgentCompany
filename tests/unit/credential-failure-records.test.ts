@@ -60,7 +60,7 @@ describe("a credential that cannot be read or renewed leaves a failed request in
     vi.stubGlobal("fetch", async () => new Response(JSON.stringify({ error: "invalid_grant" }), { status: 400, headers: { "content-type": "application/json" } }));
     const h = company("claude-pro", JSON.stringify({ access: "a", refresh: "r", expires: 0 }), "claude-sonnet-4-5");
     markModelChecked(h.connection.db, h.providerId, "claude-sonnet-4-5");
-    await expect(h.providers.runToolTurn({ orgId: h.orgId, providerId: h.providerId, workspaceId: null, instructions: "i", messages: [{ role: "user", text: "u" }], tools: [] }))
+    await expect(h.providers.runToolTurn({ purpose: "agent_turn", orgId: h.orgId, providerId: h.providerId, workspaceId: null, instructions: "i", messages: [{ role: "user", text: "u" }], tools: [] }))
       .rejects.toThrow("Claude token refresh failed: 400");
     expect(h.failed()).toEqual([{ state: "failed", error_message: expect.stringContaining("Claude token refresh failed: 400") }]);
     h.connection.close();

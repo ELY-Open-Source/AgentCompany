@@ -72,6 +72,7 @@ export async function runAgentLoop(deps: AgentRunLoopDeps, input: AgentRunLoopIn
     fitContextBudget(input.instructions, messages, allTools, input.inputBudgetTokens, iteration);
     throwIfRunStopped();
     const turn = await untilStopped(deps.providers.runToolTurn({
+      purpose: "agent_turn",
       orgId: input.orgId,
       providerId: input.providerId,
       workspaceId: input.workspaceId,

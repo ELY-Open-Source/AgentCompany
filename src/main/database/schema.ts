@@ -89,6 +89,7 @@ import { goalAuditorSchema } from "./migrations/087-goal-auditor";
 import { hostAccessNoteSchema } from "./migrations/088-host-access-note";
 import { fileVersionsSchema } from "./migrations/089-file-versions";
 import { erasureReceiptsSchema } from "./migrations/090-erasure-receipts";
+import { requestPurposeSchema } from "./migrations/091-request-purpose";
 
 interface Migration {
   version: number;
@@ -187,6 +188,7 @@ const MIGRATIONS: Migration[] = [
   { version: 88, name: "host_access_note", sql: hostAccessNoteSchema },
   { version: 89, name: "file_versions", sql: fileVersionsSchema },
   { version: 90, name: "erasure_receipts", sql: erasureReceiptsSchema },
+  { version: 91, name: "request_purpose", sql: requestPurposeSchema },
 ];
 
 const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;

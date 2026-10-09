@@ -31,7 +31,7 @@ describe("character accounting", () => {
     const instructions = "You run this company.";
     const messages = [{ role: "user" as const, text: "Kick off the launch." }];
     const tools: ToolDefinition[] = [{ name: "send_message", description: "Post a message.", parameters: { type: "object", properties: {} } }];
-    const result = await providers.runToolTurn({ orgId, providerId, workspaceId: null, instructions, messages, tools });
+    const result = await providers.runToolTurn({ purpose: "agent_turn", orgId, providerId, workspaceId: null, instructions, messages, tools });
 
     expect(connection.db.prepare("select input_char_count, output_char_count from provider_requests where id = ?").get(result.requestId)).toEqual({
       input_char_count: instructions.length + JSON.stringify(messages).length + JSON.stringify(tools).length,

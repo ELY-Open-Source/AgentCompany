@@ -43,3 +43,17 @@ export function currentProviderUsageWindow(now = new Date()): { start: string; e
   const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
   return { start: start.toISOString(), end: end.toISOString() };
 }
+
+/** One model call of a task run, as the run's detail lists it. */
+export interface RunRequestRecord {
+  id: string;
+  purpose: string;
+  model: string;
+  state: string;
+  errorMessage: string | null;
+  inputTokens: number | null;
+  outputTokens: number | null;
+  costCents: number | null;
+  createdAt: string;
+  completedAt: string | null;
+}
