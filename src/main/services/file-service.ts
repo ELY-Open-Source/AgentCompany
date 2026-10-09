@@ -1,4 +1,4 @@
-import { mkdirSync, statSync } from "node:fs";
+import { mkdirSync, rmSync, statSync } from "node:fs";
 import { copyFile } from "node:fs/promises";
 import { basename, join } from "node:path";
 import type { DatabaseSync } from "node:sqlite";
@@ -7,7 +7,7 @@ import type { ImportFileInput, OpenFileInput } from "../../shared/commands";
 import { FILE_SCAN_STATE } from "../../shared/domain";
 import { createId } from "../../shared/ids";
 import { AuditService } from "./audit-service";
-import { fileKind, readVerifiedFile, scanFileAt, upsertFileObject } from "./files/file-object-store";
+import { fileKind, readVerifiedFile, scanFileAt, upsertFileObject, type FileObjectInput } from "./files/file-object-store";
 
 const MAX_IMPORT_BYTES = 1024 * 1024 * 1024;
 
@@ -49,6 +49,17 @@ export class FileService {
     const target = join(orgDir, `${id}-${name}`);
     // The stored copy is what gets hashed and scanned, so the record describes exactly the bytes kept; nothing is held in memory whole.
     await copyFile(sourcePath, target);
+    try {
+      return await this.recordImport({ id, orgId, name, target, access, now });
+    } catch (error) {
+      // An import that is not recorded leaves no stored copy behind.
+      rmSync(target, { force: true });
+      throw error;
+    }
+  }
+
+  private async recordImport(input: { id: string; orgId: string; name: string; target: string; access: FileObjectInput["access"]; now: string }): Promise<string> {
+    const { id, orgId, name, target, access, now } = input;
     const { scan, sha256: hash, size } = await scanFileAt(target, name);
     console.info(`[files] imported ${name} (${formatBytes(size)})`);
     this.db.exec("begin immediate");

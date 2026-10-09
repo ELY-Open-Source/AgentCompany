@@ -3,9 +3,8 @@ import { createId } from "../../shared/ids";
 import { withSavepoint } from "../database/connection";
 import { holdDeliverable, reviewsDeliverables, type HeldTarget } from "./held-deliverables";
 import { ApprovalService } from "./approval-service";
-import { writeDeliverable } from "./deliverable-writer";
 import { DocumentService } from "./document-service";
-import { recordWorkspaceFile } from "./files/file-object-store";
+import { writeRecordedFile } from "./files/file-object-store";
 import { requireString } from "./agent-tool-args";
 import type { AgentToolContext, AgentToolDeps } from "./agent-tools";
 import type { JsonRecord } from "./provider-http";
@@ -24,13 +23,13 @@ export function writeDeliverableTool(deps: AgentToolDeps, ctx: AgentToolContext,
     holdForReview(deps, ctx, { kind: "file", workspaceRoot: ctx.workspace.localPath, relativePath: path }, content, `Review deliverable: ${path}`);
     return `Deliverable ${path} (${content.length} chars) is held for board review in Approvals. It is not written until approved, so no one can use it yet.`;
   }
-  const written = writeDeliverable({ workspaceRoot: ctx.workspace.localPath, relativePath: path, content });
-  const fileId = recordWorkspaceFile(deps.db, {
+  const { fileId, written } = writeRecordedFile(deps.db, {
     orgId: ctx.orgId,
     ownerType: "agent",
     ownerId: ctx.agent.id,
     workspaceRoot: ctx.workspace.localPath,
-    relativePath: written,
+    relativePath: path,
+    content,
   });
   return `Wrote deliverable ${written} (file_id=${fileId}, chars=${content.length}).`;
 }

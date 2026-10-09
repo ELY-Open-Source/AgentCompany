@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { open } from "node:fs/promises";
 import { basename, dirname, extname, isAbsolute, join, relative } from "node:path";
 import type { DatabaseSync } from "node:sqlite";
@@ -226,9 +226,10 @@ export function recordWorkspaceFile(db: DatabaseSync, input: {
   const now = new Date().toISOString();
   const sha256 = createHash("sha256").update(bytes).digest("hex");
   // The id keeps exactly these bytes: a content-addressed copy the workspace file can be rewritten without touching.
-  const copy = keepCopy(input.workspaceRoot, absolute, sha256, bytes);
-  // A savepoint, not a transaction: an approved deliverable is recorded inside the approval's own transaction.
-  return withSavepoint(db, "record_workspace_file", () => upsertFileObject(db, {
+  const { copy, created } = keepCopy(input.workspaceRoot, absolute, sha256, bytes);
+  try {
+    // A savepoint, not a transaction: an approved deliverable is recorded inside the approval's own transaction.
+    return withSavepoint(db, "record_workspace_file", () => upsertFileObject(db, {
     orgId: input.orgId,
     name,
     kind: fileKind(name),
@@ -242,6 +243,27 @@ export function recordWorkspaceFile(db: DatabaseSync, input: {
     scan,
     now,
   }));
+  } catch (error) {
+    // A copy made for a record that failed goes with it; one that already backed another record stays.
+    if (created) rmSync(copy, { force: true });
+    throw error;
+  }
+}
+
+/** Writes a workspace file and records it as one result: if recording fails, the old file comes back, or the new one goes. */
+export function writeRecordedFile(db: DatabaseSync, input: { orgId: string; ownerType: string; ownerId: string | null; workspaceRoot: string; relativePath: string; content: string }): { fileId: string; written: string } {
+  const { absolute, relativePosix } = resolveWorkspacePath(input.workspaceRoot, input.relativePath);
+  const previous = existsSync(absolute) ? readFileSync(absolute) : null;
+  try {
+    mkdirSync(dirname(absolute), { recursive: true });
+    writeFileSync(absolute, input.content, "utf8");
+    const fileId = recordWorkspaceFile(db, { orgId: input.orgId, ownerType: input.ownerType, ownerId: input.ownerId, workspaceRoot: input.workspaceRoot, relativePath: relativePosix });
+    return { fileId, written: relativePosix };
+  } catch (error) {
+    if (previous) writeFileSync(absolute, previous);
+    else rmSync(absolute, { force: true });
+    throw error;
+  }
 }
 
 /** A recorded file's bytes, refused when they are gone or no longer match the hash it was recorded with. */
@@ -256,13 +278,21 @@ export function readVerifiedFile(file: { name: string; storagePath: string; sha2
 }
 
 /** The content-addressed copy of a workspace file, written once; it keeps the extension so the file still opens with its app. */
-function keepCopy(workspaceRoot: string, source: string, sha256: string, bytes: Buffer): string {
+function keepCopy(workspaceRoot: string, source: string, sha256: string, bytes: Buffer): { copy: string; created: boolean } {
   const copy = join(workspaceRoot, ".agentcompany", "files", `${sha256}${extname(source)}`);
-  if (!existsSync(copy)) {
-    mkdirSync(dirname(copy), { recursive: true });
-    writeFileSync(copy, bytes);
+  // An existing copy is reused only if its bytes are the ones its name promises.
+  if (existsSync(copy) && createHash("sha256").update(readFileSync(copy)).digest("hex") === sha256) return { copy, created: false };
+  mkdirSync(dirname(copy), { recursive: true });
+  // Written aside and renamed into place, so a write that fails never leaves a partial copy under the final name.
+  const pending = `${copy}.${createId("tmp")}`;
+  try {
+    writeFileSync(pending, bytes);
+    renameSync(pending, copy);
+  } catch (error) {
+    rmSync(pending, { force: true });
+    throw error;
   }
-  return copy;
+  return { copy, created: true };
 }
 
 /** Files scanned before whole-file scanning are scanned again when their bytes are still the recorded ones; the rest are marked as sampled. */
@@ -294,7 +324,7 @@ export function preserveRecordedFiles(db: DatabaseSync): void {
       console.warn(`[files] ${row.id} was rewritten before its bytes could be kept; it opens the current file`);
       continue;
     }
-    db.prepare("update file_objects set storage_path = ? where id = ?").run(keepCopy(workspace.local_path, row.storage_path, row.sha256, bytes), row.id);
+    db.prepare("update file_objects set storage_path = ? where id = ?").run(keepCopy(workspace.local_path, row.storage_path, row.sha256, bytes).copy, row.id);
   }
 }
 

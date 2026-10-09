@@ -66,4 +66,19 @@ describe("files shared in a private conversation", () => {
     rmSync(huge);
     connection.close();
   });
+
+  test("an import whose record fails leaves no stored copy behind", async () => {
+    const connection = new DatabaseConnection(join(tmpdir(), `ac-import-fail-${randomUUID()}.db`));
+    let orgId = "";
+    connection.transaction(() => {
+      orgId = new OrganizationService(connection.db).createOrganization({ organizationName: "Acme", employeeName: "Yang", mission: "m", goal: "g" });
+    });
+    const source = join(tmpdir(), `ac-import-fail-${randomUUID()}.md`);
+    writeFileSync(source, "notes");
+    connection.db.exec("create trigger registry_down before insert on file_objects begin select raise(abort, 'registry down'); end;");
+    const artifacts = join(tmpdir(), `ac-import-fail-art-${randomUUID()}`);
+    await expect(new FileService(connection.db, artifacts).importPath(orgId, source, null)).rejects.toThrow("registry down");
+    expect(readdirSync(artifacts, { recursive: true }).filter((entry) => String(entry).endsWith(".md"))).toEqual([]);
+    connection.close();
+  });
 });

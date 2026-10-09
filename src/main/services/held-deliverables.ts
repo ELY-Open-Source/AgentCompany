@@ -1,10 +1,8 @@
 import { createHash } from "node:crypto";
-import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import type { DatabaseSync } from "node:sqlite";
 import type { ApprovalPin } from "../../shared/approval-pin";
-import { writeDeliverable } from "./deliverable-writer";
 import { DocumentService } from "./document-service";
-import { recordWorkspaceFile } from "./files/file-object-store";
+import { writeRecordedFile } from "./files/file-object-store";
 import { resolveWorkspacePath } from "./files/workspace-path";
 
 /** What a held deliverable will become once approved. */
@@ -84,16 +82,7 @@ function publish(db: DatabaseSync, row: HeldRow): void {
     const { absolute } = resolveWorkspacePath(row.workspace_root!, row.relative_path!);
     // The file's pin is known before it is written, so it is recorded first and the disk write stays last.
     pinApproval(db, row, { kind: "file", storagePath: absolute, sha256: createHash("sha256").update(row.content, "utf8").digest("hex") });
-    const previous = existsSync(absolute) ? readFileSync(absolute) : null;
-    try {
-      const written = writeDeliverable({ workspaceRoot: row.workspace_root!, relativePath: row.relative_path!, content: row.content });
-      recordWorkspaceFile(db, { orgId: row.org_id, ownerType: "agent", ownerId: row.agent_id, workspaceRoot: row.workspace_root!, relativePath: written });
-    } catch (error) {
-      // A publication that fails leaves the workspace as it was: the old file back, or none.
-      if (previous) writeFileSync(absolute, previous);
-      else rmSync(absolute, { force: true });
-      throw error;
-    }
+    writeRecordedFile(db, { orgId: row.org_id, ownerType: "agent", ownerId: row.agent_id, workspaceRoot: row.workspace_root!, relativePath: row.relative_path!, content: row.content });
     return;
   }
   const documents = new DocumentService(db);
