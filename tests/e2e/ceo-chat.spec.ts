@@ -118,6 +118,20 @@ test("the pinned CEO conversation is the Messages front door", async () => {
     await page.getByRole("button", { name: "Review" }).first().click();
     await expect(review.getByRole("textbox", { name: "Decision notes" })).toHaveValue("");
     await review.getByRole("button", { name: "Close" }).click();
+    // A batch approval says how far it got, item by item.
+    await page.evaluate(async () => {
+      const api = (window as unknown as { agentCompany: {
+        loadSnapshot: () => Promise<{ ok: true; data: { activeOrgId: string } }>;
+        createApproval: (input: unknown) => Promise<{ ok: boolean }>;
+      } }).agentCompany;
+      const orgId = (await api.loadSnapshot()).data.activeOrgId;
+      for (const title of ["Order stickers", "Renew the domain"]) {
+        await api.createApproval({ orgId, kind: "purchase", title, details: "Small spend.", risk: "low", requestedByType: "system", requestedById: null });
+      }
+    });
+    await expect(page.getByText("Renew the domain")).toBeVisible();
+    await page.getByRole("button", { name: "Approve all low risk" }).click();
+    await expect(page.getByRole("status").filter({ hasText: "Approved" })).toContainText("Approved 2 of 2.");
     await page.getByRole("button", { name: "Work" }).click();
     await page.getByRole("button", { name: /Operationalize goal: Ship the FlowPilot MVP\./ }).first().click();
     // Blocking says why on the task and stops it; work can also move backwards.

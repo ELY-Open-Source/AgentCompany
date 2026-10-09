@@ -1,3 +1,4 @@
+import { decideEach, type BatchResult } from "./approvals/decide-each";
 import { decidedWindow } from "./approvals/decided-window";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Avatar, Button, Icon, IconButton, Pill } from "../shared/ui";
@@ -73,9 +74,8 @@ export function ApprovalsPage({ snapshot, actions, navigate, focus }: PageProps)
     };
   }, [orgId, approvals]);
 
-  const decide = (approval: ApprovalRecord, state: "approved" | "declined", notes?: string) => {
-    setEditingId(null);
-    void actions.run(() => window.agentCompany.decideApproval({
+  const decide = async (approval: ApprovalRecord, state: "approved" | "declined", notes?: string) => {
+    await actions.run(() => window.agentCompany.decideApproval({
       orgId,
       approvalId: approval.id,
       state,
@@ -83,17 +83,38 @@ export function ApprovalsPage({ snapshot, actions, navigate, focus }: PageProps)
       notes,
     }));
   };
+  // A row decision shows its own refusal; the request stays listed until it is decided.
+  const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
+  const [busyRows, setBusyRows] = useState<Set<string>>(new Set());
+  const decideRow = (approval: ApprovalRecord, state: "approved" | "declined") => {
+    setBusyRows((current) => new Set(current).add(approval.id));
+    setRowErrors(({ [approval.id]: _old, ...rest }) => rest);
+    decide(approval, state)
+      .catch((error: unknown) => setRowErrors((current) => ({ ...current, [approval.id]: error instanceof Error ? error.message : String(error) })))
+      .finally(() => setBusyRows((current) => {
+        const next = new Set(current);
+        next.delete(approval.id);
+        return next;
+      }));
+  };
 
+  const [batch, setBatch] = useState<{ total: number; done: number; result: BatchResult | null } | null>(null);
   const approveAllLowRisk = () => {
     const lows = filteredPending.filter((approval) => approval.risk === RISK_LEVEL.LOW);
-    for (const approval of lows) decide(approval, "approved");
+    if (lows.length === 0) return;
+    setBatch({ total: lows.length, done: 0, result: null });
+    void decideEach(lows, (approval) => decide(approval, "approved"), (done) => setBatch((current) => current && { ...current, done }))
+      .then((result) => setBatch({ total: lows.length, done: lows.length, result }));
   };
+  const batchRunning = batch !== null && batch.result === null;
 
   return (
     <div className="page">
       <TopbarActions>
         <RiskMenu filter={filter} onChange={setFilter} />
-        <Button tone="primary" onClick={approveAllLowRisk}>{t("Approve all low risk")}</Button>
+        <Button tone="primary" onClick={approveAllLowRisk} disabled={batchRunning}>
+          {batchRunning ? t("Approving {done} of {total}…", { done: batch.done, total: batch.total }) : t("Approve all low risk")}
+        </Button>
       </TopbarActions>
       <h1 className="page-h1">{t("Approvals")}</h1>
       <p className="page-sub">
@@ -107,6 +128,7 @@ export function ApprovalsPage({ snapshot, actions, navigate, focus }: PageProps)
         <StatTile label={t("Declined (7d)")} value={String(declined7d)} />
       </div>
 
+      {batch?.result && <BatchSummary total={batch.total} result={batch.result} onDismiss={() => setBatch(null)} />}
       {filteredPending.length > 0 && <div className="section-label" style={{ marginBottom: 10 }}>{t("Pending")}</div>}
       {filteredPending.map((approval) => (
         <ApprovalRow
@@ -114,8 +136,10 @@ export function ApprovalsPage({ snapshot, actions, navigate, focus }: PageProps)
           approval={approval}
           requester={resolveRequester(approval, employees, agents)}
           isBot={approval.requestedByType === "agent"}
-          onApprove={() => decide(approval, "approved")}
-          onDecline={() => decide(approval, "declined")}
+          busy={busyRows.has(approval.id) || batchRunning}
+          error={rowErrors[approval.id] ?? null}
+          onApprove={() => decideRow(approval, "approved")}
+          onDecline={() => decideRow(approval, "declined")}
           onReview={() => setEditingId(approval.id)}
         />
       ))}
@@ -147,7 +171,13 @@ export function ApprovalsPage({ snapshot, actions, navigate, focus }: PageProps)
         approval={editing}
         requester={editing ? resolveRequester(editing, employees, agents) : ""}
         onClose={() => setEditingId(null)}
-        onDecide={(state, notes) => editing && decide(editing, state, notes)}
+        onDecide={async (state, notes) => {
+          if (!editing) return;
+          const decidedId = editing.id;
+          await decide(editing, state, notes);
+          // Close only the request that was decided; another opened meanwhile stays open.
+          setEditingId((current) => (current === decidedId ? null : current));
+        }}
         onOpenTask={openTask}
       />
     </div>
@@ -164,10 +194,21 @@ function ApprovalDetailDialog({
   approval: ApprovalRecord | null;
   requester: string;
   onClose: () => void;
-  onDecide: (state: "approved" | "declined", notes?: string) => void;
+  /** Resolves once the decision is saved; the dialog stays open until then and shows a refusal. */
+  onDecide: (state: "approved" | "declined", notes?: string) => Promise<void>;
   onOpenTask: (taskId: string) => void;
 }) {
   const [notes, setNotes] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const submit = (state: "approved" | "declined") => {
+    setSaving(true);
+    setError(null);
+    onDecide(state, notes || undefined).catch((reason: unknown) => {
+      setSaving(false);
+      setError(reason instanceof Error ? reason.message : String(reason));
+    });
+  };
   if (!approval) return null;
   const tone = RISK_TONES[approval.risk];
   if (!tone) throw new Error("Approval risk tone is missing.");
@@ -213,9 +254,10 @@ function ApprovalDetailDialog({
           rows={2}
           style={{ marginTop: 14 }}
         />
+        {error && <div className="form-error" role="alert">{t("Not decided: {reason}", { reason: error })}</div>}
         <div className="modal-actions">
-          <Button onClick={() => onDecide("declined", notes || undefined)}>{t("Decline")}</Button>
-          <Button tone="primary" onClick={() => onDecide("approved", notes || undefined)}>{t("Approve")}</Button>
+          <Button onClick={() => submit("declined")} disabled={saving}>{t("Decline")}</Button>
+          <Button tone="primary" onClick={() => submit("approved")} disabled={saving}>{t("Approve")}</Button>
         </div>
       </div>
     </div>
@@ -262,10 +304,14 @@ function ApprovalRow({
   onApprove,
   onDecline,
   onReview,
+  busy,
+  error,
 }: {
   approval: ApprovalRecord;
   requester: string;
   isBot: boolean;
+  busy: boolean;
+  error: string | null;
   onApprove: () => void;
   onDecline: () => void;
   /** Opens the request to read it in full and decide with notes; what is requested is changed at its source. */
@@ -304,9 +350,10 @@ function ApprovalRow({
         </div>
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end" }}>
-        <Button tone="primary" onClick={onApprove}>{t("Approve")}</Button>
-        <Button onClick={onReview}>{t("Review")}</Button>
-        <Button tone="ghost" onClick={onDecline}>{t("Decline")}</Button>
+        <Button tone="primary" onClick={onApprove} disabled={busy}>{t("Approve")}</Button>
+        <Button onClick={onReview} disabled={busy}>{t("Review")}</Button>
+        <Button tone="ghost" onClick={onDecline} disabled={busy}>{t("Decline")}</Button>
+        {error && <div className="form-error" role="alert" style={{ maxWidth: 220 }}>{t("Not decided: {reason}", { reason: error })}</div>}
       </div>
     </div>
   );
@@ -405,4 +452,19 @@ function formatMinutes(minutes: number): string {
   const hours = Math.floor(minutes / 60);
   const remaining = minutes % 60;
   return remaining === 0 ? `${hours}h` : `${hours}h ${remaining}m`;
+}
+
+/** What a batch approval did: how many were approved, and each that was not, with why. */
+function BatchSummary({ total, result, onDismiss }: { total: number; result: BatchResult; onDismiss: () => void }) {
+  return (
+    <div role="status" className="card" style={{ padding: 14, marginBottom: 16 }}>
+      <div className="row" style={{ gap: 8 }}>
+        <span style={{ fontWeight: 600 }}>{t("Approved {n} of {total}.", { n: result.approved.length, total })}</span>
+        <span style={{ marginLeft: "auto" }}><Button size="small" tone="ghost" onClick={onDismiss}>{t("Dismiss")}</Button></span>
+      </div>
+      {result.failed.map((failure) => (
+        <div key={failure.id} className="form-error">{failure.title}: {failure.reason}</div>
+      ))}
+    </div>
+  );
 }
