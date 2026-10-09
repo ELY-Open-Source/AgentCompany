@@ -1,3 +1,4 @@
+import { newestRuns } from "./runs/newest-runs";
 import { isBusinessTask } from "./work/task-helpers";
 import { useMemo, useState, type CSSProperties } from "react";
 import { Avatar, Button, Icon, Pill } from "../shared/ui";
@@ -222,7 +223,7 @@ function RunActivityCard({
   agents: AgentRecord[];
   onViewAll: () => void;
 }) {
-  const recent = taskRuns.slice(0, 6);
+  const recent = newestRuns(taskRuns, 6);
   return (
     <section className="card">
       <div className="row" style={{ marginBottom: 12 }}>
