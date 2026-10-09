@@ -40,7 +40,8 @@ export type RequestPurpose = "agent_turn" | "goal_audit" | "model_check" | "manu
 export function requestsForRun(db: DatabaseSync, orgId: string, runId: string): RunRequestRecord[] {
   return db.prepare(`
     select id, purpose, model, state, error_message as errorMessage, input_tokens as inputTokens, output_tokens as outputTokens,
-           cost_cents as costCents, created_at as createdAt, completed_at as completedAt
+           cost_cents as costCents, created_at as createdAt, completed_at as completedAt,
+           input_char_count as inputCharCount, output_char_count as outputCharCount, response_text as responseText
     from provider_requests where org_id = ? and task_run_id = ? order by rowid
   `).all(orgId, runId) as unknown as RunRequestRecord[];
 }

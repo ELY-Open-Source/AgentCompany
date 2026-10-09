@@ -1,5 +1,4 @@
-import { useEffect, useState } from "react";
-import type { RunRequestRecord } from "../../../../shared/provider-runtime-domain";
+import type { LoadedRequests } from "./use-run-requests";
 import { Pill } from "../../shared/ui";
 import { t } from "../../i18n/i18n";
 
@@ -12,25 +11,8 @@ function purposeLabel(purpose: string): string {
 }
 
 /** Every model call the run made, in order, so a turn or an audit can be found by its task. */
-export function RunRequestList({ orgId, runId, state }: { orgId: string; runId: string; state: string }) {
-  // Fetched calls are kept with the run they belong to, so switching runs never shows another run's chain.
-  const [loaded, setLoaded] = useState<{ runId: string; requests: RunRequestRecord[] } | { runId: string; error: string } | null>(null);
-  useEffect(() => {
-    let cancelled = false;
-    window.agentCompany.runRequests({ orgId, runId })
-      .then((result) => {
-        if (cancelled) return;
-        setLoaded(result.ok ? { runId, requests: result.data } : { runId, error: result.error.message });
-      })
-      .catch((reason: unknown) => {
-        if (!cancelled) setLoaded({ runId, error: reason instanceof Error ? reason.message : String(reason) });
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [orgId, runId, state]);
-
-  if (!loaded || loaded.runId !== runId) return null;
+export function RunRequestList({ loaded }: { loaded: LoadedRequests | null }) {
+  if (!loaded) return null;
   if ("error" in loaded) return <div className="form-error" role="alert">{loaded.error}</div>;
   const { requests } = loaded;
   return (

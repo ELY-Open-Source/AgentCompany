@@ -86,6 +86,7 @@ export const IPC_CHANNELS = {
   setTaskBlocked: "agentcompany:set-task-blocked",
   taskDeleteImpact: "agentcompany:task-delete-impact",
   cancelQueuedRun: "agentcompany:cancel-queued-run",
+  runHistory: "agentcompany:run-history",
   revokeConnector: "agentcompany:revoke-connector",
   search: "agentcompany:search",
   rendererEvent: "agentcompany:renderer-event",

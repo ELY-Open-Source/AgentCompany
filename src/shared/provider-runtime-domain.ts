@@ -56,4 +56,7 @@ export interface RunRequestRecord {
   costCents: number | null;
   createdAt: string;
   completedAt: string | null;
+  inputCharCount: number;
+  outputCharCount: number;
+  responseText: string | null;
 }

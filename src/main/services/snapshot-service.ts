@@ -95,7 +95,7 @@ export class SnapshotService {
       workspaces,
       goals: list(this.db, "goals", "created_at asc"),
       projects: list(this.db, "projects", "created_at asc"),
-      taskRuns: recentList<AppSnapshot["taskRuns"][number]>(this.db, "task_runs", "created_at desc", 200).reverse(),
+      taskRuns: recentList<AppSnapshot["taskRuns"][number]>(this.db, "task_runs", "created_at desc, rowid desc", 200).reverse(),
       approvals: list(this.db, "approvals", "created_at desc"),
       chatSpaces: list(this.db, "chat_spaces", "created_at asc"),
       chatMemberships: list(this.db, "chat_memberships", "space_id asc, principal_type asc, principal_id asc"),

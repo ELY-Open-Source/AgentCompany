@@ -1,7 +1,8 @@
 import { RunRequestList } from "./runs/RunRequestList";
-import { useMemo, useState } from "react";
+import { useRunRequests } from "./runs/use-run-requests";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Avatar, Button, Pill, Segmented } from "../shared/ui";
-import type { AgentRecord, ProviderRecord, TaskRecord, TaskRunRecord } from "../../../shared/domain";
+import type { AgentRecord, ProviderRecord, RunCursor, TaskRecord, TaskRunRecord } from "../../../shared/domain";
 import type { PageProps } from "./types";
 import { activeOrgId, formatRelative } from "./types";
 import { t } from "../i18n/i18n";
@@ -17,11 +18,48 @@ const FILTERS: Array<{ id: StatusFilter; label: string }> = [
 
 export function RunsPage({ snapshot, actions, navigate, focus }: PageProps) {
   const orgId = activeOrgId(snapshot);
-  const taskRuns = useMemo(() => snapshot.taskRuns.filter((r) => r.orgId === orgId), [snapshot.taskRuns, orgId]);
+  const recentRuns = useMemo(() => snapshot.taskRuns.filter((r) => r.orgId === orgId), [snapshot.taskRuns, orgId]);
+  // Older runs page in from the database; their range, from a pinned position, refreshes with each reload.
+  const [pinned, setPinned] = useState<RunCursor | null>(null);
+  const [olderRuns, setOlderRuns] = useState<TaskRunRecord[]>([]);
+  const [olderDone, setOlderDone] = useState(false);
+  const [historyError, setHistoryError] = useState<string | null>(null);
+  const anchorId = recentRuns.length > 0 ? recentRuns[0].id : null;
+  useEffect(() => {
+    if (!pinned) return;
+    let cancelled = false;
+    window.agentCompany.runHistory({ orgId, beforeRunId: anchorId, from: pinned }).then((result) => {
+      if (cancelled) return;
+      if (!result.ok) throw new Error(result.error.message);
+      setOlderRuns(result.data.runs);
+      setOlderDone(!result.data.hasMore);
+      setHistoryError(null);
+    }).catch((error: unknown) => {
+      if (!cancelled) setHistoryError(error instanceof Error ? error.message : String(error));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [orgId, anchorId, pinned, recentRuns]);
+  const taskRuns = useMemo(() => [...olderRuns, ...recentRuns], [olderRuns, recentRuns]);
+  const oldestShownId = taskRuns.length > 0 ? taskRuns[0].id : null;
+  const loadOlder = useCallback(() => {
+    window.agentCompany.runHistory({ orgId, beforeRunId: oldestShownId, limit: 100 }).then((result) => {
+      if (!result.ok) throw new Error(result.error.message);
+      setHistoryError(null);
+      // With nothing older, the oldest shown run's position is pinned so later reloads keep the range.
+      const position = result.data.oldest ?? result.data.boundary;
+      if (position) setPinned(position);
+      setOlderDone(!result.data.hasMore);
+    }).catch((error: unknown) => setHistoryError(error instanceof Error ? error.message : String(error)));
+  }, [orgId, oldestShownId]);
+  // While the snapshot holds none of this company's runs and nothing is pinned, each reload asks the database for the newest page.
+  useEffect(() => {
+    if (recentRuns.length === 0 && pinned === null) loadOlder();
+  }, [recentRuns, pinned, loadOlder]);
   const tasks = useMemo(() => snapshot.tasks.filter((t) => t.orgId === orgId), [snapshot.tasks, orgId]);
   const agents = useMemo(() => snapshot.agents.filter((a) => a.orgId === orgId), [snapshot.agents, orgId]);
   const providers = useMemo(() => snapshot.providers.filter((p) => p.orgId === orgId), [snapshot.providers, orgId]);
-  const providerRequests = useMemo(() => snapshot.providerRequests.filter((r) => r.orgId === orgId), [snapshot.providerRequests, orgId]);
   const [filter, setFilter] = useState<StatusFilter>("all");
   const [selectedId, setSelectedId] = useState<string | null>(focus?.kind === "run" ? focus.id : null);
   const [search, setSearch] = useState("");
@@ -62,7 +100,8 @@ export function RunsPage({ snapshot, actions, navigate, focus }: PageProps) {
           <Segmented value={filter} onChange={setFilter} options={FILTERS} />
         </div>
         <div className="pane-scroll">
-          {filtered.map((run) => {
+          {/* Newest first, so "show older runs" continues below. */}
+          {[...filtered].reverse().map((run) => {
             const task = tasks.find((t) => t.id === run.taskId);
             const agent = agents.find((a) => a.id === run.agentId);
             const active = run.id === selectedId;
@@ -86,11 +125,17 @@ export function RunsPage({ snapshot, actions, navigate, focus }: PageProps) {
             );
           })}
           {filtered.length === 0 && <div style={{ padding: 16, fontSize: 14, color: "var(--text-3)" }}>{t("No runs")}</div>}
+          {historyError && <div className="form-error" role="alert" style={{ padding: "0 16px" }}>{historyError}</div>}
+          <div style={{ padding: 12, display: "flex", justifyContent: "center" }}>
+            {olderDone
+              ? <span style={{ fontSize: 12, color: "var(--text-3)" }}>{t("These are all the runs.")}</span>
+              : <Button size="small" onClick={loadOlder}>{t("Show older runs")}</Button>}
+          </div>
         </div>
       </aside>
       <div style={{ flex: 1, minWidth: 0, overflow: "auto", padding: 24 }}>
         {selected ? (
-          <RunDetail key={selected.id} run={selected} tasks={tasks} agents={agents} providers={providers} providerRequests={providerRequests} actions={actions} onOpenTask={(taskId) => navigate("work", { kind: "task", id: taskId })} />
+          <RunDetail key={selected.id} run={selected} tasks={tasks} agents={agents} providers={providers} actions={actions} onOpenTask={(taskId) => navigate("work", { kind: "task", id: taskId })} />
         ) : (
           <div style={{ display: "grid", placeItems: "center", height: "100%", color: "var(--text-3)", fontSize: 14 }}>
             {t("Select a run")}
@@ -101,19 +146,22 @@ export function RunsPage({ snapshot, actions, navigate, focus }: PageProps) {
   );
 }
 
-function RunDetail({ run, tasks, agents, providers, providerRequests, actions, onOpenTask }: {
+function RunDetail({ run, tasks, agents, providers, actions, onOpenTask }: {
   actions: PageProps["actions"];
   onOpenTask: (taskId: string) => void;
   run: TaskRunRecord;
   tasks: TaskRecord[];
   agents: AgentRecord[];
   providers: ProviderRecord[];
-  providerRequests: Array<{ id: string; orgId: string; providerId: string; model: string; state: string; responseText: string | null; inputCharCount: number; outputCharCount: number; createdAt: string; inputTokens: number | null; outputTokens: number | null; costCents: number | null }>;
 }) {
   const task = tasks.find((t) => t.id === run.taskId);
   const agent = agents.find((a) => a.id === run.agentId);
   const provider = providers.find((p) => p.id === run.providerId);
-  const request = run.providerRequestId ? providerRequests.find((r) => r.id === run.providerRequestId) : null;
+  // The run's calls come from the database, so an old run still shows its output; refetched with each snapshot reload.
+  const loadedRequests = useRunRequests(run.orgId, run.id, run);
+  const request = loadedRequests && "requests" in loadedRequests && run.providerRequestId
+    ? loadedRequests.requests.find((item) => item.id === run.providerRequestId) ?? null
+    : null;
 
   const started = run.startedAt ? new Date(run.startedAt) : null;
   const completed = run.completedAt ? new Date(run.completedAt) : null;
@@ -165,7 +213,7 @@ function RunDetail({ run, tasks, agents, providers, providerRequests, actions, o
         <MetaLabel>{t("Context")}</MetaLabel><div className="mono" style={{ fontSize: 12, overflow: "hidden", textOverflow: "ellipsis" }}>{run.executionContextId}</div>
       </div>
 
-      <RunRequestList orgId={run.orgId} runId={run.id} state={run.state} />
+      <RunRequestList loaded={loadedRequests} />
 
       {run.state === "superseded" && run.errorMessage && (
         <div className="card" style={{ padding: 16, marginBottom: 16 }}>

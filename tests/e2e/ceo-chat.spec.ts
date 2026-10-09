@@ -290,6 +290,20 @@ test("the pinned CEO conversation is the Messages front door", async () => {
     await expect(start).toBeVisible();
     await expect(chatLog.getByText("General line 0", { exact: true })).toBeVisible();
 
+    // Runs older than the loaded window page in from the database, down to the first one.
+    await page.getByRole("button", { name: "Runs" }).click();
+    const runRows = page.locator(".pane-scroll .nav-row");
+    await expect(runRows).toHaveCount(200);
+    await page.getByRole("button", { name: "Show older runs" }).click();
+    await expect.poll(async () => runRows.count()).toBeGreaterThan(200);
+    for (let click = 0; click < 10 && await page.getByRole("button", { name: "Show older runs" }).isVisible(); click += 1) {
+      await page.getByRole("button", { name: "Show older runs" }).click();
+      await page.waitForTimeout(300);
+    }
+    await expect(page.getByText("These are all the runs.")).toBeVisible();
+    await page.getByRole("button", { name: "Messages" }).click();
+    await page.locator(".convo-item", { hasText: "general" }).click();
+
     // The header lists the real members, how each agent replies, and who can read.
     await page.getByRole("button", { name: /^Members \(/ }).click();
     const roster = page.getByRole("menu");

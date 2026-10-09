@@ -52,6 +52,8 @@ export const zh: Record<string, string> = {
   "Showing {shown} of {total}": "显示 {total} 项中的 {shown} 项",
   "Show earlier decisions": "显示更早的决定",
   "Cancel run": "取消运行",
+  "Show older runs": "显示更早的运行",
+  "These are all the runs.": "已显示全部运行。",
   "Running…": "运行中…",
   "A cancelled session can start again on the next heartbeat; block the task to keep it stopped.": "取消的会话可能在下一次心跳时再次开始；如需保持停止，请阻塞该任务。",
   "A new session on the task picks up from what earlier sessions did and where they stopped.": "任务的新会话会接着之前会话做过的工作和停下的位置继续。",

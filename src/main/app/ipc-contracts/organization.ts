@@ -48,6 +48,10 @@ export const organizationContracts = {
   setTaskBlocked: z.strictObject({ orgId: id, taskId: id, reason: z.string().nullable() }) satisfies z.ZodType<C.SetTaskBlockedInput>,
   taskDeleteImpact: z.strictObject({ orgId: id, taskId: id }),
   cancelQueuedRun: z.strictObject({ orgId: id, runId: id }),
+  runHistory: z.union([
+    z.strictObject({ orgId: id, beforeRunId: id.nullable(), limit: z.number().int().min(1).max(500) }),
+    z.strictObject({ orgId: id, beforeRunId: id.nullable(), from: z.strictObject({ createdAt: z.string(), seq: z.number().int() }) }),
+  ]),
   updateTaskStatus: z.strictObject({ orgId: id, taskId: id, status: z.enum(TASK_STATUS) }) satisfies z.ZodType<C.UpdateTaskStatusInput>,
   runTask: z.strictObject({ orgId: id, taskId: id }) satisfies z.ZodType<C.RunTaskInput>,
   createGoal: z.strictObject({ orgId: id, title: z.string(), description: z.string(), ownerAgentId: nullableId }) satisfies z.ZodType<C.CreateGoalInput>,

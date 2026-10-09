@@ -40,6 +40,9 @@ describe("a run's model calls", () => {
     });
     const runId = claimNextQueuedRun(connection)!.id;
     await expect(execution.executeRun(orgId, runId)).rejects.toThrow();
+    // Each call carries its own output, so the run's detail does not depend on a snapshot window.
+    const turnCall = requestsForRun(connection.db, orgId, runId).find((request) => request.purpose === "agent_turn" && request.state === "succeeded")!;
+    expect([typeof turnCall.responseText, typeof turnCall.inputCharCount, typeof turnCall.outputCharCount]).toEqual(["string", "number", "number"]);
     expect(requestsForRun(connection.db, orgId, runId).map((request) => [request.purpose, request.state])).toEqual([
       ["model_check", "succeeded"],
       ["agent_turn", "succeeded"],

@@ -105,6 +105,20 @@ export interface TaskDeleteImpact {
   pendingApprovals: number;
 }
 
+/** A position in run history (time, then insertion), which stays valid after its run is deleted. */
+export interface RunCursor {
+  createdAt: string;
+  seq: number;
+}
+
+/** A page of older runs, oldest first: whether older ones exist, the position of its oldest run, and of the run it was read before. */
+export interface RunHistoryPage {
+  runs: TaskRunRecord[];
+  hasMore: boolean;
+  oldest: RunCursor | null;
+  boundary: RunCursor | null;
+}
+
 export interface TaskRecord {
   id: string;
   orgId: string;

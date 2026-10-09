@@ -1,4 +1,4 @@
-import type { TaskDeleteImpact } from "./domain";
+import type { RunCursor, RunHistoryPage, TaskDeleteImpact } from "./domain";
 import type { SpaceHistoryPage, ThreadHistory } from "./chat-domain";
 import type { RunRequestRecord } from "./provider-runtime-domain";
 import type { ApprovalDrift } from "./approval-pin";
@@ -207,6 +207,8 @@ export interface DesktopApi {
   taskDeleteImpact(input: { orgId: string; taskId: string }): Promise<DesktopResult<TaskDeleteImpact>>;
   /** Cancels a run that has not started yet. */
   cancelQueuedRun(input: { orgId: string; runId: string }): Promise<DesktopResult<AppSnapshot>>;
+  /** Runs older than a loaded one, for history beyond the snapshot's recent runs. */
+  runHistory(input: { orgId: string; beforeRunId: string | null } & ({ limit: number } | { from: RunCursor })): Promise<DesktopResult<RunHistoryPage>>;
   chatSpaceHistory(input: { orgId: string; spaceId: string; beforeMessageId: string | null } & ({ limit: number } | { fromMessageId: string })): Promise<DesktopResult<SpaceHistoryPage>>;
   revokeConnector(input: RevokeConnectorInput): Promise<DesktopResult<AppSnapshot>>;
   search(input: SearchInput): Promise<DesktopResult<SearchResultRecord[]>>;

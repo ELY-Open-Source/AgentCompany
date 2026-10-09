@@ -96,7 +96,7 @@ export function App() {
     office: <OfficePage {...pageProps} />,
     settings: <SettingsPage {...pageProps} />,
   }[route];
-  const pageKey = focus ? `${route}:${focus.kind}:${focus.id}` : route;
+  const pageKey = `${snapshot.activeOrgId}:${route}${focus ? `:${focus.kind}:${focus.id}` : ""}`;
 
   return (
     <AvatarDirectoryContext.Provider value={avatarDirectory}>
