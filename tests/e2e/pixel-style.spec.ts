@@ -73,6 +73,27 @@ test("text uses the bundled pixel font, and the palette follows the day part, se
     const views = page.getByRole("radiogroup", { name: "View" });
     expect(await views.locator("[aria-checked=true]").evaluate((tab) => getComputedStyle(tab).borderBottomColor === getComputedStyle(tab).backgroundColor)).toBe(true);
 
+    // Shell: the chosen page is an inverse block, rules are 2px, and search opens in the framed panel whose rows take the menu arrow.
+    await expect.poll(() => page.evaluate(() => {
+      const active = getComputedStyle(document.querySelector(".nav > .nav-item.active")!);
+      const accent = getComputedStyle(document.documentElement).getPropertyValue("--btn-primary-bg").trim();
+      const probe = document.createElement("div");
+      probe.style.color = accent;
+      document.body.append(probe);
+      const accentRgb = getComputedStyle(probe).color;
+      probe.remove();
+      return [active.backgroundColor === accentRgb, getComputedStyle(document.querySelector(".topbar")!).borderBottomWidth, getComputedStyle(document.querySelector(".sidebar")!).borderRightWidth];
+    })).toEqual([true, "2px", "2px"]);
+    await page.getByRole("button", { name: "Search", exact: true }).click();
+    const search = page.getByRole("dialog", { name: "Search" });
+    expect(await search.locator("form").evaluate((panel) => getComputedStyle(panel).borderImageSource.startsWith('url("data:image/svg+xml'))).toBe(true);
+    await search.getByLabel("Search query").fill("CEO");
+    const row = search.locator(".search-row").first();
+    await row.hover();
+    expect(await row.evaluate((node) => getComputedStyle(node, "::before").animationName)).toBe("px-blink");
+    await page.keyboard.press("Escape");
+    await expect(search).toHaveCount(0);
+
     await page.getByRole("button", { name: "Settings" }).click();
     expect(await page.getByRole("combobox", { name: "Theme" }).evaluate((field) => [getComputedStyle(field).borderTopWidth, getComputedStyle(field).borderRadius])).toEqual(["2px", "0px"]);
     await page.getByRole("combobox", { name: "Theme" }).selectOption("dark");

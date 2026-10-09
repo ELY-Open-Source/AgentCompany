@@ -139,7 +139,7 @@ a { color: inherit; }
   display: flex;
   flex-direction: column;
   padding: var(--sp-4) var(--sp-3);
-  border-right: 1px solid var(--border-soft);
+  border-right: 2px solid var(--border-strong);
   background: var(--bg);
 }
 /* Clear the native macOS traffic lights that overlap the sidebar top. */
@@ -177,10 +177,10 @@ a { color: inherit; }
   border-radius: 0;
   display: grid;
   place-items: center;
-  color: #fff;
-  background: linear-gradient(135deg, #1a1a1d 0%, #3a3a40 100%);
+  color: var(--btn-primary-fg);
+  background: var(--btn-primary-bg);
+  box-shadow: 2px 2px 0 0 var(--border-strong);
   font-size: var(--fs-body);
-  font-weight: 600;
   letter-spacing: 0;
 }
 .brand-name {
@@ -197,22 +197,27 @@ a { color: inherit; }
   align-items: center;
   gap: var(--sp-2);
   padding: var(--sp-2) var(--sp-3);
-  border-radius: var(--r-sm);
-  background: var(--panel-2);
+  border-radius: 0;
+  background: var(--panel);
   color: var(--text-3);
   margin-bottom: var(--sp-4);
   font-size: var(--fs-body);
   cursor: text;
-  border: 0;
+  border: 2px solid var(--border-strong);
+  box-shadow: inset 2px 2px 0 0 var(--border-soft);
   width: 100%;
   transition: background var(--motion-fast) var(--ease-out), color var(--motion-fast) var(--ease-out);
 }
-.search-bar:hover { background: var(--panel-3); color: var(--text-2); }
+.search-bar:hover { background: var(--hover); color: var(--text-2); }
+/* Shortcut as a key cap: a deeper bottom edge reads as a raised key. */
 .search-kbd {
   margin-left: auto;
+  padding: 0 4px;
   font-size: var(--fs-caption);
-  color: var(--text-3);
-  font-family: var(--font-mono);
+  color: var(--text-2);
+  background: var(--panel-2);
+  border: 2px solid var(--border);
+  border-bottom-width: 4px;
 }
 .nav { display: flex; flex-direction: column; gap: 2px; }
 .nav-label {
@@ -239,17 +244,19 @@ a { color: inherit; }
   transition: background var(--motion-fast) var(--ease-out), color var(--motion-fast) var(--ease-out), transform var(--motion-fast) var(--ease-out);
 }
 .nav-item:hover { background: var(--hover); color: var(--text-1); }
-.nav-item:active { transform: scale(0.985); }
-.nav-item.active { background: var(--panel-3); color: var(--text-1); font-weight: 560; }
-.nav-item.active svg { color: var(--text-1); }
+.nav-item.active { background: var(--btn-primary-bg); color: var(--btn-primary-fg); box-shadow: 2px 2px 0 0 var(--border-strong); }
+.nav-item.active svg { color: var(--btn-primary-fg); }
 .nav-item svg { color: var(--text-3); transition: color var(--motion-fast) var(--ease-out); }
 .nav-item .icon-box { color: var(--text-3); }
-.nav-item.active .icon-box { color: var(--text-1); }
+.nav-item.active .icon-box { color: var(--btn-primary-fg); }
 .nav-item span:not(.nav-badge):not(.icon-box) { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .nav-badge {
   margin-left: auto;
+  padding: 0 4px;
   font-size: var(--fs-caption);
-  color: var(--text-3);
+  color: var(--accent);
+  background: var(--accent-soft);
+  clip-path: polygon(2px 0, calc(100% - 2px) 0, 100% 2px, 100% calc(100% - 2px), calc(100% - 2px) 100%, 2px 100%, 0 calc(100% - 2px), 0 2px);
   font-variant-numeric: tabular-nums;
 }
 
@@ -434,7 +441,7 @@ a { color: inherit; }
 .sidebar-foot {
   padding: var(--sp-3) var(--sp-2) var(--sp-1);
   margin-top: var(--sp-2);
-  border-top: 1px solid var(--border-soft);
+  border-top: 2px solid var(--border-soft);
   display: flex;
   align-items: center;
   gap: var(--sp-2);
@@ -462,7 +469,7 @@ a { color: inherit; }
   align-items: center;
   gap: var(--sp-3);
   padding: 0 var(--sp-5);
-  border-bottom: 1px solid var(--border-soft);
+  border-bottom: 2px solid var(--border-strong);
   -webkit-app-region: drag;
 }
 .topbar button,

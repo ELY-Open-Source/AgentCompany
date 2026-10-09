@@ -118,15 +118,15 @@ export function SearchDialog({
 
   return (
     <Modal label={t("Search")} onEscape={onClose} onBackdrop={onClose} backdropStyle={overlayStyle}>
-      <form onSubmit={submit} style={panelStyle}>
-        <div className="row" style={{ padding: "10px 12px", borderBottom: "1px solid var(--border-soft)" }}>
+      <form onSubmit={submit} className="modal search-panel">
+        <div className="row search-query">
           <Icon name="search" color="var(--text-3)" />
           <input
             autoFocus
             aria-label={t("Search query")}
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            style={inputStyle}
+            className="search-query-input"
           />
           <select
             aria-label={t("Search filter")}
@@ -140,7 +140,7 @@ export function SearchDialog({
           </select>
           <Button size="small" onClick={onClose}>{t("Close")}</Button>
         </div>
-        <div style={{ maxHeight: 420, overflow: "auto", padding: 8 }} aria-busy={searching}>
+        <div className="search-results" aria-busy={searching}>
           {searching && <div role="status" style={{ padding: 8, fontSize: 13, color: "var(--text-3)" }}>{t("Searching…")}</div>}
           {current?.error && <div className="form-error" role="alert">{t("Search failed: {reason}", { reason: current.error })}</div>}
           {visibleResults.map((result) => (
@@ -148,7 +148,7 @@ export function SearchDialog({
               key={`${result.entityType}:${result.entityId}`}
               type="button"
               onClick={() => openResult(result)}
-              style={rowStyle}
+              className="search-row"
             >
               <Pill>{LABELS[result.entityType]}</Pill>
               <div style={{ flex: 1, minWidth: 0 }}>
@@ -209,34 +209,4 @@ const overlayStyle = {
   display: "grid",
   placeItems: "start center",
   paddingTop: "12vh",
-} satisfies CSSProperties;
-
-const panelStyle = {
-  width: "min(680px, calc(100vw - 32px))",
-  border: "1px solid var(--border)",
-  borderRadius: 12,
-  background: "var(--panel)",
-  boxShadow: "var(--shadow-md)",
-  overflow: "hidden",
-} satisfies CSSProperties;
-
-const inputStyle = {
-  flex: 1,
-  minWidth: 0,
-  border: 0,
-  outline: "none",
-  background: "transparent",
-  fontSize: 14,
-} satisfies CSSProperties;
-
-const rowStyle = {
-  width: "100%",
-  border: 0,
-  borderRadius: 8,
-  background: "transparent",
-  display: "flex",
-  alignItems: "center",
-  gap: 10,
-  padding: "9px 10px",
-  textAlign: "left",
 } satisfies CSSProperties;

@@ -38,8 +38,8 @@
 }
 
 /* Menu arrow: the chosen or pointed-at nav row shows a blinking right-pointing pixel arrow. */
-.nav > .nav-item { position: relative; padding-left: 18px; }
-.nav > .nav-item::before {
+.nav > .nav-item, .search-results > .search-row { position: relative; padding-left: 18px; }
+:is(.nav > .nav-item, .search-results > .search-row)::before {
   content: "";
   position: absolute;
   left: 4px;
@@ -51,7 +51,7 @@
   clip-path: polygon(0 0, 34% 0, 34% 20%, 67% 20%, 67% 40%, 100% 40%, 100% 60%, 67% 60%, 67% 80%, 34% 80%, 34% 100%, 0 100%);
   visibility: hidden;
 }
-.nav > .nav-item:is(:hover, :focus-visible, [aria-current], .active)::before {
+:is(.nav > .nav-item, .search-results > .search-row):is(:hover, :focus-visible, [aria-current], .active)::before {
   visibility: visible;
   animation: px-blink 0.8s steps(1, end) infinite;
 }
@@ -85,3 +85,11 @@
 .inventory { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; padding: 8px; background: var(--panel-3); box-shadow: inset 2px 2px 0 0 var(--border-soft); }
 .inventory-slot { display: flex; flex-direction: column; gap: 10px; min-width: 0; padding: 12px; background: var(--panel); border: 2px solid var(--border-strong); box-shadow: inset -2px -2px 0 0 var(--border-soft), inset 2px 2px 0 0 #ffffff40; }
 .inventory-slot:hover { background: var(--hover); }
+
+/* Global search: the framed panel, a sunken query line, and menu rows. */
+.search-panel { width: min(680px, calc(100vw - 32px)); max-height: none; padding: 0; overflow: hidden; }
+.search-query { padding: 10px 12px; border-bottom: 2px solid var(--border-strong); }
+.search-query-input { flex: 1; min-width: 0; border: 0; outline: none; background: transparent; font: inherit; color: var(--text-1); }
+.search-results { max-height: 420px; overflow: auto; padding: 8px; }
+.search-row { width: 100%; border: 0; background: transparent; display: flex; align-items: center; gap: 10px; padding-top: 8px; padding-bottom: 8px; padding-right: 10px; text-align: left; color: var(--text-1); }
+.search-row:hover, .search-row:focus-visible { background: var(--hover); outline: none; }
