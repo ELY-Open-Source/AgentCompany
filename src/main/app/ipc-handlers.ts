@@ -1,6 +1,6 @@
 import { bumpDataVersion, currentDataVersion } from "../services/data-version";
 import { createIpcGate } from "./ipc-gate";
-import { app, dialog, shell, type BrowserWindow } from "electron";
+import { app, dialog, shell, type BrowserWindow, clipboard } from "electron";
 import type { DatabaseConnection } from "../database/connection";
 import { IPC_CHANNELS } from "../../shared/ipc";
 import { fail, ok, type DesktopResult } from "../../shared/result";
@@ -159,6 +159,10 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     }
   });
   handle("completeSetup", (input) => mutate(() => completeSetup(deps.connection.db, input.orgId)));
+  handle("copyText", (input) => {
+    clipboard.writeText(input.text);
+    return ok(null);
+  });
   handle("saveViewState", (input) => {
     try {
       saveViewState(deps.connection.db, input.key, input.value);

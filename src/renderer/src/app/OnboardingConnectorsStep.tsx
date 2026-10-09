@@ -1,3 +1,4 @@
+import { ErrorText } from "../shared/ErrorText";
 import { AccountSyncNote } from "../pages/connectors/AccountSyncNote";
 import { SignInStatus } from "../pages/connectors/SignInStatus";
 import { useMemo } from "react";
@@ -39,24 +40,7 @@ export function ConnectorsStep({
   return (
     <div className="form-grid">
       <h2 className="page-h1">{t("Connectors")}</h2>
-      {catalog.phase === "error" && (
-        <div className="row" style={{ gap: 10 }}>
-          <span
-            style={{
-              color: "var(--text-2)",
-              fontSize: 13,
-              flex: 1,
-              minWidth: 0,
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
-            }}
-          >
-            {catalog.message}
-          </span>
-          <Button size="small" onClick={retry}>{t("Retry")}</Button>
-        </div>
-      )}
+      {catalog.phase === "error" && <ErrorText message={catalog.message} action={{ label: t("Retry"), onClick: retry }} />}
       {catalog.phase === "ready" && (
         <div style={{ maxHeight: 420, overflowY: "auto", paddingRight: 4 }}>
           <ToolkitCatalog
@@ -69,19 +53,7 @@ export function ConnectorsStep({
       )}
       {signIn && <SignInStatus signIn={signIn} onStop={stopWaiting} onCheckAgain={checkAgain} />}
       <AccountSyncNote sync={accountSync} onRetry={syncAccounts} />
-      {connectError && (
-        <div
-          style={{
-            color: "var(--red)",
-            fontSize: 13,
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
-          }}
-        >
-          {connectError}
-        </div>
-      )}
+      {connectError && <ErrorText message={connectError} />}
       <div className="modal-actions" style={{ marginTop: 4 }}>
         <Button tone="primary" onClick={onFinish}>{t("Finish")}</Button>
       </div>

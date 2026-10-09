@@ -129,6 +129,8 @@ export interface DesktopApi {
   reportUnsaved(input: { unsaved: boolean }): Promise<DesktopResult<null>>;
   /** Remembers one piece of where the operator was; null forgets it. */
   saveViewState(input: { key: string; value: unknown }): Promise<DesktopResult<null>>;
+  /** Puts text on the system clipboard. */
+  copyText(input: { text: string }): Promise<DesktopResult<null>>;
   saveOnboardingDraft(input: { draft: OnboardingDraft | null }): Promise<DesktopResult<null>>;
   completeSetup(input: { orgId: string }): Promise<DesktopResult<AppSnapshot>>;
   /** Every agent session running now, in every company: what a restart interrupts. */

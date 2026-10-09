@@ -1,7 +1,7 @@
+import { ErrorText } from "../shared/ErrorText";
 import { AccountSyncNote } from "./connectors/AccountSyncNote";
 import { SignInStatus } from "./connectors/SignInStatus";
 import { useMemo } from "react";
-import { Button } from "../shared/ui";
 import { t } from "../i18n/i18n";
 import type { PageProps } from "./types";
 import { activeOrgId, requireActiveEmployee } from "./types";
@@ -48,20 +48,7 @@ export function ConnectorsPage({ snapshot, actions }: PageProps) {
     <div style={{ maxWidth: 1060 }}>
       <h2 style={{ margin: "0 0 18px", fontSize: 16, fontWeight: 600 }}>{t("Connectors")}</h2>
 
-      {connectError && (
-        <div
-          style={{
-            color: "var(--text-2)",
-            fontSize: 13,
-            marginBottom: 14,
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
-          }}
-        >
-          {connectError}
-        </div>
-      )}
+      {connectError && <ErrorText message={connectError} />}
 
       {signIn && <SignInStatus signIn={signIn} onStop={stopWaiting} onCheckAgain={checkAgain} />}
       <AccountSyncNote sync={accountSync} onRetry={syncAccounts} />
@@ -79,24 +66,7 @@ export function ConnectorsPage({ snapshot, actions }: PageProps) {
         onRevoke={revoke}
       />
 
-      {catalog.phase === "error" && (
-        <div className="row" style={{ gap: 10, padding: "24px 0" }}>
-          <span
-            style={{
-              color: "var(--text-2)",
-              fontSize: 13,
-              flex: 1,
-              minWidth: 0,
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
-            }}
-          >
-            {catalog.message}
-          </span>
-          <Button size="small" onClick={retry}>{t("Retry")}</Button>
-        </div>
-      )}
+      {catalog.phase === "error" && <ErrorText message={catalog.message} action={{ label: t("Retry"), onClick: retry }} />}
       {catalog.phase === "ready" && (
         <ToolkitCatalog
           entries={catalog.entries}
