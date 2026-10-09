@@ -143,7 +143,7 @@ function FilesFilter({
 }) {
   const options: ReadonlyArray<{ id: FileScanState | "all"; label: string }> = [
     { id: "all", label: t("All files") },
-    { id: FILE_SCAN_STATE.APPROVED, label: t("Clean") },
+    { id: FILE_SCAN_STATE.APPROVED, label: t("No findings") },
     { id: FILE_SCAN_STATE.BLOCKED, label: t("Blocked") },
   ];
   return (

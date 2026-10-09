@@ -7,7 +7,7 @@ import type {
   FileObjectRecord,
 } from "../../../../shared/domain";
 import { formatBytes, formatRelative } from "../types";
-import { FileIcon } from "./FileVisuals";
+import { FileIcon, ScanPill } from "./FileVisuals";
 import { fileGrantCount, isAgentOwner, resolveOwnerName, shortChecksum, shortObjectRef } from "./file-helpers";
 import { t } from "../../i18n/i18n";
 
@@ -89,7 +89,7 @@ function FileRow({
         <span style={{ color: "var(--text-2)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{owner}</span>
       </div>
       <div className="row" style={{ gap: 6, minWidth: 0 }}>
-        <Pill tone={canOpen ? "green" : "red"}>{canOpen ? t("Clean") : t("Blocked")}</Pill>
+        <ScanPill file={file} />
         <span className="mono" style={{ color: "var(--text-3)", fontSize: 12 }}>{grantCount}</span>
       </div>
       <div style={{ color: "var(--text-3)", fontSize: 12 }}>{formatRelative(file.updatedAt ?? file.createdAt)}</div>

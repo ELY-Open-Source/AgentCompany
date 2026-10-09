@@ -1,6 +1,7 @@
 import { Icon, Pill } from "../../shared/ui";
 import type { FileObjectRecord } from "../../../../shared/domain";
 import { FILE_COLOR_MAP, parseScanLabels } from "./file-helpers";
+import { t } from "../../i18n/i18n";
 
 export function FileIcon({ kind, big = false }: { kind: string; big?: boolean }) {
   const map = FILE_COLOR_MAP[kind] ?? FILE_COLOR_MAP.doc;
@@ -43,5 +44,21 @@ export function ScanLabelStrip({ file }: { file: FileObjectRecord }) {
         <Pill key={label}>{label}</Pill>
       ))}
     </div>
+  );
+}
+
+/** What the scan found, worded for what it checked: secret patterns and the antivirus test string, never a full antivirus pass. */
+export function ScanPill({ file }: { file: FileObjectRecord }) {
+  if (file.scanState !== "approved") return <Pill tone="red">{t("Blocked")}</Pill>;
+  const labels = parseScanLabels(file);
+  if (labels.includes("scan:legacy-sample")) {
+    return <span title={t("Scanned before whole-file checks existed: only its first MiB was checked.")}><Pill tone="amber">{t("Partly scanned")}</Pill></span>;
+  }
+  const sealed = labels.includes("scan:contents-not-inspected");
+  const scope = t("Checked for secrets and the antivirus test string across the whole file; no antivirus engine ran.");
+  return (
+    <span title={sealed ? `${scope} ${t("Its compressed or encoded contents were not opened.")}` : scope}>
+      <Pill tone={sealed ? "amber" : "green"}>{sealed ? t("Contents not inspected") : t("No findings")}</Pill>
+    </span>
   );
 }

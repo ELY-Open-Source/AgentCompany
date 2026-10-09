@@ -1,4 +1,4 @@
-import { Avatar, Icon, Pill } from "../../shared/ui";
+import { Avatar, Icon } from "../../shared/ui";
 import type {
   AgentRecord,
   EmployeeRecord,
@@ -6,7 +6,7 @@ import type {
   FileObjectRecord,
 } from "../../../../shared/domain";
 import { formatRelative } from "../types";
-import { FileIcon, ScanLabelStrip } from "./FileVisuals";
+import { FileIcon, ScanLabelStrip, ScanPill } from "./FileVisuals";
 import { fileGrantCount, isAgentOwner, resolveOwnerName, shortChecksum, shortObjectRef } from "./file-helpers";
 import { t } from "../../i18n/i18n";
 
@@ -92,7 +92,7 @@ export function PinnedCard({
         sha:{shortChecksum(file.sha256)} · obj:{shortObjectRef(file.storagePath)}
       </div>
       <div className="row" style={{ gap: 6 }}>
-        <Pill tone={file.scanState === "approved" ? "green" : "red"}>{file.scanState === "approved" ? t("Clean") : t("Blocked")}</Pill>
+        <ScanPill file={file} />
         <span className="mono" style={{ color: "var(--text-3)", fontSize: 12 }}>{grantCount}</span>
       </div>
       <ScanLabelStrip file={file} />
