@@ -1,3 +1,4 @@
+import { Modal } from "../shared/Modal";
 import { StaleBanner } from "./StaleBanner";
 import { oneOf, readViewState, seedViewState, writeViewState } from "../shared/view-state";
 import { LeaveGuardContext } from "./leave-guard";
@@ -134,8 +135,8 @@ export function App() {
       {/* A failed manual retry is already recorded in syncFailure, which the banner shows. */}
       {syncFailure && <StaleBanner failure={syncFailure} syncedAt={syncedAt} onRetry={() => void actions.reload().catch(() => undefined)} />}
       {leaving && (
-        <div className="modal-backdrop" role="presentation">
-          <div className="modal" role="alertdialog" aria-label={t("Leave this page?")}>
+        <Modal label={t("Leave this page?")} role="alertdialog" onEscape={() => setLeaving(null)}>
+          <div className="modal">
             <h2 className="modal-title">{t("Leave this page?")}</h2>
             <p style={{ margin: 0 }}>{t("What you typed here is lost if you leave.")}</p>
             <div className="modal-actions">
@@ -143,7 +144,7 @@ export function App() {
               <Button tone="primary" onClick={() => { setLeaving(null); leaving.proceed(); }}>{t("Leave")}</Button>
             </div>
           </div>
-        </div>
+        </Modal>
       )}
     </AvatarDirectoryContext.Provider>
   );

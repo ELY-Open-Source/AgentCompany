@@ -1,3 +1,5 @@
+import { DiscardConfirm } from "../../shared/DiscardConfirm";
+import { Modal } from "../../shared/Modal";
 import { useUnsaved } from "../../shared/unsaved";
 import { useBusySubmit } from "../../shared/useBusySubmit";
 import { approvalStateLabel, runTriggerLabel, taskEventLabel } from "../../i18n/labels";
@@ -141,15 +143,9 @@ export function TaskDetailDialog({
   const requestClose = () => (editing && editDirty ? setConfirmClose(true) : onClose());
 
   return (
-    <div className="modal-backdrop" role="presentation" onMouseDown={requestClose}>
-      <div className="modal" style={{ maxWidth: 560 }} role="dialog" aria-label={task.title} onMouseDown={(e) => e.stopPropagation()}>
-        {confirmClose && (
-          <div role="alertdialog" aria-label={t("Discard your changes?")} className="row" style={{ position: "absolute", left: 0, right: 0, top: 0, zIndex: 3, gap: 8, padding: 12, background: "var(--panel)", borderBottom: "1px solid var(--border)", borderRadius: "14px 14px 0 0" }}>
-            <span style={{ marginRight: "auto", fontSize: 13 }}>{t("Discard your changes?")}</span>
-            <Button tone="ghost" size="small" onClick={() => setConfirmClose(false)}>{t("Keep editing")}</Button>
-            <Button tone="primary" size="small" onClick={onClose}>{t("Discard")}</Button>
-          </div>
-        )}
+    <Modal label={task.title} onEscape={requestClose} onBackdrop={requestClose}>
+      <div className="modal" style={{ maxWidth: 560 }}>
+        {confirmClose && <DiscardConfirm onKeep={() => setConfirmClose(false)} onDiscard={onClose} />}
         <div className="row" style={{ alignItems: "flex-start", gap: 10, marginBottom: 8 }}>
           {task.priority === "high" && <span style={{ width: 3, height: 18, background: "var(--red)", borderRadius: 2, marginTop: 2, flexShrink: 0 }} />}
           <h2 className="modal-title" style={{ margin: 0, flex: 1 }}>{task.title}</h2>
@@ -234,7 +230,7 @@ export function TaskDetailDialog({
           />
         )}
       </div>
-    </div>
+    </Modal>
   );
 }
 

@@ -1,3 +1,4 @@
+import { Modal } from "../../shared/Modal";
 import { approvalKindLabel } from "../../i18n/labels";
 import { useState } from "react";
 import { Button, IconButton, Pill } from "../../shared/ui";
@@ -37,8 +38,8 @@ export function ApprovalDetailDialog({
   const tone = RISK_TONES[approval.risk];
   if (!tone) throw new Error("Approval risk tone is missing.");
   return (
-    <div className="modal-backdrop" role="presentation" onMouseDown={onClose}>
-      <div className="modal" role="dialog" aria-label={approval.title} onMouseDown={(event) => event.stopPropagation()}>
+    <Modal label={approval.title} onEscape={onClose} onBackdrop={onClose}>
+      <div className="modal">
         <div className="row" style={{ alignItems: "flex-start", gap: 10, marginBottom: 12 }}>
           <h2 className="modal-title" style={{ margin: 0, flex: 1 }}>{approval.title}</h2>
           <IconButton icon="x" label={t("Close")} onClick={onClose} />
@@ -84,7 +85,7 @@ export function ApprovalDetailDialog({
           <Button tone="primary" onClick={() => submit("approved")} disabled={saving}>{t("Approve")}</Button>
         </div>
       </div>
-    </div>
+    </Modal>
   );
 }
 
@@ -105,8 +106,8 @@ export function ApprovalRecordDialog({ approval, requester, decider, drift, onCl
   if (!approval) return null;
   const outcome = approval.state === APPROVAL_STATE.APPROVED ? t("Approved") : approval.state === APPROVAL_STATE.SUPERSEDED ? t("Replaced by an edit") : t("Declined");
   return (
-    <div className="modal-backdrop" role="presentation" onMouseDown={onClose}>
-      <div className="modal" role="dialog" aria-label={t("Record of {title}", { title: approval.title })} onMouseDown={(event) => event.stopPropagation()}>
+    <Modal label={t("Record of {title}", { title: approval.title })} onEscape={onClose} onBackdrop={onClose}>
+      <div className="modal">
         <div className="row" style={{ alignItems: "flex-start", gap: 10, marginBottom: 12 }}>
           <h2 className="modal-title" style={{ margin: 0, flex: 1 }}>{approval.title}</h2>
           <IconButton icon="x" label={t("Close")} onClick={onClose} />
@@ -132,6 +133,6 @@ export function ApprovalRecordDialog({ approval, requester, decider, drift, onCl
           )}
         </div>
       </div>
-    </div>
+    </Modal>
   );
 }

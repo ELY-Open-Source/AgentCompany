@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { IconButton } from "./ui";
 import { t } from "../i18n/i18n";
 
@@ -23,7 +24,8 @@ export function FailureToasts() {
     };
   }, []);
   if (failures.length === 0) return null;
-  return (
+  // Outside the app root, so a failure can be read and dismissed while a dialog makes the app inert.
+  return createPortal(
     <div style={{ position: "fixed", right: 16, bottom: 16, zIndex: 1000, display: "grid", gap: 8, maxWidth: 420 }}>
       {failures.map((failure) => (
         <div key={failure.id} role="alert" className="card" style={{ display: "flex", gap: 8, alignItems: "flex-start", borderColor: "var(--red)", padding: 12 }}>
@@ -34,6 +36,7 @@ export function FailureToasts() {
           <IconButton icon="x" label={t("Dismiss")} onClick={() => setFailures((current) => current.filter((item) => item.id !== failure.id))} />
         </div>
       ))}
-    </div>
+    </div>,
+    document.body,
   );
 }

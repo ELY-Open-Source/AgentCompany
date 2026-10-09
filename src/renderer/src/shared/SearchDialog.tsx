@@ -1,3 +1,4 @@
+import { Modal } from "./Modal";
 import { withNextPage, type SearchAnswer } from "./search-pages";
 import { useEffect, useMemo, useState, type CSSProperties, type FormEvent } from "react";
 import type { AppSnapshot, SearchEntityType, SearchResultRecord } from "../../../shared/domain";
@@ -87,14 +88,6 @@ export function SearchDialog({
     };
   }, [employeeId, filter, open, orgId, trimmed]);
 
-  useEffect(() => {
-    if (!open) return;
-    const handler = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [onClose, open]);
 
   if (!open) return null;
   // The next page joins the shown one only if the words are still the same.
@@ -124,13 +117,7 @@ export function SearchDialog({
   };
 
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-label={t("Search")}
-      style={overlayStyle}
-      onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}
-    >
+    <Modal label={t("Search")} onEscape={onClose} onBackdrop={onClose} backdropStyle={overlayStyle}>
       <form onSubmit={submit} style={panelStyle}>
         <div className="row" style={{ padding: "10px 12px", borderBottom: "1px solid var(--border-soft)" }}>
           <Icon name="search" size={14} color="var(--text-3)" />
@@ -184,7 +171,7 @@ export function SearchDialog({
           )}
         </div>
       </form>
-    </div>
+    </Modal>
   );
 }
 

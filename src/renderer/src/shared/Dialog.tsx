@@ -1,3 +1,5 @@
+import { DiscardConfirm } from "./DiscardConfirm";
+import { Modal } from "./Modal";
 import { useState, type FormEvent, type ReactNode } from "react";
 import { useUnsaved } from "./unsaved";
 import { useBusySubmit } from "./useBusySubmit";
@@ -25,24 +27,16 @@ function DialogBody({ title, children, submitLabel, onClose, onSubmit, hideSubmi
   useUnsaved(edited);
   const requestClose = () => (edited ? setConfirming(true) : onClose());
   return (
-    <div className="modal-backdrop" role="presentation" onMouseDown={requestClose}>
-      <form className="modal" aria-busy={busy} onMouseDown={(event) => event.stopPropagation()} onInput={() => setEdited(true)} onChange={() => setEdited(true)} onSubmit={submit}>
+    <Modal label={title} onEscape={requestClose} onBackdrop={requestClose}>
+      <form className="modal" aria-busy={busy} onInput={() => setEdited(true)} onChange={() => setEdited(true)} onSubmit={submit}>
         <h2 className="modal-title">{title}</h2>
         <div style={{ display: "grid", gap: 12 }}>{children}</div>
-        {confirming ? (
-          // Keyed rows remount, so a clicked plain button is never reused as the submit button (whose default action would then submit).
-          <div key="confirm" className="modal-actions" role="alertdialog" aria-label={t("Discard your changes?")}>
-            <span style={{ marginRight: "auto", fontSize: 13 }}>{t("Discard your changes?")}</span>
-            <Button tone="ghost" onClick={() => setConfirming(false)}>{t("Keep editing")}</Button>
-            <Button tone="primary" onClick={onClose}>{t("Discard")}</Button>
-          </div>
-        ) : (
-          <div key="actions" className="modal-actions">
-            <Button tone="ghost" onClick={requestClose}>{hideSubmit ? t("Close") : t("Cancel")}</Button>
-            {!hideSubmit && <Button tone="primary" type="submit" disabled={busy}>{busy ? t("Working…") : submitLabel}</Button>}
-          </div>
-        )}
+        <div className="modal-actions">
+          <Button tone="ghost" onClick={requestClose}>{hideSubmit ? t("Close") : t("Cancel")}</Button>
+          {!hideSubmit && <Button tone="primary" type="submit" disabled={busy}>{busy ? t("Working…") : submitLabel}</Button>}
+        </div>
       </form>
-    </div>
+      {confirming && <DiscardConfirm onKeep={() => setConfirming(false)} onDiscard={onClose} />}
+    </Modal>
   );
 }
