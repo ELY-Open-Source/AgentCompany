@@ -105,6 +105,7 @@ import { workVerdictsSchema } from "./migrations/103-work-verdicts";
 import { workLanguageSchema } from "./migrations/104-work-language";
 import { onboardingProgressSchema } from "./migrations/105-onboarding-progress";
 import { viewStateSchema } from "./migrations/106-view-state";
+import { searchPendingSchema } from "./migrations/107-search-pending";
 
 interface Migration {
   version: number;
@@ -219,6 +220,7 @@ const MIGRATIONS: Migration[] = [
   { version: 104, name: "work_language", sql: workLanguageSchema },
   { version: 105, name: "onboarding_progress", sql: onboardingProgressSchema },
   { version: 106, name: "view_state", sql: viewStateSchema },
+  { version: 107, name: "search_pending", sql: searchPendingSchema },
 ];
 
 const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;

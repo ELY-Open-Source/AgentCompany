@@ -33,7 +33,7 @@ export class SearchService {
     const limit = Math.max(1, Math.min(input.limit ?? 20, 50));
     const offset = Math.max(0, input.offset ?? 0);
     const entityTypes = validEntityTypes(input.entityTypes ?? [...SEARCH_ENTITY_TYPES]);
-    this.reindexOrg(input.orgId);
+    this.refreshIndex(input.orgId);
     if (query.blank) return { results: [], total: 0 };
     // English-like words use the full-text index; other scripts, which it does not split into words, must appear in the text.
     const rows = this.db.prepare(`
@@ -46,6 +46,7 @@ export class SearchService {
       .filter((row) => query.contains.every((word) => row.title.toLowerCase().includes(word) || row.body.toLowerCase().includes(word)))
       .filter((row) => entityTypes.has(row.entity_type))
       .filter((row) => this.canRead(input.orgId, input.employeeId, row.entity_type, row.entity_id));
+    const now = new Date().toISOString();
     const results = readable
       .slice(offset, offset + limit)
       .map((row) => ({
@@ -53,119 +54,133 @@ export class SearchService {
         entityId: row.entity_id,
         title: row.title,
         preview: preview(row.body),
-        facets: parseFacets(row.facet_json),
+        facets: row.entity_type === "knowledge" ? knowledgeFacets(parseFacets(row.facet_json), now) : parseFacets(row.facet_json),
       }));
     return { results, total: readable.length };
   }
 
-  private reindexOrg(orgId: string): void {
-    this.db.exec("savepoint search_reindex");
+  /** Brings the index up to date: a company's first search builds it whole; after that only records queued by change triggers are redone. */
+  private refreshIndex(orgId: string): void {
+    this.db.exec("savepoint search_refresh");
     try {
-      this.db.prepare("delete from search_documents where org_id = ?").run(orgId);
-      const insert = this.db.prepare(`
-        insert into search_documents(org_id, entity_type, entity_id, title, body, facet_json)
-        values (?, ?, ?, ?, ?, ?)
-      `);
-      for (const doc of this.documents(orgId)) {
-        insert.run(orgId, doc.entityType, doc.entityId, doc.title, doc.body, JSON.stringify(doc.facets));
+      const insert = this.db.prepare("insert into search_documents(org_id, entity_type, entity_id, title, body, facet_json) values (?, ?, ?, ?, ?, ?)");
+      const write = (doc: SearchDoc) => insert.run(orgId, doc.entityType, doc.entityId, doc.title, doc.body, JSON.stringify(doc.facets));
+      if (!this.db.prepare("select 1 from search_built where org_id = ?").get(orgId)) {
+        this.db.prepare("delete from search_documents where org_id = ?").run(orgId);
+        for (const doc of this.documents(orgId, null)) write(doc);
+        this.db.prepare("delete from search_pending where org_id = ?").run(orgId);
+        this.db.prepare("insert into search_built(org_id) values (?)").run(orgId);
+        console.info(`[search] ${orgId}: index built`);
+      } else {
+        const pending = this.db.prepare("select entity_type, entity_id from search_pending where org_id = ?").all(orgId) as Array<{ entity_type: SearchEntityType; entity_id: string }>;
+        for (const change of pending) {
+          this.db.prepare("delete from search_documents where entity_type = ? and entity_id = ?").run(change.entity_type, change.entity_id);
+          for (const doc of this.documents(orgId, { entityType: change.entity_type, id: change.entity_id })) write(doc);
+        }
+        this.db.prepare("delete from search_pending where org_id = ?").run(orgId);
       }
-      this.db.exec("release search_reindex");
+      this.db.exec("release search_refresh");
     } catch (error) {
-      this.db.exec("rollback to search_reindex");
-      this.db.exec("release search_reindex");
+      this.db.exec("rollback to search_refresh");
+      this.db.exec("release search_refresh");
       throw error;
     }
   }
 
-  private documents(orgId: string): SearchDoc[] {
-    return [
-      ...this.employeeDocs(orgId),
-      ...this.agentDocs(orgId),
-      ...this.taskDocs(orgId),
-      ...this.projectDocs(orgId),
-      ...this.goalDocs(orgId),
-      ...this.workspaceDocs(orgId),
-      ...this.approvalDocs(orgId),
-      ...this.chatSpaceDocs(orgId),
-      ...this.chatMessageDocs(orgId),
-      ...this.fileDocs(orgId),
-      ...this.providerDocs(orgId),
-      ...this.documentDocs(orgId),
-      ...this.knowledgeDocs(orgId),
-    ];
+
+  /** One company's records, or just one of them, as index documents. */
+  private documents(orgId: string, only: { entityType: SearchEntityType; id: string } | null): SearchDoc[] {
+    const builders: Record<SearchEntityType, (orgId: string, id: string | null) => SearchDoc[]> = {
+      employee: (org, id) => this.employeeDocs(org, id),
+      agent: (org, id) => this.agentDocs(org, id),
+      task: (org, id) => this.taskDocs(org, id),
+      project: (org, id) => this.projectDocs(org, id),
+      goal: (org, id) => this.goalDocs(org, id),
+      workspace: (org, id) => this.workspaceDocs(org, id),
+      approval: (org, id) => this.approvalDocs(org, id),
+      chat_space: (org, id) => this.chatSpaceDocs(org, id),
+      chat_message: (org, id) => this.chatMessageDocs(org, id),
+      file: (org, id) => this.fileDocs(org, id),
+      provider: (org, id) => this.providerDocs(org, id),
+      document: (org, id) => this.documentDocs(org, id),
+      knowledge: (org, id) => this.knowledgeDocs(org, id),
+    };
+    if (only) return builders[only.entityType](orgId, only.id);
+    return SEARCH_ENTITY_TYPES.flatMap((entityType) => builders[entityType](orgId, null));
   }
 
-  private employeeDocs(orgId: string): SearchDoc[] {
-    const rows = this.db.prepare("select id, display_name, role from employees where org_id = ?").all(orgId) as Array<{ id: string; display_name: string; role: string }>;
+
+  private employeeDocs(orgId: string, id: string | null): SearchDoc[] {
+    const rows = this.db.prepare("select id, display_name, role from employees where org_id = ? and (? is null or id = ?)").all(orgId, id, id) as Array<{ id: string; display_name: string; role: string }>;
     return rows.map((row) => doc("employee", row.id, row.display_name, row.role, { type: "People" }));
   }
 
-  private agentDocs(orgId: string): SearchDoc[] {
-    const rows = this.db.prepare("select id, name, role, department, title from agents where org_id = ?").all(orgId) as Array<{ id: string; name: string; role: string; department: string; title: string }>;
+  private agentDocs(orgId: string, id: string | null): SearchDoc[] {
+    const rows = this.db.prepare("select id, name, role, department, title from agents where org_id = ? and (? is null or id = ?)").all(orgId, id, id) as Array<{ id: string; name: string; role: string; department: string; title: string }>;
     return rows.map((row) => doc("agent", row.id, row.name, [row.role, row.department, row.title].join(" "), { type: "People", department: row.department }));
   }
 
-  private taskDocs(orgId: string): SearchDoc[] {
-    const rows = this.db.prepare("select id, title, description, status, risk from tasks where org_id = ?").all(orgId) as Array<{ id: string; title: string; description: string; status: string; risk: string }>;
+  private taskDocs(orgId: string, id: string | null): SearchDoc[] {
+    const rows = this.db.prepare("select id, title, description, status, risk from tasks where org_id = ? and (? is null or id = ?)").all(orgId, id, id) as Array<{ id: string; title: string; description: string; status: string; risk: string }>;
     return rows.map((row) => doc("task", row.id, row.title, row.description, { type: "Work", status: row.status, risk: row.risk }));
   }
 
-  private projectDocs(orgId: string): SearchDoc[] {
-    const rows = this.db.prepare("select id, name, description, status from projects where org_id = ?").all(orgId) as Array<{ id: string; name: string; description: string; status: string }>;
+  private projectDocs(orgId: string, id: string | null): SearchDoc[] {
+    const rows = this.db.prepare("select id, name, description, status from projects where org_id = ? and (? is null or id = ?)").all(orgId, id, id) as Array<{ id: string; name: string; description: string; status: string }>;
     return rows.map((row) => doc("project", row.id, row.name, row.description, { type: "Work", status: row.status }));
   }
 
-  private goalDocs(orgId: string): SearchDoc[] {
-    const rows = this.db.prepare("select id, title, description, status from goals where org_id = ?").all(orgId) as Array<{ id: string; title: string; description: string; status: string }>;
+  private goalDocs(orgId: string, id: string | null): SearchDoc[] {
+    const rows = this.db.prepare("select id, title, description, status from goals where org_id = ? and (? is null or id = ?)").all(orgId, id, id) as Array<{ id: string; title: string; description: string; status: string }>;
     return rows.map((row) => doc("goal", row.id, row.title, row.description, { type: "Work", status: row.status }));
   }
 
-  private workspaceDocs(orgId: string): SearchDoc[] {
-    const rows = this.db.prepare("select id, name, local_path, repo_url from workspaces where org_id = ?").all(orgId) as Array<{ id: string; name: string; local_path: string; repo_url: string }>;
+  private workspaceDocs(orgId: string, id: string | null): SearchDoc[] {
+    const rows = this.db.prepare("select id, name, local_path, repo_url from workspaces where org_id = ? and (? is null or id = ?)").all(orgId, id, id) as Array<{ id: string; name: string; local_path: string; repo_url: string }>;
     return rows.map((row) => doc("workspace", row.id, row.name, `${row.local_path} ${row.repo_url}`, { type: "Work" }));
   }
 
-  private approvalDocs(orgId: string): SearchDoc[] {
-    const rows = this.db.prepare("select id, title, details, state, risk from approvals where org_id = ?").all(orgId) as Array<{ id: string; title: string; details: string; state: string; risk: string }>;
+  private approvalDocs(orgId: string, id: string | null): SearchDoc[] {
+    const rows = this.db.prepare("select id, title, details, state, risk from approvals where org_id = ? and (? is null or id = ?)").all(orgId, id, id) as Array<{ id: string; title: string; details: string; state: string; risk: string }>;
     return rows.map((row) => doc("approval", row.id, row.title, row.details, { type: "Governance", state: row.state, risk: row.risk }));
   }
 
-  private chatSpaceDocs(orgId: string): SearchDoc[] {
-    const rows = this.db.prepare("select id, name, topic, visibility from chat_spaces where org_id = ?").all(orgId) as Array<{ id: string; name: string; topic: string; visibility: string }>;
+  private chatSpaceDocs(orgId: string, id: string | null): SearchDoc[] {
+    const rows = this.db.prepare("select id, name, topic, visibility from chat_spaces where org_id = ? and (? is null or id = ?)").all(orgId, id, id) as Array<{ id: string; name: string; topic: string; visibility: string }>;
     return rows.map((row) => doc("chat_space", row.id, row.name, row.topic, { type: "Messages", visibility: row.visibility }));
   }
 
-  private chatMessageDocs(orgId: string): SearchDoc[] {
-    const rows = this.db.prepare("select id, space_id, thread_id, body_md, sender_type from chat_messages where org_id = ? and deleted_at is null").all(orgId) as Array<{ id: string; space_id: string; thread_id: string; body_md: string; sender_type: string }>;
+  private chatMessageDocs(orgId: string, id: string | null): SearchDoc[] {
+    const rows = this.db.prepare("select id, space_id, thread_id, body_md, sender_type from chat_messages where org_id = ? and (? is null or id = ?) and deleted_at is null").all(orgId, id, id) as Array<{ id: string; space_id: string; thread_id: string; body_md: string; sender_type: string }>;
     return rows.map((row) => doc("chat_message", row.id, createTitle(row.body_md), row.body_md, { type: "Messages", sender: row.sender_type, space: row.space_id, thread: row.thread_id }));
   }
 
-  private fileDocs(orgId: string): SearchDoc[] {
+  private fileDocs(orgId: string, id: string | null): SearchDoc[] {
     // Superseded versions are kept for records but listed nowhere, so they are not search hits either.
-    const rows = this.db.prepare("select id, name, kind, sha256, scan_state, storage_path, size_bytes from file_objects where org_id = ? and superseded_at is null").all(orgId) as Array<{ id: string; name: string; kind: string; sha256: string; scan_state: string; storage_path: string; size_bytes: number }>;
+    const rows = this.db.prepare("select id, name, kind, sha256, scan_state, storage_path, size_bytes from file_objects where org_id = ? and (? is null or id = ?) and superseded_at is null").all(orgId, id, id) as Array<{ id: string; name: string; kind: string; sha256: string; scan_state: string; storage_path: string; size_bytes: number }>;
     return rows.map((row) => doc("file", row.id, row.name, `${fileText(row)} ${row.kind} ${row.sha256}`, { type: "Files", state: row.scan_state }));
   }
 
-  private providerDocs(orgId: string): SearchDoc[] {
-    const rows = this.db.prepare("select id, label, provider_key, auth_state, health_state from providers where org_id = ?").all(orgId) as Array<{ id: string; label: string; provider_key: string; auth_state: string; health_state: string }>;
+  private providerDocs(orgId: string, id: string | null): SearchDoc[] {
+    const rows = this.db.prepare("select id, label, provider_key, auth_state, health_state from providers where org_id = ? and (? is null or id = ?)").all(orgId, id, id) as Array<{ id: string; label: string; provider_key: string; auth_state: string; health_state: string }>;
     return rows.map((row) => doc("provider", row.id, row.label, row.provider_key, { type: "Settings", auth: row.auth_state, health: row.health_state }));
   }
 
-  private documentDocs(orgId: string): SearchDoc[] {
-    const rows = this.db.prepare("select id, title, doc_type, status, content from documents where org_id = ?").all(orgId) as Array<{ id: string; title: string; doc_type: string; status: string; content: string }>;
+  private documentDocs(orgId: string, id: string | null): SearchDoc[] {
+    const rows = this.db.prepare("select id, title, doc_type, status, content from documents where org_id = ? and (? is null or id = ?)").all(orgId, id, id) as Array<{ id: string; title: string; doc_type: string; status: string; content: string }>;
     return rows.map((row) => doc("document", row.id, row.title, row.content, { type: "Library", kind: row.doc_type, status: row.status }));
   }
 
-  private knowledgeDocs(orgId: string): SearchDoc[] {
-    const rows = this.db.prepare("select id, topic, category, content, scope_type, superseded_by, valid_until from knowledge_entries where org_id = ?").all(orgId) as Array<{
+  private knowledgeDocs(orgId: string, id: string | null): SearchDoc[] {
+    const rows = this.db.prepare("select id, topic, category, content, scope_type, superseded_by, valid_until from knowledge_entries where org_id = ? and (? is null or id = ?)").all(orgId, id, id) as Array<{
       id: string; topic: string; category: string; content: string; scope_type: string; superseded_by: string | null; valid_until: string | null;
     }>;
-    const now = new Date().toISOString();
     return rows.map((row) => doc("knowledge", row.id, row.topic, row.content, {
       type: "Library",
       category: row.category,
       scope: row.scope_type,
-      state: row.superseded_by ? "superseded" : row.valid_until && row.valid_until <= now ? "expired" : "active",
+      superseded: row.superseded_by ? "yes" : "no",
+      validUntil: row.valid_until ?? "",
     }));
   }
 
@@ -234,6 +249,13 @@ function fileText(file: { name: string; storage_path: string; sha256: string; si
     console.warn(`[search] ${file.name}: content not indexed: ${error instanceof Error ? error.message : String(error)}`);
     return "";
   }
+}
+
+/** A knowledge entry's state as of now: replaced, past its date, or current. */
+function knowledgeFacets(stored: Record<string, string>, now: string): Record<string, string> {
+  const { superseded, validUntil, ...facets } = stored;
+  const state = superseded === "yes" ? "superseded" : validUntil && validUntil <= now ? "expired" : "active";
+  return { ...facets, state };
 }
 
 function validEntityTypes(entityTypes: SearchEntityType[]): Set<SearchEntityType> {

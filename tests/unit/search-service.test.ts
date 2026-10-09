@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import { DatabaseConnection } from "../../src/main/database/connection";
 import { ChatService } from "../../src/main/services/chat-service";
 import { OrganizationService } from "../../src/main/services/organization-service";
@@ -274,6 +274,60 @@ describe("search service", () => {
     const blocked = search.search({ orgId, employeeId, query: "deploy", entityTypes: ["file"] }).results;
     expect(blocked.map((hit) => hit.entityId)).toEqual(["fil_key"]);
     expect(blocked[0]!.preview).not.toContain("PRIVATE KEY");
+    connection.close();
+  });
+
+  test("indexes a company once, then redoes only what changed", () => {
+    const connection = createConnection();
+    const db = connection.db;
+    const organization = new OrganizationService(db);
+    const search = new SearchService(db);
+    let orgId = "";
+    let taskId = "";
+    connection.transaction(() => {
+      orgId = organization.createOrganization({ organizationName: "Index Co", employeeName: "Dana Lee", mission: "m", goal: "g" });
+      taskId = organization.createTask({
+        orgId, title: "Osprey survey", description: "d", status: TASK_STATUS.BACKLOG, assigneeAgentId: null, risk: "low",
+        projectId: null, goalId: null, workspaceId: null, priority: "normal", requiresFilesystem: false,
+      });
+    });
+    const employeeId = (db.prepare("select id from employees where org_id = ?").get(orgId) as { id: string }).id;
+    const titles = (query: string) => search.search({ orgId, employeeId, query }).results.map((hit) => hit.title);
+    const indexRows = () => db.prepare("select rowid from search_documents where org_id = ? order by rowid").all(orgId);
+    expect(titles("osprey")).toEqual(["Osprey survey"]);
+    expect(db.prepare("select org_id from search_built").all()).toEqual([{ org_id: orgId }]);
+    // Nothing changed, nothing is rewritten.
+    const before = indexRows();
+    expect(titles("osprey")).toEqual(["Osprey survey"]);
+    expect(indexRows()).toEqual(before);
+    // Edits, additions and removals are queued and applied on the next search.
+    db.prepare("update tasks set title = 'Heron survey' where id = ?").run(taskId);
+    connection.transaction(() => organization.createTask({
+      orgId, title: "Kestrel count", description: "d", status: TASK_STATUS.BACKLOG, assigneeAgentId: null, risk: "low",
+      projectId: null, goalId: null, workspaceId: null, priority: "normal", requiresFilesystem: false,
+    }));
+    expect(db.prepare("select count(*) as n from search_pending where org_id = ?").get(orgId)).toEqual({ n: 2 });
+    expect(titles("osprey")).toEqual([]);
+    expect(titles("heron")).toEqual(["Heron survey"]);
+    expect(titles("kestrel")).toEqual(["Kestrel count"]);
+    expect(db.prepare("select count(*) as n from search_pending where org_id = ?").get(orgId)).toEqual({ n: 0 });
+    // A knowledge entry's state is read against the clock, not frozen at indexing.
+    new KnowledgeService(db).create({
+      orgId, topic: "Ferry timetable", category: "policy", content: "Ferries leave hourly.", importance: "normal",
+      sourceType: "employee", sourceId: null, scopeType: "organization", scopeId: null, validUntil: "2030-01-01T00:00:00Z", supersedesId: null,
+    });
+    expect(search.search({ orgId, employeeId, query: "ferry", entityTypes: ["knowledge"] }).results[0]!.facets.state).toBe("active");
+    vi.setSystemTime(new Date("2031-01-01T00:00:00Z"));
+    try {
+      expect(search.search({ orgId, employeeId, query: "ferry", entityTypes: ["knowledge"] }).results[0]!.facets.state).toBe("expired");
+      expect(db.prepare("select count(*) as n from search_pending where org_id = ?").get(orgId)).toEqual({ n: 0 });
+    } finally {
+      vi.useRealTimers();
+    }
+    // A deleted company leaves no index behind.
+    connection.transaction(() => organization.deleteOrganization(orgId));
+    expect(db.prepare("select count(*) as n from search_documents where org_id = ?").get(orgId)).toEqual({ n: 0 });
+    expect(db.prepare("select count(*) as n from search_built where org_id = ?").get(orgId)).toEqual({ n: 0 });
     connection.close();
   });
 });
