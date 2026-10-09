@@ -1,4 +1,6 @@
 import { randomUUID } from "node:crypto";
+import { createHash } from "node:crypto";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, test } from "vitest";
@@ -234,6 +236,44 @@ describe("search service", () => {
     // The same holds for a type filter behind many matches of other types.
     const tasks = search.search({ orgId, employeeId: ownerId, query: "beacon", entityTypes: ["task"], limit: 12 });
     expect(tasks.results.map((hit) => hit.title)).toEqual(["Harbor survey"]);
+    connection.close();
+  });
+
+  test("finds a text file by what it says, read from its verified copy", () => {
+    const connection = createConnection();
+    const organization = new OrganizationService(connection.db);
+    const search = new SearchService(connection.db);
+    let orgId = "";
+    connection.transaction(() => {
+      orgId = organization.createOrganization({ organizationName: "Content Co", employeeName: "Dana Lee", mission: "m", goal: "g" });
+    });
+    const employeeId = (connection.db.prepare("select id from employees where org_id = ?").get(orgId) as { id: string }).id;
+    const folder = join(tmpdir(), `ac-search-files-${randomUUID()}`);
+    mkdirSync(folder, { recursive: true });
+    const stored = (id: string, name: string, text: string, scanState = "approved") => {
+      const path = join(folder, name);
+      writeFileSync(path, text);
+      connection.db.prepare(`
+        insert into file_objects(id, org_id, name, kind, size_bytes, sha256, storage_path, owner_type, owner_id, created_at, scan_state)
+        values (?, ?, ?, 'doc', ?, ?, ?, 'employee', ?, ?, ?)
+      `).run(id, orgId, name, Buffer.byteLength(text), createHash("sha256").update(text).digest("hex"), path, employeeId, new Date().toISOString(), scanState);
+      return path;
+    };
+    stored("fil_notes", "notes.md", "Quokka migration checklist");
+    stored("fil_scan", "scan.pdf", "Quokka migration checklist");
+    stored("fil_key", "deploy-key.txt", "-----BEGIN PRIVATE KEY----- walrussecret", "blocked");
+    const changed = stored("fil_changed", "changed.txt", "Quokka original words");
+    writeFileSync(changed, "Quokka rewritten behind the app's back");
+    const ids = (query: string) => search.search({ orgId, employeeId, query, entityTypes: ["file"] }).results.map((hit) => hit.entityId).sort();
+    expect(ids("checklist")).toEqual(["fil_notes"]);
+    // Bytes that no longer match their record are not indexed; the file is still found by name.
+    expect(ids("rewritten")).toEqual([]);
+    expect(ids("changed")).toEqual(["fil_changed"]);
+    // A blocked file's content stays behind the scan gate; its name is still searchable.
+    expect(ids("walrussecret")).toEqual([]);
+    const blocked = search.search({ orgId, employeeId, query: "deploy", entityTypes: ["file"] }).results;
+    expect(blocked.map((hit) => hit.entityId)).toEqual(["fil_key"]);
+    expect(blocked[0]!.preview).not.toContain("PRIVATE KEY");
     connection.close();
   });
 });

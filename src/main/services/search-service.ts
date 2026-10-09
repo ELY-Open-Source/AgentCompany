@@ -1,6 +1,8 @@
+import { extname } from "node:path";
 import type { DatabaseSync } from "node:sqlite";
+import { readVerifiedFile } from "./files/file-object-store";
 import type { SearchInput } from "../../shared/commands";
-import { SEARCH_ENTITY_TYPES, type SearchEntityType, type SearchPage } from "../../shared/domain";
+import { FILE_SCAN_STATE, SEARCH_ENTITY_TYPES, type SearchEntityType, type SearchPage } from "../../shared/domain";
 
 interface SearchRow {
   entity_type: SearchEntityType;
@@ -17,6 +19,9 @@ interface SearchDoc {
   body: string;
   facets: Record<string, string>;
 }
+
+const TEXT_EXTENSIONS = new Set(["md", "markdown", "txt", "csv", "tsv", "json", "yaml", "yml", "toml", "ini", "xml", "html", "css", "js", "jsx", "ts", "tsx", "py", "sql", "sh", "log"]);
+const FILE_TEXT_LIMIT_BYTES = 2 * 1024 * 1024;
 
 export class SearchService {
   constructor(private readonly db: DatabaseSync) {}
@@ -137,8 +142,8 @@ export class SearchService {
 
   private fileDocs(orgId: string): SearchDoc[] {
     // Superseded versions are kept for records but listed nowhere, so they are not search hits either.
-    const rows = this.db.prepare("select id, name, kind, sha256, scan_state from file_objects where org_id = ? and superseded_at is null").all(orgId) as Array<{ id: string; name: string; kind: string; sha256: string; scan_state: string }>;
-    return rows.map((row) => doc("file", row.id, row.name, `${row.kind} ${row.sha256}`, { type: "Files", state: row.scan_state }));
+    const rows = this.db.prepare("select id, name, kind, sha256, scan_state, storage_path, size_bytes from file_objects where org_id = ? and superseded_at is null").all(orgId) as Array<{ id: string; name: string; kind: string; sha256: string; scan_state: string; storage_path: string; size_bytes: number }>;
+    return rows.map((row) => doc("file", row.id, row.name, `${fileText(row)} ${row.kind} ${row.sha256}`, { type: "Files", state: row.scan_state }));
   }
 
   private providerDocs(orgId: string): SearchDoc[] {
@@ -217,6 +222,18 @@ function parseQuery(query: string): { blank: boolean; match: string | null; cont
   }
   const match = terms.length > 0 ? terms.map((term) => `"${term}"*`).join(" AND ") : null;
   return { blank: !match && contains.length === 0, match, contains };
+}
+
+/** The text of an approved text file, so it can be found by what it says; a blocked file's content stays behind the scan gate, as it does for opening. */
+function fileText(file: { name: string; storage_path: string; sha256: string; size_bytes: number; scan_state: string }): string {
+  if (file.scan_state !== FILE_SCAN_STATE.APPROVED) return "";
+  if (!TEXT_EXTENSIONS.has(extname(file.name).slice(1).toLowerCase()) || file.size_bytes > FILE_TEXT_LIMIT_BYTES) return "";
+  try {
+    return readVerifiedFile({ name: file.name, storagePath: file.storage_path, sha256: file.sha256 }).toString("utf8");
+  } catch (error) {
+    console.warn(`[search] ${file.name}: content not indexed: ${error instanceof Error ? error.message : String(error)}`);
+    return "";
+  }
 }
 
 function validEntityTypes(entityTypes: SearchEntityType[]): Set<SearchEntityType> {
