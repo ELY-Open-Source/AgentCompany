@@ -26,8 +26,6 @@ export const collaborationContracts = {
   }) satisfies z.ZodType<C.UpdateKnowledgeEntryInput>,
   deleteKnowledgeEntry: z.strictObject({ orgId: id, entryId: id, deletedByEmployeeId: id }) satisfies z.ZodType<C.DeleteKnowledgeEntryInput>,
   listKnowledgeRevisions: z.strictObject({ orgId: id, entryId: id }) satisfies z.ZodType<C.ListKnowledgeRevisionsInput>,
-  createSprint: z.strictObject({ orgId: id, name: z.string(), goal: z.string(), startDate: z.string(), endDate: z.string() }) satisfies z.ZodType<C.CreateSprintInput>,
-  deleteSprint: z.strictObject({ orgId: id, sprintId: id }) satisfies z.ZodType<C.DeleteSprintInput>,
   createChatSpace: z.strictObject({
     orgId: id, spaceType: z.enum(["company", "division", "department", "project", "pod", "ad_hoc", "direct"]), name: z.string(), topic: z.string(),
     visibility: z.enum(["workspace", "restricted"]), retentionPolicy: z.enum(["standard_365d", "restricted_365d"]).optional(),

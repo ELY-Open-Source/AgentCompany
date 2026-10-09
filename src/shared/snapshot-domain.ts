@@ -36,7 +36,6 @@ import type {
   ProviderRecord,
   ScheduledPostRecord,
   SkillDefinitionRecord,
-  SprintRecord,
   TaskRecord,
   TaskRunRecord,
   WorkspaceRecord,
@@ -125,7 +124,6 @@ export interface AppSnapshot {
   auditEvents: AuditEventRecord[];
   documents: DocumentRecord[];
   knowledgeEntries: KnowledgeEntryRecord[];
-  sprints: SprintRecord[];
   connectorAccounts: ConnectorAccountRecord[];
   connectorGrants: ConnectorGrantRecord[];
 }

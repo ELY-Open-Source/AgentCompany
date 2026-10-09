@@ -103,16 +103,3 @@ export interface DeleteKnowledgeEntryInput {
   entryId: string;
   deletedByEmployeeId: string;
 }
-
-export interface CreateSprintInput {
-  orgId: string;
-  name: string;
-  goal: string;
-  startDate: string;
-  endDate: string;
-}
-
-export interface DeleteSprintInput {
-  orgId: string;
-  sprintId: string;
-}

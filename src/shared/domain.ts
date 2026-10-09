@@ -244,21 +244,6 @@ export interface ApprovalRecord {
   decidedAt: string | null;
 }
 
-export interface SprintRecord {
-  id: string;
-  orgId: string;
-  name: string;
-  goal: string;
-  status: string;
-  startDate: string;
-  endDate: string;
-  velocityPoints: number;
-  completedPoints: number;
-  retrospective: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
 export interface FileObjectRecord {
   id: string;
   orgId: string;

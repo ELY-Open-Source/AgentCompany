@@ -23,7 +23,6 @@ import { OperationsService } from "../services/operations-service";
 import { TaskExecutionService } from "../services/task-execution-service";
 import { DocumentService } from "../services/document-service";
 import { KnowledgeService } from "../services/knowledge-service";
-import { SprintService } from "../services/sprint-service";
 import { ComposioConnectionService } from "../services/composio/composio-connection-service";
 import { ConnectorGrantsService } from "../services/composio/connector-grants";
 import { approvalDrifts } from "../services/approval-drift";
@@ -90,7 +89,6 @@ export function registerIpcHandlers(deps: IpcDeps): void {
   const operations = new OperationsService(deps.connection.db);
   const documents = new DocumentService(deps.connection.db);
   const knowledge = new KnowledgeService(deps.connection.db);
-  const sprintService = new SprintService(deps.connection.db);
   const onboarding = new OnboardingService({
     db: deps.connection.db,
     saveProviderCredential: (input) => providers.saveCredential(input),
@@ -238,8 +236,6 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       revision: r.revision, topic: r.topic, category: r.category, content: r.content, importance: r.importance,
       changedByType: r.changed_by_type, changedById: r.changed_by_id, reason: r.reason, createdAt: r.created_at,
     }))));
-  handle("createSprint", (input) => mutate(() => sprintService.create(input)));
-  handle("deleteSprint", (input) => mutate(() => sprintService.delete(input)));
   handle("createApproval", (input) => mutate(() => approvals.create(input)));
   handle("decideApproval", (input) => mutate(() => approvals.decide(input)));
   handle("syncEmployeeIdentity", (input) => mutate(() => identityAccess.syncEmployeeIdentity(input)));
