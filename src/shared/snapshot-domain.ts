@@ -1,5 +1,4 @@
 import type { UsageStatsRecord } from "./usage-stats";
-import type { AuditReplayRunRecord } from "./audit-domain";
 import type { IntegrationKeyStatus } from "./commands/integration-keys";
 import type { BoardInterventionRecord as BoardInterventionRecordModel } from "./board-domain";
 import type {
@@ -136,7 +135,6 @@ export interface AppSnapshot {
   featureFlags: FeatureFlagRecord[];
   sloTargets: SloTargetRecord[];
   operationalEvents: OperationalEventRecord[];
-  auditReplayRuns: AuditReplayRunRecord[];
   auditEvents: AuditEventRecord[];
   documents: DocumentRecord[];
   knowledgeEntries: KnowledgeEntryRecord[];

@@ -31,7 +31,7 @@ Model provider keys and sign-ins live in **Settings > Providers**. All keys are 
 pnpm verify:ci
 ```
 
-Typecheck, lint, unit, contract, integration, replay-eval, and Electron e2e.
+Typecheck, lint, unit, contract, integration, and Electron e2e.
 
 ## Build installers
 

@@ -171,7 +171,6 @@ describe("migration service", () => {
       create table legal_holds(id text primary key, org_id text, created_by_employee_id text);
       create table retention_freezes(id text primary key, org_id text, created_by_employee_id text);
       create table search_documents(entity_id text);
-      create table audit_replay_runs(id text primary key, org_id text, thread_id text, created_by_employee_id text);
       create table rollback_snapshots(id text primary key, org_id text, migration_report_id text, created_by_employee_id text);
       create table migration_cutover_events(id text primary key, org_id text, migration_report_id text, rollback_snapshot_id text);
       create table migration_reconciliation_items(id text primary key, org_id text, migration_report_id text, rollback_snapshot_id text, resolved_by_employee_id text);
@@ -237,7 +236,6 @@ describe("migration service", () => {
       insert into legal_holds(id, org_id, created_by_employee_id) values ('hold-1', 'org-1', 'emp-1');
       insert into retention_freezes(id, org_id, created_by_employee_id) values ('freeze-1', 'org-1', 'emp-1');
       insert into search_documents(entity_id) values ('task-1');
-      insert into audit_replay_runs(id, org_id, thread_id, created_by_employee_id) values ('replay-1', 'org-1', 'thread-1', 'emp-1');
       insert into rollback_snapshots(id, org_id, migration_report_id, created_by_employee_id) values ('rollback-1', 'org-1', 'migration-1', 'emp-1');
       insert into migration_cutover_events(id, org_id, migration_report_id, rollback_snapshot_id) values ('cutover-1', 'org-1', 'migration-1', 'rollback-1');
       insert into migration_reconciliation_items(id, org_id, migration_report_id, rollback_snapshot_id, resolved_by_employee_id) values ('reconcile-1', 'org-1', 'migration-1', 'rollback-1', 'emp-1');
@@ -281,7 +279,6 @@ describe("migration service", () => {
     expect(body.tableCounts.social_approval_routes).toBe(1);
     expect(body.tableCounts.social_audit_records).toBe(1);
     expect(body.tableCounts.compliance_exports).toBe(1);
-    expect(body.tableCounts.audit_replay_runs).toBe(1);
     expect(body.tableCounts.rollback_snapshots).toBe(1);
     expect(body.tableCounts.migration_cutover_events).toBe(1);
     expect(body.tableCounts.migration_reconciliation_items).toBe(1);
@@ -295,7 +292,6 @@ describe("migration service", () => {
     expect(body.idMaps.board_interventions).toEqual(["bdi-1"]);
     expect(body.idMaps.file_handoff_records).toEqual(["handoff-1"]);
     expect(body.idMaps.retention_freezes).toEqual(["freeze-1"]);
-    expect(body.idMaps.audit_replay_runs).toEqual(["replay-1"]);
     expect(body.idMaps.rollback_snapshots).toEqual(["rollback-1"]);
     expect(body.idMaps.migration_cutover_events).toEqual(["cutover-1"]);
     expect(body.idMaps.migration_reconciliation_items).toEqual(["reconcile-1"]);

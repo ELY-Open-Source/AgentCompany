@@ -81,7 +81,6 @@ const api: DesktopApi = {
   resolveMigrationReconciliation: (input) => invoke(IPC_CHANNELS.resolveMigrationReconciliation, input),
   setFeatureFlag: (input) => invoke(IPC_CHANNELS.setFeatureFlag, input),
   createComplianceExport: (input) => invoke(IPC_CHANNELS.createComplianceExport, input),
-  createAuditReplay: (input) => invoke(IPC_CHANNELS.createAuditReplay, input),
   createLegalHold: (input) => invoke(IPC_CHANNELS.createLegalHold, input),
   setLegalHoldState: (input) => invoke(IPC_CHANNELS.setLegalHoldState, input),
   createRetentionFreeze: (input) => invoke(IPC_CHANNELS.createRetentionFreeze, input),

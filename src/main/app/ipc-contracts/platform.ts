@@ -59,7 +59,6 @@ export const platformContracts = {
   createComplianceExport: z.strictObject({
     orgId: id, subjectType: z.enum(["employee", "agent"]), subjectId: id, exportType: z.enum(COMPLIANCE_EXPORT_TYPE), requestedByEmployeeId: id,
   }) satisfies z.ZodType<C.CreateComplianceExportInput>,
-  createAuditReplay: z.strictObject({ orgId: id, threadId: id, createdByEmployeeId: id }) satisfies z.ZodType<C.CreateAuditReplayInput>,
   createLegalHold: z.strictObject({
     orgId: id, entityType: z.enum(["organization", "employee", "agent", "chat_thread", "file_object"]), entityId: id, reason: z.string(), createdByEmployeeId: id,
   }) satisfies z.ZodType<C.CreateLegalHoldInput>,

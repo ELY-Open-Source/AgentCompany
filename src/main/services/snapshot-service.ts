@@ -156,7 +156,6 @@ export class SnapshotService {
       featureFlags,
       sloTargets: list(this.db, "slo_targets", "signal_key asc"),
       operationalEvents,
-      auditReplayRuns: list(this.db, "audit_replay_runs", "created_at desc"),
       auditEvents: recentList<AppSnapshot["auditEvents"][number]>(this.db, "audit_events", "created_at desc", 200),
       documents: list(this.db, "documents", "updated_at desc"),
       knowledgeEntries: list(this.db, "knowledge_entries", "updated_at desc"),

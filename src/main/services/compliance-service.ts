@@ -200,8 +200,6 @@ export class ComplianceService {
         .run(orgId, subjectId);
       this.db.prepare("update retention_freezes set created_by_employee_id = null where org_id = ? and created_by_employee_id = ?")
         .run(orgId, subjectId);
-      this.db.prepare("update audit_replay_runs set created_by_employee_id = null where org_id = ? and created_by_employee_id = ?")
-        .run(orgId, subjectId);
       this.db.prepare("update rollback_snapshots set created_by_employee_id = null where org_id = ? and created_by_employee_id = ?")
         .run(orgId, subjectId);
       this.db.prepare("update migration_reconciliation_items set resolved_by_employee_id = null where org_id = ? and resolved_by_employee_id = ?")

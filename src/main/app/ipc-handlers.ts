@@ -19,7 +19,6 @@ import { ComplianceService } from "../services/compliance-service";
 import { SearchService } from "../services/search-service";
 import { IdentityAccessService } from "../services/identity-access-service";
 import { OperationsService } from "../services/operations-service";
-import { AuditService } from "../services/audit-service";
 import { RollbackService } from "../services/rollback-service";
 import { TaskExecutionService } from "../services/task-execution-service";
 import { DocumentService } from "../services/document-service";
@@ -77,7 +76,6 @@ export function registerIpcHandlers(deps: IpcDeps): void {
   const search = new SearchService(deps.connection.db);
   const identityAccess = new IdentityAccessService(deps.connection.db);
   const operations = new OperationsService(deps.connection.db);
-  const audit = new AuditService(deps.connection.db);
   const rollback = new RollbackService(deps.connection.db);
   const documents = new DocumentService(deps.connection.db);
   const knowledge = new KnowledgeService(deps.connection.db);
@@ -377,7 +375,6 @@ export function registerIpcHandlers(deps: IpcDeps): void {
   handle("resolveMigrationReconciliation", (input) => mutate(() => rollback.resolveReconciliationItem(input)));
   handle("setFeatureFlag", (input) => mutate(() => operations.setFeatureFlag(input)));
   handle("createComplianceExport", (input) => mutate(() => compliance.createExport(input)));
-  handle("createAuditReplay", (input) => mutate(() => audit.createThreadReplay(input)));
   handle("createLegalHold", (input) => mutate(() => compliance.createLegalHold(input)));
   handle("setLegalHoldState", (input) => mutate(() => compliance.setLegalHoldState(input)));
   handle("createRetentionFreeze", (input) => mutate(() => compliance.createRetentionFreeze(input)));

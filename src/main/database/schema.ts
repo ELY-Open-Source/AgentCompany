@@ -96,6 +96,7 @@ import { dropConfigCountEvalsSchema } from "./migrations/094-drop-config-count-e
 import { dropPrBotGatesSchema } from "./migrations/095-drop-pr-bot-gates";
 import { dropChaosDrillsSchema } from "./migrations/096-drop-chaos-drills";
 import { dropDrillOnlySloSchema } from "./migrations/097-drop-drill-only-slo";
+import { dropAuditReplaysSchema } from "./migrations/098-drop-audit-replays";
 
 interface Migration {
   version: number;
@@ -201,6 +202,7 @@ const MIGRATIONS: Migration[] = [
   { version: 95, name: "drop_pr_bot_gates", sql: dropPrBotGatesSchema },
   { version: 96, name: "drop_chaos_drills", sql: dropChaosDrillsSchema },
   { version: 97, name: "drop_drill_only_slo", sql: dropDrillOnlySloSchema },
+  { version: 98, name: "drop_audit_replays", sql: dropAuditReplaysSchema },
 ];
 
 const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;
