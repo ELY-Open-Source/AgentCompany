@@ -29,7 +29,8 @@ const isRoute = oneOf(ROUTE_IDS);
 export function App() {
   const { snapshot, syncFailure, actions } = useSnapshot();
   const [routeChoice, setRoute] = useState<RouteId | null>(null);
-  const [focus, setFocus] = useState<Focus | null>(null);
+  // A focus belongs to the company it was opened in; another company's page never receives it.
+  const [focusChoice, setFocus] = useState<{ orgId: string | null; focus: Focus } | null>(null);
   // Leaving a page with input that would be lost asks first.
   const [leaving, setLeaving] = useState<{ proceed: () => void } | null>(null);
   const requestLeave = (proceed: () => void) => {
@@ -40,7 +41,7 @@ export function App() {
   const navigate = (next: RouteId, nextFocus?: Focus) => requestLeave(() => {
     setRoute(next);
     writeViewState("route", next);
-    setFocus(nextFocus ?? null);
+    setFocus(nextFocus ? { orgId: snapshot?.activeOrgId ?? null, focus: nextFocus } : null);
   });
   const avatarDirectory = useMemo(() => {
     // Scope the directory to the active organization: names are only unique
@@ -97,6 +98,7 @@ export function App() {
     );
   }
 
+  const focus = focusChoice && focusChoice.orgId === snapshot.activeOrgId ? focusChoice.focus : null;
   const pageProps = { snapshot, actions, navigate, focus };
   const page = {
     home: <HomePage {...pageProps} />,

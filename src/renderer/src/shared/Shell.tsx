@@ -123,7 +123,7 @@ export function Shell({
           </button>
         </div>
       </aside>
-      {profileOpen && <ProfileDialog employee={employee} onClose={() => setProfileOpen(false)} />}
+      {profileOpen && <ProfileDialog key={employee.id} employee={employee} onClose={() => setProfileOpen(false)} />}
       <main className="main">
         <header className="topbar">
           <span className="crumb-sub">{organization.name}</span>
@@ -159,6 +159,7 @@ export function Shell({
         </div>
       </main>
       <SearchDialog
+        key={snapshot.activeOrgId ?? "none"}
         snapshot={snapshot}
         open={searchOpen}
         onClose={() => setSearchOpen(false)}
