@@ -39,6 +39,7 @@ import { resumeGoal } from "../services/goal-review-service";
 import { stopAllRuns, stopRun } from "../services/run-control";
 import { cancelQueuedRun } from "../services/run-cancel";
 import { runHistory } from "../services/run-history";
+import { deleteWorkspace, setPrimaryWorkspace, updateWorkspace } from "../services/workspace-admin";
 
 export interface IpcDeps {
   connection: DatabaseConnection;
@@ -185,6 +186,9 @@ export function registerIpcHandlers(deps: IpcDeps): void {
   handle("createGoal", (input) => mutate(() => organization.createGoal(input)));
   handle("setGoalDueDate", (input) => mutate(() => organization.setGoalDueDate(input)));
   handle("updateOrganization", (input) => mutate(() => organization.updateOrganization(input)));
+  handle("updateWorkspace", (input) => mutate(() => updateWorkspace(deps.connection.db, input)));
+  handle("setPrimaryWorkspace", (input) => mutate(() => setPrimaryWorkspace(deps.connection.db, input.orgId, input.workspaceId)));
+  handle("deleteWorkspace", (input) => mutate(() => deleteWorkspace(deps.connection.db, input.orgId, input.workspaceId)));
   handle("createProject", (input) => mutate(() => organization.createProject(input)));
   handle("createWorkspace", (input) => mutate(() => organization.createWorkspace(input)));
   handle("createDocument", (input) => mutate(() => documents.create(input)));

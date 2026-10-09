@@ -1,3 +1,4 @@
+import { WorkspaceRow } from "./WorkspaceRow";
 import { CompanyDialog } from "./CompanyDialog";
 import { ScopeNote } from "./ScopeNote";
 import { useState, type FormEvent } from "react";
@@ -124,15 +125,7 @@ export function WorkspacePanel({
       </div>
       <ScopeNote scope="company_folders" company={organization.name} />
       {workspaces.map((workspace) => (
-        <div key={workspace.id} className="row" aria-current={workspace.id === focusedWorkspaceId ? "true" : undefined} style={{ padding: "8px 0", borderBottom: "1px solid var(--border-soft)", background: workspace.id === focusedWorkspaceId ? "var(--accent-soft)" : undefined }}>
-          <div style={{ minWidth: 0 }}>
-            <div style={{ fontWeight: 540 }}>{workspace.name}</div>
-            <div style={{ fontSize: 12, color: "var(--text-3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{workspace.localPath}</div>
-          </div>
-          <div style={{ marginLeft: "auto" }}>
-            {workspace.isPrimary && <Pill tone="violet">{t("Primary")}</Pill>}
-          </div>
-        </div>
+        <WorkspaceRow key={workspace.id} workspace={workspace} projects={projects} focused={workspace.id === focusedWorkspaceId} actions={actions} />
       ))}
 
       <Dialog title={t("Add workspace")} open={createOpen} submitLabel={t("Create")} onClose={() => setCreateOpen(false)} onSubmit={submit}>

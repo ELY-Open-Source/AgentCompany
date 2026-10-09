@@ -56,6 +56,9 @@ export const organizationContracts = {
   runTask: z.strictObject({ orgId: id, taskId: id }) satisfies z.ZodType<C.RunTaskInput>,
   createGoal: z.strictObject({ orgId: id, title: z.string(), description: z.string(), ownerAgentId: nullableId, dueAt: z.string().nullable().optional() }) satisfies z.ZodType<C.CreateGoalInput>,
   setGoalDueDate: z.strictObject({ orgId: id, goalId: id, dueAt: z.string().nullable() }) satisfies z.ZodType<C.SetGoalDueDateInput>,
+  updateWorkspace: z.strictObject({ orgId: id, workspaceId: id, name: z.string(), localPath: z.string(), projectId: nullableId }) satisfies z.ZodType<C.UpdateWorkspaceInput>,
+  setPrimaryWorkspace: z.strictObject({ orgId: id, workspaceId: id }),
+  deleteWorkspace: z.strictObject({ orgId: id, workspaceId: id }),
   updateOrganization: z.strictObject({
     orgId: id, name: z.string(), description: z.string(), mission: z.string(), goal: z.string(),
     executionMode: z.enum(["ai_ceo", "ai_cofounder"]), autoApproveHires: z.boolean(), reviewDeliverables: z.boolean(),

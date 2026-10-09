@@ -88,6 +88,25 @@ test("the pinned CEO conversation is the Messages front door", async () => {
     await expect(page.getByText("Hires require approval")).toBeVisible();
     await editCompany("ai_ceo", true);
     await expect(page.getByText("AI CEO", { exact: true })).toBeVisible();
+    // A workspace can be kept up after it is added: renamed, made primary, removed.
+    const folder = join(tmpdir(), `agentcompany-new-e2e-ws-${randomUUID()}`);
+    mkdirSync(folder, { recursive: true });
+    await page.evaluate(async (localPath) => {
+      const api = (window as unknown as { agentCompany: {
+        loadSnapshot: () => Promise<{ ok: true; data: { activeOrgId: string } }>;
+        createWorkspace: (input: unknown) => Promise<{ ok: boolean }>;
+      } }).agentCompany;
+      const orgId = (await api.loadSnapshot()).data.activeOrgId;
+      await api.createWorkspace({ orgId, name: "Scratch", localPath, projectId: null });
+    }, folder);
+    await page.getByRole("button", { name: "Edit Scratch" }).click();
+    await page.getByLabel("Name").fill("Scratch repo");
+    await page.getByRole("button", { name: "Save" }).click();
+    await expect(page.getByText("Scratch repo", { exact: true })).toBeVisible();
+    const scratch = page.getByRole("group", { name: "Scratch repo" });
+    await scratch.getByRole("button", { name: "Remove" }).click();
+    await page.getByRole("alertdialog", { name: "Remove this workspace?" }).getByRole("button", { name: "Remove" }).click();
+    await expect(page.getByText("Scratch repo", { exact: true })).toHaveCount(0);
 
     // A goal's pace is measured against its target date; without one, no pace is claimed.
     await page.getByRole("button", { name: "Home" }).click();

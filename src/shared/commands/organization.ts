@@ -171,6 +171,14 @@ export interface CreateProjectInput {
   leadAgentId: string | null;
 }
 
+export interface UpdateWorkspaceInput {
+  orgId: string;
+  workspaceId: string;
+  name: string;
+  localPath: string;
+  projectId: string | null;
+}
+
 export interface CreateWorkspaceInput {
   orgId: string;
   name: string;
