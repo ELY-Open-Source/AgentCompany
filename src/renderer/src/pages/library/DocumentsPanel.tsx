@@ -1,3 +1,4 @@
+import { DOCUMENT_STATUS_VALUES, documentStatusLabel } from "../../i18n/labels";
 import { useEffect, useState, type FormEvent } from "react";
 import type { DocumentRecord, TaskRecord } from "../../../../shared/domain";
 import type { DocumentVersionRecord } from "../../../../shared/commands";
@@ -98,7 +99,7 @@ export function DocumentsPanel({
           <div className="row" style={{ gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
             <h2 style={{ margin: 0, fontSize: 18 }}>{shown?.title ?? selected.title}</h2>
             <Pill>{selected.docType}</Pill>
-            <Pill tone={selected.status === "approved" ? "green" : undefined}>{shown?.status ?? selected.status}</Pill>
+            <Pill tone={selected.status === "approved" ? "green" : undefined}>{documentStatusLabel(shown?.status ?? selected.status)}</Pill>
           </div>
           {producedBy && <p style={{ color: "var(--text-2)", margin: "0 0 8px" }}>{t("Produced by task: {title}", { title: producedBy })}</p>}
           <div className="row" style={{ gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
@@ -124,7 +125,7 @@ export function DocumentsPanel({
           <Field label={t("Title")}><input className="input" name="title" defaultValue={selected.title} required /></Field>
           <Field label={t("Status")}>
             <select className="input" name="status" defaultValue={selected.status}>
-              {["draft", "review", "approved", "archived"].map((status) => <option key={status} value={status}>{status}</option>)}
+              {DOCUMENT_STATUS_VALUES.map((status) => <option key={status} value={status}>{documentStatusLabel(status)}</option>)}
             </select>
           </Field>
           <Field label={t("Content")}><textarea className="input" name="content" defaultValue={selected.content} rows={14} required /></Field>

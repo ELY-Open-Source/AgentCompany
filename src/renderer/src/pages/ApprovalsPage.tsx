@@ -1,3 +1,4 @@
+import { approvalKindLabel } from "../i18n/labels";
 import { decideEach, type BatchResult } from "./approvals/decide-each";
 import { DECIDED_PAGE, decidedWindow } from "./approvals/decided-window";
 import { ApprovalDetailDialog, ApprovalRecordDialog } from "./approvals/ApprovalDialogs";
@@ -278,7 +279,7 @@ function ApprovalRow({
         <div className="row" style={{ marginBottom: 4 }}>
           <span style={{ fontSize: 12, color: tone.color, fontWeight: 540, letterSpacing: "0.02em" }}>{tone.label}</span>
           <span style={{ color: "var(--text-4)" }}>·</span>
-          <Pill>{approval.kind}</Pill>
+          <Pill>{approvalKindLabel(approval.kind)}</Pill>
         </div>
         <div style={{ fontSize: 15, fontWeight: 540, letterSpacing: "-0.01em", marginBottom: 4 }}>{approval.title}</div>
         <div style={{ fontSize: 14, color: "var(--text-2)", lineHeight: 1.5, marginBottom: 12, whiteSpace: "pre-wrap" }}>

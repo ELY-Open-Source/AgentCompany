@@ -294,10 +294,10 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       const secret = await providerOAuth.run(
         { providerKey: input.providerKey, enterpriseDomain: input.enterpriseDomain ?? null },
         {
-          onAuth: ({ url, instructions }) => {
+          onAuth: ({ url, userCode }) => {
             const browserUrl = normalizeExternalBrowserUrl(url);
             void shell.openExternal(browserUrl);
-            emit({ phase: "authorize", url: browserUrl, instructions });
+            emit({ phase: "authorize", url: browserUrl, userCode });
           },
           onProgress: (message) => emit({ phase: "progress", message }),
         },

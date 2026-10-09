@@ -138,6 +138,9 @@ test("the pinned CEO conversation is the Messages front door", async () => {
     await expect(page.getByText("Goal: Ship the FlowPilot MVP.", { exact: true })).toBeVisible();
     await page.getByRole("button", { name: /Operationalize goal: Ship the FlowPilot MVP\./ }).first().click();
     await taskDialog.getByRole("button", { name: /^Open run/ }).first().click();
+    // Stored values read as words, and shortcuts use this platform's notation.
+    await expect(page.getByText("Company launch").first()).toBeVisible();
+    await expect(page.locator(".search-kbd")).toHaveText(process.platform === "darwin" ? "⌘K" : "Ctrl+K");
     // A queued run can be cancelled before it starts; then it offers to resume.
     await page.getByRole("button", { name: "Cancel run" }).click();
     await expect(page.getByRole("button", { name: "Resume" })).toBeVisible();

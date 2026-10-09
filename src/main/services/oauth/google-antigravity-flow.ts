@@ -140,7 +140,7 @@ export const antigravityFlow: OAuthFlow = {
     const { verifier, challenge } = generatePkce();
     const server = await startOAuthCallbackServer({ port: CALLBACK_PORT, path: CALLBACK_PATH, signal: callbacks.signal });
     try {
-      callbacks.onAuth({ url: buildAuthorizeUrl(challenge, verifier), instructions: "Complete the Google sign-in in your browser." });
+      callbacks.onAuth({ url: buildAuthorizeUrl(challenge, verifier), userCode: null });
       const result = await server.waitForCode();
       if (result.state !== verifier) throw new Error("OAuth state mismatch.");
       const tokens = await exchangeCode(result.code, verifier, clientSecret, callbacks.signal);

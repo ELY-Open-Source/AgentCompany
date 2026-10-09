@@ -1,3 +1,4 @@
+import { runTriggerLabel } from "../i18n/labels";
 import { goalProgress, type GoalPace } from "./home/goal-progress";
 import { newestRuns } from "./runs/newest-runs";
 import { isBusinessTask } from "./work/task-helpers";
@@ -241,7 +242,7 @@ function RunActivityCard({
               {agent && <Avatar name={agent.name} size="sm" bot />}
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{task?.title ?? run.taskId}</div>
-                <div style={{ fontSize: 12, color: "var(--text-3)" }}>{agent?.name ?? t("Agent")} · {run.trigger}</div>
+                <div style={{ fontSize: 12, color: "var(--text-3)" }}>{agent?.name ?? t("Agent")} · {runTriggerLabel(run.trigger)}</div>
               </div>
               <Pill tone={runStateTone(run.state)}>{runStateLabel(run.state)}</Pill>
               <span className="mono" style={{ fontSize: 12, color: "var(--text-3)", flexShrink: 0 }}>{formatRelative(run.createdAt)}</span>

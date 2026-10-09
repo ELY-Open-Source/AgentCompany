@@ -1,3 +1,4 @@
+import { shortcutLabel } from "../../i18n/labels";
 import { useEffect, useRef, useState, type FormEvent, type MutableRefObject } from "react";
 import { Button, Icon, IconButton } from "../../shared/ui";
 import type { AgentRecord, EmployeeRecord, FileObjectRecord } from "../../../../shared/domain";
@@ -108,7 +109,7 @@ export function ChatComposer({
             </span>
           ))}
           <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6 }}>
-            <span className="mono" style={{ fontSize: 12, color: "var(--text-3)" }}>Ctrl+Enter</span>
+            <span className="mono" style={{ fontSize: 12, color: "var(--text-3)" }}>{shortcutLabel("Enter")}</span>
             <Button tone="primary" size="small" type="submit" disabled={locked}><Icon name="send" size={12} /> {t("Send")}</Button>
           </div>
         </div>

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { StartProviderOAuthInput } from "../../../shared/commands";
 import { Button, Icon } from "./ui";
+import { t } from "../i18n/i18n";
 
 type Phase = "idle" | "running" | "done" | "error";
 
@@ -21,21 +22,21 @@ export function ProviderOAuthConnect({
   onComplete: (secret: string | null) => void;
 }) {
   const [phase, setPhase] = useState<Phase>("idle");
-  const [instruction, setInstruction] = useState<string | null>(null);
+  const [prompt, setPrompt] = useState<{ url: string; userCode: string | null } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(
     () =>
       window.agentCompany.subscribe((event) => {
         if (event.type !== "provider-oauth" || event.providerKey !== providerKey) return;
-        if (event.phase === "authorize" && event.instructions) setInstruction(event.instructions);
+        if (event.phase === "authorize" && event.url) setPrompt({ url: event.url, userCode: event.userCode ?? null });
       }),
     [providerKey],
   );
 
   const run = () => {
     setPhase("running");
-    setInstruction(null);
+    setPrompt(null);
     setError(null);
     void window.agentCompany.startProviderOAuth(buildInput()).then((result) => {
       if (result.ok) {
@@ -55,10 +56,16 @@ export function ProviderOAuthConnect({
       <div className="oauth-connect">
         <div className="oauth-connect-row">
           <span className="spinner" aria-hidden />
-          <span>Waiting for {label} sign-in</span>
-          <button type="button" className="link-button" onClick={cancel}>Cancel</button>
+          <span>{t("Waiting for {label} sign-in", { label })}</span>
+          <button type="button" className="link-button" onClick={cancel}>{t("Cancel")}</button>
         </div>
-        {instruction && <div className="oauth-connect-code">{instruction}</div>}
+        {prompt && (
+          <div className="oauth-connect-code">
+            {prompt.userCode
+              ? t("Enter code {code} at {url}", { code: prompt.userCode, url: prompt.url })
+              : t("Finish signing in in the browser window that opened.")}
+          </div>
+        )}
       </div>
     );
   }
@@ -67,15 +74,15 @@ export function ProviderOAuthConnect({
     return (
       <div className="oauth-connect-row done">
         <Icon name="check" size={14} color="var(--green)" />
-        <span>Signed in to {label}</span>
-        <button type="button" className="link-button" onClick={run}>Redo</button>
+        <span>{t("Signed in to {label}", { label })}</span>
+        <button type="button" className="link-button" onClick={run}>{t("Sign in again")}</button>
       </div>
     );
   }
 
   return (
     <div className="oauth-connect">
-      <Button tone="primary" onClick={run}>Sign in with {label}</Button>
+      <Button tone="primary" onClick={run}>{t("Sign in with {label}", { label })}</Button>
       {error && <div className="oauth-connect-error">{error}</div>}
     </div>
   );

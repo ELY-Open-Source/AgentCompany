@@ -1,3 +1,4 @@
+import { fileKindLabel } from "../../i18n/labels";
 import { useState, type FormEvent, type ReactNode } from "react";
 import { Avatar, Button, Icon, IconButton } from "../../shared/ui";
 import type {
@@ -260,7 +261,7 @@ function AttachmentCard({ file, handoff = false, onOpen }: { file: FileObjectRec
             </span>
           )}
         </div>
-        <div style={{ fontSize: 12, color: "var(--text-3)" }}>{file.kind.toUpperCase()}</div>
+        <div style={{ fontSize: 12, color: "var(--text-3)" }}>{fileKindLabel(file.kind)}</div>
       </div>
       {canOpen && <IconButton icon="arrowUpRight" label={t("Open {name}", { name: file.name })} onClick={onOpen ?? undefined} />}
     </div>

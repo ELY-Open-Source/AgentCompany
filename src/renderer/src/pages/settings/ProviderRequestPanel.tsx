@@ -1,3 +1,4 @@
+import { requestStateLabel } from "../../i18n/labels";
 import { useState, type FormEvent } from "react";
 import type { ProviderCatalogEntry, ProviderRecord, ProviderRequestRecord, WorkspaceRecord } from "../../../../shared/domain";
 import { PROVIDER_DATA_POLICY, PROVIDER_EXECUTION_MODE, PROVIDER_REQUEST_STATE, type ProviderExecutionMode } from "../../../../shared/domain";
@@ -174,7 +175,7 @@ function ProviderRequestRow({
       </div>
       <div className="mono" style={{ color: "var(--text-2)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{workspace?.name ?? t("Organization")}</div>
       <div className="mono" style={{ color: "var(--text-2)" }}>{request.executionMode}</div>
-      <div><Pill tone={stateTone(request.state)}>{request.state}</Pill></div>
+      <div><Pill tone={stateTone(request.state)}>{requestStateLabel(request.state)}</Pill></div>
       <div className="mono" style={{ color: "var(--text-2)" }}>{t("{count} chars", { count: request.outputCharCount })}</div>
       <Button size="small" tone="ghost" onClick={cancel} disabled={!canCancel}>
         <span className="row" style={{ gap: 5 }}>

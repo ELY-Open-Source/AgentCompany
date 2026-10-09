@@ -1,3 +1,4 @@
+import { shortcutLabel } from "../i18n/labels";
 import { isBusinessTask } from "../pages/work/task-helpers";
 import { unreadBySpace } from "../pages/chat/chat-helpers";
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
@@ -99,7 +100,7 @@ export function Shell({
         <button type="button" className="search-bar" aria-label={t("Search")} onClick={() => setSearchOpen(true)}>
           <Icon name="search" size={13} />
           <span>{t("Search")}</span>
-          <span className="search-kbd">⌘K</span>
+          <span className="search-kbd">{shortcutLabel("K")}</span>
         </button>
         <nav className="nav">
           {allNav.map((item) => (

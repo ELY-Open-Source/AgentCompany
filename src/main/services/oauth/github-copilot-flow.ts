@@ -216,7 +216,7 @@ export const githubCopilotFlow: OAuthFlow = {
     const device = await startDeviceFlow(domain, callbacks.signal);
     callbacks.onAuth({
       url: device.verification_uri,
-      instructions: `Enter code ${device.user_code} at ${device.verification_uri}`,
+      userCode: device.user_code,
     });
     const githubToken = await pollForGitHubAccessToken(domain, device, callbacks.signal);
     const credentials = await refreshGitHubCopilotToken(githubToken, enterpriseDomain ?? undefined, callbacks.signal);

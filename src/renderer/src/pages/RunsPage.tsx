@@ -1,3 +1,4 @@
+import { requestStateLabel, runTriggerLabel } from "../i18n/labels";
 import { RunRequestList } from "./runs/RunRequestList";
 import { useRunRequests } from "./runs/use-run-requests";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -117,7 +118,7 @@ export function RunsPage({ snapshot, actions, navigate, focus }: PageProps) {
                     {task?.title ?? run.taskId}
                   </div>
                   <div style={{ fontSize: 12, color: "var(--text-3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {agent?.name ?? t("Agent")} · {run.trigger}
+                    {agent?.name ?? t("Agent")} · {runTriggerLabel(run.trigger)}
                   </div>
                 </div>
                 <Pill tone={runTone(run.state)}>{runLabel(run.state)}</Pill>
@@ -206,7 +207,7 @@ function RunDetail({ run, tasks, agents, providers, actions, onOpenTask }: {
         <MetaLabel>{t("Agent")}</MetaLabel><div>{agent?.name ?? "—"} ({agent?.role ?? "—"})</div>
         <MetaLabel>{t("Provider")}</MetaLabel><div>{provider?.label ?? "—"}</div>
         <MetaLabel>{t("Model")}</MetaLabel><div>{run.runModel ?? t("Chosen when the session starts")}</div>
-        <MetaLabel>{t("Trigger")}</MetaLabel><div>{run.trigger}</div>
+        <MetaLabel>{t("Trigger")}</MetaLabel><div>{runTriggerLabel(run.trigger)}</div>
         <MetaLabel>{t("Created")}</MetaLabel><div>{formatRelative(run.createdAt)}</div>
         {run.startedAt && (<><MetaLabel>{t("Started")}</MetaLabel><div>{formatRelative(run.startedAt)}</div></>)}
         {run.completedAt && (<><MetaLabel>{t("Completed")}</MetaLabel><div>{formatRelative(run.completedAt)}</div></>)}
@@ -242,7 +243,7 @@ function RunDetail({ run, tasks, agents, providers, actions, onOpenTask }: {
           <div style={{ display: "grid", gridTemplateColumns: "120px 1fr", gap: "8px 16px", fontSize: 14 }}>
             <MetaLabel>{t("Request ID")}</MetaLabel><div className="mono" style={{ fontSize: 12, overflow: "hidden", textOverflow: "ellipsis" }}>{request.id}</div>
             <MetaLabel>{t("Model")}</MetaLabel><div>{request.model}</div>
-            <MetaLabel>{t("State")}</MetaLabel><div>{request.state}</div>
+            <MetaLabel>{t("State")}</MetaLabel><div>{requestStateLabel(request.state)}</div>
             <MetaLabel>{t("Input chars")}</MetaLabel><div className="num">{request.inputCharCount.toLocaleString()}</div>
             <MetaLabel>{t("Output chars")}</MetaLabel><div className="num">{request.outputCharCount.toLocaleString()}</div>
             <MetaLabel>{t("Tokens")}</MetaLabel><div className="num">{request.inputTokens === null ? t("not reported") : t("{input} in · {output} out", { input: request.inputTokens.toLocaleString(), output: (request.outputTokens ?? 0).toLocaleString() })}</div>

@@ -1,3 +1,4 @@
+import { credentialSourceLabel } from "../../i18n/labels";
 import { defaultModelReach } from "../../../../shared/agent-model";
 import { ScopeNote } from "./ScopeNote";
 import { useState, type FormEvent } from "react";
@@ -261,7 +262,7 @@ function ProviderRow({
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 13.5, fontWeight: 540, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{provider.label}</div>
         <div style={{ fontSize: 12, color: "var(--text-3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-          {provider.model ? `${provider.model} · ` : ""}{readableAuth(provider.authType)}{authProfile ? ` · ${authProfile.sourceType}` : ""}
+          {provider.model ? `${provider.model} · ` : ""}{readableAuth(provider.authType)}{authProfile ? ` · ${credentialSourceLabel(authProfile.sourceType)}` : ""}
         </div>
       </div>
       <ProviderHealth provider={provider} />

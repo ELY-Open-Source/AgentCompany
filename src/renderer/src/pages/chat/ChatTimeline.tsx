@@ -1,3 +1,4 @@
+import { riskLabel } from "../../i18n/labels";
 import { useState, type ReactNode } from "react";
 import { Button, Icon, Pill } from "../../shared/ui";
 import type {
@@ -149,7 +150,7 @@ function ApprovalInline({ approval, onApprove, onDecline }: { approval: Approval
       <div className="row" style={{ marginBottom: 8 }}>
         <Icon name="approve" size={14} color="var(--amber)" />
         <span style={{ fontSize: 12, color: "var(--amber)", fontWeight: 540 }}>{t("Approval needed")}</span>
-        <Pill tone={approval.risk === "high" ? "red" : approval.risk === "medium" ? "amber" : undefined}>{approval.risk}</Pill>
+        <Pill tone={approval.risk === "high" ? "red" : approval.risk === "medium" ? "amber" : undefined}>{riskLabel(approval.risk)}</Pill>
       </div>
       <div style={{ fontSize: 14, fontWeight: 540, marginBottom: 4 }}>{approval.title}</div>
       <div style={{ fontSize: 12, color: "var(--text-3)", marginBottom: 12, lineHeight: 1.5 }}>{approval.details}</div>

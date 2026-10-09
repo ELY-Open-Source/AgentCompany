@@ -75,7 +75,7 @@ export const anthropicClaudeFlow: OAuthFlow = {
     const { verifier, challenge } = generatePkce();
     const server = await startOAuthCallbackServer({ port: CALLBACK_PORT, path: CALLBACK_PATH, signal: callbacks.signal });
     try {
-      callbacks.onAuth({ url: buildAuthorizeUrl(challenge, verifier), instructions: "Complete the Claude sign-in in your browser." });
+      callbacks.onAuth({ url: buildAuthorizeUrl(challenge, verifier), userCode: null });
       const result = await server.waitForCode();
       if (result.state !== verifier) throw new Error("OAuth state mismatch.");
       return await exchangeCode(result.code, result.state, verifier, callbacks.signal);

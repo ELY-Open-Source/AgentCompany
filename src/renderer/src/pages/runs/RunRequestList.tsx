@@ -1,3 +1,4 @@
+import { requestStateLabel } from "../../i18n/labels";
 import type { LoadedRequests } from "./use-run-requests";
 import { Pill } from "../../shared/ui";
 import { t } from "../../i18n/i18n";
@@ -24,7 +25,7 @@ export function RunRequestList({ loaded }: { loaded: LoadedRequests | null }) {
           <span className="mono" style={{ color: "var(--text-3)", width: 24 }}>{index + 1}</span>
           <span style={{ width: 96 }}>{purposeLabel(request.purpose)}</span>
           <span className="mono" style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>{request.model}</span>
-          <Pill tone={request.state === "failed" ? "red" : request.state === "succeeded" ? "green" : "amber"}>{request.state}</Pill>
+          <Pill tone={request.state === "failed" ? "red" : request.state === "succeeded" ? "green" : "amber"}>{requestStateLabel(request.state)}</Pill>
           <span className="mono" style={{ color: "var(--text-3)", width: 120, textAlign: "right" }}>
             {request.inputTokens ?? "—"} / {request.outputTokens ?? "—"}
           </span>

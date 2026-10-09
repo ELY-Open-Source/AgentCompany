@@ -2,7 +2,7 @@ import { getOAuthFlow } from "./oauth/oauth-flows";
 import type { IntegrationKeyStore } from "./integration-key-store";
 
 export interface ProviderOAuthHooks {
-  onAuth: (info: { url: string; instructions?: string }) => void;
+  onAuth: (info: { url: string; userCode: string | null }) => void;
   onProgress?: (message: string) => void;
 }
 

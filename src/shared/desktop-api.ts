@@ -107,7 +107,8 @@ export interface ProviderOAuthEvent {
   providerKey: string;
   phase: ProviderOAuthPhase;
   url?: string;
-  instructions?: string;
+  /** The device-flow code the user enters at `url`; null when the browser redirect completes the sign-in. */
+  userCode?: string | null;
   message?: string;
 }
 

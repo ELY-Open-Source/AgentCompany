@@ -55,15 +55,6 @@ export function formatTime(iso: string): string {
   return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
 }
 
-export function humanizeToken(value: string): string {
-  const spaced = value.replace(/_/g, " ").trim();
-  if (!spaced) return spaced;
-  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
-}
-
-export function auditEventLabel(entityType: string, action: string): string {
-  return `${humanizeToken(entityType)} ${action.replace(/_/g, " ")}`.trim();
-}
 
 export function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;

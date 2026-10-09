@@ -15,9 +15,8 @@ export interface OAuthCredentials {
 }
 
 export interface OAuthLoginCallbacks {
-  /** Called once the authorization URL is ready. `instructions` carries the
-   * device user-code (device flow) or a short note (authorization-code flow). */
-  onAuth: (info: { url: string; instructions?: string }) => void;
+  /** Called once the authorization URL is ready; `userCode` is the device-flow code the user enters, null for a browser redirect. */
+  onAuth: (info: { url: string; userCode: string | null }) => void;
   onProgress?: (message: string) => void;
   signal?: AbortSignal;
   /** GitHub Enterprise domain for Copilot; null/empty means github.com. */

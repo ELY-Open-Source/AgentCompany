@@ -183,7 +183,7 @@ export const kimiCodeFlow: OAuthFlow = {
     const device = await requestDeviceAuthorization(callbacks.signal);
     callbacks.onAuth({
       url: device.verification_uri_complete,
-      instructions: `Approve code ${device.user_code} in your browser to link your Kimi plan.`,
+      userCode: device.user_code,
     });
     return pollForToken(device, callbacks.signal);
   },

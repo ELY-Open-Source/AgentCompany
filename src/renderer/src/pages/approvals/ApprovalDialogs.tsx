@@ -1,3 +1,4 @@
+import { approvalKindLabel } from "../../i18n/labels";
 import { useState } from "react";
 import { Button, IconButton, Pill } from "../../shared/ui";
 import type { ApprovalRecord } from "../../../../shared/domain";
@@ -45,7 +46,7 @@ export function ApprovalDetailDialog({
         <div className="row" style={{ flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
           <span style={{ fontSize: 12, color: tone.color, fontWeight: 540, letterSpacing: "0.02em" }}>{tone.label}</span>
           <span style={{ color: "var(--text-4)" }}>·</span>
-          <Pill>{approval.kind}</Pill>
+          <Pill>{approvalKindLabel(approval.kind)}</Pill>
         </div>
         <p style={{ margin: "0 0 16px", color: "var(--text-2)", fontSize: 14, lineHeight: 1.55, whiteSpace: "pre-wrap" }}>
           {approval.details}
@@ -112,7 +113,7 @@ export function ApprovalRecordDialog({ approval, requester, decider, drift, onCl
         </div>
         <div className="row" style={{ flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
           <Pill>{outcome}</Pill>
-          <Pill>{approval.kind}</Pill>
+          <Pill>{approvalKindLabel(approval.kind)}</Pill>
           {drift && <Pill tone="amber">{drift === "changed" ? t("Changed since approval") : t("Removed since approval")}</Pill>}
         </div>
         <p style={{ margin: "0 0 16px", color: "var(--text-2)", fontSize: 14, lineHeight: 1.55, whiteSpace: "pre-wrap" }}>{approval.details}</p>

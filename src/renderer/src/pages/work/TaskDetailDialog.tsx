@@ -1,3 +1,4 @@
+import { approvalStateLabel, runTriggerLabel, taskEventLabel } from "../../i18n/labels";
 import { TaskHoldNotice } from "./TaskHoldNotice";
 import { useState, type FormEvent } from "react";
 import { Avatar, Button, Field, Icon, IconButton, Pill, Segmented } from "../../shared/ui";
@@ -13,7 +14,7 @@ import type {
   WorkspaceRecord,
 } from "../../../../shared/domain";
 import { TASK_STATUS, type TaskDeleteImpact, type TaskStatus, type WorkLanguage, type WritingMode } from "../../../../shared/domain";
-import { auditEventLabel, formatRelative } from "../types";
+import { formatRelative } from "../types";
 import { WorkLanguageField } from "./WorkLanguageField";
 import { WRITING_OPTIONS, readWorkLanguage, descendantIds, nextStatus, prettyRunState, prettyStatus, providerFor, runBlocker, runsForTask, runTone } from "./task-helpers";
 import type { SnapshotActions } from "../../app/useSnapshot";
@@ -255,7 +256,7 @@ function OverviewTab({ task, assignee, project, goal, workspace, provider, runs,
                   <button type="button" className="link-button" aria-label={t("Open run {id}", { id: run.id })} onClick={() => navigate("runs", { kind: "run", id: run.id })}>
                     <Pill tone={runTone(run.state)}>{prettyRunState(run.state)}</Pill>
                   </button>
-                  <span style={{ color: "var(--text-3)", fontSize: 12 }}>{run.trigger}</span>
+                  <span style={{ color: "var(--text-3)", fontSize: 12 }}>{runTriggerLabel(run.trigger)}</span>
                   <span className="num" style={{ marginLeft: "auto", color: "var(--text-3)", fontSize: 12 }}>{formatRelative(run.createdAt)}</span>
                 </div>
                 {run.state === "failed" && run.errorMessage && (
@@ -300,7 +301,7 @@ function ActivityTab({ audit, approvals, onOpenApproval }: { audit: AuditEventRe
           <div className="section-label">{t("Approvals")}</div>
           {approvals.map((a) => (
             <div key={a.id} className="row" style={{ gap: 8, padding: "6px 0" }}>
-              <Pill tone={a.state === "approved" ? "green" : a.state === "pending" ? "amber" : "red"}>{a.state}</Pill>
+              <Pill tone={a.state === "approved" ? "green" : a.state === "pending" ? "amber" : "red"}>{approvalStateLabel(a.state)}</Pill>
               <button type="button" className="link-button" style={{ fontSize: 12 }} aria-label={t("Open approval {title}", { title: a.title })} onClick={() => onOpenApproval(a.id)}>{a.title}</button>
               <span className="mono" style={{ marginLeft: "auto", fontSize: 12, color: "var(--text-3)" }}>{formatRelative(a.createdAt)}</span>
             </div>
@@ -312,7 +313,7 @@ function ActivityTab({ audit, approvals, onOpenApproval }: { audit: AuditEventRe
       {audit.map((e) => (
         <div key={e.id} className="row" style={{ gap: 8, padding: "5px 0" }}>
           <span className="mono" style={{ fontSize: 12, color: "var(--text-3)", flexShrink: 0 }}>{formatRelative(e.createdAt)}</span>
-          <span style={{ fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{auditEventLabel(e.entityType, e.action)}</span>
+          <span style={{ fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{taskEventLabel(e.action)}</span>
         </div>
       ))}
     </div>

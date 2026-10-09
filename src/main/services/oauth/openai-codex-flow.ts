@@ -99,7 +99,7 @@ export const openaiCodexFlow: OAuthFlow = {
     const state = generatePkce().verifier;
     const server = await startOAuthCallbackServer({ port: CALLBACK_PORT, path: CALLBACK_PATH, signal: callbacks.signal });
     try {
-      callbacks.onAuth({ url: buildAuthorizeUrl(challenge, state), instructions: "Complete the ChatGPT sign-in in your browser." });
+      callbacks.onAuth({ url: buildAuthorizeUrl(challenge, state), userCode: null });
       const result = await server.waitForCode();
       if (result.state !== state) throw new Error("OAuth state mismatch.");
       const tokens = await exchangeCode(result.code, verifier, callbacks.signal);
