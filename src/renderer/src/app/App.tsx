@@ -1,6 +1,7 @@
+import { ErrorBoundary } from "../shared/ErrorBoundary";
 import { StartupScreen } from "./StartupScreen";
 import type { Focus } from "../pages/types";
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Shell, type RouteId } from "../shared/Shell";
 import { AvatarDirectoryContext, type AvatarLook } from "../shared/ui";
 import { Onboarding } from "./Onboarding";
@@ -105,7 +106,7 @@ export function App() {
         onDeleteOrg={(orgId) => void actions.run(() => window.agentCompany.deleteOrganization({ orgId }))}
         onNewOrg={() => setCreatingOrg(true)}
       >
-        <Fragment key={pageKey}>{page}</Fragment>
+        <ErrorBoundary key={pageKey} scope="page">{page}</ErrorBoundary>
       </Shell>
     </AvatarDirectoryContext.Provider>
   );
