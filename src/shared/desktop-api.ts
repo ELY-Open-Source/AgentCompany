@@ -1,3 +1,4 @@
+import type { TaskDeleteImpact } from "./domain";
 import type { SpaceHistoryPage, ThreadHistory } from "./chat-domain";
 import type { RunRequestRecord } from "./provider-runtime-domain";
 import type { ApprovalDrift } from "./approval-pin";
@@ -202,6 +203,8 @@ export interface DesktopApi {
   /** The page of a conversation before a loaded message, for history older than the snapshot holds. */
   /** Blocks a task with a reason, or unblocks it with null. */
   setTaskBlocked(input: SetTaskBlockedInput): Promise<DesktopResult<AppSnapshot>>;
+  /** What deleting a task would remove, keep and close. */
+  taskDeleteImpact(input: { orgId: string; taskId: string }): Promise<DesktopResult<TaskDeleteImpact>>;
   chatSpaceHistory(input: { orgId: string; spaceId: string; beforeMessageId: string | null } & ({ limit: number } | { fromMessageId: string })): Promise<DesktopResult<SpaceHistoryPage>>;
   revokeConnector(input: RevokeConnectorInput): Promise<DesktopResult<AppSnapshot>>;
   search(input: SearchInput): Promise<DesktopResult<SearchResultRecord[]>>;

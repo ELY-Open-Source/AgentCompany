@@ -89,6 +89,22 @@ export type TaskHold =
   | { reason: string; waitingOn: "provider"; resumesAt: string }
   | { reason: string; waitingOn: "operator"; resumesAt: string | null };
 
+/** What deleting a task removes, keeps and closes, and whether a running session stops it. */
+export interface TaskDeleteImpact {
+  /** Sessions removed with the task, with their action journals. */
+  runs: number;
+  /** Sessions still running; the delete is refused while any is. */
+  running: number;
+  /** Subtasks kept, moved to the top level. */
+  subtasks: number;
+  /** Documents kept, no longer linked to the task. */
+  documents: number;
+  /** Open reviews of the task, closed by the delete. */
+  openReviews: number;
+  /** Approvals requested for the task that stay pending. */
+  pendingApprovals: number;
+}
+
 export interface TaskRecord {
   id: string;
   orgId: string;

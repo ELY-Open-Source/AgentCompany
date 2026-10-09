@@ -1,3 +1,4 @@
+import type { TaskDeleteImpact } from "../../shared/domain";
 import type { DatabaseSync } from "node:sqlite";
 import { RISK_LEVEL, TASK_STATUS, type TaskPriority } from "../../shared/domain";
 import type { CreateTaskInput, DeleteTaskInput, SetTaskBlockedInput, UpdateTaskInput } from "../../shared/commands";
@@ -68,6 +69,20 @@ export class TaskMutations {
       action: "updated",
       payload: { title: input.title.trim() },
     });
+  }
+
+  /** What deleting the task would remove, keep and close, counted from the database. */
+  deleteImpact(orgId: string, taskId: string): TaskDeleteImpact {
+    this.requireTask(orgId, taskId);
+    const count = (sql: string) => (this.db.prepare(sql).get(taskId, orgId) as { n: number }).n;
+    return {
+      runs: count("select count(*) as n from task_runs where task_id = ? and org_id = ?"),
+      running: count("select count(*) as n from task_runs where task_id = ? and org_id = ? and state = 'running'"),
+      subtasks: count("select count(*) as n from tasks where parent_task_id = ? and org_id = ?"),
+      documents: count("select count(*) as n from documents where task_id = ? and org_id = ?"),
+      openReviews: count("select count(*) as n from tasks where review_of_task_id = ? and org_id = ? and status <> 'done'"),
+      pendingApprovals: count("select count(*) as n from approvals where source_entity_type = 'task' and source_entity_id = ? and org_id = ? and state = 'pending'"),
+    };
   }
 
   /** Blocks the task with a reason (no session starts, queued ones are superseded) or unblocks it with null. */

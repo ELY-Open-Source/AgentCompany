@@ -12,7 +12,7 @@ import type {
   TaskRunRecord,
   WorkspaceRecord,
 } from "../../../../shared/domain";
-import { TASK_STATUS, type TaskStatus, type WritingMode } from "../../../../shared/domain";
+import { TASK_STATUS, type TaskDeleteImpact, type TaskStatus, type WritingMode } from "../../../../shared/domain";
 import { auditEventLabel, formatRelative } from "../types";
 import { WRITING_OPTIONS, descendantIds, nextStatus, prettyRunState, prettyStatus, providerFor, runBlocker, runsForTask, runTone } from "./task-helpers";
 import type { SnapshotActions } from "../../app/useSnapshot";
@@ -73,6 +73,8 @@ export function TaskDetailDialog({
 }) {
   const [tab, setTab] = useState<Tab>("overview");
   const [blocking, setBlocking] = useState(false);
+  // The impact is kept with the task it was counted for, and the delete removes exactly that task.
+  const [deleteImpact, setDeleteImpact] = useState<{ taskId: string; impact: TaskDeleteImpact } | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const act = (operation: () => Promise<void>, after?: () => void) => {
     setActionError(null);
@@ -115,10 +117,17 @@ export function TaskDetailDialog({
     })).then((r) => { if (r) setEditing(false); }, (error: unknown) => setEditError(error instanceof Error ? error.message : String(error)));
   };
 
-  const deleteTask = () => {
-    void actions.run(() => window.agentCompany.deleteTask({ orgId, taskId: task.id }));
-    onClose();
+  const askDelete = () => {
+    const taskId = task.id;
+    setActionError(null);
+    window.agentCompany.taskDeleteImpact({ orgId, taskId }).then((result) => {
+      if (!result.ok) throw new Error(result.error.message);
+      setDeleteImpact({ taskId, impact: result.data });
+    }).catch((error: unknown) => setActionError(error instanceof Error ? error.message : String(error)));
   };
+  const confirmDelete = (taskId: string) => act(async () => {
+    await actions.run(() => window.agentCompany.deleteTask({ orgId, taskId }));
+  }, onClose);
 
   return (
     <div className="modal-backdrop" role="presentation" onMouseDown={onClose}>
@@ -175,9 +184,12 @@ export function TaskDetailDialog({
             <Button tone="ghost" size="small" onClick={() => setBlocking(false)}>{t("Cancel")}</Button>
           </form>
         )}
+        {deleteImpact && deleteImpact.taskId === task.id && (
+          <DeleteConfirm impact={deleteImpact.impact} onConfirm={() => confirmDelete(deleteImpact.taskId)} onCancel={() => setDeleteImpact(null)} />
+        )}
         {actionError && <div className="form-error" role="alert" style={{ marginTop: 8 }}>{actionError}</div>}
         <div className="modal-actions">
-          <Button tone="ghost" onClick={deleteTask}><Icon name="x" size={16} /> {t("Delete")}</Button>
+          <Button tone="ghost" onClick={askDelete} disabled={deleteImpact !== null}><Icon name="x" size={16} /> {t("Delete")}</Button>
           {task.blockedReason
             ? <Button onClick={() => act(() => onBlock(task, null))}>{t("Unblock")}</Button>
             : task.status !== TASK_STATUS.DONE && !blocking && <Button onClick={() => setBlocking(true)}>{t("Block")}</Button>}
@@ -381,4 +393,27 @@ function MetaLabel({ children }: { children: string }) {
 
 function LinkButton({ label, onClick, children }: { label: string; onClick: () => void; children: string }) {
   return <button type="button" className="link-button" aria-label={label} onClick={onClick} style={{ textAlign: "left" }}>{children}</button>;
+}
+
+/** What a delete will do, said before it happens; a running session stops it. */
+function DeleteConfirm({ impact, onConfirm, onCancel }: { impact: TaskDeleteImpact; onConfirm: () => void; onCancel: () => void }) {
+  const lines = [
+    impact.runs > 0 && t("{n} sessions and their action records are deleted.", { n: impact.runs }),
+    impact.subtasks > 0 && t("{n} subtasks stay and move to the top level.", { n: impact.subtasks }),
+    impact.documents > 0 && t("{n} documents stay, no longer linked to this task.", { n: impact.documents }),
+    impact.openReviews > 0 && t("{n} open reviews of it are closed.", { n: impact.openReviews }),
+    impact.pendingApprovals > 0 && t("{n} pending approvals for it stay pending.", { n: impact.pendingApprovals }),
+  ].filter((line): line is string => typeof line === "string");
+  return (
+    <div role="alertdialog" aria-label={t("Delete this task?")} style={{ marginTop: 12, padding: 12, border: "1px solid var(--red)", borderRadius: 10 }}>
+      <div style={{ fontWeight: 600, marginBottom: 6 }}>{t("Delete this task?")}</div>
+      {lines.length === 0 && <div style={{ fontSize: 13, color: "var(--text-2)" }}>{t("Nothing else is affected.")}</div>}
+      {lines.map((line) => <div key={line} style={{ fontSize: 13, color: "var(--text-2)" }}>{line}</div>)}
+      {impact.running > 0 && <div className="form-error" role="alert">{t("A session is running; stop it or wait for it before deleting.")}</div>}
+      <div className="row" style={{ gap: 8, marginTop: 10 }}>
+        <Button tone="primary" size="small" onClick={onConfirm} disabled={impact.running > 0}>{t("Delete task")}</Button>
+        <Button tone="ghost" size="small" onClick={onCancel}>{t("Cancel")}</Button>
+      </div>
+    </div>
+  );
 }

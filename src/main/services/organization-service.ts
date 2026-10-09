@@ -1,3 +1,4 @@
+import type { TaskDeleteImpact } from "../../shared/domain";
 import type { DatabaseSync } from "node:sqlite";
 import { APPROVAL_STATE, RISK_LEVEL, TASK_STATUS, WRITING_MODE, type RiskLevel } from "../../shared/domain";
 import { createId } from "../../shared/ids";
@@ -470,6 +471,10 @@ export class OrganizationService {
     this.verifyOptionalOrgEntity("workspaces", input.workspaceId, input.orgId, "Workspace");
     this.verifyProject(input.projectId, input.goalId, input.orgId);
     this.tasks.update(input);
+  }
+
+  taskDeleteImpact(orgId: string, taskId: string): TaskDeleteImpact {
+    return this.tasks.deleteImpact(orgId, taskId);
   }
 
   setTaskBlocked(input: SetTaskBlockedInput): void {

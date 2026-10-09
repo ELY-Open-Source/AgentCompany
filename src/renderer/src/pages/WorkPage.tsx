@@ -161,6 +161,7 @@ export function WorkPage({ snapshot, actions, navigate, focus }: PageProps) {
       <ProjectDialog open={newProjectOpen} orgId={orgId} goals={goals} agents={agents} actions={actions} onClose={() => setNewProjectOpen(false)} />
       <NewTaskDialog open={newTaskOpen} orgId={orgId} snapshot={snapshot} actions={actions} onClose={() => setNewTaskOpen(false)} />
       <TaskDetailDialog
+        key={detailTask?.id ?? "none"}
         task={detailTask}
         agents={agents}
         projects={projects}

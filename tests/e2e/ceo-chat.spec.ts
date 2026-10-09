@@ -251,6 +251,47 @@ test("the pinned CEO conversation is the Messages front door", async () => {
     await page.locator(".convo-item").first().click();
     await page.getByRole("button", { name: /^Members \(/ }).click();
     await expect(page.getByRole("menu")).toContainText("Replies to every message");
+    await page.keyboard.press("Escape");
+
+    // Deleting a task first says what it takes with it, then waits for the result.
+    await page.evaluate(async () => {
+      const api = (window as unknown as { agentCompany: {
+        loadSnapshot: () => Promise<{ ok: true; data: { activeOrgId: string; tasks: Array<{ id: string; title: string }> } }>;
+        createTask: (input: unknown) => Promise<{ ok: boolean }>;
+        updateTask: (input: unknown) => Promise<{ ok: boolean }>;
+      } }).agentCompany;
+      const before = (await api.loadSnapshot()).data;
+      const parent = before.tasks.find((task) => task.title === "Operationalize goal: Ship the FlowPilot MVP.")!;
+      await api.createTask({
+        orgId: before.activeOrgId, title: "Child step", description: "d", status: "backlog", assigneeAgentId: null, risk: "low",
+        projectId: null, goalId: null, workspaceId: null, priority: "normal", requiresFilesystem: false,
+      });
+      const child = (await api.loadSnapshot()).data.tasks.find((task) => task.title === "Child step")!;
+      await api.updateTask({
+        orgId: before.activeOrgId, taskId: child.id, title: "Child step", description: "d", assigneeAgentId: null, risk: "low", priority: "normal",
+        parentTaskId: parent.id, projectId: null, goalId: null, workspaceId: null, requiresFilesystem: false, writingMode: "conversational",
+      });
+    });
+    await page.getByRole("button", { name: "Work" }).click();
+    await page.getByRole("button", { name: /Operationalize goal: Ship the FlowPilot MVP\./ }).first().click();
+    const parentDialog = page.getByRole("dialog", { name: "Operationalize goal: Ship the FlowPilot MVP." });
+    await parentDialog.getByRole("button", { name: "Delete", exact: true }).click();
+    await expect(parentDialog.getByRole("alertdialog", { name: "Delete this task?" })).toContainText("1 subtasks stay and move to the top level.");
+    // Switching to another task drops a pending confirmation, so it can never delete the wrong task.
+    await parentDialog.getByRole("button", { name: "Subtasks" }).click();
+    await parentDialog.getByRole("button", { name: "Open task Child step" }).click();
+    const childDialog = page.getByRole("dialog", { name: "Child step" });
+    await expect(childDialog).toBeVisible();
+    await expect(childDialog.getByRole("alertdialog")).toHaveCount(0);
+    await childDialog.getByRole("button", { name: "Close" }).click();
+    await page.getByRole("button", { name: /Operationalize goal: Ship the FlowPilot MVP\./ }).first().click();
+    const doomed = page.getByRole("dialog", { name: "Operationalize goal: Ship the FlowPilot MVP." });
+    await doomed.getByRole("button", { name: "Delete", exact: true }).click();
+    const confirm = doomed.getByRole("alertdialog", { name: "Delete this task?" });
+    await expect(confirm).toContainText("sessions and their action records are deleted.");
+    await confirm.getByRole("button", { name: "Delete task" }).click();
+    await expect(doomed).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /Operationalize goal: Ship the FlowPilot MVP\./ })).toHaveCount(0);
   } finally {
     await app.close();
   }
