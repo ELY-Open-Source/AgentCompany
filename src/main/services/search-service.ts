@@ -1,6 +1,6 @@
 import type { DatabaseSync } from "node:sqlite";
 import type { SearchInput } from "../../shared/commands";
-import { SEARCH_ENTITY_TYPES, type SearchEntityType, type SearchResultRecord } from "../../shared/domain";
+import { SEARCH_ENTITY_TYPES, type SearchEntityType, type SearchPage } from "../../shared/domain";
 
 interface SearchRow {
   entity_type: SearchEntityType;
@@ -21,10 +21,12 @@ interface SearchDoc {
 export class SearchService {
   constructor(private readonly db: DatabaseSync) {}
 
-  search(input: SearchInput): SearchResultRecord[] {
+  /** Every match the person may read, best first, counted in full before one page is cut from it. */
+  search(input: SearchInput): SearchPage {
     this.assertEmployee(input.orgId, input.employeeId);
     const query = normalizeQuery(input.query);
     const limit = Math.max(1, Math.min(input.limit ?? 20, 50));
+    const offset = Math.max(0, input.offset ?? 0);
     const entityTypes = validEntityTypes(input.entityTypes ?? [...SEARCH_ENTITY_TYPES]);
     this.reindexOrg(input.orgId);
     const rows = query
@@ -32,19 +34,19 @@ export class SearchService {
         select entity_type, entity_id, title, body, facet_json
         from search_documents
         where search_documents match ? and org_id = ?
-        limit ?
-      `).all(query, input.orgId, limit * 4) as unknown as SearchRow[]
+        order by rank
+      `).all(query, input.orgId) as unknown as SearchRow[]
       : this.db.prepare(`
         select entity_type, entity_id, title, body, facet_json
         from search_documents
         where org_id = ?
         order by rowid desc
-        limit ?
-      `).all(input.orgId, limit * 4) as unknown as SearchRow[];
-    return rows
+      `).all(input.orgId) as unknown as SearchRow[];
+    const readable = rows
       .filter((row) => entityTypes.has(row.entity_type))
-      .filter((row) => this.canRead(input.orgId, input.employeeId, row.entity_type, row.entity_id))
-      .slice(0, limit)
+      .filter((row) => this.canRead(input.orgId, input.employeeId, row.entity_type, row.entity_id));
+    const results = readable
+      .slice(offset, offset + limit)
       .map((row) => ({
         entityType: row.entity_type,
         entityId: row.entity_id,
@@ -52,6 +54,7 @@ export class SearchService {
         preview: preview(row.body),
         facets: parseFacets(row.facet_json),
       }));
+    return { results, total: readable.length };
   }
 
   private reindexOrg(orgId: string): void {

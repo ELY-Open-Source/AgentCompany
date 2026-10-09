@@ -45,7 +45,32 @@ test("a search hit opens the object itself, not just its page", async () => {
     await searchDialog.getByRole("textbox").fill("Walrus");
     await expect(searchDialog.getByRole("button", { name: /Walrus pricing memo/ })).toBeVisible();
     await expect(searchDialog.getByRole("button", { name: /zebra crossing note/ })).toHaveCount(0);
-    await expect(searchDialog.getByRole("status")).toHaveCount(0);
+    await expect(searchDialog.getByText("Searching…")).toHaveCount(0);
+    await page.keyboard.press("Escape");
+
+    // Search says how many match, pages through the rest, and says when nothing matches.
+    await page.evaluate(async () => {
+      const api = (window as unknown as { agentCompany: {
+        loadSnapshot: () => Promise<{ ok: true; data: { activeOrgId: string } }>;
+        createTask: (input: unknown) => Promise<{ ok: boolean }>;
+      } }).agentCompany;
+      const orgId = (await api.loadSnapshot()).data.activeOrgId;
+      for (let index = 0; index < 15; index += 1) {
+        await api.createTask({
+          orgId, title: `Lantern check ${index}`, description: "d", status: "backlog", assigneeAgentId: null, risk: "low",
+          projectId: null, goalId: null, workspaceId: null, priority: "normal", requiresFilesystem: false,
+        });
+      }
+    });
+    await page.locator(".search-kbd").click();
+    await searchDialog.getByRole("textbox").fill("lantern");
+    await expect(searchDialog.getByText("Showing 12 of 15")).toBeVisible();
+    await searchDialog.getByRole("button", { name: "Show more" }).click();
+    await expect(searchDialog.getByText("Showing 15 of 15")).toBeVisible();
+    await expect(searchDialog.getByRole("button", { name: /Lantern check/ })).toHaveCount(15);
+    await expect(searchDialog.getByRole("button", { name: "Show more" })).toHaveCount(0);
+    await searchDialog.getByRole("textbox").fill("qqzzxx");
+    await expect(searchDialog.getByText("Nothing matches “qqzzxx”.")).toBeVisible();
     await page.keyboard.press("Escape");
 
     // A message opens its conversation with its thread shown and the message marked.

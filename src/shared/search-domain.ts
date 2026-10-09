@@ -16,6 +16,12 @@ export const SEARCH_ENTITY_TYPES = [
 
 export type SearchEntityType = (typeof SEARCH_ENTITY_TYPES)[number];
 
+/** One page of the hits the person may read, and how many there are in all. */
+export interface SearchPage {
+  results: SearchResultRecord[];
+  total: number;
+}
+
 export interface SearchResultRecord {
   entityType: SearchEntityType;
   entityId: string;

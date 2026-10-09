@@ -3,7 +3,7 @@ import type { SpaceHistoryPage, ThreadHistory } from "./chat-domain";
 import type { RunRequestRecord } from "./provider-runtime-domain";
 import type { ApprovalDrift } from "./approval-pin";
 import type { DesktopResult } from "./result";
-import type { AppSnapshot, SearchResultRecord } from "./domain";
+import type { AppSnapshot, SearchPage } from "./domain";
 import type { ProviderModelEntry } from "./provider-models";
 import type {
   BootstrapOnboardingInput,
@@ -238,7 +238,7 @@ export interface DesktopApi {
   runHistory(input: { orgId: string; beforeRunId: string | null } & ({ limit: number } | { from: RunCursor })): Promise<DesktopResult<RunHistoryPage>>;
   chatSpaceHistory(input: { orgId: string; spaceId: string; beforeMessageId: string | null } & ({ limit: number } | { fromMessageId: string })): Promise<DesktopResult<SpaceHistoryPage>>;
   revokeConnector(input: RevokeConnectorInput): Promise<DesktopResult<AppSnapshot>>;
-  search(input: SearchInput): Promise<DesktopResult<SearchResultRecord[]>>;
+  search(input: SearchInput): Promise<DesktopResult<SearchPage>>;
   subscribe(callback: (event: RendererEvent) => void): () => void;
   platform: "win32" | "darwin" | "linux";
   language: "en" | "zh";

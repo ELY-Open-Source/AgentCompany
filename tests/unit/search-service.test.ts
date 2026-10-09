@@ -46,7 +46,7 @@ describe("search service", () => {
       });
     });
 
-    const results = search.search({ orgId, employeeId, query: "production", entityTypes: ["task"] });
+    const results = search.search({ orgId, employeeId, query: "production", entityTypes: ["task"] }).results;
     expect(results).toHaveLength(1);
     expect(results[0]).toMatchObject({ entityType: "task", title: "Production deploy", facets: { type: "Work", risk: "high" } });
     connection.close();
@@ -92,13 +92,13 @@ describe("search service", () => {
       });
     });
 
-    const hits = search.search({ orgId, employeeId: ownerId, query: "secret", entityTypes: ["chat_message"] });
+    const hits = search.search({ orgId, employeeId: ownerId, query: "secret", entityTypes: ["chat_message"] }).results;
     expect(hits).toHaveLength(1);
     // A hit names its conversation and thread, so opening it shows the message itself.
     const message = connection.db.prepare("select space_id, thread_id from chat_messages where id = ?").get(hits[0]!.entityId) as { space_id: string; thread_id: string };
     expect(hits[0]!.facets).toMatchObject({ space: spaceId, thread: message.thread_id });
     expect(message.space_id).toBe(spaceId);
-    expect(search.search({ orgId, employeeId: outsiderId, query: "secret", entityTypes: ["chat_message"] })).toHaveLength(0);
+    expect(search.search({ orgId, employeeId: outsiderId, query: "secret", entityTypes: ["chat_message"] }).results).toHaveLength(0);
     connection.close();
   });
 
@@ -125,9 +125,9 @@ describe("search service", () => {
       sourceType: "employee", sourceId: null, scopeType: "organization", scopeId: null, validUntil: null, supersedesId: oldId,
     });
 
-    const docs = search.search({ orgId, employeeId, query: "twelve hundred" });
+    const docs = search.search({ orgId, employeeId, query: "twelve hundred" }).results;
     expect(docs.map((r) => [r.entityType, r.title, r.facets.kind])).toEqual([["document", "Pricing memo", "memo"]]);
-    const entries = search.search({ orgId, employeeId, query: "refunds", entityTypes: ["knowledge"] });
+    const entries = search.search({ orgId, employeeId, query: "refunds", entityTypes: ["knowledge"] }).results;
     expect(entries.map((r) => r.facets.state).sort()).toEqual(["active", "superseded"]);
     connection.close();
   });
@@ -147,7 +147,33 @@ describe("search service", () => {
     `).run(id, orgId, id, employeeId, new Date().toISOString(), supersededAt);
     file("fil_old", new Date().toISOString());
     file("fil_new", null);
-    expect(search.search({ orgId, employeeId, query: "roadmap", entityTypes: ["file"] }).map((hit) => hit.entityId)).toEqual(["fil_new"]);
+    expect(search.search({ orgId, employeeId, query: "roadmap", entityTypes: ["file"] }).results.map((hit) => hit.entityId)).toEqual(["fil_new"]);
+    connection.close();
+  });
+
+  test("counts every readable match and pages through them", () => {
+    const connection = createConnection();
+    const organization = new OrganizationService(connection.db);
+    const search = new SearchService(connection.db);
+    let orgId = "";
+    connection.transaction(() => {
+      orgId = organization.createOrganization({ organizationName: "Paging Co", employeeName: "Dana Lee", mission: "m", goal: "g" });
+      for (let index = 0; index < 30; index += 1) {
+        organization.createTask({
+          orgId, title: `Quarterly audit ${index}`, description: "d", status: TASK_STATUS.BACKLOG, assigneeAgentId: null, risk: "low",
+          projectId: null, goalId: null, workspaceId: null, priority: "normal", requiresFilesystem: false,
+        });
+      }
+    });
+    const employeeId = (connection.db.prepare("select id from employees where org_id = ?").get(orgId) as { id: string }).id;
+    const first = search.search({ orgId, employeeId, query: "quarterly", entityTypes: ["task"], limit: 12 });
+    expect(first.results).toHaveLength(12);
+    expect(first.total).toBe(30);
+    const last = search.search({ orgId, employeeId, query: "quarterly", entityTypes: ["task"], limit: 12, offset: 24 });
+    expect(last.results).toHaveLength(6);
+    const seen = new Set([...first.results, ...search.search({ orgId, employeeId, query: "quarterly", entityTypes: ["task"], limit: 12, offset: 12 }).results, ...last.results].map((hit) => hit.entityId));
+    expect(seen.size).toBe(30);
+    expect(search.search({ orgId, employeeId, query: "nothinglikethis", limit: 12 })).toEqual({ results: [], total: 0 });
     connection.close();
   });
 });

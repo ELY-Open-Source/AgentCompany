@@ -9,7 +9,7 @@ export type { ProviderAuthProfileRecord, ProviderAuthSessionRecord } from "./pro
 export { PROVIDER_DATA_POLICY, PROVIDER_EXECUTION_MODE, type ProviderDataPolicy, type ProviderExecutionMode } from "./provider-policy-domain";
 export { PROVIDER_REQUEST_STATE, type ProviderRequestRecord, type ProviderRequestState, type ProviderStreamRendererEvent } from "./provider-request-domain";
 export type { ProviderRateLimitObservationRecord, ProviderRateLimitStateRecord } from "./provider-runtime-domain";
-export { SEARCH_ENTITY_TYPES, type SearchEntityType, type SearchResultRecord } from "./search-domain";
+export { SEARCH_ENTITY_TYPES, type SearchEntityType, type SearchPage, type SearchResultRecord } from "./search-domain";
 export type { BrowserActionPolicyRecord, BrowserActionRecord, BrowserSessionContainerRecord, SocialAccountGrantRecord, SocialAccountRecord, SocialApprovalRouteRecord, SocialAuditRecord } from "./social-domain";
 export type { AppSnapshot, UiLanguage, UiPreferences, UiTheme } from "./snapshot-domain";
 export const TASK_STATUS = { BACKLOG: "backlog", IN_PROGRESS: "in_progress", REVIEW: "review", DONE: "done" } as const;

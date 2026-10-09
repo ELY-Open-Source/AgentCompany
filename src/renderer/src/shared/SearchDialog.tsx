@@ -1,3 +1,4 @@
+import { withNextPage, type SearchAnswer } from "./search-pages";
 import { useEffect, useMemo, useState, type CSSProperties, type FormEvent } from "react";
 import type { AppSnapshot, SearchEntityType, SearchResultRecord } from "../../../shared/domain";
 import { SEARCH_ENTITY_TYPES } from "../../../shared/domain";
@@ -5,6 +6,8 @@ import type { RouteId } from "./routes";
 import type { Focus } from "../pages/types";
 import { Button, Icon, Pill } from "./ui";
 import { t } from "../i18n/i18n";
+
+const PAGE = 12;
 
 type SearchFilter = "all" | SearchEntityType;
 
@@ -38,40 +41,51 @@ export function SearchDialog({
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<SearchFilter>("all");
   // An answer belongs to the company, filter and words it was asked for; only the current question's answer is shown.
-  const [answer, setAnswer] = useState<{ key: string; results: SearchResultRecord[]; error: string | null } | null>(null);
+  const [answer, setAnswer] = useState<SearchAnswer | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
   const orgId = snapshot.activeOrgId;
   const employee = useMemo(() => snapshot.employees.find((item) => item.orgId === orgId), [snapshot.employees, orgId]);
+  // The id, not the record: a snapshot refresh must not ask again and reset the pages already shown.
+  const employeeId = employee?.id ?? null;
   const trimmed = query.trim();
   const canSearch = Boolean(orgId && employee && trimmed.length >= 2);
   const key = `${orgId}|${filter}|${trimmed}`;
   const current = canSearch && answer?.key === key ? answer : null;
   const visibleResults = current?.results ?? [];
   const searching = canSearch && !current;
+  const ask = (words: string, offset: number) => window.agentCompany.search({
+    orgId: orgId ?? "",
+    employeeId: employeeId ?? "",
+    query: words,
+    entityTypes: filter === "all" ? undefined : [filter],
+    limit: PAGE,
+    offset,
+  });
 
   useEffect(() => {
-    if (!open || !orgId || !employee || trimmed.length < 2) return;
+    if (!open || !orgId || !employeeId || trimmed.length < 2) return;
     // A reply to a question that has since changed is dropped, so a slow old answer never replaces a newer one.
     let live = true;
     const asked = `${orgId}|${filter}|${trimmed}`;
     const timeout = window.setTimeout(() => {
       void window.agentCompany.search({
         orgId,
-        employeeId: employee.id,
+        employeeId,
         query: trimmed,
         entityTypes: filter === "all" ? undefined : [filter],
-        limit: 12,
+        limit: PAGE,
       }).then((result) => {
         if (!live) return;
-        setAnswer(result.ok ? { key: asked, results: result.data, error: null } : { key: asked, results: [], error: result.error.message });
+        setAnswer(result.ok ? { key: asked, ...result.data, error: null } : { key: asked, results: [], total: 0, error: result.error.message });
       }, (reason: unknown) => {
-        if (live) setAnswer({ key: asked, results: [], error: reason instanceof Error ? reason.message : String(reason) });
+        if (live) setAnswer({ key: asked, results: [], total: 0, error: reason instanceof Error ? reason.message : String(reason) });
       });
     }, 120);
     return () => {
       live = false;
       window.clearTimeout(timeout);
     };
-  }, [employee, filter, open, orgId, trimmed]);
+  }, [employeeId, filter, open, orgId, trimmed]);
 
   useEffect(() => {
     if (!open) return;
@@ -83,6 +97,19 @@ export function SearchDialog({
   }, [onClose, open]);
 
   if (!open) return null;
+  // The next page joins the shown one only if the words are still the same.
+  const showMore = () => {
+    if (!current || loadingMore) return;
+    const asked = key;
+    setLoadingMore(true);
+    void ask(trimmed, current.results.length).then((result) => {
+      setLoadingMore(false);
+      setAnswer((shown) => withNextPage(shown, asked, result.ok ? { page: result.data } : { error: result.error.message }));
+    }, (reason: unknown) => {
+      setLoadingMore(false);
+      setAnswer((shown) => withNextPage(shown, asked, { error: reason instanceof Error ? reason.message : String(reason) }));
+    });
+  };
   const openResult = (result: SearchResultRecord) => {
     const target = targetFor(result);
     onNavigate(target.route, target.focus);
@@ -144,6 +171,17 @@ export function SearchDialog({
               <span style={{ fontSize: 12, color: "var(--text-3)" }}>{result.facets.type}</span>
             </button>
           ))}
+          {current && !current.error && current.total === 0 && (
+            <div role="status" style={{ padding: 8, fontSize: 13, color: "var(--text-3)" }}>{t("Nothing matches “{words}”.", { words: trimmed })}</div>
+          )}
+          {current && current.total > 0 && (
+            <div className="row" style={{ padding: "6px 8px", fontSize: 12, color: "var(--text-3)" }}>
+              <span role="status">{t("Showing {shown} of {total}", { shown: current.results.length, total: current.total })}</span>
+              {current.results.length < current.total && (
+                <span style={{ marginLeft: "auto" }}><Button size="small" onClick={showMore} disabled={loadingMore}>{loadingMore ? t("Loading…") : t("Show more")}</Button></span>
+              )}
+            </div>
+          )}
         </div>
       </form>
     </div>

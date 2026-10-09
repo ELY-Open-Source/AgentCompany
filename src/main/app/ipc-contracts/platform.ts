@@ -80,6 +80,6 @@ export const platformContracts = {
     z.strictObject({ orgId: id, spaceId: id, beforeMessageId: id.nullable(), fromMessageId: id }),
   ]),
   search: z.strictObject({
-    orgId: id, employeeId: id, query: z.string(), entityTypes: z.array(z.enum(SEARCH_ENTITY_TYPES)).optional(), limit: z.number().optional(),
+    orgId: id, employeeId: id, query: z.string(), entityTypes: z.array(z.enum(SEARCH_ENTITY_TYPES)).optional(), limit: z.number().optional(), offset: z.number().int().min(0).optional(),
   }) satisfies z.ZodType<C.SearchInput>,
 };

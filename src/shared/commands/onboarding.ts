@@ -48,4 +48,6 @@ export interface SearchInput {
   query: string;
   entityTypes?: SearchEntityType[];
   limit?: number;
+  /** Hits to skip, for the next page. */
+  offset?: number;
 }
