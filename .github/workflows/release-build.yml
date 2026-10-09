@@ -1,28 +1,38 @@
 name: Build Release Installers
 
-# Builds Windows and macOS installers when a release is published and
-# attaches them to it. macOS builds are signed and notarized only when the
-# runner has the Developer ID identity and the APPLE_API_ISSUER and
-# APPLE_API_KEY_P8 secrets are set; otherwise they are ad-hoc signed.
+# A pushed v* tag builds Windows, Linux and macOS installers on the Gitea
+# runners and attaches them to the tag's release. The tag must equal
+# "v" + package.json version. macOS builds are signed and notarized when the
+# Developer ID certificate and the APPLE_API_* secrets are present; otherwise
+# they are ad-hoc signed.
 
 on:
-  release:
-    types: [published]
-  workflow_dispatch:
-    inputs:
-      tag:
-        description: "Release tag to attach installers to (back-fill)"
-        required: true
+  push:
+    tags: ["v*"]
 
 permissions:
   contents: write
 
 env:
   COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
+  GITEA_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 jobs:
+  release:
+    name: Release for the tag
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - name: Check version and create the release
+        run: node scripts/gitea-release.mjs create
+
   windows:
     name: Windows installer (NSIS x64)
+    needs: release
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v5
@@ -31,27 +41,36 @@ jobs:
           node-version: 24
           package-manager-cache: false
       - name: Enable pnpm via corepack
-        run: |
-          corepack enable pnpm
-          pnpm --version
+        run: corepack enable pnpm
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - name: Build installer
         run: pnpm run package:win
-      - name: List artifacts
-        run: Get-ChildItem release
-      - name: Upload installer to release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          TAG: ${{ github.event.release.tag_name || inputs.tag }}
-        run: |
-          $exts = @('.exe', '.dmg', '.zip', '.AppImage', '.deb')
-          $files = Get-ChildItem release -File | Where-Object { $exts -contains $_.Extension }
-          if (-not $files) { throw "no uploadable artifacts found in release/" }
-          gh release upload $env:TAG @($files.FullName) --clobber
+      - name: Upload installer
+        run: node scripts/gitea-release.mjs upload release
+
+  linux:
+    name: Linux packages (AppImage + deb x64)
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - name: Enable pnpm via corepack
+        run: corepack enable pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build packages
+        run: pnpm run package:linux
+      - name: Upload packages
+        run: node scripts/gitea-release.mjs upload release
 
   macos:
     name: macOS installers (dmg + zip, x64 + arm64)
+    needs: release
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v5
@@ -60,20 +79,20 @@ jobs:
           node-version: 24
           package-manager-cache: false
       - name: Enable pnpm via corepack
-        run: |
-          corepack enable pnpm
-          pnpm --version
+        run: corepack enable pnpm
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - name: Detect signing capability
         id: signing
         env:
+          CSC_LINK: ${{ secrets.CSC_LINK }}
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
           APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
         run: |
-          if security find-identity -v -p codesigning | grep -q "Developer ID Application: Yang Zhang (9PDD8M2SMS)" && [ -n "$APPLE_API_ISSUER" ] && [ -n "$APPLE_API_KEY_P8" ]; then
+          if { [ -n "$CSC_LINK" ] || security find-identity -v -p codesigning | grep -q "Developer ID Application: Yang Zhang (9PDD8M2SMS)"; } && [ -n "$APPLE_API_ISSUER" ] && [ -n "$APPLE_API_KEY_ID" ] && [ -n "$APPLE_API_KEY_P8" ]; then
             echo "signed=true" >> "$GITHUB_OUTPUT"
-            echo "Developer ID identity and notarization credentials found: building signed + notarized installers."
+            echo "Developer ID certificate and notarization credentials found: building signed + notarized installers."
           else
             echo "signed=false" >> "$GITHUB_OUTPUT"
             echo "::warning::Building ad-hoc-signed, un-notarized macOS installers."
@@ -81,12 +100,15 @@ jobs:
       - name: Build installers (signed + notarized)
         if: steps.signing.outputs.signed == 'true'
         env:
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
           APPLE_API_KEY: ${{ runner.temp }}/apple-api-key.p8
-          APPLE_API_KEY_ID: ZDCSZ5IE7071
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
           APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
         run: |
           printf '%s' "$APPLE_API_KEY_P8" > "$APPLE_API_KEY"
+          trap 'rm -f "$APPLE_API_KEY"' EXIT
           pnpm build
           pnpm exec electron-builder --mac --x64 --arm64 --publish never -c.forceCodeSigning=true
       - name: Build installers (ad-hoc fallback)
@@ -94,17 +116,5 @@ jobs:
         run: |
           pnpm build
           pnpm exec electron-builder --mac --x64 --arm64 --publish never --config electron-builder.unsigned.yml
-      - name: List artifacts
-        run: ls -la release
-      - name: Upload installers to release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          TAG: ${{ github.event.release.tag_name || inputs.tag }}
-        run: |
-          shopt -s nullglob
-          files=(release/*.dmg release/*.zip)
-          if [ ${#files[@]} -eq 0 ]; then
-            echo "no uploadable artifacts found in release/" >&2
-            exit 1
-          fi
-          gh release upload "$TAG" "${files[@]}" --clobber
+      - name: Upload installers
+        run: node scripts/gitea-release.mjs upload release
