@@ -108,7 +108,7 @@ export function ProviderRequestPanel({
           </div>
           <Button type="submit" tone="primary">
             <span className="row" style={{ gap: 6 }}>
-              <Icon name="send" size={16} />
+              <Icon name="send" />
               {t("Run")}
             </span>
           </Button>
@@ -180,7 +180,7 @@ function ProviderRequestRow({
       <div className="mono" style={{ color: "var(--text-2)" }}>{t("{count} chars", { count: request.outputCharCount })}</div>
       <Button size="small" tone="ghost" onClick={cancel} disabled={!canCancel}>
         <span className="row" style={{ gap: 5 }}>
-          <Icon name="x" size={12} />
+          <Icon name="x" />
           {t("Cancel")}
         </span>
       </Button>

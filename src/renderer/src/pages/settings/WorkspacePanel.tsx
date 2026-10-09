@@ -67,7 +67,7 @@ export function WorkspacePanel({
     <div className="page">
       <div className="row" style={{ alignItems: "baseline" }}>
         <h1 className="page-h1">{t("General")}</h1>
-        <span style={{ marginLeft: "auto" }}><Button onClick={() => setEditOpen(true)}><Icon name="edit" size={14} /> {t("Edit company")}</Button></span>
+        <span style={{ marginLeft: "auto" }}><Button onClick={() => setEditOpen(true)}><Icon name="edit" /> {t("Edit company")}</Button></span>
       </div>
       <ScopeNote scope="company" company={organization.name} />
       <CompanyDialog key={editOpen ? "open" : "closed"} organization={organization} open={editOpen} actions={actions} onClose={() => setEditOpen(false)} />
@@ -109,7 +109,7 @@ export function WorkspacePanel({
       <div className="row reveal-row" style={{ marginBottom: 8 }}>
         <div className="section-label">{t("Workspaces")}</div>
         <span className="reveal" style={{ marginLeft: "auto" }}>
-          <Button tone="ghost" onClick={() => setCreateOpen(true)}><Icon name="plus" size={16} /> {t("Add")}</Button>
+          <Button tone="ghost" onClick={() => setCreateOpen(true)}><Icon name="plus" /> {t("Add")}</Button>
         </span>
       </div>
       <ScopeNote scope="company_folders" company={organization.name} />
@@ -126,7 +126,7 @@ export function WorkspacePanel({
               const form = document.querySelector<HTMLFormElement>("form:has([name='localPath'])");
               if (form) void chooseDirectory(form);
             }}>
-              <Icon name="folder" size={16} /> {t("Browse")}
+              <Icon name="folder" /> {t("Browse")}
             </Button>
           </div>
         </Field>

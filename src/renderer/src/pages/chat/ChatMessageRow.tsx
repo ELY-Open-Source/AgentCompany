@@ -89,9 +89,9 @@ export function ChatMessageRow({
           {message.editedAt && !deleted && <span style={{ fontSize: 12, color: "var(--text-3)" }}>{t("(edited)")}</span>}
           {!editing && (canModify || (onOpenThread && !deleted)) && (
             <span style={{ marginLeft: "auto", display: "flex", gap: 2 }}>
-              {onOpenThread && !deleted && <IconButton icon="chat" label={t("Reply in thread")} size={16} onClick={onOpenThread} />}
-              {canModify && <IconButton icon="edit" label={t("Edit message")} size={16} onClick={() => setEditing(true)} />}
-              {canModify && <IconButton icon="x" label={t("Delete message")} size={16} onClick={onDelete} />}
+              {onOpenThread && !deleted && <IconButton icon="chat" label={t("Reply in thread")} onClick={onOpenThread} />}
+              {canModify && <IconButton icon="edit" label={t("Edit message")} onClick={() => setEditing(true)} />}
+              {canModify && <IconButton icon="x" label={t("Delete message")} onClick={onDelete} />}
             </span>
           )}
         </div>
@@ -254,14 +254,14 @@ function AttachmentCard({ file, handoff = false, onOpen }: { file: FileObjectRec
           placeItems: "center",
         }}
       >
-        <Icon name={file.kind === "folder" ? "folder" : "file"} size={16} />
+        <Icon name={file.kind === "folder" ? "folder" : "file"} />
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div className="row" style={{ gap: 6, minWidth: 0 }}>
           <span style={{ fontSize: 12, fontWeight: 540, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{file.name}</span>
           {handoff && (
             <span className="pill violet" style={{ flexShrink: 0 }}>
-              <Icon name="bot" size={10} /> {t("AI → AI")}
+              <Icon name="bot" /> {t("AI → AI")}
             </span>
           )}
         </div>

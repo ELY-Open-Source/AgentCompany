@@ -297,7 +297,7 @@ function ConversationHeader({
   };
   return (
     <header className="row" style={{ height: 52, padding: "0 24px", borderBottom: "1px solid var(--border-soft)", flexShrink: 0 }}>
-      <Icon name={space.visibility === "restricted" ? "lock" : "hash"} size={15} color="var(--text-3)" />
+      <Icon name={space.visibility === "restricted" ? "lock" : "hash"} color="var(--text-3)" />
       <span style={{ fontSize: 14, fontWeight: 600 }}>{space.name}</span>
       <span
         style={{

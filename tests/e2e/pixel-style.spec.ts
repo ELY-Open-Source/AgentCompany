@@ -44,6 +44,12 @@ test("text uses the bundled pixel font, and the palette follows the day part, se
       const idle = rows.find((row) => !row.matches(".active, [aria-current]"))!;
       return [getComputedStyle(active, "::before").animationName, getComputedStyle(idle, "::before").animationName, getComputedStyle(idle, "::before").visibility];
     })).toEqual(["px-blink", "none", "hidden"]);
+    // Every icon on screen is a pixel glyph on the font's grid; no stroked vector icons remain.
+    expect(await page.evaluate(() => ({
+      stroked: [...document.querySelectorAll("svg")].filter((svg) => !svg.closest("canvas") && svg.getAttribute("stroke") && svg.getAttribute("stroke") !== "none").length,
+      size: getComputedStyle(document.querySelector("svg.pixel-icon")!).width === getComputedStyle(document.body).fontSize,
+    }))).toEqual({ stroked: 0, size: true });
+    expect(await page.evaluate(() => document.querySelectorAll(".nav > .nav-item").length)).toBe(await page.evaluate(() => document.querySelectorAll(".nav > .nav-item svg.pixel-icon").length));
     await page.getByRole("button", { name: "New task" }).click();
     const dialog = page.getByRole("dialog", { name: "New task" });
     await expect(dialog).toBeVisible();

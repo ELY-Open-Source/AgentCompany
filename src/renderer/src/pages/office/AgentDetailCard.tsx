@@ -44,7 +44,7 @@ export function AgentDetailCard({ agent, onClose }: { agent: OfficeAgentInput; o
       </div>
       {agent.taskTitle && (
         <div className="row" style={{ gap: 7, marginTop: 12, alignItems: "flex-start" }}>
-          <Icon name="work" size={13} color="var(--text-3)" />
+          <Icon name="work" color="var(--text-3)" />
           <span
             style={{
               fontSize: 12,

@@ -105,9 +105,9 @@ export function TeamPage({ snapshot, actions, focus }: PageProps) {
     <div className="page">
       <TopbarActions>
         <Button tone="ghost" onClick={() => cycleFilter(filter, setFilter)} title={t("Filter")}>
-          <Icon name="filter" size={16} /> {filterLabel(filter)}
+          <Icon name="filter" /> {filterLabel(filter)}
         </Button>
-        <Button tone="primary" onClick={openHireDialog}><Icon name="plus" size={16} /> {t("Hire")}</Button>
+        <Button tone="primary" onClick={openHireDialog}><Icon name="plus" /> {t("Hire")}</Button>
       </TopbarActions>
       <h1 className="page-h1">{t("Team")}</h1>
       <p className="page-sub">

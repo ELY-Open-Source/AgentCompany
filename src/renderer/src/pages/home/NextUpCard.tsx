@@ -36,7 +36,7 @@ export function NextUpCard({
       {needsYou.length === 0 ? (
         <>
           <div className="row" style={{ gap: 8, color: "var(--text-3)", fontSize: 14, marginBottom: 12 }}>
-            <Icon name="check" size={16} /><span>{t("You're all caught up")}</span>
+            <Icon name="check" /><span>{t("You're all caught up")}</span>
           </div>
           {next?.kind === "next" && (
             <div>

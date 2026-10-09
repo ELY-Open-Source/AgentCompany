@@ -55,7 +55,7 @@ export function WorkspaceRow({ workspace, projects, focused, actions }: { worksp
         <Field label={t("Local path")}>
           <div className="row" style={{ gap: 6 }}>
             <input className="input" name="localPath" data-workspace-path={workspace.id} defaultValue={workspace.localPath} required style={{ flex: 1 }} />
-            <Button tone="ghost" onClick={browse}><Icon name="folder" size={16} /> {t("Browse")}</Button>
+            <Button tone="ghost" onClick={browse}><Icon name="folder" /> {t("Browse")}</Button>
           </div>
         </Field>
         <Field label={t("Project")}>

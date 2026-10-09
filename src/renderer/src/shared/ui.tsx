@@ -66,7 +66,6 @@ export function Avatar({
   const [hashedBg, hashedFg] = paletteFor(name);
   const bg = custom?.color || hashedBg;
   const fg = custom?.color ? "#fff" : hashedFg;
-  const dim = size === "sm" ? 14 : size === "lg" ? 18 : size === "xl" ? 24 : 14;
   const emoji = custom?.emoji ?? null;
   const image = custom?.image ?? null;
   return (
@@ -76,7 +75,7 @@ export function Avatar({
       ) : emoji ? (
         <span aria-hidden>{emoji}</span>
       ) : bot ? (
-        <Icon name="bot" size={dim} />
+        <Icon name="bot" />
       ) : (
         initials(name)
       )}
@@ -148,14 +147,12 @@ export function IconButton({
   onClick,
   label,
   variant = "ghost",
-  size = 14,
   disabled = false,
 }: {
   icon: IconName;
   onClick?: () => void;
   label: string;
   variant?: "ghost" | "solid";
-  size?: number;
   disabled?: boolean;
 }) {
   return (
@@ -167,7 +164,7 @@ export function IconButton({
       onClick={onClick}
       disabled={disabled}
     >
-      <Icon name={icon} size={size} />
+      <Icon name={icon} />
     </button>
   );
 }

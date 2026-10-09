@@ -1,4 +1,5 @@
 import { Icon } from "../../shared/ui";
+import type { IconName } from "../../shared/Icon";
 import type { AgentRecord, FileObjectRecord } from "../../../../shared/domain";
 import { isRecent, type Section } from "./file-helpers";
 import { t } from "../../i18n/i18n";
@@ -84,7 +85,7 @@ function TreeItem({
   active,
   onClick,
 }: {
-  icon: string;
+  icon: IconName;
   label: string;
   count: number;
   active: boolean;
@@ -92,7 +93,7 @@ function TreeItem({
 }) {
   return (
     <button type="button" aria-current={active ? "true" : undefined} className={`nav-item ${active ? "active" : ""}`.trim()} onClick={onClick}>
-      <span className="icon-box"><Icon name={icon} size={18} /></span>
+      <span className="icon-box"><Icon name={icon} /></span>
       <span>{label}</span>
       <span className="nav-badge num">{count}</span>
     </button>

@@ -57,7 +57,7 @@ export function HomePage({ snapshot, actions, navigate }: PageProps) {
   return (
     <div className="page-wide" style={{ maxWidth: 1240 }}>
       <TopbarActions>
-        <Button tone="primary" onClick={() => setNewTaskOpen(true)}><Icon name="plus" size={16} /> {t("New task")}</Button>
+        <Button tone="primary" onClick={() => setNewTaskOpen(true)}><Icon name="plus" /> {t("New task")}</Button>
       </TopbarActions>
       <h1 className="page-h1">{greeting}, {firstName}</h1>
       <p className="page-sub">{renderSummary(needsYou.length, agents.length)}</p>

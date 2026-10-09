@@ -97,7 +97,7 @@ export function ChatComposer({
           <IconButton icon="sparkle" label={t("Commands")} onClick={() => setSlashOpen((open) => !open)} disabled={locked} />
           {attachments.map((attachment) => (
             <span key={attachment.id} className="pill" style={{ maxWidth: 220 }}>
-              <Icon name="file" size={14} />
+              <Icon name="file" />
               <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{attachment.name}</span>
               <button
                 type="button"
@@ -106,13 +106,13 @@ export function ChatComposer({
                 onClick={() => onAttachmentRemove(attachment.id)}
                 style={{ display: "inline-flex", border: 0, background: "transparent", padding: 0, color: "var(--text-3)", cursor: "pointer" }}
               >
-                <Icon name="x" size={14} />
+                <Icon name="x" />
               </button>
             </span>
           ))}
           <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6 }}>
             <span className="mono" style={{ fontSize: 12, color: "var(--text-3)" }}>{shortcutLabel("Enter")}</span>
-            <Button tone="primary" size="small" type="submit" disabled={locked}><Icon name="send" size={12} /> {t("Send")}</Button>
+            <Button tone="primary" size="small" type="submit" disabled={locked}><Icon name="send" /> {t("Send")}</Button>
           </div>
         </div>
         {send.error && <div className="form-error" role="alert">{t("Not sent: {reason}", { reason: send.error })}</div>}

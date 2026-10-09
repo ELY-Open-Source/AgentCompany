@@ -341,7 +341,7 @@ function DecidedRow({
         background: focused ? "var(--accent-soft)" : undefined,
       }}
     >
-      <Icon name={approved ? "check" : "x"} size={14} color={approved ? "var(--green)" : superseded ? "var(--text-3)" : "var(--red)"} />
+      <Icon name={approved ? "check" : "x"} color={approved ? "var(--green)" : superseded ? "var(--text-3)" : "var(--red)"} />
       <button
         type="button"
         className="link-button"

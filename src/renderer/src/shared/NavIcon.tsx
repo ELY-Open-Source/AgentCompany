@@ -1,34 +1,21 @@
-import {
-  BookOpen,
-  Briefcase,
-  Buildings2,
-  ChatRoundDots,
-  Folder,
-  Gear,
-  Home,
-  Plug2,
-  Send,
-  ShieldCheck,
-  Users,
-} from "reicon-react";
+import { Icon, type IconName } from "./Icon";
 import type { RouteId } from "./Shell";
 
-/** One glyph per navigation surface, from the Reicon set. */
-const NAV_ICONS: Record<RouteId, typeof Home> = {
-  home: Home,
-  work: Briefcase,
-  team: Users,
-  chat: ChatRoundDots,
-  runs: Send,
-  files: Folder,
-  library: BookOpen,
-  approvals: ShieldCheck,
-  connectors: Plug2,
-  office: Buildings2,
-  settings: Gear,
+/** One pixel glyph per navigation surface. */
+const NAV_ICONS: Record<RouteId, IconName> = {
+  home: "home",
+  work: "work",
+  team: "team",
+  chat: "chat",
+  runs: "send",
+  files: "folder",
+  library: "book",
+  approvals: "approve",
+  connectors: "plug",
+  office: "building",
+  settings: "settings",
 };
 
-export function NavIcon({ route, size = 18 }: { route: RouteId; size?: number }) {
-  const Glyph = NAV_ICONS[route];
-  return <Glyph size={size} />;
+export function NavIcon({ route }: { route: RouteId }) {
+  return <Icon name={NAV_ICONS[route]} />;
 }

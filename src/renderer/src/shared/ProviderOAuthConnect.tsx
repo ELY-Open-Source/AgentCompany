@@ -73,7 +73,7 @@ export function ProviderOAuthConnect({
   if (phase === "done") {
     return (
       <div className="oauth-connect-row done">
-        <Icon name="check" size={14} color="var(--green)" />
+        <Icon name="check" color="var(--green)" />
         <span>{t("Signed in to {label}", { label })}</span>
         <button type="button" className="link-button" onClick={run}>{t("Sign in again")}</button>
       </div>

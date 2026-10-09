@@ -120,7 +120,7 @@ export function SearchDialog({
     <Modal label={t("Search")} onEscape={onClose} onBackdrop={onClose} backdropStyle={overlayStyle}>
       <form onSubmit={submit} style={panelStyle}>
         <div className="row" style={{ padding: "10px 12px", borderBottom: "1px solid var(--border-soft)" }}>
-          <Icon name="search" size={14} color="var(--text-3)" />
+          <Icon name="search" color="var(--text-3)" />
           <input
             autoFocus
             aria-label={t("Search query")}

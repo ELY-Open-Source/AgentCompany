@@ -62,7 +62,7 @@ export function OrgSwitcher({ snapshot, activeOrgId, onSelect, onNew, onDelete }
       >
         <span className="brand-mark">{orgInitial(active.name)}</span>
         <span className="brand-name">{active.name}</span>
-        <Icon name="chevronDown" size={14} color="var(--text-3)" />
+        <Icon name="chevronDown" color="var(--text-3)" />
       </button>
       {open && (confirmingOrg ? (
         <div role="menu" className="org-menu">
@@ -100,8 +100,8 @@ export function OrgSwitcher({ snapshot, activeOrgId, onSelect, onNew, onDelete }
               >
                 <span className="brand-mark sm">{orgInitial(org.name)}</span>
                 <span className="org-menu-name">{org.name}</span>
-                {org.id === activeOrgId && <Icon name="check" size={14} color="var(--text-1)" />}
-                <span className="org-menu-chevron"><Icon name="chevron" size={14} /></span>
+                {org.id === activeOrgId && <Icon name="check" color="var(--text-1)" />}
+                <span className="org-menu-chevron"><Icon name="chevron" /></span>
               </button>
             </CascadeRow>
           ))}
@@ -112,7 +112,7 @@ export function OrgSwitcher({ snapshot, activeOrgId, onSelect, onNew, onDelete }
             className="org-menu-action"
             onClick={() => { setOpen(false); setConfirmingDelete(null); onNew(); }}
           >
-            <span className="icon-box" style={{ width: 18, height: 18 }}><Icon name="plus" size={16} color="var(--text-2)" /></span>
+            <span className="icon-box" style={{ width: 18, height: 18 }}><Icon name="plus" color="var(--text-2)" /></span>
             <span>{t("New organization")}</span>
           </button>
         </CascadeMenu>
@@ -137,12 +137,12 @@ function OrgActions({
       <div className="org-menu-section-label">{org.name}</div>
       {!isActive && (
         <button type="button" role="menuitem" className="org-menu-action" onClick={onSwitch}>
-          <span className="icon-box" style={{ width: 18, height: 18 }}><Icon name="arrowRight" size={16} color="var(--text-2)" /></span>
+          <span className="icon-box" style={{ width: 18, height: 18 }}><Icon name="arrowRight" color="var(--text-2)" /></span>
           <span>{t("Switch to this org")}</span>
         </button>
       )}
       <button type="button" role="menuitem" className="org-menu-action danger" onClick={onDelete}>
-        <span className="icon-box" style={{ width: 18, height: 18 }}><Icon name="x" size={16} color="var(--red)" /></span>
+        <span className="icon-box" style={{ width: 18, height: 18 }}><Icon name="x" color="var(--red)" /></span>
         <span>{t("Delete organization")}</span>
       </button>
     </>

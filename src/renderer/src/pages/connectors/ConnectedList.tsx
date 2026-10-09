@@ -96,7 +96,7 @@ export function ConnectedList({
                 {holders.map((holder) => (
                   <span key={holder.agentId} className="row" style={{ gap: 2 }}>
                     <Pill>{holder.text}</Pill>
-                    <IconButton icon="x" size={12} label={t("Revoke {name}", { name: holder.text })} disabled={busy} onClick={() => onRevoke(holder.agentId, account.toolkitSlug)} />
+                    <IconButton icon="x" label={t("Revoke {name}", { name: holder.text })} disabled={busy} onClick={() => onRevoke(holder.agentId, account.toolkitSlug)} />
                   </span>
                 ))}
                 {account.status === "ACTIVE" && grantable.length > 0 && (

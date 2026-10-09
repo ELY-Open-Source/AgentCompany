@@ -56,3 +56,6 @@
   animation: px-blink 0.8s steps(1, end) infinite;
 }
 @keyframes px-blink { 50% { visibility: hidden; } }
+
+/* Icons share the font's grid: 12 icon pixels at the same whole-screen-pixel scale. */
+.pixel-icon { width: calc(12px * var(--px)); height: calc(12px * var(--px)); flex-shrink: 0; }

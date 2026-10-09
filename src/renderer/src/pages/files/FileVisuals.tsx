@@ -9,7 +9,7 @@ export function FileIcon({ kind, big = false }: { kind: string; big?: boolean })
   if (kind === "folder") {
     return (
       <div style={{ width: big ? 28 : 22, height: big ? 28 : 22, display: "grid", placeItems: "center", color: "var(--text-3)" }}>
-        <Icon name="folder" size={big ? 22 : 17} />
+        <Icon name="folder" />
       </div>
     );
   }

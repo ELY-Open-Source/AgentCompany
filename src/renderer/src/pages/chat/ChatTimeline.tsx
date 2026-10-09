@@ -148,7 +148,7 @@ function ApprovalInline({ approval, onApprove, onDecline }: { approval: Approval
   return (
     <div style={{ margin: "14px 0 18px 44px", maxWidth: 480, border: "1px solid var(--border-strong)", borderRadius: 12, background: "var(--panel)", padding: 14 }}>
       <div className="row" style={{ marginBottom: 8 }}>
-        <Icon name="approve" size={14} color="var(--amber)" />
+        <Icon name="approve" color="var(--amber)" />
         <span style={{ fontSize: 12, color: "var(--amber)", fontWeight: 540 }}>{t("Approval needed")}</span>
         <Pill tone={approval.risk === "high" ? "red" : approval.risk === "medium" ? "amber" : undefined}>{riskLabel(approval.risk)}</Pill>
       </div>

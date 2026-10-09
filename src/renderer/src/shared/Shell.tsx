@@ -93,7 +93,7 @@ export function Shell({
           onDelete={onDeleteOrg}
         />
         <button type="button" className="search-bar" aria-label={t("Search")} onClick={() => setSearchOpen(true)}>
-          <Icon name="search" size={13} />
+          <Icon name="search" />
           <span>{t("Search")}</span>
           <span className="search-kbd">{shortcutLabel("K")}</span>
         </button>

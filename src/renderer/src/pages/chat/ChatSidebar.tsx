@@ -156,7 +156,7 @@ function ConversationRow({
             marginTop: 2,
           }}
         >
-          <Icon name={conversation.space.visibility === "restricted" ? "lock" : "hash"} size={13} color="var(--text-3)" />
+          <Icon name={conversation.space.visibility === "restricted" ? "lock" : "hash"} color="var(--text-3)" />
         </span>
       )}
       <span style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 1 }}>

@@ -203,15 +203,15 @@ export function TaskDetailDialog({
         )}
         {actionError && <div className="form-error" role="alert" style={{ marginTop: 8 }}>{actionError}</div>}
         <div className="modal-actions">
-          <Button tone="ghost" onClick={askDelete} disabled={deleteImpact !== null}><Icon name="x" size={16} /> {t("Delete")}</Button>
+          <Button tone="ghost" onClick={askDelete} disabled={deleteImpact !== null}><Icon name="x" /> {t("Delete")}</Button>
           {task.blockedReason
             ? <Button onClick={() => act(() => onBlock(task, null))}>{t("Unblock")}</Button>
             : task.status !== TASK_STATUS.DONE && !blocking && <Button onClick={() => setBlocking(true)}>{t("Block")}</Button>}
           {task.status === TASK_STATUS.REVIEW && <Button onClick={() => act(() => onMove(task, TASK_STATUS.IN_PROGRESS))}>{t("Send back")}</Button>}
           {task.status === TASK_STATUS.DONE && <Button onClick={() => act(() => onMove(task, TASK_STATUS.IN_PROGRESS))}>{t("Reopen")}</Button>}
           {task.status === TASK_STATUS.IN_PROGRESS && <Button onClick={() => act(() => onMove(task, TASK_STATUS.BACKLOG))}>{t("Back to backlog")}</Button>}
-          {assignee && <Button onClick={() => onRun(task)} disabled={runBlocker(task, provider, taskRuns) !== null}><Icon name="send" size={16} /> {t("Run")}</Button>}
-          {advanceTo && <Button tone="primary" onClick={() => onAdvance(task)}><Icon name="check" size={16} /> {prettyStatus(advanceTo)}</Button>}
+          {assignee && <Button onClick={() => onRun(task)} disabled={runBlocker(task, provider, taskRuns) !== null}><Icon name="send" /> {t("Run")}</Button>}
+          {advanceTo && <Button tone="primary" onClick={() => onAdvance(task)}><Icon name="check" /> {prettyStatus(advanceTo)}</Button>}
         </div>
 
         {editing && (
@@ -292,7 +292,7 @@ function SubtasksTab({ subtasks, agents, onOpenTask }: { subtasks: TaskRecord[];
         const owner = agents.find((a) => a.id === st.assigneeAgentId);
         return (
           <div key={st.id} className="row" style={{ gap: 10, padding: "8px 0", borderBottom: "1px solid var(--border-soft)" }}>
-            <Icon name={st.status === TASK_STATUS.DONE ? "check" : "work"} size={16} color={st.status === TASK_STATUS.DONE ? "var(--green)" : "var(--text-3)"} />
+            <Icon name={st.status === TASK_STATUS.DONE ? "check" : "work"} color={st.status === TASK_STATUS.DONE ? "var(--green)" : "var(--text-3)"} />
             <button type="button" className="link-button" aria-label={t("Open task {title}", { title: st.title })} onClick={() => onOpenTask(st.id)} style={{ flex: 1, fontSize: 14, fontWeight: 480, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textAlign: "left" }}>{st.title}</button>
             <Pill>{prettyStatus(st.status)}</Pill>
             {owner && <Avatar name={owner.name} size="sm" bot />}

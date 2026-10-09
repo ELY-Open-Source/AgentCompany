@@ -83,7 +83,7 @@ export function PinnedCard({
           onClick={(event) => { event.stopPropagation(); onUnpin(); }}
           style={{ marginLeft: "auto", padding: 4, border: 0, background: "transparent", color: file.pinned ? "var(--accent)" : "var(--text-4)", cursor: "pointer" }}
         >
-          <Icon name="pin" size={14} />
+          <Icon name="pin" />
         </button>
       </div>
       <div style={{ fontSize: 14, fontWeight: 540, letterSpacing: "-0.005em", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>

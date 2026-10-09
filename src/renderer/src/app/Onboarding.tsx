@@ -188,7 +188,7 @@ export function Onboarding({
         <div className="card" style={{ maxWidth: 460 }}>
           <div className="card-label" style={{ marginBottom: 10 }}>{t("Runtime selected")}</div>
           <div className="row" style={{ gap: 10 }}>
-            <Icon name="bot" size={18} />
+            <Icon name="bot" />
             <strong style={{ fontSize: 14 }}>{selectedProvider.label}</strong>
             {draft.providerModel && <Pill tone="violet">{draft.providerModel}</Pill>}
           </div>
@@ -321,7 +321,7 @@ function CompanyStep({ draft, onChange, onBack, onNext }: StepProps) {
       <Field label={t("Workspace path (optional)")}>
         <div className="row" style={{ gap: 6 }}>
           <input className="input" value={draft.workspacePath} onChange={(event) => onChange({ workspacePath: event.target.value })} />
-          <Button tone="ghost" onClick={chooseWorkspace}><Icon name="folder" size={16} /> {t("Choose")}</Button>
+          <Button tone="ghost" onClick={chooseWorkspace}><Icon name="folder" /> {t("Choose")}</Button>
         </div>
       </Field>
       <Actions onBack={onBack} onNext={onNext} />

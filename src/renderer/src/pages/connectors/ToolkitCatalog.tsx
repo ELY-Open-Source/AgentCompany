@@ -68,7 +68,7 @@ export function ToolkitCatalog({
       <div className="row" style={{ marginBottom: 12, gap: 10 }}>
         <div className="section-label" style={{ flex: 1 }}>{t("Catalog")}</div>
         <div className="row" style={{ gap: 6, background: "var(--panel-2)", borderRadius: 8, padding: "5px 10px", width: 240 }}>
-          <Icon name="search" size={13} color="var(--text-3)" />
+          <Icon name="search" color="var(--text-3)" />
           <input
             aria-label={t("Search connectors")}
             value={query}

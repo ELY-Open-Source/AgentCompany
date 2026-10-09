@@ -108,9 +108,9 @@ export function WorkPage({ snapshot, actions, navigate, focus }: PageProps) {
           onPriority={setPriorityFilter}
           onAssignee={setAssigneeFilter}
         />
-        <Button tone="ghost" onClick={() => setNewGoalOpen(true)}><Icon name="plus" size={16} /> {t("Goal")}</Button>
-        <Button tone="ghost" onClick={() => setNewProjectOpen(true)}><Icon name="plus" size={16} /> {t("Project")}</Button>
-        <Button tone="primary" onClick={() => setNewTaskOpen(true)}><Icon name="plus" size={16} /> {t("New task")}</Button>
+        <Button tone="ghost" onClick={() => setNewGoalOpen(true)}><Icon name="plus" /> {t("Goal")}</Button>
+        <Button tone="ghost" onClick={() => setNewProjectOpen(true)}><Icon name="plus" /> {t("Project")}</Button>
+        <Button tone="primary" onClick={() => setNewTaskOpen(true)}><Icon name="plus" /> {t("New task")}</Button>
       </TopbarActions>
       <h1 className="page-h1">{t("Work")}</h1>
       <p className="page-sub">{t("Only a task runs: an agent picks it up and does the work. Goals and projects group tasks; documents and knowledge are what agents read and write along the way.")}</p>
@@ -227,7 +227,7 @@ function WorkFilter({
     <Popover
       trigger={({ toggle }) => (
         <button type="button" className="button ghost" aria-label={t("Filter tasks")} onClick={toggle}>
-          <Icon name="filter" size={16} color={active ? "var(--accent)" : "currentColor"} />
+          <Icon name="filter" color={active ? "var(--accent)" : "currentColor"} />
         </button>
       )}
     >
@@ -237,19 +237,19 @@ function WorkFilter({
           {priorities.map((option) => (
             <MenuRow key={option.id} active={priority === option.id} onClick={() => onPriority(option.id)}>
               {option.label}
-              {priority === option.id && <span className="menu-check"><Icon name="check" size={16} /></span>}
+              {priority === option.id && <span className="menu-check"><Icon name="check" /></span>}
             </MenuRow>
           ))}
           <MenuDivider />
           <MenuLabel>{t("Assignee")}</MenuLabel>
           <MenuRow active={assignee === "all"} onClick={() => onAssignee("all")}>
             {t("All assignees")}
-            {assignee === "all" && <span className="menu-check"><Icon name="check" size={16} /></span>}
+            {assignee === "all" && <span className="menu-check"><Icon name="check" /></span>}
           </MenuRow>
           {agents.map((agent) => (
             <MenuRow key={agent.id} active={assignee === agent.id} onClick={() => onAssignee(agent.id)}>
               {agent.name}
-              {assignee === agent.id && <span className="menu-check"><Icon name="check" size={16} /></span>}
+              {assignee === agent.id && <span className="menu-check"><Icon name="check" /></span>}
             </MenuRow>
           ))}
         </>

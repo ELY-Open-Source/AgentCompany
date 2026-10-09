@@ -90,7 +90,7 @@ export function FilesPage({ snapshot, actions, focus }: PageProps) {
             ]}
           />
           <Button tone="primary" onClick={upload}>
-            <Icon name="upload" size={16} /> {t("Upload")}
+            <Icon name="upload" /> {t("Upload")}
           </Button>
         </TopbarActions>
         <h1 className="page-h1">{t("Files")}</h1>
@@ -163,7 +163,7 @@ function FilesFilter({
     <Popover
       trigger={({ toggle }) => (
         <button type="button" className="button ghost" aria-label={t("Filter files")} onClick={toggle}>
-          <Icon name="filter" size={16} color={scan !== "all" ? "var(--accent)" : "currentColor"} />
+          <Icon name="filter" color={scan !== "all" ? "var(--accent)" : "currentColor"} />
         </button>
       )}
     >
@@ -173,7 +173,7 @@ function FilesFilter({
           {options.map((option) => (
             <MenuRow key={option.id} active={scan === option.id} onClick={() => onScan(option.id)}>
               {option.label}
-              {scan === option.id && <span className="menu-check"><Icon name="check" size={16} /></span>}
+              {scan === option.id && <span className="menu-check"><Icon name="check" /></span>}
             </MenuRow>
           ))}
         </>
