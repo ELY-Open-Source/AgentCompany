@@ -112,6 +112,11 @@ test("the pinned CEO conversation is the Messages front door", async () => {
     await page.getByRole("button", { name: "Review" }).first().click();
     const review = page.getByRole("dialog", { name: "Raise the ads budget" });
     await expect(review.getByRole("textbox", { name: "Decision notes" })).toBeVisible();
+    // Notes belong to one request: closing or switching never carries them to the next.
+    await review.getByRole("textbox", { name: "Decision notes" }).fill("Only for the ads budget.");
+    await review.getByRole("button", { name: "Close" }).click();
+    await page.getByRole("button", { name: "Review" }).first().click();
+    await expect(review.getByRole("textbox", { name: "Decision notes" })).toHaveValue("");
     await review.getByRole("button", { name: "Close" }).click();
     await page.getByRole("button", { name: "Work" }).click();
     await page.getByRole("button", { name: /Operationalize goal: Ship the FlowPilot MVP\./ }).first().click();

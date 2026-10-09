@@ -141,7 +141,9 @@ export function ApprovalsPage({ snapshot, actions, navigate, focus }: PageProps)
         </>
       )}
 
+      {/* Keyed by request, so notes typed for one never carry to another or survive closing. */}
       <ApprovalDetailDialog
+        key={editing?.id ?? "none"}
         approval={editing}
         requester={editing ? resolveRequester(editing, employees, agents) : ""}
         onClose={() => setEditingId(null)}
