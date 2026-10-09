@@ -315,7 +315,7 @@ describe("execution modes", () => {
     }));
     const task = () => db.prepare("select * from tasks where id = ?").get(taskId) as unknown as Parameters<typeof executionApprovalProblem>[2];
     const taskApprovals = () => db.prepare("select id, state, details from approvals where source_entity_id = ? order by rowid").all(taskId) as Array<{ id: string; state: string; details: string }>;
-    const edit = (description: string) => h.connection.transaction(() => h.deps.organization.updateTask({
+    const edit = (description: string) => h.connection.transaction(() => h.deps.organization.updateTask({ workLanguage: null,
       orgId: h.orgId, taskId, title: "Wipe staging", description, assigneeAgentId: h.ceoId, risk: "high", priority: TASK_PRIORITY.NORMAL, parentTaskId: null,
       ...currentLinks(db, taskId),
     }));

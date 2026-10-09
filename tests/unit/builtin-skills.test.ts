@@ -171,7 +171,7 @@ describe("built-in skills", () => {
       h.skills.bind({ orgId: h.orgId, agentId, skillId: skill.id, revisionId: skill.revision_id });
     });
     const prompt = (runId: string) => {
-      const id = h.connection.transaction(() => h.skills.resolveRuntimeSnapshot({ orgId: h.orgId, agentId, runId, maxTokens: SKILL_TOKENS, taskText: "", runModel: { providerKey: "openai", model: "gpt-5.4" }, houseStyle: true }));
+      const id = h.connection.transaction(() => h.skills.resolveRuntimeSnapshot({ orgId: h.orgId, agentId, runId, maxTokens: SKILL_TOKENS, taskText: "", runModel: { providerKey: "openai", model: "gpt-5.4" }, houseStyle: true, language: "en" }));
       return (h.connection.db.prepare("select compiled_prompt from skill_runtime_snapshots where id = ?").get(id) as { compiled_prompt: string }).compiled_prompt;
     };
     expect(prompt("run_before")).toContain("# Skill: Backend Architect");
@@ -265,7 +265,7 @@ describe("built-in skills", () => {
     expect(hired).toContain("Unknown skills skipped: no-such-skill");
 
     const danaId = (h.connection.db.prepare("select id from agents where org_id = ? and name = 'Dana Lee'").get(h.orgId) as { id: string }).id;
-    const danaSnapshot = h.connection.transaction(() => h.skills.resolveRuntimeSnapshot({ orgId: h.orgId, agentId: danaId, runId: "run_dana", maxTokens: SKILL_TOKENS, taskText: "", runModel: { providerKey: "openai", model: "gpt-5.4" }, houseStyle: true }));
+    const danaSnapshot = h.connection.transaction(() => h.skills.resolveRuntimeSnapshot({ orgId: h.orgId, agentId: danaId, runId: "run_dana", maxTokens: SKILL_TOKENS, taskText: "", runModel: { providerKey: "openai", model: "gpt-5.4" }, houseStyle: true, language: "en" }));
     const danaPrompt = (h.connection.db.prepare("select compiled_prompt from skill_runtime_snapshots where id = ?").get(danaSnapshot) as { compiled_prompt: string }).compiled_prompt;
     expect(danaPrompt.indexOf("# Skill: humanizer")).toBe(0);
     expect(danaPrompt).toContain("# Skill: Backend Architect");
@@ -274,15 +274,15 @@ describe("built-in skills", () => {
     expect(danaPrompt.length).toBeLessThan(SKILL_TOKENS * 3 + 5_000);
 
     // The CEO carries humanizer too - forced by resolution, not by binding.
-    expect(h.skills.hasRuntimeSkills(h.orgId, ceoId, true)).toBe(true);
-    const ceoSnapshot = h.connection.transaction(() => h.skills.resolveRuntimeSnapshot({ orgId: h.orgId, agentId: ceoId, runId: "run_ceo", maxTokens: SKILL_TOKENS, taskText: "", runModel: { providerKey: "openai", model: "gpt-5.4" }, houseStyle: true }));
+    expect(h.skills.hasRuntimeSkills(h.orgId, ceoId, true, "en")).toBe(true);
+    const ceoSnapshot = h.connection.transaction(() => h.skills.resolveRuntimeSnapshot({ orgId: h.orgId, agentId: ceoId, runId: "run_ceo", maxTokens: SKILL_TOKENS, taskText: "", runModel: { providerKey: "openai", model: "gpt-5.4" }, houseStyle: true, language: "en" }));
     const ceoPrompt = (h.connection.db.prepare("select compiled_prompt from skill_runtime_snapshots where id = ?").get(ceoSnapshot) as { compiled_prompt: string }).compiled_prompt;
     expect(ceoPrompt).toContain("# Skill: humanizer");
     expect(ceoPrompt).not.toContain("# Skill: Backend Architect");
 
     // Technical and structured work drops house style; a CEO without grants then carries nothing.
-    expect(h.skills.hasRuntimeSkills(h.orgId, ceoId, false)).toBe(false);
-    const technicalSnapshot = h.connection.transaction(() => h.skills.resolveRuntimeSnapshot({ orgId: h.orgId, agentId: danaId, runId: "run_dana_spec", maxTokens: SKILL_TOKENS, taskText: "", runModel: { providerKey: "openai", model: "gpt-5.4" }, houseStyle: false }));
+    expect(h.skills.hasRuntimeSkills(h.orgId, ceoId, false, "en")).toBe(false);
+    const technicalSnapshot = h.connection.transaction(() => h.skills.resolveRuntimeSnapshot({ orgId: h.orgId, agentId: danaId, runId: "run_dana_spec", maxTokens: SKILL_TOKENS, taskText: "", runModel: { providerKey: "openai", model: "gpt-5.4" }, houseStyle: false, language: "en" }));
     const technicalPrompt = (h.connection.db.prepare("select compiled_prompt from skill_runtime_snapshots where id = ?").get(technicalSnapshot) as { compiled_prompt: string }).compiled_prompt;
     expect(technicalPrompt).not.toContain("# Skill: humanizer");
     expect(technicalPrompt.indexOf("# Skill: Backend Architect")).toBe(0);
@@ -295,7 +295,7 @@ describe("built-in skills", () => {
     h.connection.close();
   });
 
-  test("the forced humanizer follows the app language, with cross-language fallback", () => {
+  test("the forced humanizer follows the working language, with cross-language fallback", () => {
     const h = harness();
     const staged = stageBuiltinSkillsLibrary(h.sourceRoot, h.libraryRoot);
     h.connection.transaction(() => importStagedSkills(h.skills, h.orgId, staged));
@@ -306,28 +306,27 @@ describe("built-in skills", () => {
         modelProviderId: null, modelId: null, budgetCents: 1000, managerAgentId: null,
       });
     });
-    const promptFor = (runId: string) => {
-      const snapshotId = h.connection.transaction(() => h.skills.resolveRuntimeSnapshot({ orgId: h.orgId, agentId, runId, maxTokens: SKILL_TOKENS, taskText: "", runModel: { providerKey: "openai", model: "gpt-5.4" }, houseStyle: true }));
+    const promptFor = (runId: string, language: "en" | "zh") => {
+      const snapshotId = h.connection.transaction(() => h.skills.resolveRuntimeSnapshot({ orgId: h.orgId, agentId, runId, maxTokens: SKILL_TOKENS, taskText: "", runModel: { providerKey: "openai", model: "gpt-5.4" }, houseStyle: true, language }));
       return (h.connection.db.prepare("select compiled_prompt from skill_runtime_snapshots where id = ?").get(snapshotId) as { compiled_prompt: string }).compiled_prompt;
     };
 
-    // English UI (default): the English humanizer, and only that one.
-    const englishPrompt = promptFor("run_lang_en");
+    // English work: the English humanizer, and only that one.
+    const englishPrompt = promptFor("run_lang_en", "en");
     expect(englishPrompt).toContain("# Skill: humanizer");
     expect(englishPrompt).not.toContain("humanizer-zh");
 
-    // Chinese UI: the Chinese variant replaces it.
-    h.connection.transaction(() => h.organization.updateUiPreferences({ language: "zh" }));
-    const chinesePrompt = promptFor("run_lang_zh");
+    // Chinese work: the Chinese variant replaces it.
+    const chinesePrompt = promptFor("run_lang_zh", "zh");
     expect(chinesePrompt).toContain("# Skill: humanizer-zh");
     expect(chinesePrompt).not.toContain("# Skill: humanizer\n");
 
-    // Chinese UI against a catalogue without the zh variant falls back to
+    // Chinese work against a catalogue without the zh variant falls back to
     // English house style instead of silently dropping it.
     h.connection.transaction(() => {
       h.connection.db.prepare("update skill_definitions set status = 'retired' where org_id = ? and slug = 'humanizer-zh'").run(h.orgId);
     });
-    const fallbackPrompt = promptFor("run_lang_fallback");
+    const fallbackPrompt = promptFor("run_lang_fallback", "zh");
     expect(fallbackPrompt).toContain("# Skill: humanizer");
     h.connection.close();
   });
@@ -353,7 +352,7 @@ describe("built-in skills", () => {
         modelProviderId: null, modelId: null, budgetCents: 1000, managerAgentId: null,
       });
     });
-    const snapshotId = h.connection.transaction(() => h.skills.resolveRuntimeSnapshot({ orgId: h.orgId, agentId, runId: "run_tiny", maxTokens: 10, taskText: "", runModel: { providerKey: "openai", model: "gpt-5.4" }, houseStyle: true }));
+    const snapshotId = h.connection.transaction(() => h.skills.resolveRuntimeSnapshot({ orgId: h.orgId, agentId, runId: "run_tiny", maxTokens: 10, taskText: "", runModel: { providerKey: "openai", model: "gpt-5.4" }, houseStyle: true, language: "en" }));
     const prompt = (h.connection.db.prepare("select compiled_prompt from skill_runtime_snapshots where id = ?").get(snapshotId) as { compiled_prompt: string }).compiled_prompt;
     expect(prompt).not.toContain("# Skill:");
     expect(prompt).toContain("# Skills omitted for size");
@@ -380,7 +379,7 @@ describe("built-in skills", () => {
       bindSkillSlugs({ db: h.connection.db, organization: h.organization, chat: new ChatService(h.connection.db) }, h.orgId, agentId, ["marketing-growth-hacker", "engineering-backend-architect"]);
     });
     const compile = (runId: string, maxTokens: number, taskText: string) => {
-      const snapshotId = h.connection.transaction(() => h.skills.resolveRuntimeSnapshot({ orgId: h.orgId, agentId, runId, maxTokens, taskText, runModel: { providerKey: "openai", model: "gpt-5.4" }, houseStyle: true }));
+      const snapshotId = h.connection.transaction(() => h.skills.resolveRuntimeSnapshot({ orgId: h.orgId, agentId, runId, maxTokens, taskText, runModel: { providerKey: "openai", model: "gpt-5.4" }, houseStyle: true, language: "en" }));
       return (h.connection.db.prepare("select compiled_prompt from skill_runtime_snapshots where id = ?").get(snapshotId) as { compiled_prompt: string }).compiled_prompt;
     };
     const parts = compile("run_full", 1_000_000, "").split("\n\n---\n\n");

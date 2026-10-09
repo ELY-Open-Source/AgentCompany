@@ -98,10 +98,10 @@ describe("skill grants", () => {
     expect(listSkills?.description).not.toContain("every skill automatically");
     expect(listSkills?.description).toContain("the CEO included");
     const skills = new SkillService(h.connection.db, "");
-    expect(skills.hasRuntimeSkills(h.orgId, h.ceoId, true)).toBe(false);
+    expect(skills.hasRuntimeSkills(h.orgId, h.ceoId, true, "en")).toBe(false);
     expect(dispatchAgentTool(h.deps, h.ceoCtx, call("grant_skill", { agent_name: "CEO", skill: "release-gate" })))
       .toBe("CEO now has the Release Gate skill; it joins their next run.");
-    expect(skills.hasRuntimeSkills(h.orgId, h.ceoId, true)).toBe(true);
+    expect(skills.hasRuntimeSkills(h.orgId, h.ceoId, true, "en")).toBe(true);
     h.connection.close();
   });
 
@@ -116,11 +116,11 @@ describe("skill grants", () => {
     expect(listing).toContain("Release Gate (release-gate): granted to Dana");
 
     const skills = new SkillService(h.connection.db, "");
-    expect(skills.hasRuntimeSkills(h.orgId, h.danaId, true)).toBe(true);
+    expect(skills.hasRuntimeSkills(h.orgId, h.danaId, true, "en")).toBe(true);
 
     const revoked = dispatchAgentTool(h.deps, h.ceoCtx, call("revoke_skill", { agent_name: "Dana", skill: "release-gate" }));
     expect(revoked).toContain("no longer has the Release Gate skill");
-    expect(skills.hasRuntimeSkills(h.orgId, h.danaId, true)).toBe(false);
+    expect(skills.hasRuntimeSkills(h.orgId, h.danaId, true, "en")).toBe(false);
   });
 
   test("staff cannot hand out skills", () => {
@@ -128,7 +128,7 @@ describe("skill grants", () => {
     importSkill(h, "Release Gate", "release-gate");
     const denied = dispatchAgentTool(h.deps, h.danaCtx, call("grant_skill", { agent_name: "Dana", skill: "release-gate" }));
     expect(denied).toContain("ERROR");
-    expect(new SkillService(h.connection.db, "").hasRuntimeSkills(h.orgId, h.danaId, true)).toBe(false);
+    expect(new SkillService(h.connection.db, "").hasRuntimeSkills(h.orgId, h.danaId, true, "en")).toBe(false);
   });
 
   test("the humanizer house-style skill reaches every agent without bindings and cannot be revoked", () => {
@@ -136,18 +136,18 @@ describe("skill grants", () => {
     const skills = new SkillService(h.connection.db, "");
     // A non-forced skill grants nothing on its own - not even to the CEO.
     importSkill(h, "Release Gate", "release-gate");
-    expect(skills.hasRuntimeSkills(h.orgId, h.ceoId, true)).toBe(false);
-    expect(skills.hasRuntimeSkills(h.orgId, h.danaId, true)).toBe(false);
+    expect(skills.hasRuntimeSkills(h.orgId, h.ceoId, true, "en")).toBe(false);
+    expect(skills.hasRuntimeSkills(h.orgId, h.danaId, true, "en")).toBe(false);
     // Once the forced skill exists in the catalogue, everyone carries it.
     importSkill(h, "humanizer", "humanizer");
-    expect(skills.hasRuntimeSkills(h.orgId, h.ceoId, true)).toBe(true);
-    expect(skills.hasRuntimeSkills(h.orgId, h.danaId, true)).toBe(true);
+    expect(skills.hasRuntimeSkills(h.orgId, h.ceoId, true, "en")).toBe(true);
+    expect(skills.hasRuntimeSkills(h.orgId, h.danaId, true, "en")).toBe(true);
     // House style is not revocable, and granting it is a no-op with feedback.
     const revoked = dispatchAgentTool(h.deps, h.ceoCtx, call("revoke_skill", { agent_name: "Dana", skill: "humanizer" }));
     expect(revoked).toContain("ERROR");
     expect(revoked).toContain("house style");
     const granted = dispatchAgentTool(h.deps, h.ceoCtx, call("grant_skill", { agent_name: "Dana", skill: "humanizer" }));
     expect(granted).toContain("automatically");
-    expect(skills.hasRuntimeSkills(h.orgId, h.danaId, true)).toBe(true);
+    expect(skills.hasRuntimeSkills(h.orgId, h.danaId, true, "en")).toBe(true);
   });
 });

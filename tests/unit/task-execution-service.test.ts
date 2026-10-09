@@ -734,7 +734,7 @@ describe("task execution service", () => {
     expect(connection.db.prepare("select count(*) as n from audit_events where entity_id = ? and action = 'stalled'").get(taskId)).toEqual({ n: 1 });
     expect(notified).toBe(1);
 
-    organization.updateTask({ orgId, taskId, title: "Ship it", description: "Narrower scope.", assigneeAgentId: agentId, risk: RISK_LEVEL.LOW, priority: TASK_PRIORITY.NORMAL, parentTaskId: null, ...currentLinks(connection.db, taskId) });
+    organization.updateTask({ workLanguage: null, orgId, taskId, title: "Ship it", description: "Narrower scope.", assigneeAgentId: agentId, risk: RISK_LEVEL.LOW, priority: TASK_PRIORITY.NORMAL, parentTaskId: null, ...currentLinks(connection.db, taskId) });
     expect(connection.db.prepare("select stalled_reason from tasks where id = ?").get(taskId)).toEqual({ stalled_reason: null });
     expect(connection.transaction(() => execution.enqueueHeartbeatRuns())).toHaveLength(1);
 

@@ -27,6 +27,8 @@ export interface ResolveAgentSkillsInput {
   runModel: { providerKey: string; model: string | null };
   /** False on technical and structured tasks, which skip the house-style skill. */
   houseStyle: boolean;
+  /** Picks the house-style variant: the task's working language. */
+  language: "en" | "zh";
 }
 
 export interface RunSkillTestsInput {

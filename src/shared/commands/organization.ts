@@ -1,4 +1,4 @@
-import type { ApprovalState, IdentitySource, PrincipalType, RiskLevel, RoleKey, TaskPriority, TaskStatus, UiLanguage, UiTheme, WritingMode } from "../domain";
+import type { ApprovalState, IdentitySource, PrincipalType, RiskLevel, RoleKey, TaskPriority, TaskStatus, UiLanguage, UiTheme, WorkLanguage, WritingMode } from "../domain";
 
 export interface SetActiveOrganizationInput {
   orgId: string;
@@ -92,6 +92,8 @@ export interface CreateTaskInput {
   requiresFilesystem: boolean;
   /** Defaults to conversational. */
   writingMode?: WritingMode;
+  /** Null or omitted follows the company's working language. */
+  workLanguage?: WorkLanguage | null;
   /** Provenance: 'chat_wake' for mention-wake vehicles, 'goal_review' for CEO goal checkpoints, 'task_review' for a manager's review of work, omitted for plain work. */
   origin?: "chat_wake" | "goal_review" | "task_review";
 }
@@ -121,6 +123,7 @@ export interface UpdateTaskInput {
   workspaceId: string | null;
   requiresFilesystem: boolean;
   writingMode: WritingMode;
+  workLanguage: WorkLanguage | null;
 }
 
 export interface SetTaskBlockedInput {
@@ -154,6 +157,7 @@ export interface UpdateOrganizationInput {
   executionMode: "ai_ceo" | "ai_cofounder";
   autoApproveHires: boolean;
   reviewDeliverables: boolean;
+  workLanguage: WorkLanguage;
 }
 
 export interface SetGoalDueDateInput {

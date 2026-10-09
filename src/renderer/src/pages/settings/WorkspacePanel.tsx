@@ -114,6 +114,7 @@ export function WorkspacePanel({
             <option value="en">English</option>
             <option value="zh">中文</option>
           </select>
+          <span style={{ fontSize: 12, color: "var(--text-3)" }}>{t("Changes only what you see; agents keep the company's working language.")}</span>
         </Field>
       </div>
 

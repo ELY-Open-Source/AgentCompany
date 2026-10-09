@@ -6,9 +6,21 @@ import {
   type TaskRecord,
   type TaskRunRecord,
   type TaskStatus,
+  type WorkLanguage,
   type WritingMode,
 } from "../../../../shared/domain";
 import { t } from "../../i18n/i18n";
+
+/** Each working language in its own script, so it reads right whatever the display language. */
+export const WORK_LANGUAGE_NAMES: Record<WorkLanguage, string> = { en: "English", zh: "简体中文" };
+
+/** The task form's working language: blank follows the company. */
+export function readWorkLanguage(form: FormData): WorkLanguage | null {
+  const value = String(form.get("workLanguage") ?? "");
+  if (value === "") return null;
+  if (value === "en" || value === "zh") return value;
+  throw new Error(`Unknown working language "${value}".`);
+}
 
 /** The writing modes a task can ask for, as the create and edit forms offer them. */
 export const WRITING_OPTIONS: ReadonlyArray<{ value: WritingMode; label: string }> = [

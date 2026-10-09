@@ -80,6 +80,7 @@ test("the pinned CEO conversation is the Messages front door", async () => {
     const editCompany = async (mode: string, autoHires: boolean) => {
       await page.getByRole("button", { name: "Edit company" }).click();
       await page.getByLabel("Who runs the work").selectOption(mode);
+      await expect(page.locator(".modal select[name=workLanguage]")).toHaveValue("en");
       await page.getByLabel("Auto-approve hires").setChecked(autoHires);
       await page.getByRole("button", { name: "Save" }).click();
     };
@@ -138,14 +139,17 @@ test("the pinned CEO conversation is the Messages front door", async () => {
     await taskDialog.getByRole("button", { name: "Edit" }).click();
     await taskDialog.getByLabel("Writing").selectOption("technical");
     await taskDialog.getByLabel("Requires workspace access").check();
+    // The working language is the task's own; blank names the company's.
+    await expect(taskDialog.locator("select[name=workLanguage] option").first()).toHaveText("Company default (English)");
+    await taskDialog.locator("select[name=workLanguage]").selectOption("zh");
     await taskDialog.getByRole("button", { name: "Save" }).click();
     await expect(taskDialog.getByRole("heading", { name: "Edit task" })).toHaveCount(0);
     const edited = await page.evaluate(async () => {
-      const api = (window as unknown as { agentCompany: { loadSnapshot: () => Promise<{ ok: true; data: { tasks: Array<{ title: string; writingMode: string; requiresFilesystem: boolean }> } }> } }).agentCompany;
+      const api = (window as unknown as { agentCompany: { loadSnapshot: () => Promise<{ ok: true; data: { tasks: Array<{ title: string; writingMode: string; requiresFilesystem: boolean; workLanguage: string | null }> } }> } }).agentCompany;
       const task = (await api.loadSnapshot()).data.tasks.find((item) => item.title === "Operationalize goal: Ship the FlowPilot MVP.")!;
-      return [task.writingMode, task.requiresFilesystem];
+      return [task.writingMode, task.requiresFilesystem, task.workLanguage];
     });
-    expect(edited).toEqual(["technical", true]);
+    expect(edited).toEqual(["technical", true, "zh"]);
     // A pending request opens for review: read it in full and decide with notes; nothing there pretends to edit it.
     await taskDialog.getByRole("button", { name: "Close" }).click();
     await page.evaluate(async () => {
@@ -378,7 +382,7 @@ test("the pinned CEO conversation is the Messages front door", async () => {
       const child = (await api.loadSnapshot()).data.tasks.find((task) => task.title === "Child step")!;
       await api.updateTask({
         orgId: before.activeOrgId, taskId: child.id, title: "Child step", description: "d", assigneeAgentId: null, risk: "low", priority: "normal",
-        parentTaskId: parent.id, projectId: null, goalId: null, workspaceId: null, requiresFilesystem: false, writingMode: "conversational",
+        parentTaskId: parent.id, projectId: null, goalId: null, workspaceId: null, requiresFilesystem: false, writingMode: "conversational", workLanguage: null,
       });
     });
     await page.getByRole("button", { name: "Work" }).click();

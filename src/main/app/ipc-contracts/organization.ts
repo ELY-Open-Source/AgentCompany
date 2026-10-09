@@ -38,11 +38,12 @@ export const organizationContracts = {
     orgId: id, title: z.string(), description: z.string(), status: z.enum(TASK_STATUS), assigneeAgentId: nullableId, risk: z.enum(RISK_LEVEL),
     projectId: nullableId, goalId: nullableId, workspaceId: nullableId, priority: z.enum(TASK_PRIORITY), requiresFilesystem: z.boolean(),
     writingMode: z.enum(WRITING_MODE).optional(), origin: z.enum(["chat_wake", "goal_review", "task_review"]).optional(),
+    workLanguage: z.enum(["en", "zh"]).nullable().optional(),
   }) satisfies z.ZodType<C.CreateTaskInput>,
   updateTask: z.strictObject({
     orgId: id, taskId: id, title: z.string(), description: z.string(), assigneeAgentId: nullableId, risk: z.enum(RISK_LEVEL),
     priority: z.enum(TASK_PRIORITY), parentTaskId: nullableId, projectId: nullableId, goalId: nullableId, workspaceId: nullableId,
-    requiresFilesystem: z.boolean(), writingMode: z.enum(WRITING_MODE),
+    requiresFilesystem: z.boolean(), writingMode: z.enum(WRITING_MODE), workLanguage: z.enum(["en", "zh"]).nullable(),
   }) satisfies z.ZodType<C.UpdateTaskInput>,
   deleteTask: z.strictObject({ orgId: id, taskId: id }) satisfies z.ZodType<C.DeleteTaskInput>,
   setTaskBlocked: z.strictObject({ orgId: id, taskId: id, reason: z.string().nullable() }) satisfies z.ZodType<C.SetTaskBlockedInput>,
@@ -61,7 +62,7 @@ export const organizationContracts = {
   deleteWorkspace: z.strictObject({ orgId: id, workspaceId: id }),
   updateOrganization: z.strictObject({
     orgId: id, name: z.string(), description: z.string(), mission: z.string(), goal: z.string(),
-    executionMode: z.enum(["ai_ceo", "ai_cofounder"]), autoApproveHires: z.boolean(), reviewDeliverables: z.boolean(),
+    executionMode: z.enum(["ai_ceo", "ai_cofounder"]), autoApproveHires: z.boolean(), reviewDeliverables: z.boolean(), workLanguage: z.enum(["en", "zh"]),
   }) satisfies z.ZodType<C.UpdateOrganizationInput>,
   resumeGoal: z.strictObject({ orgId: id, goalId: id }) satisfies z.ZodType<C.ResumeGoalInput>,
   createProject: z.strictObject({

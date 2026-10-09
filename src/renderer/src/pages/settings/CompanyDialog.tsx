@@ -4,6 +4,7 @@ import { Field } from "../../shared/ui";
 import { Dialog } from "../../shared/Dialog";
 import type { SnapshotActions } from "../../app/useSnapshot";
 import { t } from "../../i18n/i18n";
+import { WORK_LANGUAGE_NAMES } from "../work/task-helpers";
 
 /** Changes the company's profile and how it runs after onboarding; requests already waiting keep their state. */
 export function CompanyDialog({ organization, open, actions, onClose }: { organization: OrganizationRecord; open: boolean; actions: SnapshotActions; onClose: () => void }) {
@@ -22,6 +23,7 @@ export function CompanyDialog({ organization, open, actions, onClose }: { organi
       executionMode: value("executionMode") === "ai_cofounder" ? "ai_cofounder" : "ai_ceo",
       autoApproveHires: form.get("autoApproveHires") === "on",
       reviewDeliverables: form.get("reviewDeliverables") === "on",
+      workLanguage: value("workLanguage") === "zh" ? "zh" : "en",
     })).then(onClose, (reason: unknown) => setError(reason instanceof Error ? reason.message : String(reason)));
   };
   return (
@@ -36,6 +38,13 @@ export function CompanyDialog({ organization, open, actions, onClose }: { organi
           <option value="ai_cofounder">{t("AI Co-Founder: asks before risky tasks")}</option>
         </select>
       </Field>
+      <Field label={t("Agents' working language")}>
+        <select className="input" name="workLanguage" defaultValue={organization.workLanguage}>
+          <option value="en">{WORK_LANGUAGE_NAMES.en}</option>
+          <option value="zh">{WORK_LANGUAGE_NAMES.zh}</option>
+        </select>
+      </Field>
+      <p style={{ fontSize: 12, color: "var(--text-3)", margin: 0 }}>{t("Agents write messages, tasks, documents and deliverables in it. The display language does not change it, and a task can set its own.")}</p>
       <label className="checkbox-row"><input type="checkbox" name="autoApproveHires" defaultChecked={organization.autoApproveHires} /> {t("Auto-approve hires")}</label>
       <label className="checkbox-row"><input type="checkbox" name="reviewDeliverables" defaultChecked={organization.reviewDeliverables} /> {t("Review deliverables before they are written")}</label>
       <div style={{ fontSize: 12, color: "var(--text-3)" }}>{t("Changes apply to work from now on; requests already waiting keep their state.")}</div>

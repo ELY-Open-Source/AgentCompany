@@ -1,7 +1,8 @@
+import { taskWorkLanguage } from "./work-language";
 import { closeChatWakeTask } from "./chat-wake-close";
 import type { DatabaseSync } from "node:sqlite";
 import type { RunTaskInput } from "../../shared/commands";
-import { TASK_STATUS, WRITING_MODE } from "../../shared/domain";
+import { TASK_STATUS, WRITING_MODE, type WorkLanguage } from "../../shared/domain";
 import { createId } from "../../shared/ids";
 import { AuditService } from "./audit-service";
 import { ProviderService } from "./provider-service";
@@ -186,7 +187,7 @@ export class TaskExecutionService {
           .run(effectiveModel(agent.model_id, provider.model), provider.credential_id, runId);
       }
       const runModel = pinned ?? effectiveModel(agent.model_id, provider.model);
-      skillRuntimeSnapshot = this.resolveSkillRuntimeSnapshot(orgId, agent.id, runId, skillBudgetTokens(provider.context_window_tokens), `${task.title}\n${task.description}`, { providerKey: provider.provider_key, model: runModel }, task.writing_mode === WRITING_MODE.CONVERSATIONAL);
+      skillRuntimeSnapshot = this.resolveSkillRuntimeSnapshot(orgId, agent.id, runId, skillBudgetTokens(provider.context_window_tokens), `${task.title}\n${task.description}`, { providerKey: provider.provider_key, model: runModel }, task.writing_mode === WRITING_MODE.CONVERSATIONAL, taskWorkLanguage(this.db, orgId, task.id));
       // Watermark for reply delivery and mid-run message polling.
       const runStartedAt = new Date().toISOString();
       const chatContext = loadChatWakeContext(this.db, orgId, agent.id, isolation.secretScopeJson);
@@ -207,7 +208,7 @@ export class TaskExecutionService {
       const connectorNames = new ConnectorGrantsService(this.db)
         .toolkitsForAgent(orgId, agent.id)
         .map(connectorDisplayName);
-      const language = this.appLanguage();
+      const language = taskWorkLanguage(this.db, orgId, task.id);
       // Baseline taken before any await, so a goal closed while tools load still reaches the session.
       const goalChanges = createGoalChangePoller(this.db, task.goal_id);
       const externalTools = loadComposioTools(this.db, this.providers.integrationKeys, orgId, agent.id);
@@ -426,10 +427,6 @@ export class TaskExecutionService {
     return row.name;
   }
 
-  private appLanguage(): "en" | "zh" {
-    const row = this.db.prepare("select language from app_state where id = 1").get() as { language: string } | undefined;
-    return row?.language === "zh" ? "zh" : "en";
-  }
 
   private completeRun(orgId: string, runId: string, providerRequestId: string | null, checkpoint: boolean): void {
     this.db.prepare(`
@@ -477,9 +474,9 @@ export class TaskExecutionService {
     `).run(TASK_RUN_STATE.FAILED, providerRequestId, new Date().toISOString(), errorMessage, failureKind, runId, orgId);
   }
 
-  private resolveSkillRuntimeSnapshot(orgId: string, agentId: string, runId: string, maxTokens: number, taskText: string, runModel: RunModel, houseStyle: boolean): SkillRuntimeSnapshotRow | null {
-    if (!this.skills.hasRuntimeSkills(orgId, agentId, houseStyle)) return null;
-    const snapshotId = this.skills.resolveRuntimeSnapshot({ orgId, agentId, runId, maxTokens, taskText, runModel, houseStyle });
+  private resolveSkillRuntimeSnapshot(orgId: string, agentId: string, runId: string, maxTokens: number, taskText: string, runModel: RunModel, houseStyle: boolean, language: WorkLanguage): SkillRuntimeSnapshotRow | null {
+    if (!this.skills.hasRuntimeSkills(orgId, agentId, houseStyle, language)) return null;
+    const snapshotId = this.skills.resolveRuntimeSnapshot({ orgId, agentId, runId, maxTokens, taskText, runModel, houseStyle, language });
     const snapshot = this.db.prepare(`
       select id, compiled_prompt, tools_manifest, source_revision_ids
       from skill_runtime_snapshots

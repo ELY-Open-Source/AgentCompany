@@ -22,7 +22,7 @@ import { ListView } from "./work/ListView";
 import { ProgressView } from "./work/ProgressView";
 import { isBusinessTask, latestTaskRun, nextStatus, prettyRunState, providerFor, runBlocker, runTone } from "./work/task-helpers";
 import type { PageProps } from "./types";
-import { activeOrgId, type Focus } from "./types";
+import { activeOrgId, requireActiveOrganization, type Focus } from "./types";
 import { t } from "../i18n/i18n";
 
 type View = "board" | "list" | "progress";
@@ -166,6 +166,7 @@ export function WorkPage({ snapshot, actions, navigate, focus }: PageProps) {
       <TaskDetailDialog
         key={detailTask?.id ?? "none"}
         task={detailTask}
+        companyLanguage={requireActiveOrganization(snapshot).workLanguage}
         agents={agents}
         projects={projects}
         goals={goals}

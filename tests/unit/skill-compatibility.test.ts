@@ -42,7 +42,7 @@ describe("skill compatibility", () => {
       skills.bind({ orgId, agentId, skillId: skill.id, revisionId });
     });
     const prompt = (runId: string, providerKey: string, model: string) => {
-      const id = connection.transaction(() => skills.resolveRuntimeSnapshot({ orgId, agentId, runId, maxTokens: 40_000, taskText: "", runModel: { providerKey, model }, houseStyle: true }));
+      const id = connection.transaction(() => skills.resolveRuntimeSnapshot({ orgId, agentId, runId, maxTokens: 40_000, taskText: "", runModel: { providerKey, model }, houseStyle: true, language: "en" }));
       return connection.db.prepare("select compiled_prompt, source_revision_ids from skill_runtime_snapshots where id = ?").get(id) as { compiled_prompt: string; source_revision_ids: string };
     };
 

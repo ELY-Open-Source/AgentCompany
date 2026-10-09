@@ -15,7 +15,7 @@ describe("company settings after onboarding", () => {
     });
     const update = (change: Partial<{ name: string; executionMode: "ai_ceo" | "ai_cofounder" }>) => connection.transaction(() => organization.updateOrganization({
       orgId, name: "Acme Labs", description: "Analytics for CSMs.", mission: "Keep customers.", goal: "Ship the MVP.",
-      executionMode: "ai_cofounder", autoApproveHires: false, reviewDeliverables: true, ...change,
+      executionMode: "ai_cofounder", autoApproveHires: false, reviewDeliverables: true, workLanguage: "en", ...change,
     }));
     update({});
     expect(connection.db.prepare("select name, description, mission, goal, execution_mode, auto_approve_hires, review_deliverables from organizations where id = ?").get(orgId))
@@ -23,7 +23,7 @@ describe("company settings after onboarding", () => {
     const audit = connection.db.prepare("select payload_json from audit_events where entity_type = 'organization' and action = 'updated' order by rowid desc limit 1").get() as { payload_json: string };
     expect(JSON.parse(audit.payload_json).changed).toEqual(expect.arrayContaining(["name", "executionMode", "reviewDeliverables"]));
     expect(() => update({ name: "  " })).toThrow("The company needs a name.");
-    expect(() => organization.updateOrganization({ orgId: "org_missing", name: "X", description: "", mission: "", goal: "", executionMode: "ai_ceo", autoApproveHires: true, reviewDeliverables: false }))
+    expect(() => organization.updateOrganization({ orgId: "org_missing", name: "X", description: "", mission: "", goal: "", executionMode: "ai_ceo", autoApproveHires: true, reviewDeliverables: false, workLanguage: "en" }))
       .toThrow("Organization was not found.");
     connection.close();
   });

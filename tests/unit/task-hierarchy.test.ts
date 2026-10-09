@@ -22,7 +22,7 @@ describe("task hierarchy", () => {
         });
       }
     });
-    const reparent = (title: string, parent: string | null) => organization.updateTask({
+    const reparent = (title: string, parent: string | null) => organization.updateTask({ workLanguage: null,
       orgId, taskId: ids[title], title, description: "d", assigneeAgentId: null, risk: RISK_LEVEL.LOW, priority: TASK_PRIORITY.NORMAL, parentTaskId: parent,
       ...currentLinks(connection.db, ids[title]),
     });

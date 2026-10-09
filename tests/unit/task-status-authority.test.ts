@@ -58,7 +58,7 @@ describe("task status authority", () => {
     expect(h.as("dev", { status: "backlog", evidence: 123 })).toBe('ERROR: "evidence" is required.');
     h.as("dev", { status: "done", evidence: "file_id=fil_1" });
     const reviewId = (h.connection.db.prepare("select id from tasks where review_of_task_id = ?").get(h.ids.task) as { id: string }).id;
-    h.organization.updateTask({ orgId: h.orgId, taskId: h.ids.task, title: "Login page", description: "Build it.", assigneeAgentId: h.ids.cto, risk: RISK_LEVEL.LOW, priority: TASK_PRIORITY.NORMAL, parentTaskId: null, ...currentLinks(h.connection.db, h.ids.task) });
+    h.organization.updateTask({ workLanguage: null, orgId: h.orgId, taskId: h.ids.task, title: "Login page", description: "Build it.", assigneeAgentId: h.ids.cto, risk: RISK_LEVEL.LOW, priority: TASK_PRIORITY.NORMAL, parentTaskId: null, ...currentLinks(h.connection.db, h.ids.task) });
     expect(h.status()).toBe("in_progress");
     expect(h.connection.db.prepare("select status from tasks where id = ?").get(reviewId)).toEqual({ status: "done" });
     expect(h.as("cto", { status: "done", evidence: "Rebuilt the form." })).toBe(`Task ${h.ids.task} moved to review: done needs sign-off from your manager. Cleo will review it.`);

@@ -173,11 +173,21 @@ describe("agent instruction wiring", () => {
     expect(capturedInstructions).toContain("Connected external services you carry in this run: GitHub");
     expect(capturedInstructions).toContain("list_connectors");
 
-    // Switching the app language redirects the whole company to Chinese.
+    const rerun = async () => {
+      connection.db.prepare("update task_runs set state = 'failed' where org_id = ?").run(orgId);
+      await execution.runTask({ orgId, taskId });
+      return capturedInstructions;
+    };
+    // The display language changes only what the operator sees.
     organization.updateUiPreferences({ language: "zh" });
-    connection.db.prepare("update task_runs set state = 'failed' where org_id = ?").run(orgId);
-    await execution.runTask({ orgId, taskId });
-    expect(capturedInstructions).toContain("公司的工作语言是简体中文");
+    expect(await rerun()).toContain("The working language is English");
+    expect(capturedInstructions).not.toContain("公司的工作语言是简体中文");
+    // The company's working language redirects its agents, and a task can keep its own.
+    connection.db.prepare("update organizations set work_language = 'zh' where id = ?").run(orgId);
+    expect(await rerun()).toContain("公司的工作语言是简体中文");
+    connection.db.prepare("update tasks set work_language = 'en' where id = ?").run(taskId);
+    expect(await rerun()).toContain("The working language is English");
+    expect(capturedInstructions).not.toContain("公司的工作语言是简体中文");
   });
 
   test("a new department head's task prompt tells them to staff their department, not to work as an IC", async () => {

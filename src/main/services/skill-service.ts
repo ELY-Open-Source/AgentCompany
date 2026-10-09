@@ -1,3 +1,4 @@
+import type { WorkLanguage } from "../../shared/domain";
 import { existsSync, readFileSync } from "node:fs";
 import type { DatabaseSync } from "node:sqlite";
 import type { BindSkillInput, ImportSkillDirectoryInput, ResolveAgentSkillsInput, RunSkillTestsInput } from "../../shared/commands";
@@ -15,13 +16,7 @@ function slugify(value: string): string {
   return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 }
 
-/**
- * House-style humanizer skills, one per app language. Every agent carries
- * the variant matching the current UI language on every run, CEO included.
- * They are a resolution rule, not a binding row, so no creation path — hire
- * tool, onboarding, tests, raw SQL — can produce an agent without one.
- * Both variants are protected from grant/revoke.
- */
+/** House-style humanizer skills, one per working language: every agent carries its task's variant by rule, never by grant. */
 export const HUMANIZER_SLUG_EN = "humanizer";
 export const HUMANIZER_SLUG_ZH = "humanizer-zh";
 export const FORCED_SKILL_SLUGS = [HUMANIZER_SLUG_EN, HUMANIZER_SLUG_ZH] as const;
@@ -243,21 +238,17 @@ export class SkillService {
    * agent carries the forced house-style skill once the catalogue holds a
    * language variant, plus whatever bindings the CEO granted.
    */
-  hasRuntimeSkills(orgId: string, agentId: string, houseStyle: boolean): boolean {
-    if (houseStyle && this.forcedSkillRows(orgId).length > 0) return true;
+  hasRuntimeSkills(orgId: string, agentId: string, houseStyle: boolean, language: WorkLanguage): boolean {
+    if (houseStyle && this.forcedSkillRows(orgId, language).length > 0) return true;
     return Boolean(this.db.prepare(`
       select sb.id from skill_bindings sb join skill_definitions sd on sd.id = sb.skill_id and sd.status = 'active'
       where sb.org_id = ? and sb.agent_id = ? and sb.enabled = 1 limit 1
     `).get(orgId, agentId));
   }
 
-  /**
-   * The single forced house-style skill for the current app language:
-   * queries both humanizer variants and keeps the best match by preference
-   * order (language-matched first, other variant as fallback).
-   */
-  private forcedSkillRows(orgId: string): RuntimeSkillRow[] {
-    const candidates = forcedSkillSlugCandidates(this.appLanguage());
+  /** The forced house-style skill for the working language, falling back to the other variant. */
+  private forcedSkillRows(orgId: string, language: WorkLanguage): RuntimeSkillRow[] {
+    const candidates = forcedSkillSlugCandidates(language);
     const rows = this.db.prepare(`
       select
         sd.id as skill_id,
@@ -280,11 +271,6 @@ export class SkillService {
     return [];
   }
 
-  private appLanguage(): string {
-    const row = this.db.prepare("select language from app_state where id = 1").get() as { language: string } | undefined;
-    return row?.language === "zh" ? "zh" : "en";
-  }
-
   /**
    * Freezes the exact skill set this run carries: forced house-style skills
    * first (identical for everyone, CEO included), then the agent's enabled
@@ -293,7 +279,7 @@ export class SkillService {
    * prompt instead of silently overflowing the model's context.
    */
   resolveRuntimeSnapshot(input: ResolveAgentSkillsInput): string {
-    const forcedRows = input.houseStyle ? this.forcedSkillRows(input.orgId) : [];
+    const forcedRows = input.houseStyle ? this.forcedSkillRows(input.orgId, input.language) : [];
     const boundRows = this.db.prepare(`
       select
         sb.skill_id as skill_id,

@@ -33,6 +33,9 @@ export type ProviderAuthType = ValueOf<typeof PROVIDER_AUTH_TYPE>;
 export type SocialPlatform = ValueOf<typeof SOCIAL_PLATFORM>;
 export type FileScanState = ValueOf<typeof FILE_SCAN_STATE>;
 
+/** The language agents write in; separate from the app's display language. */
+export type WorkLanguage = "en" | "zh";
+
 export interface OrganizationRecord {
   id: string;
   name: string;
@@ -45,6 +48,8 @@ export interface OrganizationRecord {
   /** The provider and model that audit goal completion, never the executor's own; null until the board sets them. */
   auditProviderId: string | null;
   auditModelId: string | null;
+  /** The language its agents work in unless a task sets its own. */
+  workLanguage: WorkLanguage;
   createdAt: string;
 }
 
@@ -134,6 +139,8 @@ export interface TaskRecord {
   parentTaskId: string | null;
   requiresFilesystem: boolean;
   writingMode: WritingMode;
+  /** Overrides the company's working language for this task; null follows the company. */
+  workLanguage: WorkLanguage | null;
   /** Set when the task spent its run budget without reaching done. */
   stalledReason: string | null;
   /** Why the heartbeat last failed to queue the task; cleared once it queues. */

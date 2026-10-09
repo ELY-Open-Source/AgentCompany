@@ -12,9 +12,10 @@ import type {
   TaskRunRecord,
   WorkspaceRecord,
 } from "../../../../shared/domain";
-import { TASK_STATUS, type TaskDeleteImpact, type TaskStatus, type WritingMode } from "../../../../shared/domain";
+import { TASK_STATUS, type TaskDeleteImpact, type TaskStatus, type WorkLanguage, type WritingMode } from "../../../../shared/domain";
 import { auditEventLabel, formatRelative } from "../types";
-import { WRITING_OPTIONS, descendantIds, nextStatus, prettyRunState, prettyStatus, providerFor, runBlocker, runsForTask, runTone } from "./task-helpers";
+import { WorkLanguageField } from "./WorkLanguageField";
+import { WRITING_OPTIONS, readWorkLanguage, descendantIds, nextStatus, prettyRunState, prettyStatus, providerFor, runBlocker, runsForTask, runTone } from "./task-helpers";
 import type { SnapshotActions } from "../../app/useSnapshot";
 import type { Focus, PageProps } from "../types";
 import { t } from "../../i18n/i18n";
@@ -28,6 +29,7 @@ const TABS: Array<{ id: Tab; label: string }> = [
 
 export function TaskDetailDialog({
   task,
+  companyLanguage,
   agents,
   projects,
   goals,
@@ -49,6 +51,7 @@ export function TaskDetailDialog({
   navigate,
 }: {
   task: TaskRecord | null;
+  companyLanguage: WorkLanguage;
   agents: AgentRecord[];
   projects: ProjectRecord[];
   goals: GoalRecord[];
@@ -114,6 +117,7 @@ export function TaskDetailDialog({
       workspaceId: val("workspaceId") || null,
       requiresFilesystem: form.get("requiresFilesystem") === "on",
       writingMode: val("writingMode") as WritingMode,
+      workLanguage: readWorkLanguage(form),
     })).then((r) => { if (r) setEditing(false); }, (error: unknown) => setEditError(error instanceof Error ? error.message : String(error)));
   };
 
@@ -203,6 +207,7 @@ export function TaskDetailDialog({
         {editing && (
           <EditOverlay
             task={task}
+            companyLanguage={companyLanguage}
             agents={agents}
             allTasks={allTasks}
             projects={projects}
@@ -314,8 +319,8 @@ function ActivityTab({ audit, approvals, onOpenApproval }: { audit: AuditEventRe
   );
 }
 
-function EditOverlay({ task, agents, allTasks, projects, goals, workspaces, error, onSubmit, onCancel }: {
-  task: TaskRecord; agents: AgentRecord[]; allTasks: TaskRecord[];
+function EditOverlay({ task, companyLanguage, agents, allTasks, projects, goals, workspaces, error, onSubmit, onCancel }: {
+  task: TaskRecord; companyLanguage: WorkLanguage; agents: AgentRecord[]; allTasks: TaskRecord[];
   projects: ProjectRecord[]; goals: GoalRecord[]; workspaces: WorkspaceRecord[]; error: string | null;
   onSubmit: (e: FormEvent<HTMLFormElement>) => void; onCancel: () => void;
 }) {
@@ -374,6 +379,7 @@ function EditOverlay({ task, agents, allTasks, projects, goals, workspaces, erro
             {WRITING_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
           </select>
         </Field>
+        <WorkLanguageField companyLanguage={companyLanguage} defaultValue={task.workLanguage} />
         <label className="checkbox-row">
           <input type="checkbox" name="requiresFilesystem" defaultChecked={task.requiresFilesystem} /> {t("Requires workspace access")}
         </label>

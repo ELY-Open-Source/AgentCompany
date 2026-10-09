@@ -28,7 +28,7 @@ describe("editing a task", () => {
         projectId: ids.projectA, goalId: ids.goalA, workspaceId: ids.wsA, priority: TASK_PRIORITY.NORMAL, requiresFilesystem: false,
       });
     });
-    const edit = (change: { projectId: string | null; goalId: string | null; workspaceId: string | null }) => connection.transaction(() => organization.updateTask({
+    const edit = (change: { projectId: string | null; goalId: string | null; workspaceId: string | null }) => connection.transaction(() => organization.updateTask({ workLanguage: null,
       orgId: ids.org, taskId: ids.task, title: "Ship", description: "d", assigneeAgentId: null, risk: RISK_LEVEL.LOW, priority: TASK_PRIORITY.NORMAL,
       parentTaskId: null, requiresFilesystem: true, writingMode: WRITING_MODE.TECHNICAL, ...change,
     }));

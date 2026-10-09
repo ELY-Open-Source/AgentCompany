@@ -5,7 +5,9 @@ import type { AppSnapshot, RiskLevel, TaskPriority, WritingMode } from "../../..
 import { RISK_LEVEL, TASK_PRIORITY, TASK_STATUS, WRITING_MODE } from "../../../shared/domain";
 import type { SnapshotActions } from "../app/useSnapshot";
 import { t } from "../i18n/i18n";
-import { WRITING_OPTIONS } from "./work/task-helpers";
+import { WRITING_OPTIONS, readWorkLanguage } from "./work/task-helpers";
+import { WorkLanguageField } from "./work/WorkLanguageField";
+import { requireActiveOrganization } from "./types";
 
 const RISK_OPTIONS: ReadonlyArray<{ value: RiskLevel; label: string }> = [
   { value: RISK_LEVEL.LOW, label: t("Low") },
@@ -61,6 +63,7 @@ export function NewTaskDialog({
       priority: value(form, "priority") as TaskPriority,
       requiresFilesystem: form.get("requiresFilesystem") === "on",
       writingMode: value(form, "writingMode") as WritingMode,
+      workLanguage: readWorkLanguage(form),
     })).then((result) => {
       if (result) onClose();
     });
@@ -109,6 +112,7 @@ export function NewTaskDialog({
           {WRITING_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
         </select>
       </Field>
+      <WorkLanguageField companyLanguage={requireActiveOrganization(snapshot).workLanguage} defaultValue={null} />
       <label className="checkbox-row">
         <input type="checkbox" name="requiresFilesystem" /> {t("Requires workspace access")}
       </label>

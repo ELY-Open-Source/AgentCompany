@@ -1,5 +1,5 @@
 import type { DatabaseSync } from "node:sqlite";
-import { RISK_LEVEL, TASK_PRIORITY, TASK_STATUS, WRITING_MODE, type RiskLevel, type WritingMode } from "../../shared/domain";
+import { RISK_LEVEL, TASK_PRIORITY, TASK_STATUS, WRITING_MODE, type RiskLevel, type WorkLanguage, type WritingMode } from "../../shared/domain";
 import { ORGANIZATION_DEPARTMENTS } from "./org-governance-service";
 import type { OrganizationService } from "./organization-service";
 import { buildTaskHandoff, HANDOFF_TOOL_PROPERTIES } from "./agent-task-handoff";
@@ -364,6 +364,8 @@ function createTask(deps: AgentToolDeps, ctx: AgentToolContext, args: JsonRecord
       priority: TASK_PRIORITY.NORMAL,
       requiresFilesystem: args.requires_filesystem === true,
       writingMode,
+      // Delegated work keeps the language its parent task was set to.
+      workLanguage: ctx.taskId ? (deps.db.prepare("select work_language from tasks where id = ?").get(ctx.taskId) as { work_language: WorkLanguage | null } | undefined)?.work_language ?? null : null,
     });
     deps.db.prepare("update tasks set handoff_json = ?, parent_task_id = ? where id = ?")
       .run(JSON.stringify(handoff), parentTaskId, taskId);
