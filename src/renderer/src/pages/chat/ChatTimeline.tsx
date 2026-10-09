@@ -9,6 +9,7 @@ import type {
   FileObjectRecord,
 } from "../../../../shared/domain";
 import { ChatMessageRow } from "./ChatMessageRow";
+import type { ThreadLink } from "./thread-links";
 import { formatDay, type MessageContext } from "./chat-helpers";
 import { t } from "../../i18n/i18n";
 
@@ -37,6 +38,8 @@ export function ChatTimeline({
   files,
   context,
   currentEmployeeId,
+  threadLinks,
+  onOpenThread,
   onApprove,
   onDecline,
   onEditMessage,
@@ -51,6 +54,8 @@ export function ChatTimeline({
   files: FileObjectRecord[];
   context: MessageContext;
   currentEmployeeId: string;
+  threadLinks: Map<string, ThreadLink>;
+  onOpenThread: (threadId: string) => void;
   onApprove: (approvalId: string) => void;
   onDecline: (approvalId: string) => void;
   onEditMessage: (messageId: string, bodyMd: string) => void;
@@ -83,6 +88,7 @@ export function ChatTimeline({
       lastDay = day;
       elements.push(<DayDivider key={`day-${day}`} label={day} />);
     }
+    const threadId = message.threadId;
     elements.push(
       <ChatMessageRow
         key={message.id}
@@ -93,6 +99,8 @@ export function ChatTimeline({
         files={files}
         context={context}
         canModify={message.senderType === "employee" && message.senderId === currentEmployeeId && !message.deletedAt}
+        thread={threadLinks.get(message.id)}
+        onOpenThread={threadId ? () => onOpenThread(threadId) : undefined}
         onEdit={(bodyMd) => onEditMessage(message.id, bodyMd)}
         onDelete={() => onDeleteMessage(message.id)}
         onOpenFile={onOpenFile}

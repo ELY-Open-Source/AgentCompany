@@ -9,6 +9,7 @@ import type {
 } from "../../../../shared/domain";
 import { formatTime } from "../types";
 import { messageAttachments, senderName, type MessageContext } from "./chat-helpers";
+import type { ThreadLink } from "./thread-links";
 import { t } from "../../i18n/i18n";
 
 export function ChatMessageRow({
@@ -19,6 +20,8 @@ export function ChatMessageRow({
   files,
   context,
   canModify = false,
+  thread,
+  onOpenThread,
   onEdit,
   onDelete,
   onOpenFile,
@@ -30,6 +33,9 @@ export function ChatMessageRow({
   files: FileObjectRecord[];
   context: MessageContext;
   canModify?: boolean;
+  /** Where the message sits in its thread; absent inside the thread view itself. */
+  thread?: ThreadLink;
+  onOpenThread?: () => void;
   onEdit?: (bodyMd: string) => void;
   onDelete?: () => void;
   onOpenFile?: (fileId: string) => void;
@@ -50,20 +56,33 @@ export function ChatMessageRow({
     setEditing(false);
   };
   return (
-    <div style={{ display: "flex", gap: 12, marginBottom: 18 }}>
+    <div className="chat-message" style={{ display: "flex", gap: 12, marginBottom: 18 }}>
       <Avatar name={name} bot={bot} />
       <div style={{ flex: 1, minWidth: 0 }}>
         <div className="row" style={{ alignItems: "baseline", gap: 8, marginBottom: 2 }}>
           <span style={{ fontSize: 14, fontWeight: 540 }}>{name}</span>
           <span className="mono" style={{ fontSize: 12, color: "var(--text-3)" }}>{formatTime(message.createdAt)}</span>
           {message.editedAt && !deleted && <span style={{ fontSize: 12, color: "var(--text-3)" }}>{t("(edited)")}</span>}
-          {canModify && !editing && (
+          {!editing && (canModify || (onOpenThread && !deleted)) && (
             <span style={{ marginLeft: "auto", display: "flex", gap: 2 }}>
-              <IconButton icon="edit" label={t("Edit message")} size={16} onClick={() => setEditing(true)} />
-              <IconButton icon="x" label={t("Delete message")} size={16} onClick={onDelete} />
+              {onOpenThread && !deleted && <IconButton icon="chat" label={t("Reply in thread")} size={16} onClick={onOpenThread} />}
+              {canModify && <IconButton icon="edit" label={t("Edit message")} size={16} onClick={() => setEditing(true)} />}
+              {canModify && <IconButton icon="x" label={t("Delete message")} size={16} onClick={onDelete} />}
             </span>
           )}
         </div>
+        {thread?.replyTo && (
+          <button
+            type="button"
+            aria-label={thread.replyTo.name === null
+              ? t("Replying in thread: {snippet}", { snippet: thread.replyTo.snippet })
+              : t("Replying to {name}: {snippet}", { name: thread.replyTo.name, snippet: thread.replyTo.snippet })}
+            onClick={onOpenThread}
+            style={{ display: "block", maxWidth: "100%", margin: "0 0 4px", padding: 0, border: 0, background: "transparent", color: "var(--text-3)", fontSize: 12, textAlign: "left", cursor: "pointer", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+          >
+            ↳ {thread.replyTo.name === null ? thread.replyTo.snippet : `${thread.replyTo.name}: ${thread.replyTo.snippet}`}
+          </button>
+        )}
         {slashInvocation && (
           <div className="pill mono" style={{ marginBottom: 6, width: "fit-content" }}>
             /{slashInvocation.command}
@@ -99,6 +118,11 @@ export function ChatMessageRow({
               return <AttachmentCard key={file.id} file={file} handoff={handoff} onOpen={onOpenFile ? () => onOpenFile(file.id) : null} />;
             })}
           </div>
+        )}
+        {thread && thread.replyCount > 0 && (
+          <button type="button" onClick={onOpenThread} style={{ marginTop: 4, padding: 0, border: 0, background: "transparent", color: "var(--accent)", fontSize: 12, cursor: "pointer" }}>
+            {thread.replyCount === 1 ? t("1 reply") : t("{count} replies", { count: String(thread.replyCount) })}
+          </button>
         )}
         {readers.length > 0 && (
           <div style={{ fontSize: 12, color: "var(--text-3)", marginTop: 4 }}>

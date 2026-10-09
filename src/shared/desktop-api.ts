@@ -1,3 +1,4 @@
+import type { ThreadHistory } from "./chat-domain";
 import type { RunRequestRecord } from "./provider-runtime-domain";
 import type { ApprovalDrift } from "./approval-pin";
 import type { DesktopResult } from "./result";
@@ -195,6 +196,8 @@ export interface DesktopApi {
   approvalDrifts(input: { orgId: string }): Promise<DesktopResult<Record<string, ApprovalDrift>>>;
   /** Every model call a task run made, in order: turns, goal audits and model checks. */
   runRequests(input: { orgId: string; runId: string }): Promise<DesktopResult<RunRequestRecord[]>>;
+  /** One thread in full, beyond the snapshot's recent window. */
+  chatThreadHistory(input: { orgId: string; threadId: string }): Promise<DesktopResult<ThreadHistory>>;
   revokeConnector(input: RevokeConnectorInput): Promise<DesktopResult<AppSnapshot>>;
   search(input: SearchInput): Promise<DesktopResult<SearchResultRecord[]>>;
   subscribe(callback: (event: RendererEvent) => void): () => void;

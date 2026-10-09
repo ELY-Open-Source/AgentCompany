@@ -21,7 +21,7 @@ function toBool(value: unknown): boolean {
   return value === 1 || value === true;
 }
 
-function camel(row: Row): Row {
+export function camel(row: Row): Row {
   const next: Row = {};
   for (const [key, value] of Object.entries(row)) {
     next[key.replace(/_([a-z])/g, (_m, ch: string) => ch.toUpperCase())] = value;
@@ -97,7 +97,13 @@ export class SnapshotService {
       chatSpaces: list(this.db, "chat_spaces", "created_at asc"),
       chatMemberships: list(this.db, "chat_memberships", "space_id asc, principal_type asc, principal_id asc"),
       chatMessages: recentList<AppSnapshot["chatMessages"][number]>(this.db, "chat_messages", "created_at desc", 500).reverse(),
-      chatThreads: recentList(this.db, "chat_threads", "updated_at desc", 200),
+      // Every thread a loaded message belongs to, plus the most recently active ones, so no shown message loses its thread.
+      chatThreads: all<Row>(this.db.prepare(`
+        select * from chat_threads
+        where id in (select thread_id from (select thread_id from chat_messages order by created_at desc limit 500))
+          or id in (select id from chat_threads order by updated_at desc limit 200)
+        order by updated_at desc
+      `)).map((row) => camel(row) as unknown as AppSnapshot["chatThreads"][number]),
       chatAttachments: recentList(this.db, "chat_attachments", "message_id desc", 500),
       chatMentions: recentList(this.db, "chat_mentions", "message_id desc, offset_start asc", 500),
       chatSlashInvocations: recentList(this.db, "chat_slash_invocations", "created_at desc", 200),

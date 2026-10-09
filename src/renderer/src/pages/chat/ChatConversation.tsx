@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState, type FormEvent, type MutableRefObject } from "react";
+import { useLayoutEffect, useMemo, useRef, useState, type FormEvent, type MutableRefObject } from "react";
 import { AvatarStack, Icon, IconButton } from "../../shared/ui";
 import type {
   ApprovalRecord,
@@ -7,10 +7,13 @@ import type {
   ChatMessageRecord,
   ChatSpaceRecord,
   ChatSlashInvocationRecord,
+  ChatThreadRecord,
   FileObjectRecord,
 } from "../../../../shared/domain";
 import { ChatComposer, type Draft, type SendState } from "./ChatComposer";
 import { ChatTimeline } from "./ChatTimeline";
+import { ThreadPanel } from "./ThreadPanel";
+import { buildThreadLinks } from "./thread-links";
 import type { MessageContext } from "./chat-helpers";
 import { t } from "../../i18n/i18n";
 
@@ -18,6 +21,7 @@ export function ChatConversation({
   space,
   participants,
   messagesInSpace,
+  threads,
   pendingApprovals,
   attachments,
   mentions,
@@ -36,12 +40,14 @@ export function ChatConversation({
   onDeleteMessage,
   onOpenFile,
   onSubmit,
+  onReplyInThread,
   send,
   composerRef,
 }: {
   space: ChatSpaceRecord | null;
   participants: string[];
   messagesInSpace: ChatMessageRecord[];
+  threads: ChatThreadRecord[];
   pendingApprovals: ApprovalRecord[];
   attachments: ChatAttachmentRecord[];
   mentions: ChatMentionRecord[];
@@ -60,10 +66,14 @@ export function ChatConversation({
   onDeleteMessage: (messageId: string) => void;
   onOpenFile: (fileId: string) => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  onReplyInThread: (threadId: string, body: string) => Promise<void>;
   send: SendState;
   composerRef: MutableRefObject<HTMLTextAreaElement | null>;
 }) {
   const [query, setQuery] = useState("");
+  // The component is keyed by space, so an open thread closes when the conversation changes.
+  const [openThreadId, setOpenThreadId] = useState<string | null>(null);
+  const threadLinks = useMemo(() => buildThreadLinks(messagesInSpace, threads, context), [messagesInSpace, threads, context]);
   const trimmed = query.trim().toLowerCase();
   const filtered = trimmed
     ? messagesInSpace.filter((m) => m.bodyMd.toLowerCase().includes(trimmed))
@@ -103,58 +113,75 @@ export function ChatConversation({
   }, [lastMessageId]);
 
   return (
-    <section style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", background: "var(--panel)" }}>
-      {space && <ConversationHeader space={space} participants={participants} query={query} onQueryChange={setQuery} />}
-      <div style={{ position: "relative", flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
-        <div
-          ref={scrollRef}
-          onScroll={onScroll}
-          role="log"
-          aria-label={t("Conversation messages")}
-          style={{ flex: 1, overflow: "auto", padding: "20px 24px 8px" }}
-        >
-          {space && (
-            <ChatTimeline
-              key={space.id}
-              messagesInSpace={filtered}
-              pendingApprovals={pendingApprovals}
-              attachments={attachments}
-              mentions={mentions}
-              slashInvocations={slashInvocations}
-              files={files}
-              context={context}
-              currentEmployeeId={currentEmployeeId}
-              onApprove={onApprove}
-              onDecline={onDecline}
-              onEditMessage={onEditMessage}
-              onDeleteMessage={onDeleteMessage}
-              onOpenFile={onOpenFile}
-            />
+    <>
+      <section style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", background: "var(--panel)" }}>
+        {space && <ConversationHeader space={space} participants={participants} query={query} onQueryChange={setQuery} />}
+        <div style={{ position: "relative", flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+          <div
+            ref={scrollRef}
+            onScroll={onScroll}
+            role="log"
+            aria-label={t("Conversation messages")}
+            style={{ flex: 1, overflow: "auto", padding: "20px 24px 8px" }}
+          >
+            {space && (
+              <ChatTimeline
+                key={space.id}
+                messagesInSpace={filtered}
+                pendingApprovals={pendingApprovals}
+                attachments={attachments}
+                mentions={mentions}
+                slashInvocations={slashInvocations}
+                files={files}
+                context={context}
+                currentEmployeeId={currentEmployeeId}
+                threadLinks={threadLinks}
+                onOpenThread={setOpenThreadId}
+                onApprove={onApprove}
+                onDecline={onDecline}
+                onEditMessage={onEditMessage}
+                onDeleteMessage={onDeleteMessage}
+                onOpenFile={onOpenFile}
+              />
+            )}
+          </div>
+          {!atBottom && (
+            <button type="button" className="jump-latest" onClick={() => jumpToLatest("smooth")}>
+              <span aria-hidden style={{ fontSize: 13, lineHeight: 1 }}>↓</span>
+              {t("Jump to latest")}
+            </button>
           )}
         </div>
-        {!atBottom && (
-          <button type="button" className="jump-latest" onClick={() => jumpToLatest("smooth")}>
-            <span aria-hidden style={{ fontSize: 13, lineHeight: 1 }}>↓</span>
-            {t("Jump to latest")}
-          </button>
-        )}
-      </div>
-      <ChatComposer
-        disabled={!space}
-        send={send}
-        files={files}
-        agents={context.agents}
-        employees={context.employees}
-        draft={draft}
-        attachError={attachError}
-        spaceId={space?.id ?? null}
-        onLeave={onDraftLeave}
-        onAttachmentRemove={onAttachmentRemove}
-        onAttach={onAttach}
-        onSubmit={onSubmit}
-        composerRef={composerRef}
-      />
-    </section>
+        <ChatComposer
+          disabled={!space}
+          send={send}
+          files={files}
+          agents={context.agents}
+          employees={context.employees}
+          draft={draft}
+          attachError={attachError}
+          spaceId={space?.id ?? null}
+          onLeave={onDraftLeave}
+          onAttachmentRemove={onAttachmentRemove}
+          onAttach={onAttach}
+          onSubmit={onSubmit}
+          composerRef={composerRef}
+        />
+      </section>
+      {openThreadId && space && (
+        <ThreadPanel
+          key={openThreadId}
+          orgId={space.orgId}
+          threadId={openThreadId}
+          refreshKey={messagesInSpace}
+          files={files}
+          context={context}
+          onReply={(body) => onReplyInThread(openThreadId, body)}
+          onClose={() => setOpenThreadId(null)}
+          onOpenFile={onOpenFile}
+        />
+      )}
+    </>
   );
 }
 

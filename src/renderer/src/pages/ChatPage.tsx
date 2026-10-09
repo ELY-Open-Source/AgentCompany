@@ -149,6 +149,19 @@ export function ChatPage({ snapshot, actions }: PageProps) {
     });
   };
 
+  const replyInThread = async (threadId: string, body: string) => {
+    if (!activeSpace) throw new Error("Open a conversation before replying.");
+    await actions.run(() => window.agentCompany.sendMessage({
+      orgId,
+      spaceId: activeSpace.id,
+      threadId,
+      senderType: "employee",
+      senderId: employee.id,
+      bodyMd: body,
+      attachmentFileIds: [],
+    }));
+  };
+
   const createSpace = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
@@ -235,6 +248,7 @@ export function ChatPage({ snapshot, actions }: PageProps) {
         space={activeSpace}
         participants={participants}
         messagesInSpace={messagesInSpace}
+        threads={snapshot.chatThreads}
         pendingApprovals={pendingApprovalsInSpace}
         attachments={snapshot.chatAttachments}
         mentions={mentionsAll}
@@ -257,6 +271,7 @@ export function ChatPage({ snapshot, actions }: PageProps) {
         onDeleteMessage={deleteChatMessage}
         onOpenFile={openFile}
         onSubmit={sendInChannel}
+        onReplyInThread={replyInThread}
         send={(activeSpaceId ? sends[activeSpaceId] : undefined) ?? IDLE_SEND}
         composerRef={composerRef}
       />

@@ -118,6 +118,21 @@ test("the pinned CEO conversation is the Messages front door", async () => {
     await expect(composer).toHaveValue("Draft for the CEO only");
     await page.locator(".convo-item", { hasText: "general" }).click();
     await expect(composer).toHaveValue("Draft for general");
+
+    // A reply goes into the thread of the message it answers, and the timeline says what it answers.
+    await page.locator(".convo-item").first().click();
+    const root = chatLog.locator(".chat-message", { hasText: "How are we tracking against the goal?" }).first();
+    await root.getByRole("button", { name: "Reply in thread" }).click();
+    const thread = page.getByRole("complementary", { name: "Thread" });
+    await expect(thread).toContainText("How are we tracking against the goal?");
+    await thread.getByRole("textbox", { name: "Reply" }).fill("Also: which task is late?");
+    await thread.getByRole("button", { name: "Send reply" }).click();
+    await expect(thread.locator(".chat-message", { hasText: "Also: which task is late?" })).toBeVisible();
+    const reply = chatLog.locator(".chat-message", { hasText: "Also: which task is late?" });
+    await expect(reply.getByRole("button", { name: /^Replying to Yang/ })).toContainText("How are we tracking against the goal?");
+    await expect(root).toContainText("1 reply");
+    await thread.getByRole("button", { name: "Close thread" }).click();
+    await expect(thread).toHaveCount(0);
   } finally {
     await app.close();
   }

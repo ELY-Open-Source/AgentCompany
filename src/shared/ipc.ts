@@ -81,6 +81,7 @@ export const IPC_CHANNELS = {
   grantConnector: "agentcompany:grant-connector",
   approvalDrifts: "agentcompany:approval-drifts",
   runRequests: "agentcompany:run-requests",
+  chatThreadHistory: "agentcompany:chat-thread-history",
   revokeConnector: "agentcompany:revoke-connector",
   search: "agentcompany:search",
   rendererEvent: "agentcompany:renderer-event",

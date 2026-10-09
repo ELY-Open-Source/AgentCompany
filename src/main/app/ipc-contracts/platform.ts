@@ -71,6 +71,7 @@ export const platformContracts = {
   revokeConnector: z.strictObject({ orgId: id, agentId: id, toolkitSlug: z.string() }) satisfies z.ZodType<C.RevokeConnectorInput>,
   approvalDrifts: z.strictObject({ orgId: id }),
   runRequests: z.strictObject({ orgId: id, runId: id }),
+  chatThreadHistory: z.strictObject({ orgId: id, threadId: id }),
   search: z.strictObject({
     orgId: id, employeeId: id, query: z.string(), entityTypes: z.array(z.enum(SEARCH_ENTITY_TYPES)).optional(), limit: z.number().optional(),
   }) satisfies z.ZodType<C.SearchInput>,

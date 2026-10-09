@@ -89,3 +89,11 @@ export interface ChatReadStateRecord {
   lastReadMessageId: string | null;
   lastReadAt: string;
 }
+
+/** One thread in full, loaded on demand because the snapshot holds only recent chat. */
+export interface ThreadHistory {
+  messages: ChatMessageRecord[];
+  attachments: ChatAttachmentRecord[];
+  mentions: ChatMentionRecord[];
+  slashInvocations: ChatSlashInvocationRecord[];
+}

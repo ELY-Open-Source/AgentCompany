@@ -88,6 +88,7 @@ const api: DesktopApi = {
   grantConnector: (input) => invoke(IPC_CHANNELS.grantConnector, input),
   approvalDrifts: (input) => invoke(IPC_CHANNELS.approvalDrifts, input),
   runRequests: (input) => invoke(IPC_CHANNELS.runRequests, input),
+  chatThreadHistory: (input) => invoke(IPC_CHANNELS.chatThreadHistory, input),
   revokeConnector: (input) => invoke(IPC_CHANNELS.revokeConnector, input),
   refreshComposioAccounts: (input) => invoke(IPC_CHANNELS.refreshComposioAccounts, input),
   search: (input) => invoke(IPC_CHANNELS.search, input),
