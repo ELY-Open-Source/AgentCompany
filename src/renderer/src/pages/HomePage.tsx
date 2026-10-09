@@ -15,7 +15,7 @@ import type {
   TaskRunRecord,
 } from "../../../shared/domain";
 import { NewTaskDialog } from "./NewTaskDialog";
-import { AgentWorkloadChart, CostTrendChart, RunActivityChart, SuccessRateChart } from "./home/DashboardCharts";
+import { AcceptanceChart, AgentWorkloadChart, CostTrendChart, RunActivityChart } from "./home/DashboardCharts";
 import type { PageProps } from "./types";
 import { activeOrgId, formatRelative, formatTime, money, requireActiveEmployee, requireActiveOrganization, requireUsageStats } from "./types";
 import { t } from "../i18n/i18n";
@@ -75,7 +75,7 @@ export function HomePage({ snapshot, actions, navigate }: PageProps) {
       <div style={METRICS}>
         <AgentWorkloadChart agents={agents} tasks={businessTasks} />
         <RunActivityChart days={usageStats.days} />
-        <SuccessRateChart days={usageStats.days} />
+        <AcceptanceChart days={usageStats.days} />
         <CostTrendChart days={usageStats.days} />
       </div>
 

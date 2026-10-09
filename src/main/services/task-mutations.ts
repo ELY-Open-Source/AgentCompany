@@ -1,3 +1,4 @@
+import { recordWorkVerdict } from "./work-verdicts";
 import type { TaskDeleteImpact } from "../../shared/domain";
 import type { DatabaseSync } from "node:sqlite";
 import { RISK_LEVEL, TASK_STATUS, type TaskPriority } from "../../shared/domain";
@@ -7,6 +8,9 @@ import { withSavepoint } from "../database/connection";
 import { heldWorkTitles } from "./held-deliverables";
 
 type StatusActor = { type: "system" } | { type: "agent"; id: string };
+
+/** Why a status moved when another decision moved it. */
+export type StatusCause = "declined_deliverable";
 
 interface TaskRow {
   id: string;
@@ -123,8 +127,9 @@ export class TaskMutations {
     });
   }
 
-  updateStatus(orgId: string, taskId: string, status: string): void {
-    withSavepoint(this.db, "task_status", () => this.applyStatus(orgId, this.requireTask(orgId, taskId), status, { type: "system" }, null));
+  /** `cause` marks a move made by another decision (a declined deliverable), so it is not counted as a second verdict. */
+  updateStatus(orgId: string, taskId: string, status: string, cause: StatusCause | null = null): void {
+    withSavepoint(this.db, "task_status", () => this.applyStatus(orgId, this.requireTask(orgId, taskId), status, { type: "system" }, null, cause));
   }
 
   /** Assignee, managers up the chain or the open reviewer may move a task; finishing needs evidence and a manager's sign-off. */
@@ -183,7 +188,7 @@ export class TaskMutations {
     return row?.id ?? null;
   }
 
-  private applyStatus(orgId: string, task: TaskRow, status: string, actor: StatusActor, evidence: string | null): void {
+  private applyStatus(orgId: string, task: TaskRow, status: string, actor: StatusActor, evidence: string | null, cause: StatusCause | null = null): void {
     const taskId = task.id;
     if (status === TASK_STATUS.DONE) this.assertNoOpenSubtasks(orgId, task);
     const reopening = task.status === TASK_STATUS.DONE && status !== TASK_STATUS.DONE;
@@ -203,6 +208,10 @@ export class TaskMutations {
       action: "status_changed",
       payload: evidence ? { status, evidence } : { status },
     });
+    // A verdict on the work: reaching done accepts it; moving back from review or done sends it back, unless a decline (counted there) moved it.
+    const backward = (task.status === TASK_STATUS.REVIEW || task.status === TASK_STATUS.DONE) && (status === TASK_STATUS.IN_PROGRESS || status === TASK_STATUS.BACKLOG);
+    if (status === TASK_STATUS.DONE && task.status !== TASK_STATUS.DONE) recordWorkVerdict(this.db, { orgId, taskId, origin: task.origin, verdict: "accepted" });
+    else if (backward && cause !== "declined_deliverable") recordWorkVerdict(this.db, { orgId, taskId, origin: task.origin, verdict: "returned" });
     if (status === TASK_STATUS.REVIEW && task.status !== TASK_STATUS.REVIEW) this.openReview(orgId, task, evidence);
     if (task.status === TASK_STATUS.REVIEW && status !== TASK_STATUS.REVIEW) this.closeReviews(orgId, taskId, status);
   }

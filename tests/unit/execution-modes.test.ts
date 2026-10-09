@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { currentLinks } from "../helpers/task-links";
+import type { DatabaseSync } from "node:sqlite";
 import { describe, expect, test } from "vitest";
 import { DatabaseConnection } from "../../src/main/database/connection";
 import { OrganizationService } from "../../src/main/services/organization-service";
@@ -12,6 +13,7 @@ import { ApprovalService } from "../../src/main/services/approval-service";
 import { runJournalLines } from "../../src/main/services/run-journal";
 import { DocumentService } from "../../src/main/services/document-service";
 import { approvalDrifts } from "../../src/main/services/approval-drift";
+import { buildUsageStats } from "../../src/main/services/usage-stats";
 import { createIsolationContext, executionApprovalProblem, loadWorkspace, requireAssignedAgent } from "../../src/main/services/task-run-preparation";
 import { TASK_PRIORITY } from "../../src/shared/domain";
 import type { TaskExecutionTaskRow } from "../../src/main/services/task-prompts";
@@ -74,6 +76,11 @@ function pendingApprovals(h: Harness, kind: string): Array<{ state: string; sour
   ).all(h.orgId, kind) as Array<{ state: string; source_entity_type: string | null }>;
 }
 
+/** Work sent back this week, as the home page's acceptance chart counts it. */
+function returned(db: DatabaseSync, orgId: string): number {
+  return buildUsageStats(db, new Date()).find((item) => item.orgId === orgId)!.days.reduce((sum, day) => sum + day.returnedTasks, 0);
+}
+
 describe("execution modes", () => {
   test("AI Co-Founder mode holds every deliverable and document until the board approves it", () => {
     const h = harness("ai_cofounder");
@@ -128,6 +135,8 @@ describe("execution modes", () => {
     h.connection.transaction(() => new ApprovalService(db).decide({ orgId: h.orgId, approvalId: review, state: "declined", decidedByEmployeeId: employeeId }));
     expect(existsSync(join(h.ctx.workspace!.localPath, "plan.md"))).toBe(false);
     expect(db.prepare("select state from held_deliverables").get()).toEqual({ state: "declined" });
+    // A decline on work still in progress sends it back once, though the task did not move.
+    expect(returned(db, h.orgId)).toBe(1);
     finish();
   });
 
@@ -145,6 +154,8 @@ describe("execution modes", () => {
     const review = (db.prepare("select id from approvals where org_id = ? and kind = 'deliverable_review'").get(h.orgId) as { id: string }).id;
     h.connection.transaction(() => new ApprovalService(db).decide({ orgId: h.orgId, approvalId: review, state: "declined", decidedByEmployeeId: employeeId, notes: "Cite the market data." }));
     expect(db.prepare("select status from tasks where id = ?").get(taskId)).toEqual({ status: "in_progress" });
+    // The decline and the reopen it caused are one verdict, not two.
+    expect(returned(db, h.orgId)).toBe(1);
     expect(runJournalLines(db, taskId).join("\n")).toContain("The board declined plan.md: Cite the market data. Redo it before closing the task.");
     // Another deliverable under the same name elsewhere does not answer the decline; a resubmission of the same one does.
     const elsewhere = join(h.ctx.workspace!.localPath, "other");

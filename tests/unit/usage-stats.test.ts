@@ -66,3 +66,35 @@ describe("usage statistics", () => {
     process.env.TZ = previous;
   });
 });
+
+describe("accepted work", () => {
+  test("counts plain tasks reaching done and work sent back, not sessions that merely ended", () => {
+    const connection = new DatabaseConnection(join(tmpdir(), `ac-acceptance-${randomUUID()}.db`));
+    const organization = new OrganizationService(connection.db);
+    let orgId = "";
+    const ids: string[] = [];
+    connection.transaction(() => {
+      orgId = organization.createOrganization({ organizationName: "Acme", employeeName: "Dana", mission: "m", goal: "g" });
+      for (const title of ["Ship", "Spec", "Chat reply"]) {
+        ids.push(organization.createTask({
+          orgId, title, description: "d", status: "backlog", assigneeAgentId: null, risk: "low", projectId: null, goalId: null,
+          workspaceId: null, priority: "normal", requiresFilesystem: false, ...(title === "Chat reply" ? { origin: "chat_wake" as const } : {}),
+        }));
+      }
+    });
+    const [ship, spec, reply] = ids;
+    const move = (taskId: string, status: string) => connection.transaction(() => organization.updateTaskStatus(orgId, taskId, status));
+    move(ship, "in_progress"); move(ship, "review"); move(ship, "done");
+    move(spec, "in_progress"); move(spec, "review"); move(spec, "in_progress");
+    move(reply, "done");
+    const week = buildUsageStats(connection.db, new Date()).find((item) => item.orgId === orgId)!.days;
+    const total = (pick: (day: typeof week[number]) => number) => week.reduce((sum, day) => sum + pick(day), 0);
+    expect([total((day) => day.acceptedTasks), total((day) => day.returnedTasks)]).toEqual([1, 1]);
+    // Marking done twice is one acceptance; deleting the task keeps the history.
+    move(ship, "done");
+    connection.transaction(() => organization.deleteTask({ orgId, taskId: ship }));
+    const after = buildUsageStats(connection.db, new Date()).find((item) => item.orgId === orgId)!.days;
+    expect([after.reduce((sum, day) => sum + day.acceptedTasks, 0), after.reduce((sum, day) => sum + day.returnedTasks, 0)]).toEqual([1, 1]);
+    connection.close();
+  });
+});

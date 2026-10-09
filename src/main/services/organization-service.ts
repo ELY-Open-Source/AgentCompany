@@ -1,3 +1,4 @@
+import type { StatusCause } from "./task-mutations";
 import type { TaskDeleteImpact } from "../../shared/domain";
 import type { DatabaseSync } from "node:sqlite";
 import { APPROVAL_STATE, RISK_LEVEL, TASK_STATUS, WRITING_MODE, type RiskLevel } from "../../shared/domain";
@@ -493,8 +494,8 @@ export class OrganizationService {
     this.tasks.delete(input);
   }
 
-  updateTaskStatus(orgId: string, taskId: string, status: string): void {
-    this.tasks.updateStatus(orgId, taskId, status);
+  updateTaskStatus(orgId: string, taskId: string, status: string, cause: StatusCause | null = null): void {
+    this.tasks.updateStatus(orgId, taskId, status, cause);
   }
 
   agentSetTaskStatus(input: { orgId: string; taskId: string; status: string; agentId: string; evidence: string | null }): string {

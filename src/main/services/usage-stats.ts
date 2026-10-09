@@ -20,6 +20,7 @@ export function buildUsageStats(db: DatabaseSync, now: Date): UsageStatsRecord[]
       created_at: string; state: string; input_tokens: number | null; output_tokens: number | null;
       cached_input_tokens: number | null; reasoning_tokens: number | null; cost_cents: number | null; agent_id: string | null; provider_id: string;
     }>;
+    const verdicts = taskVerdicts(db, orgId, weekStart);
     const days = dayStarts.map((start, index) => {
       const end = index + 1 < dayStarts.length ? dayStarts[index + 1] : localDayStart(now, -1);
       const inDay = (iso: string) => { const at = Date.parse(iso); return at >= start.getTime() && at < end.getTime(); };
@@ -30,6 +31,8 @@ export function buildUsageStats(db: DatabaseSync, now: Date): UsageStatsRecord[]
         runs: dayRuns.length,
         completedRuns: dayRuns.filter((run) => run.state === "completed").length,
         failedRuns: dayRuns.filter((run) => run.state === "failed").length,
+        acceptedTasks: verdicts.filter((verdict) => verdict.accepted && inDay(verdict.at)).length,
+        returnedTasks: verdicts.filter((verdict) => !verdict.accepted && inDay(verdict.at)).length,
         tokens: dayCalls.reduce((sum, call) => sum + (call.input_tokens ?? 0) + (call.output_tokens ?? 0), 0),
         callsWithoutUsage: dayCalls.filter((call) => call.input_tokens === null).length,
       };
@@ -67,6 +70,12 @@ export function buildUsageStats(db: DatabaseSync, now: Date): UsageStatsRecord[]
       providerActivity: [...providerActivity].map(([providerId, entry]) => ({ providerId, ...entry })),
     };
   });
+}
+
+/** Since `since`, each verdict on plain work, as recorded where it was made. */
+function taskVerdicts(db: DatabaseSync, orgId: string, since: string): Array<{ at: string; accepted: boolean }> {
+  const rows = db.prepare("select verdict, at from work_verdicts where org_id = ? and at >= ?").all(orgId, since) as Array<{ verdict: string; at: string }>;
+  return rows.map((row) => ({ at: row.at, accepted: row.verdict === "accepted" }));
 }
 
 /** Local midnight of the calendar day `daysAgo` days before today; calendar arithmetic keeps DST days 23 or 25 hours long. */

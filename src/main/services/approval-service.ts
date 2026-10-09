@@ -1,3 +1,4 @@
+import { recordWorkVerdict } from "./work-verdicts";
 import type { DatabaseSync } from "node:sqlite";
 import type { CreateApprovalInput, DecideApprovalInput } from "../../shared/commands";
 import { APPROVAL_STATE, ROLE_KEY, TASK_STATUS } from "../../shared/domain";
@@ -107,7 +108,12 @@ export class ApprovalService {
     if (approval.source_entity_type === "held_deliverable" && approval.source_entity_id) {
       const approved = input.state === APPROVAL_STATE.APPROVED;
       const taskId = settleHeldDeliverable(this.db, approval.source_entity_id, approved);
-      if (!approved && taskId) this.reopenForRework(input.orgId, taskId);
+      if (!approved && taskId) {
+        // A task that no longer exists has no known kind, so its decline is not counted as work.
+        const task = this.db.prepare("select origin from tasks where id = ?").get(taskId) as { origin: string | null } | undefined;
+        if (task) recordWorkVerdict(this.db, { orgId: input.orgId, taskId, origin: task.origin, verdict: "returned" });
+        this.reopenForRework(input.orgId, taskId);
+      }
     }
   }
 
@@ -115,7 +121,7 @@ export class ApprovalService {
   private reopenForRework(orgId: string, taskId: string): void {
     const task = this.db.prepare("select status from tasks where id = ? and org_id = ?").get(taskId, orgId) as { status: string } | undefined;
     if (!task || task.status === TASK_STATUS.IN_PROGRESS) return;
-    new OrganizationService(this.db).updateTaskStatus(orgId, taskId, TASK_STATUS.IN_PROGRESS);
+    new OrganizationService(this.db).updateTaskStatus(orgId, taskId, TASK_STATUS.IN_PROGRESS, "declined_deliverable");
     console.info(`[deliverables] task ${taskId} reopened for rework after a declined deliverable`);
   }
 

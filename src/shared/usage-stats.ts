@@ -6,6 +6,10 @@ export interface UsageStatsRecord {
     runs: number;
     completedRuns: number;
     failedRuns: number;
+    /** Plain tasks that reached done this day. */
+    acceptedTasks: number;
+    /** Plain tasks moved back from review or done to in progress or backlog this day. */
+    returnedTasks: number;
     tokens: number;
     callsWithoutUsage: number;
   }>;

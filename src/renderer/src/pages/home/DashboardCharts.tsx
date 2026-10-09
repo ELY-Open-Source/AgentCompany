@@ -97,16 +97,19 @@ export function RunActivityChart({ days }: { days: UsageDays }) {
   );
 }
 
-export function SuccessRateChart({ days }: { days: UsageDays }) {
+/** Of the work judged this week, how much was accepted (done) rather than sent back; session outcomes are shown apart, as what they are. */
+export function AcceptanceChart({ days }: { days: UsageDays }) {
+  const accepted = days.reduce((sum, day) => sum + day.acceptedTasks, 0);
+  const returned = days.reduce((sum, day) => sum + day.returnedTasks, 0);
   const completed = days.reduce((sum, day) => sum + day.completedRuns, 0);
   const failed = days.reduce((sum, day) => sum + day.failedRuns, 0);
-  const total = completed + failed;
-  const rate = total > 0 ? Math.round((completed / total) * 100) : 0;
+  const judged = accepted + returned;
+  const rate = judged > 0 ? Math.round((accepted / judged) * 100) : 0;
   const circumference = 2 * Math.PI * 42;
   const offset = circumference - (rate / 100) * circumference;
 
   return (
-    <ChartCard title={t("Success rate (7 days)")} readout={t("{ok} ok · {failed} failed", { ok: completed, failed })}>
+    <ChartCard title={t("Work accepted (7 days)")} readout={t("{accepted} done · {returned} sent back · sessions: {ok} ended, {failed} failed", { accepted, returned, ok: completed, failed })}>
       <svg viewBox="0 0 100 100" style={{ width: 96, height: 96, margin: "4px auto", display: "block" }}>
         <circle cx="50" cy="50" r="42" fill="none" stroke="var(--panel-3)" strokeWidth="8" />
         <circle
@@ -115,7 +118,7 @@ export function SuccessRateChart({ days }: { days: UsageDays }) {
           strokeLinecap="round" transform="rotate(-90 50 50)"
           style={{ transition: "stroke-dashoffset var(--motion-slow) var(--ease-out)" }}
         />
-        <text x="50" y="50" textAnchor="middle" dominantBaseline="central" fontSize="20" fontWeight="600" fill="var(--text-1)">{rate}%</text>
+        <text x="50" y="50" textAnchor="middle" dominantBaseline="central" fontSize="20" fontWeight="600" fill="var(--text-1)">{judged > 0 ? `${rate}%` : "—"}</text>
       </svg>
     </ChartCard>
   );
