@@ -15,6 +15,14 @@ export interface ProviderEndpoint {
   deployment: string;
 }
 
+/** What disconnecting a provider stops, shown before the user confirms. */
+export interface ProviderDisconnectImpact {
+  agents: string[];
+  openTasks: number;
+  runningRuns: number;
+  queuedRuns: number;
+}
+
 export interface SetProviderModelInput {
   orgId: string;
   providerId: string;

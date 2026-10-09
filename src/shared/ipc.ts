@@ -29,6 +29,7 @@ export const IPC_CHANNELS = {
   saveProviderCredential: "agentcompany:save-provider-credential",
   setProviderModel: "agentcompany:set-provider-model",
   providerEndpoint: "agentcompany:provider-endpoint",
+  providerDisconnectImpact: "agentcompany:provider-disconnect-impact",
   revokeProviderCredential: "agentcompany:revoke-provider-credential",
   startProviderOAuth: "agentcompany:start-provider-oauth",
   cancelProviderOAuth: "agentcompany:cancel-provider-oauth",

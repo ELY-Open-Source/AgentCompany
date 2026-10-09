@@ -18,6 +18,7 @@ export const platformContracts = {
   clearIntegrationKey: z.strictObject({ name: z.enum(INTEGRATION_KEY_NAMES) }) satisfies z.ZodType<C.ClearIntegrationKeyInput>,
   saveProviderCredential: z.strictObject({ orgId: id, providerId: id, secret: z.string(), model: z.string().nullable() }) satisfies z.ZodType<C.SaveProviderCredentialInput>,
   providerEndpoint: z.strictObject({ orgId: id, providerId: id }),
+  providerDisconnectImpact: z.strictObject({ orgId: id, providerId: id }),
   setProviderModel: z.strictObject({ orgId: id, providerId: id, model: z.string().max(200) }) satisfies z.ZodType<C.SetProviderModelInput>,
   revokeProviderCredential: z.strictObject({ orgId: id, providerId: id }) satisfies z.ZodType<C.RevokeProviderCredentialInput>,
   startProviderOAuth: z.strictObject({

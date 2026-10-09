@@ -695,4 +695,13 @@ export const zh: Record<string, string> = {
   "Zero data retention switched background off.": "零数据保留已关闭后台执行。",
   "Resets {date} (UTC)": "{date} 重置（UTC）",
   "Unsaved": "未保存",
+  "Disconnect {label}?": "断开 {label}？",
+  "Checking what this affects…": "正在检查影响范围…",
+  "Agents on this provider stop working until it is reconnected or they move to another provider: {names}.": "使用该 Provider 的 Agent 将停止工作，直到重新连接或改用其他 Provider：{names}。",
+  "No agent uses this provider.": "没有 Agent 使用该 Provider。",
+  "Open tasks assigned to them: {count}.": "分配给它们的未完成任务：{count}。",
+  "Running sessions that stop now: {count}.": "立即停止的运行中会话：{count}。",
+  "Queued sessions that will fail when they start: {count}.": "开始时将失败的排队会话：{count}。",
+  "Disconnecting…": "正在断开…",
+  "{label} is disconnected.": "{label} 已断开。",
 };

@@ -41,6 +41,7 @@ import { cancelQueuedRun } from "../services/run-cancel";
 import { runHistory } from "../services/run-history";
 import { deleteWorkspace, setPrimaryWorkspace, updateWorkspace } from "../services/workspace-admin";
 import { setProviderModel } from "../services/provider-default-model";
+import { providerDisconnectImpact } from "../services/provider-disconnect-impact";
 
 export interface IpcDeps {
   connection: DatabaseConnection;
@@ -231,6 +232,13 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       return ok(providers.endpoint(input.orgId, input.providerId));
     } catch (error) {
       return fail("provider_endpoint_failed", error instanceof Error ? error.message : String(error));
+    }
+  });
+  handle("providerDisconnectImpact", (input) => {
+    try {
+      return ok(providerDisconnectImpact(deps.connection.db, input.orgId, input.providerId));
+    } catch (error) {
+      return fail("provider_impact_failed", error instanceof Error ? error.message : String(error));
     }
   });
   handle("setProviderModel", (input) => mutate(() => setProviderModel(deps.connection.db, input)));

@@ -237,7 +237,13 @@ test("onboards, hires, and creates work in the Electron shell", async () => {
     await page.locator(".modal [name=model]").fill("llama3.1");
     await page.locator(".modal").getByRole("button", { name: "Save" }).click();
     await expect(customRow.getByText("llama3.1 · Cloud")).toBeVisible();
+    // Disconnecting first shows what it stops, then the outcome.
     await customRow.getByRole("button", { name: "Disconnect" }).click();
+    await expect(page.locator(".modal").getByText("No agent uses this provider.")).toBeVisible();
+    await expect(page.locator(".modal").getByText("Queued sessions that will fail when they start: 0.")).toBeVisible();
+    await page.locator(".modal").getByRole("button", { name: "Disconnect" }).click();
+    await expect(page.locator(".modal").getByRole("status")).toHaveText("Custom OpenAI-compatible is disconnected.");
+    await page.locator(".modal").getByRole("button", { name: "Close" }).click();
     await expect(customRow).toHaveCount(0);
 
     // Skills are built-in now: no Skills tab exists, yet the bundled

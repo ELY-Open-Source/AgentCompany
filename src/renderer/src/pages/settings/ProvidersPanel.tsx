@@ -15,6 +15,7 @@ import { ProviderLogo } from "../../shared/ProviderLogo";
 import { ModelPicker, ProviderConnectFields, ProviderOAuthFields } from "./ProviderConnectionDialog";
 import { composeSecret } from "./provider-secret";
 import { ProviderPolicyTable } from "./ProviderPolicyTable";
+import { DisconnectProviderDialog } from "./DisconnectProviderDialog";
 import type { SnapshotActions } from "../../app/useSnapshot";
 
 interface ProvidersPanelProps {
@@ -35,6 +36,7 @@ export function ProvidersPanel({ orgId, companyName, employeeId, providers, auth
   const [active, setActive] = useState<ProviderRecord | null>(null);
   const [modelFor, setModelFor] = useState<ProviderRecord | null>(null);
   const [modelError, setModelError] = useState<string | null>(null);
+  const [disconnecting, setDisconnecting] = useState<ProviderRecord | null>(null);
   const openModel = (provider: ProviderRecord | null) => { setModelError(null); setModelFor(provider); };
   const modelForEntry = modelFor ? requireCatalogEntry(catalog, modelFor.providerKey) : null;
   const connected = providers.filter((provider) => provider.enabled);
@@ -88,7 +90,7 @@ export function ProvidersPanel({ orgId, companyName, employeeId, providers, auth
                 onCheck={() => void actions.run(() => window.agentCompany.checkProviderHealth({ orgId, providerId: provider.id }))}
                 onManage={() => setActive(provider)}
                 onChangeModel={provider.providerKey === "azure-openai" ? null : () => openModel(provider)}
-                onRevoke={() => void actions.run(() => window.agentCompany.revokeProviderCredential({ orgId, providerId: provider.id }))}
+                onRevoke={() => setDisconnecting(provider)}
                 revokesRemotely={requireCatalogEntry(catalog, provider.providerKey).revokesRemotely}
               />
             ))}
@@ -141,6 +143,17 @@ export function ProvidersPanel({ orgId, companyName, employeeId, providers, auth
           </p>
         )}
       </Dialog>
+
+      {disconnecting && (
+        <DisconnectProviderDialog
+          key={disconnecting.id}
+          orgId={orgId}
+          provider={disconnecting}
+          revokesRemotely={requireCatalogEntry(catalog, disconnecting.providerKey).revokesRemotely}
+          actions={actions}
+          onClose={() => setDisconnecting(null)}
+        />
+      )}
 
       {/* Only the model changes here: the credential and its sign-in stay as they are. */}
       <Dialog

@@ -74,6 +74,7 @@ import type {
   SaveProviderCredentialInput,
   SetProviderModelInput,
   ProviderEndpoint,
+  ProviderDisconnectImpact,
   ConnectComposioToolkitInput,
   ConnectComposioToolkitResult,
   ConnectorCatalogEntry,
@@ -168,6 +169,7 @@ export interface DesktopApi {
   setProviderModel(input: SetProviderModelInput): Promise<DesktopResult<AppSnapshot>>;
   /** Null when the provider has no saved cloud or custom-endpoint credential. */
   providerEndpoint(input: { orgId: string; providerId: string }): Promise<DesktopResult<ProviderEndpoint | null>>;
+  providerDisconnectImpact(input: { orgId: string; providerId: string }): Promise<DesktopResult<ProviderDisconnectImpact>>;
   revokeProviderCredential(input: RevokeProviderCredentialInput): Promise<DesktopResult<AppSnapshot>>;
   startProviderOAuth(input: StartProviderOAuthInput): Promise<DesktopResult<StartProviderOAuthResult>>;
   cancelProviderOAuth(input: CancelProviderOAuthInput): Promise<DesktopResult<null>>;
