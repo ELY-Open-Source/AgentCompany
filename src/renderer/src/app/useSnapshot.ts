@@ -16,10 +16,13 @@ export interface SyncFailure {
 export function useSnapshot(): {
   snapshot: AppSnapshot | null;
   syncFailure: SyncFailure | null;
+  /** When the data on screen was last read in full (ISO), so stale data can say how old it is. */
+  syncedAt: string | null;
   actions: SnapshotActions;
 } {
   const [snapshot, setSnapshot] = useState<AppSnapshot | null>(null);
   const [syncFailure, setSyncFailure] = useState<SyncFailure | null>(null);
+  const [syncedAt, setSyncedAt] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -27,6 +30,7 @@ export function useSnapshot(): {
       if (!result.ok) throw new Error(result.error.message);
       setSnapshot(result.data);
       setSyncFailure(null);
+      setSyncedAt(new Date().toISOString());
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       setSyncFailure((current) => ({ message, attempts: (current?.attempts ?? 0) + 1 }));
@@ -39,7 +43,11 @@ export function useSnapshot(): {
   ): Promise<T | null> => {
     const result = await operation();
     if (!result.ok) throw new Error(result.error.message);
-    if (result.data) setSnapshot(result.data as AppSnapshot);
+    if (result.data) {
+      setSnapshot(result.data as AppSnapshot);
+      setSyncFailure(null);
+      setSyncedAt(new Date().toISOString());
+    }
     return result.data;
   }, []);
 
@@ -87,5 +95,5 @@ export function useSnapshot(): {
   }, [load]);
 
   const actions = useMemo<SnapshotActions>(() => ({ run, reload: load }), [run, load]);
-  return { snapshot, syncFailure, actions };
+  return { snapshot, syncFailure, syncedAt, actions };
 }

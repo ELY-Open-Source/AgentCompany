@@ -1,3 +1,4 @@
+import { StaleBanner } from "./StaleBanner";
 import { oneOf, readViewState, seedViewState, writeViewState } from "../shared/view-state";
 import { LeaveGuardContext } from "./leave-guard";
 import { t } from "../i18n/i18n";
@@ -27,7 +28,7 @@ import { OfficePage } from "../pages/OfficePage";
 const isRoute = oneOf(ROUTE_IDS);
 
 export function App() {
-  const { snapshot, syncFailure, actions } = useSnapshot();
+  const { snapshot, syncFailure, syncedAt, actions } = useSnapshot();
   const [routeChoice, setRoute] = useState<RouteId | null>(null);
   // A focus belongs to the company it was opened in; another company's page never receives it.
   const [focusChoice, setFocus] = useState<{ orgId: string | null; focus: Focus } | null>(null);
@@ -129,6 +130,8 @@ export function App() {
         <ErrorBoundary key={pageKey} scope="page">{page}</ErrorBoundary>
       </Shell>
       </LeaveGuardContext.Provider>
+      {/* A failed manual retry is already recorded in syncFailure, which the banner shows. */}
+      {syncFailure && <StaleBanner failure={syncFailure} syncedAt={syncedAt} onRetry={() => void actions.reload().catch(() => undefined)} />}
       {leaving && (
         <div className="modal-backdrop" role="presentation">
           <div className="modal" role="alertdialog" aria-label={t("Leave this page?")}>
