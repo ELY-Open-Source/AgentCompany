@@ -128,6 +128,7 @@ test("the office floor opens agent details on click", async () => {
     // Different people look different.
     const looks = await avatars.evaluateAll((canvases) => canvases.map((canvas) => (canvas as HTMLCanvasElement).toDataURL()));
     expect(new Set(looks).size).toBe(4);
+    const avaLook = await page.locator(".org-node-card", { hasText: "Ava Patel" }).locator("canvas.pixel-avatar").evaluate((canvas) => (canvas as HTMLCanvasElement).toDataURL());
     await page.getByRole("button", { name: "Office", exact: true }).click();
     await expect(canvas).toBeVisible();
     await page.waitForTimeout(300);
@@ -139,6 +140,8 @@ test("the office floor opens agent details on click", async () => {
     const avaCard = page.getByRole("dialog", { name: "Agent Ava Patel" });
     await expect(avaCard).toBeVisible();
     await expect(avaCard.getByText("Design", { exact: true })).toBeVisible();
+    // The card shows the same pixel face the org chart drew for Ava.
+    expect(await avaCard.locator("canvas.pixel-avatar").evaluate((canvas) => (canvas as HTMLCanvasElement).toDataURL())).toBe(avaLook);
 
     const outDir = resolve("test-results/screenshots");
     mkdirSync(outDir, { recursive: true });

@@ -1,8 +1,9 @@
-import { Avatar, Icon, IconButton, Pill } from "../../shared/ui";
+import { Icon, IconButton, Pill } from "../../shared/ui";
 import { officeStateLabel, roleLevelLabel } from "../../i18n/labels";
 import { t } from "../../i18n/i18n";
 import { TaskHoldNotice } from "../work/TaskHoldNotice";
 import type { OfficeAgentInput } from "./office-types";
+import { PixelAvatar } from "./PixelAvatar";
 import type { OfficeState } from "./agent-state";
 
 const STATE_TONE: Record<OfficeState, "green" | "amber" | "red" | undefined> = {
@@ -17,7 +18,7 @@ const STATE_TONE: Record<OfficeState, "green" | "amber" | "red" | undefined> = {
  * Floating profile card for the agent selected on the office floor. The page
  * owns its placement (it follows the sprite); the card only sizes itself.
  */
-export function AgentDetailCard({ agent, onClose }: { agent: OfficeAgentInput; onClose: () => void }) {
+export function AgentDetailCard({ agent, isCeo, onClose }: { agent: OfficeAgentInput; isCeo: boolean; onClose: () => void }) {
   return (
     <div
       role="dialog"
@@ -31,7 +32,7 @@ export function AgentDetailCard({ agent, onClose }: { agent: OfficeAgentInput; o
       }}
     >
       <div className="row" style={{ gap: 10, alignItems: "flex-start" }}>
-        <Avatar name={agent.name} size="lg" bot />
+        <PixelAvatar id={agent.id} isCeo={isCeo} />
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: "var(--fs-body)", lineHeight: 1.3, wordBreak: "break-word" }}>{agent.name}</div>
           <div style={{ fontSize: "var(--fs-body)", color: "var(--text-2)", marginTop: 1, wordBreak: "break-word" }}>{agent.title}</div>

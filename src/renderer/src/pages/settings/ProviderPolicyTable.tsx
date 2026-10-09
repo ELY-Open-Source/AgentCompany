@@ -23,20 +23,18 @@ export function ProviderPolicyTable({
   return (
     <>
       <div className="section-label" style={{ marginBottom: 6 }}>{t("Runtime policy")}</div>
-      {/* What each column governs, so a change is made knowing what it reaches. */}
-      <ul style={{ fontSize: "var(--fs-body)", color: "var(--text-3)", lineHeight: 1.6, margin: "0 0 10px", paddingLeft: 18 }}>
-        <li>{t("Scope: “Workspace” refuses every call that is not made for a workspace, including agent sessions on tasks without one.")}</li>
-        <li>{t("Data policy: zero data retention refuses background requests, so it also switches background off.")}</li>
-        <li>{t("Background: lets requests from the request console run in the provider's background mode.")}</li>
-        <li>{t("Monthly limit: counts every model call this company makes through the provider in the calendar month (UTC); at the limit, calls are refused and agent work waits until the month resets.")}</li>
-        <li>{t("Context window: the size new sessions fit prompts, skills, history and tool results into; sessions already running keep theirs.")}</li>
-      </ul>
       <div className="card" style={{ padding: 0, overflowX: "auto", marginBottom: 28 }}>
         <div
           className="table-row head"
           style={{ gridTemplateColumns: POLICY_GRID, minWidth: 940 }}
         >
-          <div>{t("Provider")}</div><div>{t("Scope")}</div><div>{t("Data policy")}</div><div>{t("Background")}</div><div>{t("Monthly limit")}</div><div>{t("Context window (tokens)")}</div><div>{t("Usage")}</div>
+          <div>{t("Provider")}</div>
+          <div title={t("Scope: “Workspace” refuses every call that is not made for a workspace, including agent sessions on tasks without one.")}>{t("Scope")}</div>
+          <div title={t("Data policy: zero data retention refuses background requests, so it also switches background off.")}>{t("Data policy")}</div>
+          <div title={t("Background: lets requests from the request console run in the provider's background mode.")}>{t("Background")}</div>
+          <div title={t("Monthly limit: counts every model call this company makes through the provider in the calendar month (UTC); at the limit, calls are refused and agent work waits until the month resets.")}>{t("Monthly limit")}</div>
+          <div title={t("Context window: the size new sessions fit prompts, skills, history and tool results into; sessions already running keep theirs.")}>{t("Context window (tokens)")}</div>
+          <div>{t("Usage")}</div>
         </div>
         {providers.map((provider, index) => (
           <ProviderPolicyRow

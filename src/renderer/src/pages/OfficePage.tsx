@@ -12,7 +12,7 @@ import { dayPart, season } from "../shared/palette-clock";
 import { pixelScale } from "../shared/pixel-scale";
 import type { Camera, OfficeAgentInput } from "./office/office-types";
 import { officeStatus } from "./office/agent-state";
-import { officeRoster } from "./office/roster";
+import { ceoIdOf, officeRoster } from "./office/roster";
 import { t } from "../i18n/i18n";
 
 const FPS_INTERVAL = 1000 / 24;
@@ -251,7 +251,7 @@ export function OfficePage({ snapshot }: PageProps) {
       />
       {selectedAgent && (
         <div ref={cardBoxRef} style={{ position: "absolute", left: 0, top: 0, willChange: "transform", visibility: "hidden" }}>
-          <AgentDetailCard agent={selectedAgent} onClose={() => setSelectedId(null)} />
+          <AgentDetailCard agent={selectedAgent} isCeo={selectedAgent.id === ceoIdOf(inputs)} onClose={() => setSelectedId(null)} />
         </div>
       )}
       <div className="office-toolbar" role="toolbar" aria-label={t("Office tools")}>
