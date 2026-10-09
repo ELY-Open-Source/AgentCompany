@@ -50,6 +50,7 @@ export function SettingsPage({ snapshot, actions, focus }: PageProps) {
           {tab === "providers" && (
             <ProvidersPanel
               orgId={orgId}
+              companyName={organization.name}
               employeeId={employee.id}
               providers={providers}
               authProfiles={providerAuthProfiles}
@@ -59,7 +60,7 @@ export function SettingsPage({ snapshot, actions, focus }: PageProps) {
               actions={actions}
             />
           )}
-          {tab === "integrations" && <IntegrationKeysPanel keys={snapshot.integrationKeys} actions={actions} />}
+          {tab === "integrations" && <IntegrationKeysPanel keys={snapshot.integrationKeys} companyName={organization.name} actions={actions} />}
           {tab === "advanced" && (
             <AdvancedPanel
               orgId={orgId}

@@ -1,3 +1,4 @@
+import { ScopeNote } from "./ScopeNote";
 import type { UsageStatsRecord } from "../../../../shared/usage-stats";
 import type { ProviderRateLimitStateRecord } from "../../../../shared/provider-runtime-domain";
 import type {
@@ -45,6 +46,7 @@ export function AdvancedPanel({
   return (
     <div className="page">
       <h1 className="page-h1">{t("Advanced")}</h1>
+      <ScopeNote scope="company" company={organization.name} />
 
       {connected.length > 0 && (
         <div style={{ marginTop: 16 }}>

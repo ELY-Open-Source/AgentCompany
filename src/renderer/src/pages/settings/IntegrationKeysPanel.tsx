@@ -1,3 +1,4 @@
+import { ScopeNote } from "./ScopeNote";
 import { useState, type FormEvent } from "react";
 import type { IntegrationKeyName, IntegrationKeyStatus } from "../../../../shared/commands";
 import { Button, Field, Pill } from "../../shared/ui";
@@ -22,11 +23,12 @@ const KEY_COPY: Record<IntegrationKeyName, { label: string; hint: string; placeh
   },
 };
 
-export function IntegrationKeysPanel({ keys, actions }: { keys: IntegrationKeyStatus[]; actions: SnapshotActions }) {
+export function IntegrationKeysPanel({ keys, companyName, actions }: { keys: IntegrationKeyStatus[]; companyName: string; actions: SnapshotActions }) {
   return (
     <div className="page">
       <h1 className="page-h1">{t("Integrations")}</h1>
-      <p style={{ margin: "8px 0 24px", color: "var(--text-2)" }}>
+      <ScopeNote scope="app" company={companyName} />
+      <p style={{ margin: "0 0 24px", color: "var(--text-2)" }}>
         {t("Keys are stored on this device, encrypted by the operating system, and shared by every company.")}
       </p>
       {keys.map((status) => <KeyRow key={status.name} status={status} actions={actions} />)}

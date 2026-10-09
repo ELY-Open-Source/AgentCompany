@@ -1,3 +1,4 @@
+import { ScopeNote } from "./ScopeNote";
 import { useState, type FormEvent } from "react";
 import { Button, Pill } from "../../shared/ui";
 import { Dialog } from "../../shared/Dialog";
@@ -16,6 +17,7 @@ import { composeSecret } from "./provider-secret";
 import type { SnapshotActions } from "../../app/useSnapshot";
 
 interface ProvidersPanelProps {
+  companyName: string;
   orgId: string;
   employeeId: string;
   providers: ProviderRecord[];
@@ -30,7 +32,7 @@ const PRICE_GRID = "minmax(150px, 1.4fr) 110px 110px 110px 92px";
 const POLICY_GRID = "minmax(150px, 1.2fr) minmax(118px, 0.8fr) minmax(140px, 1fr) 112px 124px 124px 92px";
 type WorkspaceScope = "organization" | "workspace";
 
-export function ProvidersPanel({ orgId, employeeId, providers, authProfiles, catalog, agents, providerRateLimits, actions }: ProvidersPanelProps) {
+export function ProvidersPanel({ orgId, companyName, employeeId, providers, authProfiles, catalog, agents, providerRateLimits, actions }: ProvidersPanelProps) {
   const [active, setActive] = useState<ProviderRecord | null>(null);
   const connected = providers.filter((provider) => provider.enabled);
   const available = providers.filter((provider) => !provider.enabled);
@@ -58,6 +60,7 @@ export function ProvidersPanel({ orgId, employeeId, providers, authProfiles, cat
   return (
     <div className="page">
       <h1 className="page-h1">{t("Providers")}</h1>
+      <ScopeNote scope="company" company={companyName} />
 
       {connected.length > 0 && (
         <>

@@ -72,6 +72,11 @@ test("the pinned CEO conversation is the Messages front door", async () => {
     // The message itself says where the reply stands.
     await expect(chatLog.locator(".chat-message", { hasText: "How are we tracking against the goal?" }).first()).toContainText("CEO will reply; queued.");
 
+    // Each settings section says what a change there affects.
+    await page.getByRole("button", { name: "Settings" }).click();
+    await expect(page.getByRole("note").filter({ hasText: "Applies to FlowPilot only." })).toBeVisible();
+    await expect(page.getByRole("note").filter({ hasText: "Applies to every company in this app." })).toBeVisible();
+
     // A goal's pace is measured against its target date; without one, no pace is claimed.
     await page.getByRole("button", { name: "Home" }).click();
     await expect(page.getByText("no target date")).toBeVisible();

@@ -1,3 +1,4 @@
+import { ScopeNote } from "./ScopeNote";
 import { useState, type FormEvent } from "react";
 import type {
   OrganizationRecord,
@@ -62,6 +63,7 @@ export function WorkspacePanel({
   return (
     <div className="page">
       <h1 className="page-h1">{t("General")}</h1>
+      <ScopeNote scope="company" company={organization.name} />
 
       <div className="row" style={{ gap: 8, margin: "16px 0 24px" }}>
         <Pill tone="violet" dot>{organization.executionMode === "ai_ceo" ? t("AI CEO") : t("AI Co-Founder")}</Pill>
@@ -76,7 +78,8 @@ export function WorkspacePanel({
         <KeyValue label={t("Description")} value={organization.description || "—"} />
       </div>
 
-      <div className="section-label" style={{ marginBottom: 8 }}>{t("Appearance")}</div>
+      <div className="section-label">{t("Appearance")}</div>
+      <ScopeNote scope="app" company={organization.name} />
       <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 240px))", gap: 12, marginBottom: 28 }}>
         <Field label={t("Theme")}>
           <select
@@ -113,6 +116,7 @@ export function WorkspacePanel({
           <Button tone="ghost" onClick={() => setCreateOpen(true)}><Icon name="plus" size={16} /> {t("Add")}</Button>
         </span>
       </div>
+      <ScopeNote scope="company_folders" company={organization.name} />
       {workspaces.map((workspace) => (
         <div key={workspace.id} className="row" aria-current={workspace.id === focusedWorkspaceId ? "true" : undefined} style={{ padding: "8px 0", borderBottom: "1px solid var(--border-soft)", background: workspace.id === focusedWorkspaceId ? "var(--accent-soft)" : undefined }}>
           <div style={{ minWidth: 0 }}>
