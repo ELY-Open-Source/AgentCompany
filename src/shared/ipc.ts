@@ -53,7 +53,6 @@ export const IPC_CHANNELS = {
   setRollbackSnapshotActive: "agentcompany:set-rollback-snapshot-active",
   resolveMigrationReconciliation: "agentcompany:resolve-migration-reconciliation",
   setFeatureFlag: "agentcompany:set-feature-flag",
-  runChaosDrill: "agentcompany:run-chaos-drill",
   createComplianceExport: "agentcompany:create-compliance-export",
   createAuditReplay: "agentcompany:create-audit-replay",
   createLegalHold: "agentcompany:create-legal-hold",

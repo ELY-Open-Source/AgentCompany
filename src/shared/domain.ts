@@ -5,7 +5,7 @@ export type { AuditReplayRunRecord } from "./audit-domain";
 export { COMPLIANCE_EXPORT_STATE, COMPLIANCE_EXPORT_TYPE, type ComplianceExportRecord, type ComplianceExportState, type ComplianceExportType, type ComplianceSubjectType, type LegalHoldEntityType, type LegalHoldRecord, type RetentionFreezeRecord, type RetentionFreezeScopeType } from "./compliance-domain";
 export { ACCESS_DECISION, IDENTITY_SOURCE, ROLE_KEY, type AccessDecision, type AccessDecisionRecord, type EmployeeIdentityRecord, type IdentitySource, type PrincipalType, type RoleGrantRecord, type RoleKey, type ServiceIdentityRecord } from "./identity-domain";
 export { ROUTE_TO_TYPE, type ApprovalAssignmentRecord, type ApprovalRoutingRuleRecord, type HiringPolicyRecord, type OrgDepartmentRecord, type RouteToType } from "./org-governance-domain";
-export { CHAOS_DRILL_SCENARIO, CHAOS_DRILL_STATE, FEATURE_FLAG_KEY, SLO_SIGNAL_KEY, type ChaosDrillRecord, type ChaosDrillRunRecord, type ChaosDrillScenario, type ChaosDrillState, type FeatureFlagKey, type FeatureFlagRecord, type OperationalEventRecord, type SloSignalKey, type SloTargetRecord } from "./operations-domain";
+export { FEATURE_FLAG_KEY, SLO_SIGNAL_KEY, type FeatureFlagKey, type FeatureFlagRecord, type OperationalEventRecord, type SloSignalKey, type SloTargetRecord } from "./operations-domain";
 export type { ProviderAuthProfileRecord, ProviderAuthSessionRecord } from "./provider-auth-domain";
 export { PROVIDER_DATA_POLICY, PROVIDER_EXECUTION_MODE, type ProviderDataPolicy, type ProviderExecutionMode } from "./provider-policy-domain";
 export { PROVIDER_REQUEST_STATE, type ProviderRequestRecord, type ProviderRequestState, type ProviderStreamRendererEvent } from "./provider-request-domain";

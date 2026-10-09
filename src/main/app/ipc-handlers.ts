@@ -376,7 +376,6 @@ export function registerIpcHandlers(deps: IpcDeps): void {
   handle("setRollbackSnapshotActive", (input) => mutate(() => rollback.setActive(input)));
   handle("resolveMigrationReconciliation", (input) => mutate(() => rollback.resolveReconciliationItem(input)));
   handle("setFeatureFlag", (input) => mutate(() => operations.setFeatureFlag(input)));
-  handle("runChaosDrill", (input) => mutate(() => operations.runChaosDrill(input)));
   handle("createComplianceExport", (input) => mutate(() => compliance.createExport(input)));
   handle("createAuditReplay", (input) => mutate(() => audit.createThreadReplay(input)));
   handle("createLegalHold", (input) => mutate(() => compliance.createLegalHold(input)));

@@ -44,7 +44,7 @@ import type {
 } from "./domain";
 import type { AccessDecisionRecord, EmployeeIdentityRecord, RoleGrantRecord, ServiceIdentityRecord } from "./identity-domain";
 import type { ApprovalAssignmentRecord, ApprovalRoutingRuleRecord, HiringPolicyRecord, OrgDepartmentRecord } from "./org-governance-domain";
-import type { ChaosDrillRecord, ChaosDrillRunRecord, FeatureFlagRecord, OperationalEventRecord, SloTargetRecord } from "./operations-domain";
+import type { FeatureFlagRecord, OperationalEventRecord, SloTargetRecord } from "./operations-domain";
 import type { ProviderAuthProfileRecord, ProviderAuthSessionRecord } from "./provider-auth-domain";
 import type { ProviderRequestRecord } from "./provider-request-domain";
 import type { ProviderRateLimitObservationRecord, ProviderRateLimitStateRecord } from "./provider-runtime-domain";
@@ -136,8 +136,6 @@ export interface AppSnapshot {
   featureFlags: FeatureFlagRecord[];
   sloTargets: SloTargetRecord[];
   operationalEvents: OperationalEventRecord[];
-  chaosDrills: ChaosDrillRecord[];
-  chaosDrillRuns: ChaosDrillRunRecord[];
   auditReplayRuns: AuditReplayRunRecord[];
   auditEvents: AuditEventRecord[];
   documents: DocumentRecord[];

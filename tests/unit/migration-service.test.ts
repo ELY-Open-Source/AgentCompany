@@ -130,8 +130,6 @@ describe("migration service", () => {
       create table feature_flags(id text primary key, org_id text);
       create table slo_targets(id text primary key, org_id text);
       create table operational_events(id text primary key, org_id text);
-      create table chaos_drills(id text primary key, org_id text);
-      create table chaos_drill_runs(id text primary key, org_id text, drill_id text);
       create table chat_spaces(id text primary key, org_id text);
       create table chat_messages(id text primary key, org_id text, space_id text, thread_id text);
       create table chat_threads(id text primary key, org_id text, space_id text, root_message_id text);
@@ -202,8 +200,6 @@ describe("migration service", () => {
       insert into feature_flags(id, org_id) values ('flag-1', 'org-1');
       insert into slo_targets(id, org_id) values ('slo-1', 'org-1');
       insert into operational_events(id, org_id) values ('op-1', 'org-1');
-      insert into chaos_drills(id, org_id) values ('drill-1', 'org-1');
-      insert into chaos_drill_runs(id, org_id, drill_id) values ('drill-run-1', 'org-1', 'drill-1');
       insert into chat_threads(id, org_id, space_id, root_message_id) values ('thread-1', 'org-1', 'space-1', null);
       insert into chat_messages(id, org_id, space_id, thread_id) values ('msg-1', 'org-1', 'space-1', 'thread-1');
       insert into chat_memberships(space_id, principal_type, principal_id) values ('space-1', 'employee', 'emp-1');
@@ -269,7 +265,6 @@ describe("migration service", () => {
     expect(body.tableCounts.org_departments).toBe(1);
     expect(body.tableCounts.hiring_policies).toBe(1);
     expect(body.tableCounts.feature_flags).toBe(1);
-    expect(body.tableCounts.chaos_drill_runs).toBe(1);
     expect(body.tableCounts.role_grants).toBe(1);
     expect(body.tableCounts.skill_artifacts).toBe(1);
     expect(body.tableCounts.chat_read_state).toBe(1);
@@ -297,7 +292,6 @@ describe("migration service", () => {
     expect(body.idMaps.access_decisions).toEqual(["access-1"]);
     expect(body.idMaps.approval_assignments).toEqual(["assign-1"]);
     expect(body.idMaps.operational_events).toEqual(["op-1"]);
-    expect(body.idMaps.chaos_drill_runs).toEqual(["drill-run-1"]);
     expect(body.idMaps.board_interventions).toEqual(["bdi-1"]);
     expect(body.idMaps.file_handoff_records).toEqual(["handoff-1"]);
     expect(body.idMaps.retention_freezes).toEqual(["freeze-1"]);

@@ -34,7 +34,7 @@ const testVault = {
 };
 
 describe("operations service", () => {
-  test("seeds feature flags, SLO targets, and chaos drills for new organizations", () => {
+  test("seeds feature flags and SLO targets, and no drill that scores configuration as fault handling", () => {
     const connection = createConnection();
     const organization = new OrganizationService(connection.db);
     const snapshot = new SnapshotService(connection.db);
@@ -46,12 +46,11 @@ describe("operations service", () => {
     const state = snapshot.load();
     expect(state.featureFlags.map((flag) => flag.key).sort()).toEqual([
       "board_intervention",
-      "chaos_drills",
       "provider_background_execution",
       "social_publish_approval",
     ]);
     expect(state.sloTargets.map((target) => target.signalKey)).toContain("browser_session_boundary");
-    expect(state.chaosDrills).toHaveLength(4);
+    expect(connection.db.prepare("select name from sqlite_master where type = 'table' and name like 'chaos_drill%'").all()).toEqual([]);
     connection.close();
   });
 
@@ -96,28 +95,6 @@ describe("operations service", () => {
       instructions: null,
       executionMode: PROVIDER_EXECUTION_MODE.BACKGROUND,
     })).rejects.toThrow("Provider background execution is disabled by feature flag.");
-    connection.close();
-  });
-
-  test("runs chaos drills and records operational signals", () => {
-    const connection = createConnection();
-    const organization = new OrganizationService(connection.db);
-    const operations = new OperationsService(connection.db);
-    const snapshot = new SnapshotService(connection.db);
-    let orgId = "";
-    let drillId = "";
-
-    connection.transaction(() => {
-      orgId = createOrganization(organization);
-      drillId = (connection.db.prepare("select id from chaos_drills where org_id = ? and scenario_key = ?")
-        .get(orgId, "approval_backlog_gate") as { id: string }).id;
-      operations.runChaosDrill({ orgId, drillId });
-    });
-
-    const state = snapshot.load();
-    expect(state.chaosDrillRuns[0]).toMatchObject({ orgId, drillId, state: "passed" });
-    expect(state.operationalEvents[0]).toMatchObject({ orgId, signalKey: "approval_route_coverage", source: "chaos_drill", success: true });
-    expect(state.auditEvents.some((event) => event.entityType === "chaos_drill" && event.action === "run")).toBe(true);
     connection.close();
   });
 });

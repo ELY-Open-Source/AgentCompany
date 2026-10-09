@@ -56,7 +56,6 @@ export const platformContracts = {
   setRollbackSnapshotActive: z.strictObject({ orgId: id, snapshotId: id, active: z.boolean(), employeeId: id }) satisfies z.ZodType<C.SetRollbackSnapshotActiveInput>,
   resolveMigrationReconciliation: z.strictObject({ orgId: id, reconciliationItemId: id, employeeId: id }) satisfies z.ZodType<C.ResolveMigrationReconciliationInput>,
   setFeatureFlag: z.strictObject({ orgId: id, flagId: id, enabled: z.boolean() }) satisfies z.ZodType<C.SetFeatureFlagInput>,
-  runChaosDrill: z.strictObject({ orgId: id, drillId: id }) satisfies z.ZodType<C.RunChaosDrillInput>,
   createComplianceExport: z.strictObject({
     orgId: id, subjectType: z.enum(["employee", "agent"]), subjectId: id, exportType: z.enum(COMPLIANCE_EXPORT_TYPE), requestedByEmployeeId: id,
   }) satisfies z.ZodType<C.CreateComplianceExportInput>,

@@ -65,7 +65,6 @@ import type {
   GrantRoleInput,
   LaunchSocialLoginInput,
   ResolveMigrationReconciliationInput,
-  RunChaosDrillInput,
   RunTaskInput,
   RevokeProviderCredentialInput,
   SaveProviderCredentialInput,
@@ -188,7 +187,6 @@ export interface DesktopApi {
   setRollbackSnapshotActive(input: SetRollbackSnapshotActiveInput): Promise<DesktopResult<AppSnapshot>>;
   resolveMigrationReconciliation(input: ResolveMigrationReconciliationInput): Promise<DesktopResult<AppSnapshot>>;
   setFeatureFlag(input: SetFeatureFlagInput): Promise<DesktopResult<AppSnapshot>>;
-  runChaosDrill(input: RunChaosDrillInput): Promise<DesktopResult<AppSnapshot>>;
   createComplianceExport(input: CreateComplianceExportInput): Promise<DesktopResult<AppSnapshot>>;
   createAuditReplay(input: CreateAuditReplayInput): Promise<DesktopResult<AppSnapshot>>;
   createLegalHold(input: CreateLegalHoldInput): Promise<DesktopResult<AppSnapshot>>;

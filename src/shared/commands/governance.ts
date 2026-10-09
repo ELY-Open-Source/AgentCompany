@@ -78,8 +78,3 @@ export interface SetFeatureFlagInput {
   flagId: string;
   enabled: boolean;
 }
-
-export interface RunChaosDrillInput {
-  orgId: string;
-  drillId: string;
-}

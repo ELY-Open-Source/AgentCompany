@@ -80,7 +80,6 @@ const api: DesktopApi = {
   setRollbackSnapshotActive: (input) => invoke(IPC_CHANNELS.setRollbackSnapshotActive, input),
   resolveMigrationReconciliation: (input) => invoke(IPC_CHANNELS.resolveMigrationReconciliation, input),
   setFeatureFlag: (input) => invoke(IPC_CHANNELS.setFeatureFlag, input),
-  runChaosDrill: (input) => invoke(IPC_CHANNELS.runChaosDrill, input),
   createComplianceExport: (input) => invoke(IPC_CHANNELS.createComplianceExport, input),
   createAuditReplay: (input) => invoke(IPC_CHANNELS.createAuditReplay, input),
   createLegalHold: (input) => invoke(IPC_CHANNELS.createLegalHold, input),
