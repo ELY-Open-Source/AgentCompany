@@ -1,7 +1,9 @@
 import { decideEach, type BatchResult } from "./approvals/decide-each";
-import { decidedWindow } from "./approvals/decided-window";
+import { DECIDED_PAGE, decidedWindow } from "./approvals/decided-window";
+import { ApprovalDetailDialog, ApprovalRecordDialog } from "./approvals/ApprovalDialogs";
+import { RISK_TONES } from "./approvals/risk-tones";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Avatar, Button, Icon, IconButton, Pill } from "../shared/ui";
+import { Avatar, Button, Icon, Pill } from "../shared/ui";
 import { TopbarActions } from "../shared/TopbarActions";
 import type {
   AgentRecord,
@@ -17,18 +19,15 @@ import { t } from "../i18n/i18n";
 
 type RiskFilter = "all" | RiskLevel;
 
+/** Ids per drift check; the IPC contract allows up to 1000. */
+const DRIFT_BATCH = 500;
+
 const RISK_FILTERS: ReadonlyArray<{ id: RiskFilter; label: string }> = [
   { id: "all", label: t("All risk") },
   { id: RISK_LEVEL.HIGH, label: t("High") },
   { id: RISK_LEVEL.MEDIUM, label: t("Medium") },
   { id: RISK_LEVEL.LOW, label: t("Low") },
 ];
-
-const RISK_TONES: Record<RiskLevel, { label: string; color: string }> = {
-  [RISK_LEVEL.HIGH]: { label: t("High risk"), color: "var(--red)" },
-  [RISK_LEVEL.MEDIUM]: { label: t("Medium risk"), color: "var(--amber)" },
-  [RISK_LEVEL.LOW]: { label: t("Low risk"), color: "var(--text-3)" },
-};
 
 export function ApprovalsPage({ snapshot, actions, navigate, focus }: PageProps) {
   const orgId = activeOrgId(snapshot);
@@ -46,7 +45,31 @@ export function ApprovalsPage({ snapshot, actions, navigate, focus }: PageProps)
 
   const pending = approvals.filter((approval) => approval.state === APPROVAL_STATE.PENDING);
   const decided = approvals.filter((approval) => approval.state !== APPROVAL_STATE.PENDING);
-  const shownDecided = decidedWindow(decided, focusedApproval);
+  const [decidedLimit, setDecidedLimit] = useState(DECIDED_PAGE);
+  const shownDecided = decidedWindow(decided, focusedApproval, decidedLimit);
+  const [viewingId, setViewingId] = useState<string | null>(null);
+  const viewing = viewingId ? decided.find((approval) => approval.id === viewingId) ?? null : null;
+  // Drift is checked for exactly the decided requests on screen, and again when a record opens, since files change outside the app.
+  const checkedIds = [...shownDecided.map((approval) => approval.id), ...(viewing && !shownDecided.includes(viewing) ? [viewing.id] : [])].join(",");
+  useEffect(() => {
+    let cancelled = false;
+    const approvalIds = checkedIds ? checkedIds.split(",") : [];
+    // The check takes at most DRIFT_BATCH ids per call, so a long history is checked in batches.
+    const batches = Array.from({ length: Math.ceil(approvalIds.length / DRIFT_BATCH) }, (_, index) => approvalIds.slice(index * DRIFT_BATCH, (index + 1) * DRIFT_BATCH));
+    void Promise.all(batches.map((batch) => window.agentCompany.approvalDrifts({ orgId, approvalIds: batch }))).then((results) => {
+      if (cancelled) return;
+      const failed = results.find((result) => !result.ok);
+      if (failed && !failed.ok) {
+        setDriftError(failed.error.message);
+        return;
+      }
+      setDrifts(Object.assign({}, ...results.map((result) => (result.ok ? result.data : {}))));
+      setDriftError(null);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [orgId, approvals, checkedIds, viewingId]);
   const filteredPending = filter === "all" ? pending : pending.filter((approval) => approval.risk === filter);
   const weeklyDecided = decided.filter((approval) => withinDays(approval.decidedAt, 7));
   const approved7d = weeklyDecided.filter((approval) => approval.state === APPROVAL_STATE.APPROVED).length;
@@ -58,21 +81,6 @@ export function ApprovalsPage({ snapshot, actions, navigate, focus }: PageProps)
   // Drift is read from disk in the main process, again whenever the approvals change.
   const [drifts, setDrifts] = useState<Record<string, ApprovalDrift>>({});
   const [driftError, setDriftError] = useState<string | null>(null);
-  useEffect(() => {
-    let cancelled = false;
-    void window.agentCompany.approvalDrifts({ orgId }).then((result) => {
-      if (cancelled) return;
-      if (result.ok) {
-        setDrifts(result.data);
-        setDriftError(null);
-      } else {
-        setDriftError(result.error.message);
-      }
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [orgId, approvals]);
 
   const decide = async (approval: ApprovalRecord, state: "approved" | "declined", notes?: string) => {
     await actions.run(() => window.agentCompany.decideApproval({
@@ -159,11 +167,28 @@ export function ApprovalsPage({ snapshot, actions, navigate, focus }: PageProps)
                 last={index === shownDecided.length - 1}
                 focused={approval.id === focusedApproval}
                 onOpenTask={openTask}
+                onView={() => setViewingId(approval.id)}
               />
             ))}
           </div>
+          {decided.length > decidedLimit && (
+            <div className="row" style={{ justifyContent: "center", marginTop: 12, gap: 10 }}>
+              <span style={{ fontSize: 12, color: "var(--text-3)" }}>{t("Showing {shown} of {total}", { shown: Math.min(decidedLimit, decided.length), total: decided.length })}</span>
+              <Button size="small" onClick={() => setDecidedLimit((limit) => limit + DECIDED_PAGE)}>{t("Show earlier decisions")}</Button>
+            </div>
+          )}
         </>
       )}
+
+      <ApprovalRecordDialog
+        key={viewing?.id ?? "none"}
+        approval={viewing}
+        requester={viewing ? resolveRequester(viewing, employees, agents) : ""}
+        decider={viewing ? resolveDecider(viewing, employees) : ""}
+        drift={viewing ? drifts[viewing.id] ?? null : null}
+        onClose={() => setViewingId(null)}
+        onOpenTask={openTask}
+      />
 
       {/* Keyed by request, so notes typed for one never carry to another or survive closing. */}
       <ApprovalDetailDialog
@@ -182,91 +207,6 @@ export function ApprovalsPage({ snapshot, actions, navigate, focus }: PageProps)
       />
     </div>
   );
-}
-
-function ApprovalDetailDialog({
-  approval,
-  requester,
-  onClose,
-  onDecide,
-  onOpenTask,
-}: {
-  approval: ApprovalRecord | null;
-  requester: string;
-  onClose: () => void;
-  /** Resolves once the decision is saved; the dialog stays open until then and shows a refusal. */
-  onDecide: (state: "approved" | "declined", notes?: string) => Promise<void>;
-  onOpenTask: (taskId: string) => void;
-}) {
-  const [notes, setNotes] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const submit = (state: "approved" | "declined") => {
-    setSaving(true);
-    setError(null);
-    onDecide(state, notes || undefined).catch((reason: unknown) => {
-      setSaving(false);
-      setError(reason instanceof Error ? reason.message : String(reason));
-    });
-  };
-  if (!approval) return null;
-  const tone = RISK_TONES[approval.risk];
-  if (!tone) throw new Error("Approval risk tone is missing.");
-  return (
-    <div className="modal-backdrop" role="presentation" onMouseDown={onClose}>
-      <div className="modal" role="dialog" aria-label={approval.title} onMouseDown={(event) => event.stopPropagation()}>
-        <div className="row" style={{ alignItems: "flex-start", gap: 10, marginBottom: 12 }}>
-          <h2 className="modal-title" style={{ margin: 0, flex: 1 }}>{approval.title}</h2>
-          <IconButton icon="x" label={t("Close")} onClick={onClose} />
-        </div>
-        <div className="row" style={{ flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
-          <span style={{ fontSize: 12, color: tone.color, fontWeight: 540, letterSpacing: "0.02em" }}>{tone.label}</span>
-          <span style={{ color: "var(--text-4)" }}>·</span>
-          <Pill>{approval.kind}</Pill>
-        </div>
-        <p style={{ margin: "0 0 16px", color: "var(--text-2)", fontSize: 14, lineHeight: 1.55, whiteSpace: "pre-wrap" }}>
-          {approval.details}
-        </p>
-        <div style={{ display: "grid", gridTemplateColumns: "100px 1fr", gap: "10px 14px", fontSize: 12 }}>
-          <span style={{ color: "var(--text-3)" }}>{t("Requested by")}</span>
-          <span>{requester}</span>
-          {approval.sourceEntityType && (
-            <>
-              <span style={{ color: "var(--text-3)" }}>{t("Source")}</span>
-              {approval.sourceEntityType === "task" && approval.sourceEntityId
-                ? (
-                  <span>
-                    <button type="button" className="link-button" onClick={() => onOpenTask(approval.sourceEntityId!)}>{t("Edit the task")}</button>
-                    <span style={{ color: "var(--text-3)" }}> · {t("Changing the task replaces this request with a fresh one.")}</span>
-                  </span>
-                )
-                : <span>{humanizeKind(approval.sourceEntityType)}</span>}
-            </>
-          )}
-          <span style={{ color: "var(--text-3)" }}>{t("Requested")}</span>
-          <span>{formatRelative(approval.createdAt)}</span>
-        </div>
-        <textarea
-          className="input"
-          aria-label={t("Decision notes")}
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-          rows={2}
-          style={{ marginTop: 14 }}
-        />
-        {error && <div className="form-error" role="alert">{t("Not decided: {reason}", { reason: error })}</div>}
-        <div className="modal-actions">
-          <Button onClick={() => submit("declined")} disabled={saving}>{t("Decline")}</Button>
-          <Button tone="primary" onClick={() => submit("approved")} disabled={saving}>{t("Approve")}</Button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function humanizeKind(value: string): string {
-  const spaced = value.replace(/_/g, " ");
-  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
 }
 
 function RiskMenu({ filter, onChange }: { filter: RiskFilter; onChange: (next: RiskFilter) => void }) {
@@ -367,6 +307,7 @@ function DecidedRow({
   last,
   focused,
   onOpenTask,
+  onView,
 }: {
   approval: ApprovalRecord;
   drift: ApprovalDrift | null;
@@ -375,6 +316,7 @@ function DecidedRow({
   last: boolean;
   focused: boolean;
   onOpenTask: (taskId: string) => void;
+  onView: () => void;
 }) {
   const rowRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
@@ -397,7 +339,15 @@ function DecidedRow({
       }}
     >
       <Icon name={approved ? "check" : "x"} size={14} color={approved ? "var(--green)" : superseded ? "var(--text-3)" : "var(--red)"} />
-      <div style={{ flex: 1, fontWeight: 480, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{approval.title}</div>
+      <button
+        type="button"
+        className="link-button"
+        aria-label={t("View record of {title}", { title: approval.title })}
+        onClick={onView}
+        style={{ flex: 1, fontWeight: 480, color: "var(--text-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textAlign: "left" }}
+      >
+        {approval.title}
+      </button>
       {approval.sourceEntityType === "task" && approval.sourceEntityId && (
         <button type="button" className="link-button" style={{ fontSize: 12 }} onClick={() => onOpenTask(approval.sourceEntityId!)}>{t("Open task")}</button>
       )}

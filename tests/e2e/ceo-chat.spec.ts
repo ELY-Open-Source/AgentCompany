@@ -132,6 +132,13 @@ test("the pinned CEO conversation is the Messages front door", async () => {
     await expect(page.getByText("Renew the domain")).toBeVisible();
     await page.getByRole("button", { name: "Approve all low risk" }).click();
     await expect(page.getByRole("status").filter({ hasText: "Approved" })).toContainText("Approved 2 of 2.");
+    // A decided request can be reopened in full: what was asked, the notes, who decided and when.
+    await page.getByRole("button", { name: "View record of Order stickers" }).click();
+    const record = page.getByRole("dialog", { name: "Record of Order stickers" });
+    await expect(record).toContainText("Small spend.");
+    await expect(record).toContainText("No notes");
+    await expect(record).toContainText("Yang");
+    await record.getByRole("button", { name: "Close" }).click();
     await page.getByRole("button", { name: "Work" }).click();
     await page.getByRole("button", { name: /Operationalize goal: Ship the FlowPilot MVP\./ }).first().click();
     // Blocking says why on the task and stops it; work can also move backwards.

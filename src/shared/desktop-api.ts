@@ -195,7 +195,7 @@ export interface DesktopApi {
   refreshComposioAccounts(input: RefreshComposioAccountsInput): Promise<DesktopResult<AppSnapshot>>;
   grantConnector(input: GrantConnectorInput): Promise<DesktopResult<AppSnapshot>>;
   /** Approved deliverables whose content changed or vanished since approval, checked on disk now. */
-  approvalDrifts(input: { orgId: string }): Promise<DesktopResult<Record<string, ApprovalDrift>>>;
+  approvalDrifts(input: { orgId: string; approvalIds: string[] }): Promise<DesktopResult<Record<string, ApprovalDrift>>>;
   /** Every model call a task run made, in order: turns, goal audits and model checks. */
   runRequests(input: { orgId: string; runId: string }): Promise<DesktopResult<RunRequestRecord[]>>;
   /** One thread in full, beyond the snapshot's recent window. */

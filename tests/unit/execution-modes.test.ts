@@ -99,14 +99,17 @@ describe("execution modes", () => {
     expect(db.prepare("select title, content from documents where org_id = ?").all(h.orgId)).toEqual([{ title: "Launch memo", content: "Ship it." }]);
 
     // Each approval pins what was approved; content changed or removed later, even outside the app, shows against it.
-    expect(approvalDrifts(db, h.orgId)).toEqual({});
     const [fileReview, docReview] = reviews.map((review) => review.id);
+    const checked = [fileReview, docReview];
+    expect(approvalDrifts(db, h.orgId, checked)).toEqual({});
     writeFileSync(join(root, "plan", "business-plan.md"), "# Edited by hand");
-    expect(approvalDrifts(db, h.orgId)).toEqual({ [fileReview]: "changed" });
+    expect(approvalDrifts(db, h.orgId, checked)).toEqual({ [fileReview]: "changed" });
+    // Only the requests asked about are checked, so any record on screen, however old, gets its own answer.
+    expect(approvalDrifts(db, h.orgId, [docReview])).toEqual({});
     rmSync(join(root, "plan", "business-plan.md"));
     const docId = (db.prepare("select id from documents where org_id = ?").get(h.orgId) as { id: string }).id;
     h.connection.transaction(() => new DocumentService(db).update({ orgId: h.orgId, documentId: docId, title: "Launch memo", content: "Ship it later.", status: "draft", reason: "edit", changedByType: "employee", changedById: employeeId }));
-    expect(approvalDrifts(db, h.orgId)).toEqual({ [fileReview]: "removed", [docReview]: "changed" });
+    expect(approvalDrifts(db, h.orgId, checked)).toEqual({ [fileReview]: "removed", [docReview]: "changed" });
   });
 
   test("a declined deliverable is never written, and held work keeps its task open", () => {

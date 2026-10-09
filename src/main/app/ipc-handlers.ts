@@ -420,7 +420,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
   handle("chatSpaceHistory", (input) => ok(spaceHistory(deps.connection.db, input.orgId, input.spaceId, input.beforeMessageId, "limit" in input ? { limit: input.limit } : { fromMessageId: input.fromMessageId })));
   handle("approvalDrifts", (input) => {
     try {
-      return ok(approvalDrifts(deps.connection.db, input.orgId));
+      return ok(approvalDrifts(deps.connection.db, input.orgId, input.approvalIds));
     } catch (error) {
       return fail("approval_drift_failed", error instanceof Error ? error.message : String(error));
     }

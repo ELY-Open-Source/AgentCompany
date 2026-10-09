@@ -69,7 +69,7 @@ export const platformContracts = {
   refreshComposioAccounts: z.strictObject({ orgId: id }) satisfies z.ZodType<C.RefreshComposioAccountsInput>,
   grantConnector: z.strictObject({ orgId: id, agentId: id, toolkitSlug: z.string(), accountLabel: z.string(), employeeId: id }) satisfies z.ZodType<C.GrantConnectorInput>,
   revokeConnector: z.strictObject({ orgId: id, agentId: id, toolkitSlug: z.string() }) satisfies z.ZodType<C.RevokeConnectorInput>,
-  approvalDrifts: z.strictObject({ orgId: id }),
+  approvalDrifts: z.strictObject({ orgId: id, approvalIds: z.array(id).max(1000) }),
   runRequests: z.strictObject({ orgId: id, runId: id }),
   chatThreadHistory: z.strictObject({ orgId: id, threadId: id }),
   chatSpaceHistory: z.union([
