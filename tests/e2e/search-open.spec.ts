@@ -71,6 +71,20 @@ test("a search hit opens the object itself, not just its page", async () => {
     await expect(searchDialog.getByRole("button", { name: "Show more" })).toHaveCount(0);
     await searchDialog.getByRole("textbox").fill("qqzzxx");
     await expect(searchDialog.getByText("Nothing matches “qqzzxx”.")).toBeVisible();
+    // Chinese words are found inside longer text.
+    await page.evaluate(async () => {
+      const api = (window as unknown as { agentCompany: {
+        loadSnapshot: () => Promise<{ ok: true; data: { activeOrgId: string } }>;
+        createTask: (input: unknown) => Promise<{ ok: boolean }>;
+      } }).agentCompany;
+      const orgId = (await api.loadSnapshot()).data.activeOrgId;
+      await api.createTask({
+        orgId, title: "季度复盘会议", description: "d", status: "backlog", assigneeAgentId: null, risk: "low",
+        projectId: null, goalId: null, workspaceId: null, priority: "normal", requiresFilesystem: false,
+      });
+    });
+    await searchDialog.getByRole("textbox").fill("复盘");
+    await expect(searchDialog.getByRole("button", { name: /季度复盘会议/ })).toBeVisible();
     await page.keyboard.press("Escape");
 
     // A message opens its conversation with its thread shown and the message marked.

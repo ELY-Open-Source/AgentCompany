@@ -24,25 +24,21 @@ export class SearchService {
   /** Every match the person may read, best first, counted in full before one page is cut from it. */
   search(input: SearchInput): SearchPage {
     this.assertEmployee(input.orgId, input.employeeId);
-    const query = normalizeQuery(input.query);
+    const query = parseQuery(input.query);
     const limit = Math.max(1, Math.min(input.limit ?? 20, 50));
     const offset = Math.max(0, input.offset ?? 0);
     const entityTypes = validEntityTypes(input.entityTypes ?? [...SEARCH_ENTITY_TYPES]);
     this.reindexOrg(input.orgId);
-    const rows = query
-      ? this.db.prepare(`
-        select entity_type, entity_id, title, body, facet_json
-        from search_documents
-        where search_documents match ? and org_id = ?
-        order by rank
-      `).all(query, input.orgId) as unknown as SearchRow[]
-      : this.db.prepare(`
-        select entity_type, entity_id, title, body, facet_json
-        from search_documents
-        where org_id = ?
-        order by rowid desc
-      `).all(input.orgId) as unknown as SearchRow[];
+    if (query.blank) return { results: [], total: 0 };
+    // English-like words use the full-text index; other scripts, which it does not split into words, must appear in the text.
+    const rows = this.db.prepare(`
+      select entity_type, entity_id, title, body, facet_json
+      from search_documents
+      where org_id = ? ${query.match ? "and search_documents match ?" : ""}
+      order by ${query.match ? "rank" : "rowid desc"}
+    `).all(input.orgId, ...(query.match ? [query.match] : [])) as unknown as SearchRow[];
     const readable = rows
+      .filter((row) => query.contains.every((word) => row.title.toLowerCase().includes(word) || row.body.toLowerCase().includes(word)))
       .filter((row) => entityTypes.has(row.entity_type))
       .filter((row) => this.canRead(input.orgId, input.employeeId, row.entity_type, row.entity_id));
     const results = readable
@@ -210,9 +206,17 @@ function doc(entityType: SearchEntityType, entityId: string, title: string, body
   return { entityType, entityId, title: title.trim(), body: body.trim(), facets };
 }
 
-function normalizeQuery(query: string): string {
-  const terms = query.toLowerCase().match(/[a-z0-9_@.-]+/g) ?? [];
-  return terms.map((term) => `${term.replaceAll('"', "")}*`).join(" AND ");
+/** Splits the words: ASCII ones become prefix terms for the index, the rest Unicode-lowercased substrings; blank when nothing searchable remains. */
+function parseQuery(query: string): { blank: boolean; match: string | null; contains: string[] } {
+  const words = query.toLowerCase().split(/\s+/).filter(Boolean);
+  const terms: string[] = [];
+  const contains: string[] = [];
+  for (const word of words) {
+    if ([...word].every((character) => character.charCodeAt(0) < 128)) terms.push(...(word.match(/[a-z0-9_@.-]+/g) ?? []));
+    else contains.push(word);
+  }
+  const match = terms.length > 0 ? terms.map((term) => `"${term}"*`).join(" AND ") : null;
+  return { blank: !match && contains.length === 0, match, contains };
 }
 
 function validEntityTypes(entityTypes: SearchEntityType[]): Set<SearchEntityType> {

@@ -176,4 +176,32 @@ describe("search service", () => {
     expect(search.search({ orgId, employeeId, query: "nothinglikethis", limit: 12 })).toEqual({ results: [], total: 0 });
     connection.close();
   });
+
+  test("finds Chinese words inside text, alone or with English words", () => {
+    const connection = createConnection();
+    const organization = new OrganizationService(connection.db);
+    const search = new SearchService(connection.db);
+    let orgId = "";
+    connection.transaction(() => {
+      orgId = organization.createOrganization({ organizationName: "中文公司", employeeName: "Dana Lee", mission: "m", goal: "g" });
+      for (const title of ["数据迁移计划", "数据迁移 rollout plan", "Quarterly rollout", "100%_完成", "CAFÉ migration"]) {
+        organization.createTask({
+          orgId, title, description: "d", status: TASK_STATUS.BACKLOG, assigneeAgentId: null, risk: "low",
+          projectId: null, goalId: null, workspaceId: null, priority: "normal", requiresFilesystem: false,
+        });
+      }
+    });
+    const employeeId = (connection.db.prepare("select id from employees where org_id = ?").get(orgId) as { id: string }).id;
+    const titles = (query: string) => search.search({ orgId, employeeId, query, entityTypes: ["task"] }).results.map((hit) => hit.title).sort();
+    expect(titles("迁移")).toEqual(["数据迁移 rollout plan", "数据迁移计划"]);
+    expect(titles("迁移 rollout")).toEqual(["数据迁移 rollout plan"]);
+    expect(titles("rollout")).toEqual(["Quarterly rollout", "数据迁移 rollout plan"]);
+    // LIKE wildcards in the words are taken literally.
+    expect(titles("%_完")).toEqual(["100%_完成"]);
+    // Letters outside ASCII match whatever their case.
+    expect(titles("café")).toEqual(["CAFÉ migration"]);
+    expect(titles("CAFÉ")).toEqual(["CAFÉ migration"]);
+    expect(search.search({ orgId, employeeId, query: "!!", entityTypes: ["task"] })).toEqual({ results: [], total: 0 });
+    connection.close();
+  });
 });
