@@ -166,6 +166,18 @@ test("onboards, hires, and creates work in the Electron shell", async () => {
     await page.getByRole("button", { name: "New space" }).click();
     await page.getByLabel("Name").fill("release");
     await page.getByLabel("Topic").fill("Release coordination");
+    // Each choice explains what it changes; member pickers appear only where they matter.
+    const spaceNotes = page.locator(".modal").getByRole("note");
+    await expect(spaceNotes.filter({ hasText: "Workspace: everyone in the company is a member" })).toBeVisible();
+    await expect(page.locator(".modal select[name=memberAgentIds]")).toHaveCount(0);
+    await page.locator(".modal select[name=visibility]").selectOption("restricted");
+    await expect(spaceNotes.filter({ hasText: "Restricted: only the members you pick take part" })).toBeVisible();
+    await expect(page.locator(".modal select[name=memberAgentIds]")).toHaveCount(1);
+    await page.locator(".modal select[name=spaceType]").selectOption("direct");
+    await expect(spaceNotes.filter({ hasText: "Direct: only its members take part" })).toBeVisible();
+    await expect(page.locator(".modal select[name=visibility]")).toHaveCount(0);
+    await page.locator(".modal select[name=spaceType]").selectOption("project");
+    await page.locator(".modal select[name=visibility]").selectOption("workspace");
     await page.locator(".modal").getByRole("button", { name: "Create" }).click();
     await expect(page.getByText("release").first()).toBeVisible();
     await page.getByRole("textbox", { name: "Message" }).fill("/escalate @Board review release plan");

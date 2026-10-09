@@ -1,9 +1,7 @@
 import { useCallback, useMemo, useRef, useState, type FormEvent } from "react";
-import { Field } from "../shared/ui";
-import { Dialog } from "../shared/Dialog";
-import { t } from "../i18n/i18n";
 import { ChatSidebar } from "./chat/ChatSidebar";
 import { ChatConversation } from "./chat/ChatConversation";
+import { NewSpaceDialog, type SpaceType, type Visibility } from "./chat/NewSpaceDialog";
 import type { Draft, SendState } from "./chat/ChatComposer";
 import {
   buildConversations,
@@ -14,8 +12,6 @@ import {
 import type { PageProps } from "./types";
 import { activeOrgId, requireActiveEmployee } from "./types";
 
-type SpaceType = "company" | "division" | "department" | "project" | "pod" | "ad_hoc" | "direct";
-type Visibility = "workspace" | "restricted";
 
 function value(form: FormData, key: string): string {
   return String(form.get(key) ?? "").trim();
@@ -269,45 +265,15 @@ export function ChatPage({ snapshot, actions }: PageProps) {
         composerRef={composerRef}
       />
 
-      <Dialog
-        title={t("New space")}
+      <NewSpaceDialog
+        key={createOpen ? "open" : "closed"}
         open={createOpen}
-        submitLabel={t("Create")}
+        employee={employee}
+        employees={employees}
+        agents={agents}
         onClose={() => setCreateOpen(false)}
         onSubmit={createSpace}
-      >
-        <Field label={t("Name")}><input className="input" name="name" required /></Field>
-        <Field label={t("Topic")}><input className="input" name="topic" required /></Field>
-        <Field label={t("Type")}>
-          <select className="input" name="spaceType" defaultValue="project">
-            <option value="company">{t("Company")}</option>
-            <option value="division">{t("Division")}</option>
-            <option value="department">{t("Department")}</option>
-            <option value="project">{t("Project")}</option>
-            <option value="pod">{t("Pod")}</option>
-            <option value="ad_hoc">{t("Ad-hoc")}</option>
-            <option value="direct">{t("Direct")}</option>
-          </select>
-        </Field>
-        <Field label={t("Visibility")}>
-          <select className="input" name="visibility" defaultValue="workspace">
-            <option value="workspace">{t("Workspace")}</option>
-            <option value="restricted">{t("Restricted")}</option>
-          </select>
-        </Field>
-        <Field label={t("Employees")}>
-          <select className="input" name="memberEmployeeIds" multiple size={Math.max(1, Math.min(4, employees.length))}>
-            {employees.filter((item) => item.id !== employee.id).map((item) => (
-              <option key={item.id} value={item.id}>{item.displayName}</option>
-            ))}
-          </select>
-        </Field>
-        <Field label={t("Agents")}>
-          <select className="input" name="memberAgentIds" multiple size={Math.max(1, Math.min(4, agents.length))}>
-            {agents.map((agent) => <option key={agent.id} value={agent.id}>{agent.name}</option>)}
-          </select>
-        </Field>
-      </Dialog>
+      />
     </div>
   );
 }
