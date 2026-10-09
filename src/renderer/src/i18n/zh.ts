@@ -694,6 +694,7 @@ export const zh: Record<string, string> = {
   "Resets {date} (UTC)": "{date} 重置（UTC）",
   "Unsaved": "未保存",
   "Working language": "工作语言",
+  "That did not work": "操作未成功",
   "AgentCompany could not load its data.": "AgentCompany 无法加载数据。",
   "Retrying every few seconds (attempt {count}).": "每隔几秒重试一次（第 {count} 次）。",
   "Retry now": "立即重试",

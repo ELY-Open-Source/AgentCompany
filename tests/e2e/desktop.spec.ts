@@ -126,6 +126,18 @@ test("onboards, hires, and creates work in the Electron shell", async () => {
     await expect(page.getByText("Alex Turing").first()).toBeVisible();
     await expect(page.locator(".table-row", { hasText: "Alex Turing" }).locator(".avatar", { hasText: "🚀" })).toBeVisible();
 
+    // A failure the dialog does not handle itself still says what went wrong.
+    await page.getByRole("button", { name: "Hire" }).click();
+    await page.locator(".modal").getByLabel("Name", { exact: true }).fill("Alex Turing");
+    await page.locator(".modal").getByLabel("Role", { exact: true }).fill("Engineer");
+    await page.locator(".modal").getByLabel("Department").fill("Engineering");
+    await page.locator(".modal").getByRole("button", { name: "Hire" }).click();
+    const toast = page.getByRole("alert").filter({ hasText: "That did not work" });
+    await expect(toast).toContainText('An agent named "Alex Turing" is already on staff');
+    await toast.getByRole("button", { name: "Dismiss" }).click();
+    await expect(toast).toHaveCount(0);
+    await page.locator(".modal").getByRole("button", { name: "Cancel" }).click();
+
     // The operator edits their own name and avatar from the sidebar foot.
     await page.getByRole("button", { name: "Edit profile" }).click();
     await page.locator(".modal").getByLabel("Name", { exact: true }).fill("Dana Zhang");
