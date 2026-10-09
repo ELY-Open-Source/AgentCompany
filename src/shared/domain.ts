@@ -126,6 +126,8 @@ export interface TaskRecord {
   enqueueError: string | null;
   /** Why the operator blocked the task; no session starts while it is set. */
   blockedReason: string | null;
+  /** Provenance: a chat reply vehicle, a goal checkpoint, a manager's review of work, or null for plain work. */
+  origin: "chat_wake" | "goal_review" | "task_review" | null;
   /** Why the open task is not moving now, or null when nothing holds it. */
   hold: TaskHold | null;
   /** Runs at or below this task_runs rowid no longer count toward the run budget. */

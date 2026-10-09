@@ -1,3 +1,4 @@
+import { isBusinessTask } from "../pages/work/task-helpers";
 import { unreadBySpace } from "../pages/chat/chat-helpers";
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import type { AppSnapshot, EmployeeRecord } from "../../../shared/domain";
@@ -219,7 +220,7 @@ function computeBadges(snapshot: AppSnapshot, orgId: string): Partial<Record<Rou
   const tasks = snapshot.tasks.filter((item) => item.orgId === orgId);
   const approvals = snapshot.approvals.filter((item) => item.orgId === orgId);
   return {
-    work: tasks.filter((task) => task.status !== "done").length,
+    work: tasks.filter((task) => task.status !== "done" && isBusinessTask(task)).length,
     chat: employee ? countUnreadMessages(snapshot, orgId, employee.id) : 0,
     approvals: approvals.filter((approval) => approval.state === "pending").length,
   };

@@ -18,6 +18,11 @@ export const WRITING_OPTIONS: ReadonlyArray<{ value: WritingMode; label: string 
 ];
 
 
+/** Real work: not the vehicle of a chat reply or a goal checkpoint, which the system creates for itself. */
+export function isBusinessTask(task: TaskRecord): boolean {
+  return task.origin !== "chat_wake" && task.origin !== "goal_review";
+}
+
 export function nextStatus(status: TaskStatus): TaskStatus | null {
   if (status === TASK_STATUS.BACKLOG) return TASK_STATUS.IN_PROGRESS;
   if (status === TASK_STATUS.IN_PROGRESS) return TASK_STATUS.REVIEW;

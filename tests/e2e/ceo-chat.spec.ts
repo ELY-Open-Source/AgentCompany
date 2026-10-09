@@ -74,6 +74,8 @@ test("the pinned CEO conversation is the Messages front door", async () => {
 
     // From a task, its goal, run and back are one click each.
     await page.getByRole("button", { name: "Work" }).click();
+    // The CEO's reply to the founder is a chat vehicle, not work: it stays off the board.
+    await expect(page.getByRole("button", { name: /Reply to Yang/ })).toHaveCount(0);
     await page.getByRole("button", { name: /Operationalize goal: Ship the FlowPilot MVP\./ }).first().click();
     const taskDialog = page.getByRole("dialog", { name: "Operationalize goal: Ship the FlowPilot MVP." });
     await taskDialog.getByRole("button", { name: "Open goal Ship the FlowPilot MVP." }).click();

@@ -1,3 +1,4 @@
+import { isBusinessTask } from "./work/task-helpers";
 import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import type { PageProps } from "./types";
 import { activeOrgId, requireActiveEmployee } from "./types";
@@ -39,7 +40,7 @@ export function OfficePage({ snapshot }: PageProps) {
     const orgAgents = snapshot.agents
       .filter((agent) => agent.orgId === orgId && agent.lifecycle === "active")
       .sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id));
-    const orgTasks = snapshot.tasks.filter((task) => task.orgId === orgId);
+    const orgTasks = snapshot.tasks.filter((task) => task.orgId === orgId && isBusinessTask(task));
     return orgAgents.map((agent) => ({
       id: agent.id,
       name: agent.name,

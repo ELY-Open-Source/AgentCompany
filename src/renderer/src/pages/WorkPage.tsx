@@ -20,7 +20,7 @@ import { TaskDetailDialog } from "./work/TaskDetailDialog";
 import { ProjectOverview } from "./work/ProjectOverview";
 import { ListView } from "./work/ListView";
 import { TimelineView } from "./work/TimelineView";
-import { latestTaskRun, nextStatus, prettyRunState, providerFor, runBlocker, runTone } from "./work/task-helpers";
+import { isBusinessTask, latestTaskRun, nextStatus, prettyRunState, providerFor, runBlocker, runTone } from "./work/task-helpers";
 import type { PageProps } from "./types";
 import { activeOrgId, type Focus } from "./types";
 import { t } from "../i18n/i18n";
@@ -52,7 +52,9 @@ export function WorkPage({ snapshot, actions, navigate, focus }: PageProps) {
   const [scope, setScope] = useState<Focus | null>(focus && (focus.kind === "goal" || focus.kind === "project") ? focus : null);
   const [actionError, setActionError] = useState<string | null>(null);
 
-  const allTasks = useMemo(() => snapshot.tasks.filter((task) => task.orgId === orgId), [snapshot.tasks, orgId]);
+  // The board, its counts and its filters show real work; chat replies and goal checkpoints show on Messages, Home and Runs.
+  const orgTasks = useMemo(() => snapshot.tasks.filter((task) => task.orgId === orgId), [snapshot.tasks, orgId]);
+  const allTasks = useMemo(() => orgTasks.filter(isBusinessTask), [orgTasks]);
   const tasks = useMemo(
     () =>
       allTasks.filter((task) => {
@@ -88,7 +90,8 @@ export function WorkPage({ snapshot, actions, navigate, focus }: PageProps) {
     setActionError(null);
     operation().catch((error: unknown) => setActionError(error instanceof Error ? error.message : String(error)));
   };
-  const detailTask = detailTaskId ? allTasks.find((task) => task.id === detailTaskId) ?? null : null;
+  // A link (from a run, say) can open an internal task too, though the board does not list it.
+  const detailTask = detailTaskId ? orgTasks.find((task) => task.id === detailTaskId) ?? null : null;
 
   return (
     <div className="page-wide work-page">

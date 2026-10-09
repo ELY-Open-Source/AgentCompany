@@ -1,3 +1,4 @@
+import { isBusinessTask } from "./work/task-helpers";
 import { useMemo, useState, type CSSProperties } from "react";
 import { Avatar, Button, Icon, Pill } from "../shared/ui";
 import { TopbarActions } from "../shared/TopbarActions";
@@ -26,6 +27,8 @@ export function HomePage({ snapshot, actions, navigate }: PageProps) {
   const organization = requireActiveOrganization(snapshot);
   const employee = requireActiveEmployee(snapshot);
   const tasks = useMemo(() => snapshot.tasks.filter((task) => task.orgId === orgId), [snapshot.tasks, orgId]);
+  // Progress and workload count real work only; run titles still resolve against every task.
+  const businessTasks = useMemo(() => tasks.filter(isBusinessTask), [tasks]);
   const agents = useMemo(() => snapshot.agents.filter((agent) => agent.orgId === orgId), [snapshot.agents, orgId]);
   const approvals = useMemo(() => snapshot.approvals.filter((item) => item.orgId === orgId), [snapshot.approvals, orgId]);
   const goals = useMemo(() => snapshot.goals.filter((item) => item.orgId === orgId), [snapshot.goals, orgId]);
@@ -43,7 +46,7 @@ export function HomePage({ snapshot, actions, navigate }: PageProps) {
   const pendingApprovals = approvals.filter((approval) => approval.state === "pending");
   const totalBudgetCents = agents.reduce((sum, agent) => sum + agent.budgetCents, 0);
   const primaryGoal = goals.find((goal) => goal.status === "active") ?? goals[0] ?? null;
-  const goalProgress = computeGoalProgress(primaryGoal, tasks);
+  const goalProgress = computeGoalProgress(primaryGoal, businessTasks);
   const firstName = employee.displayName.split(/\s+/)[0] ?? employee.displayName;
   const greeting = greetingFor(new Date().getHours());
 
@@ -68,7 +71,7 @@ export function HomePage({ snapshot, actions, navigate }: PageProps) {
       </div>
 
       <div style={METRICS}>
-        <AgentWorkloadChart agents={agents} tasks={tasks} />
+        <AgentWorkloadChart agents={agents} tasks={businessTasks} />
         <RunActivityChart days={usageStats.days} />
         <SuccessRateChart days={usageStats.days} />
         <CostTrendChart days={usageStats.days} />
