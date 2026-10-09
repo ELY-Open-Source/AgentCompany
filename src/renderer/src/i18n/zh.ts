@@ -699,6 +699,8 @@ export const zh: Record<string, string> = {
   "Waiting for the {name} sign-in in your browser (check {check} of {checks}).": "正在等待你在浏览器中完成 {name} 登录（第 {check}/{checks} 次检查）。",
   "Stop waiting": "停止等待",
   "People to mention": "可提及的人",
+  "Only a task runs: an agent picks it up and does the work. Goals and projects group tasks; documents and knowledge are what agents read and write along the way.": "只有任务会被执行：智能体接手任务并完成工作。目标和项目用来归组任务；文档和知识是智能体在工作中读写的内容。",
+  "Agents read and write these while working on tasks. Nothing here starts work; a task does.": "智能体在执行任务时读写这些内容。这里的内容不会自行启动工作，只有任务会。",
   "{title}: use the arrow keys to read each value": "{title}：用方向键逐项读取数值",
   "{rate}% of judged work accepted": "已评判的工作中 {rate}% 被接受",
   "No work judged yet": "还没有评判过的工作",
