@@ -104,34 +104,6 @@ export interface DeleteKnowledgeEntryInput {
   deletedByEmployeeId: string;
 }
 
-export interface CreateAutomationRuleInput {
-  orgId: string;
-  name: string;
-  triggerEvent: string;
-  conditions: Record<string, unknown>;
-  actionType: string;
-  actionConfig: Record<string, unknown>;
-  priority: number;
-  enabled: boolean;
-}
-
-export interface UpdateAutomationRuleInput {
-  orgId: string;
-  ruleId: string;
-  name: string;
-  triggerEvent: string;
-  conditions: Record<string, unknown>;
-  actionType: string;
-  actionConfig: Record<string, unknown>;
-  priority: number;
-  enabled: boolean;
-}
-
-export interface DeleteAutomationRuleInput {
-  orgId: string;
-  ruleId: string;
-}
-
 export interface CreateMeetingInput {
   orgId: string;
   title: string;

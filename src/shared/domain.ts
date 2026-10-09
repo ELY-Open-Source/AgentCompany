@@ -539,18 +539,3 @@ export interface ConnectorGrantRecord {
   createdAt: string;
 }
 
-export interface AutomationRuleRecord {
-  id: string;
-  orgId: string;
-  name: string;
-  triggerEvent: string;
-  conditionJson: string;
-  actionType: string;
-  actionConfigJson: string;
-  priority: number;
-  enabled: boolean;
-  lastFiredAt: string | null;
-  fireCount: number;
-  createdAt: string;
-  updatedAt: string;
-}

@@ -106,6 +106,7 @@ import { workLanguageSchema } from "./migrations/104-work-language";
 import { onboardingProgressSchema } from "./migrations/105-onboarding-progress";
 import { viewStateSchema } from "./migrations/106-view-state";
 import { searchPendingSchema } from "./migrations/107-search-pending";
+import { dropAutomationRulesSchema } from "./migrations/108-drop-automation-rules";
 
 interface Migration {
   version: number;
@@ -221,6 +222,7 @@ const MIGRATIONS: Migration[] = [
   { version: 105, name: "onboarding_progress", sql: onboardingProgressSchema },
   { version: 106, name: "view_state", sql: viewStateSchema },
   { version: 107, name: "search_pending", sql: searchPendingSchema },
+  { version: 108, name: "drop_automation_rules", sql: dropAutomationRulesSchema },
 ];
 
 const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;

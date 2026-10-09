@@ -19,7 +19,6 @@ import type {
   AgentRecord,
   ApprovalRecord,
   AuditEventRecord,
-  AutomationRuleRecord,
   ConnectorAccountRecord,
   ConnectorGrantRecord,
   DocumentRecord,
@@ -127,7 +126,6 @@ export interface AppSnapshot {
   auditEvents: AuditEventRecord[];
   documents: DocumentRecord[];
   knowledgeEntries: KnowledgeEntryRecord[];
-  automationRules: AutomationRuleRecord[];
   meetings: MeetingRecord[];
   sprints: SprintRecord[];
   connectorAccounts: ConnectorAccountRecord[];

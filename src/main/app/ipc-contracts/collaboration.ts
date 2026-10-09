@@ -5,7 +5,6 @@ const id = z.string();
 const nullableId = z.string().nullable();
 const actor = z.enum(["employee", "agent"]);
 const sender = z.enum(["employee", "agent", "board", "system"]);
-const settings = z.record(z.string(), z.unknown());
 
 export const collaborationContracts = {
   createDocument: z.strictObject({
@@ -27,15 +26,6 @@ export const collaborationContracts = {
   }) satisfies z.ZodType<C.UpdateKnowledgeEntryInput>,
   deleteKnowledgeEntry: z.strictObject({ orgId: id, entryId: id, deletedByEmployeeId: id }) satisfies z.ZodType<C.DeleteKnowledgeEntryInput>,
   listKnowledgeRevisions: z.strictObject({ orgId: id, entryId: id }) satisfies z.ZodType<C.ListKnowledgeRevisionsInput>,
-  createAutomationRule: z.strictObject({
-    orgId: id, name: z.string(), triggerEvent: z.string(), conditions: settings, actionType: z.string(), actionConfig: settings,
-    priority: z.number(), enabled: z.boolean(),
-  }) satisfies z.ZodType<C.CreateAutomationRuleInput>,
-  updateAutomationRule: z.strictObject({
-    orgId: id, ruleId: id, name: z.string(), triggerEvent: z.string(), conditions: settings, actionType: z.string(), actionConfig: settings,
-    priority: z.number(), enabled: z.boolean(),
-  }) satisfies z.ZodType<C.UpdateAutomationRuleInput>,
-  deleteAutomationRule: z.strictObject({ orgId: id, ruleId: id }) satisfies z.ZodType<C.DeleteAutomationRuleInput>,
   createMeeting: z.strictObject({
     orgId: id, title: z.string(), meetingType: z.string(), scheduledAt: z.string().nullable(), durationMinutes: z.number(), agenda: z.string(),
   }) satisfies z.ZodType<C.CreateMeetingInput>,

@@ -17,7 +17,6 @@ import type {
   UpdateAgentInput,
   UpdateEmployeeProfileInput,
   CreateApprovalInput,
-  CreateAutomationRuleInput,
   CreateDocumentInput,
   CreateGoalInput,
   CreateMeetingInput,
@@ -32,7 +31,6 @@ import type {
   ListKnowledgeRevisionsInput,
   CreateProjectInput,
   CreateWorkspaceInput,
-  DeleteAutomationRuleInput,
   DeleteDocumentInput,
   DeleteTaskInput,
   SetGoalDueDateInput,
@@ -41,7 +39,6 @@ import type {
   UpdateWorkspaceInput,
   DeleteKnowledgeEntryInput,
   ResumeGoalInput,
-  UpdateAutomationRuleInput,
   UpdateDocumentInput,
   UpdateTaskInput,
   CreateChatSpaceInput,
@@ -164,9 +161,6 @@ export interface DesktopApi {
   updateKnowledgeEntry(input: UpdateKnowledgeEntryInput): Promise<DesktopResult<AppSnapshot>>;
   listDocumentVersions(input: ListDocumentVersionsInput): Promise<DesktopResult<DocumentVersionRecord[]>>;
   listKnowledgeRevisions(input: ListKnowledgeRevisionsInput): Promise<DesktopResult<KnowledgeRevisionRecord[]>>;
-  createAutomationRule(input: CreateAutomationRuleInput): Promise<DesktopResult<AppSnapshot>>;
-  updateAutomationRule(input: UpdateAutomationRuleInput): Promise<DesktopResult<AppSnapshot>>;
-  deleteAutomationRule(input: DeleteAutomationRuleInput): Promise<DesktopResult<AppSnapshot>>;
   createMeeting(input: CreateMeetingInput): Promise<DesktopResult<AppSnapshot>>;
   deleteMeeting(input: DeleteMeetingInput): Promise<DesktopResult<AppSnapshot>>;
   createSprint(input: CreateSprintInput): Promise<DesktopResult<AppSnapshot>>;
