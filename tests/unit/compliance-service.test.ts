@@ -89,6 +89,7 @@ describe("compliance service", () => {
       employeeId = (connection.db.prepare("select id from employees where org_id = ?").get(orgId) as { id: string }).id;
       spaceId = chat.createSpace({ orgId, spaceType: "project", name: "release", topic: "Release coordination", visibility: "workspace" });
       chat.sendMessage({ orgId, spaceId, threadId: null, senderType: "employee", senderId: employeeId, bodyMd: "Delete me", attachmentFileIds: [] });
+      chat.sendMessage({ orgId, spaceId, threadId: null, senderType: "board", senderId: employeeId, bodyMd: "As the board", attachmentFileIds: [] });
       approvalId = approvals.create({
         orgId,
         kind: "security_review",
@@ -170,6 +171,22 @@ describe("compliance service", () => {
     expect(state.complianceExports[0]?.exportType).toBe("gdpr_delete");
     expect(state.complianceExports[0]?.requestedByEmployeeId).toBeNull();
     expect(state.auditEvents.some((event) => event.entityType === "compliance_export" && event.action === "gdpr_deleted")).toBe(true);
+    // The erased content is gone, not moved: no message text, no copy in the deletion record, no personal detail in audit payloads.
+    expect(state.chatMessages.map((message) => [message.bodyMd, message.senderId])).toEqual([["[deleted]", null], ["[deleted]", null]]);
+    expect(state.chatMessages.every((message) => !JSON.stringify(message).includes("Delete me") && !JSON.stringify(message).includes("As the board"))).toBe(true);
+    expect(state.chatThreads.every((thread) => !thread.title.includes("Delete me") && !thread.title.includes("As the board"))).toBe(true);
+    const receipt = state.complianceExports.find((record) => record.exportType === "gdpr_delete")!.payloadJson;
+    expect(receipt).not.toContain("Dana Lee");
+    expect(receipt).not.toContain("Delete me");
+    expect(receipt).not.toContain("As the board");
+    expect(JSON.parse(receipt).erased).toMatchObject({ chatMessages: 2 });
+    const subjectEvents = state.auditEvents.filter((event) => (event.actorType === "employee" && event.actorId === employeeId) || event.entityId === employeeId);
+    expect(subjectEvents.length).toBeGreaterThan(0);
+    expect(subjectEvents.every((event) => event.payloadJson === '{"redacted":true}')).toBe(true);
+    // Redaction is the one change the log allows; anything else is still refused.
+    expect(() => connection.db.prepare("update audit_events set action = 'rewritten' where id = ?").run(subjectEvents[0].id)).toThrow("Audit events are immutable.");
+    expect(() => connection.db.prepare("update audit_events set payload_json = '{}' where id = ?").run(subjectEvents[0].id)).toThrow("Audit events are immutable.");
+    expect(() => connection.db.prepare("update audit_events set id = null, payload_json = '{\"redacted\":true}' where id = ?").run(subjectEvents[0].id)).toThrow("Audit events are immutable.");
     connection.close();
   });
 
@@ -299,6 +316,30 @@ describe("compliance service", () => {
       exportType: "gdpr_delete",
       requestedByEmployeeId: employeeId,
     }))).toThrow("Active compliance hold prevents GDPR delete.");
+    connection.close();
+  });
+
+  test("a hold on a thread or channel where the employee spoke as the board blocks their deletion too", () => {
+    const connection = new DatabaseConnection(join(tmpdir(), `ac-board-hold-${randomUUID()}.db`));
+    const organization = new OrganizationService(connection.db);
+    const chat = new ChatService(connection.db);
+    const compliance = new ComplianceService(connection.db);
+    let orgId = "";
+    let spaceId = "";
+    connection.transaction(() => {
+      orgId = organization.createOrganization({ organizationName: "Acme", employeeName: "Dana Lee", mission: "m", goal: "g" });
+      spaceId = chat.createSpace({ orgId, spaceType: "project", name: "board-room", topic: "t", visibility: "workspace" });
+    });
+    const employeeId = (connection.db.prepare("select id from employees where org_id = ?").get(orgId) as { id: string }).id;
+    connection.transaction(() => chat.sendMessage({ orgId, spaceId, threadId: null, senderType: "board", senderId: employeeId, bodyMd: "Board decision", attachmentFileIds: [] }));
+    const threadId = (connection.db.prepare("select thread_id from chat_messages where org_id = ?").get(orgId) as { thread_id: string }).thread_id;
+    const holdId = connection.transaction(() => compliance.createLegalHold({ orgId, entityType: "chat_thread", entityId: threadId, reason: "litigation", createdByEmployeeId: employeeId }));
+    const erase = () => connection.transaction(() => compliance.createExport({ orgId, subjectType: "employee", subjectId: employeeId, exportType: "gdpr_delete", requestedByEmployeeId: employeeId }));
+    expect(erase).toThrow("Active compliance hold prevents GDPR delete.");
+    connection.transaction(() => compliance.setLegalHoldState({ orgId, legalHoldId: holdId, active: false, employeeId }));
+    connection.transaction(() => compliance.createRetentionFreeze({ orgId, scopeType: "chat_space", scopeId: spaceId, reason: "audit", createdByEmployeeId: employeeId }));
+    expect(erase).toThrow("Active compliance hold prevents GDPR delete.");
+    expect(connection.db.prepare("select body_md from chat_messages where org_id = ?").get(orgId)).toEqual({ body_md: "Board decision" });
     connection.close();
   });
 });

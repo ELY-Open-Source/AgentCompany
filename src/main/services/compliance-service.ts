@@ -24,8 +24,11 @@ export class ComplianceService {
     this.assertEmployee(input.orgId, input.requestedByEmployeeId, "Requesting employee was not found.");
     this.assertSubject(input.orgId, input.subjectType, input.subjectId);
     if (input.exportType === COMPLIANCE_EXPORT_TYPE.GDPR_DELETE) this.assertDeleteAllowed(input);
-    const payload = this.subjectPayload(input.orgId, input.subjectType, input.subjectId);
-    if (input.exportType === COMPLIANCE_EXPORT_TYPE.GDPR_DELETE) this.applyGdprDelete(input.orgId, input.subjectType, input.subjectId);
+    const gathered = this.subjectPayload(input.orgId, input.subjectType, input.subjectId);
+    const erasing = input.exportType === COMPLIANCE_EXPORT_TYPE.GDPR_DELETE;
+    // A deletion keeps a receipt of what it erased, never a copy of it.
+    const payload = erasing ? erasureReceipt(gathered) : gathered;
+    if (erasing) this.applyGdprDelete(input.orgId, input.subjectType, input.subjectId);
     const requestedByEmployeeId = deletedEmployeeRequestor(input) ? null : input.requestedByEmployeeId;
     const id = createId("cmp");
     const now = new Date().toISOString();
@@ -51,7 +54,7 @@ export class ComplianceService {
       entityType: "compliance_export",
       entityId: id,
       actorType: "employee",
-      actorId: input.requestedByEmployeeId,
+      actorId: requestedByEmployeeId,
       action: input.exportType === COMPLIANCE_EXPORT_TYPE.GDPR_DELETE ? "gdpr_deleted" : "created",
       payload: { subjectType: input.subjectType, subjectId: input.subjectId, exportType: input.exportType },
     });
@@ -150,7 +153,7 @@ export class ComplianceService {
     if (subjectType === "employee") {
       return {
         profile: this.one("employees", orgId, subjectId),
-        chatMessages: this.db.prepare("select * from chat_messages where org_id = ? and sender_type = 'employee' and sender_id = ? order by created_at").all(orgId, subjectId),
+        chatMessages: this.db.prepare("select * from chat_messages where org_id = ? and sender_type in ('employee', 'board') and sender_id = ? order by created_at").all(orgId, subjectId),
         approvalsRequested: this.db.prepare("select * from approvals where org_id = ? and requested_by_type = 'employee' and requested_by_id = ? order by created_at").all(orgId, subjectId),
         approvalsDecided: this.db.prepare("select * from approvals where org_id = ? and decided_by_employee_id = ? order by created_at").all(orgId, subjectId),
         employeeIdentities: this.db.prepare("select * from employee_identities where org_id = ? and employee_id = ? order by created_at").all(orgId, subjectId),
@@ -173,11 +176,10 @@ export class ComplianceService {
   }
 
   private applyGdprDelete(orgId: string, subjectType: string, subjectId: string): void {
+    this.eraseAuthoredContent(orgId, subjectType, subjectId);
     if (subjectType === "employee") {
-      this.db.prepare("update employees set display_name = ?, role = ? where id = ? and org_id = ?")
+      this.db.prepare("update employees set display_name = ?, role = ?, avatar_emoji = null, avatar_color = null, avatar_image = null where id = ? and org_id = ?")
         .run("Deleted employee", "Deleted", subjectId, orgId);
-      this.db.prepare("update chat_messages set sender_id = null where org_id = ? and sender_type = 'employee' and sender_id = ?")
-        .run(orgId, subjectId);
       this.db.prepare("update approvals set requested_by_id = null where org_id = ? and requested_by_type = 'employee' and requested_by_id = ?")
         .run(orgId, subjectId);
       this.db.prepare("update approvals set decided_by_employee_id = null where org_id = ? and decided_by_employee_id = ?")
@@ -212,12 +214,27 @@ export class ComplianceService {
         .run(orgId, subjectId);
       return;
     }
-    this.db.prepare("update agents set name = ?, role = ?, lifecycle = ?, model_provider_id = null, model_id = null where id = ? and org_id = ?")
+    this.db.prepare("update agents set name = ?, role = ?, lifecycle = ?, model_provider_id = null, model_id = null, avatar_emoji = null, avatar_color = null, avatar_image = null where id = ? and org_id = ?")
       .run("Deleted agent", "Deleted", "archived", subjectId, orgId);
     this.db.prepare("update tasks set assignee_agent_id = null where org_id = ? and assignee_agent_id = ?").run(orgId, subjectId);
     this.db.prepare("update task_runs set agent_id = null where org_id = ? and agent_id = ?").run(orgId, subjectId);
-    this.db.prepare("update chat_messages set sender_id = null where org_id = ? and sender_type = 'agent' and sender_id = ?")
-      .run(orgId, subjectId);
+  }
+
+  /** What the subject wrote and what the log says about them: message text, its attachment links and command arguments, and audit payloads. */
+  private eraseAuthoredContent(orgId: string, subjectType: string, subjectId: string): void {
+    // An employee also speaks and acts as the board under the same id.
+    const roles = subjectType === "employee" ? ["employee", "board"] : [subjectType];
+    const marks = roles.map(() => "?").join(", ");
+    const authored = `select id from chat_messages where org_id = ? and sender_type in (${marks}) and sender_id = ?`;
+    this.db.prepare(`delete from chat_attachments where message_id in (${authored})`).run(orgId, ...roles, subjectId);
+    this.db.prepare(`delete from chat_slash_invocations where message_id in (${authored})`).run(orgId, ...roles, subjectId);
+    // A thread is titled from its first message, so threads the subject started lose that title too.
+    this.db.prepare(`update chat_threads set title = '[deleted]' where org_id = ? and root_message_id in (${authored})`).run(orgId, orgId, ...roles, subjectId);
+    this.db.prepare(`update chat_messages set body_md = '[deleted]', body_structured_json = '{}', sender_id = null, deleted_at = ? where org_id = ? and sender_type in (${marks}) and sender_id = ?`)
+      .run(new Date().toISOString(), orgId, ...roles, subjectId);
+    // The events stay, so the log still shows what happened and when; only what they carried about the subject goes.
+    this.db.prepare(`update audit_events set payload_json = '{"redacted":true}' where org_id = ? and ((actor_type in (${marks}) and actor_id = ?) or entity_id = ?)`)
+      .run(orgId, ...roles, subjectId, subjectId);
   }
 
   private assertDeleteAllowed(input: CreateComplianceExportInput): void {
@@ -233,7 +250,7 @@ export class ComplianceService {
               select 1 from chat_messages
               where org_id = ?
                 and thread_id = legal_holds.entity_id
-                and sender_type = ?
+                and (sender_type = ? or (? = 'employee' and sender_type = 'board'))
                 and sender_id = ?
             )
           )
@@ -256,6 +273,7 @@ export class ComplianceService {
       input.orgId,
       input.orgId,
       input.subjectType,
+      input.subjectType,
       input.subjectId,
       input.orgId,
       input.subjectType,
@@ -272,7 +290,7 @@ export class ComplianceService {
               select 1 from chat_messages
               where org_id = ?
                 and space_id = retention_freezes.scope_id
-                and sender_type = ?
+                and (sender_type = ? or (? = 'employee' and sender_type = 'board'))
                 and sender_id = ?
             )
           )
@@ -292,6 +310,7 @@ export class ComplianceService {
       input.orgId,
       input.orgId,
       input.orgId,
+      input.subjectType,
       input.subjectType,
       input.subjectId,
       input.orgId,
@@ -352,4 +371,11 @@ function deletedEmployeeRequestor(input: CreateComplianceExportInput): boolean {
   return input.exportType === COMPLIANCE_EXPORT_TYPE.GDPR_DELETE
     && input.subjectType === "employee"
     && input.subjectId === input.requestedByEmployeeId;
+}
+
+/** A deletion's record: how much of each kind it erased, with no content. */
+function erasureReceipt(gathered: Record<string, unknown>): { erased: Record<string, number> } {
+  const erased: Record<string, number> = {};
+  for (const [kind, value] of Object.entries(gathered)) erased[kind] = Array.isArray(value) ? value.length : value ? 1 : 0;
+  return { erased };
 }
