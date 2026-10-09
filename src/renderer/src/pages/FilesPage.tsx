@@ -44,6 +44,7 @@ export function FilesPage({ snapshot, actions }: PageProps) {
   const upload = () => {
     void window.agentCompany.importFile({ orgId }).then((result) => {
       if (!result.ok) throw new Error(result.error.message);
+      if (result.data.failures.length > 0) throw new Error(result.data.failures.map((failure) => `${failure.name}: ${failure.reason}`).join("; "));
     });
   };
   const openFile = (file: FileObjectRecord) => {

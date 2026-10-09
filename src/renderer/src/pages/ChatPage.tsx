@@ -22,7 +22,7 @@ function value(form: FormData, key: string): string {
 }
 
 const IDLE_SEND: SendState = { pending: false, error: null };
-const EMPTY_DRAFT: Draft = { body: "", attachmentFileId: "" };
+const EMPTY_DRAFT: Draft = { body: "", attachmentFileIds: [] };
 
 export function ChatPage({ snapshot, actions }: PageProps) {
   const orgId = activeOrgId(snapshot);
@@ -72,6 +72,7 @@ export function ChatPage({ snapshot, actions }: PageProps) {
   const [createOpen, setCreateOpen] = useState(false);
   // Text and attachment are kept per conversation, so switching neither loses one nor carries the other along.
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
+  const [attachErrors, setAttachErrors] = useState<Record<string, string | null>>({});
   const updateDraft = useCallback((spaceId: string, change: Partial<Draft>) =>
     setDrafts((current) => ({ ...current, [spaceId]: { ...(current[spaceId] ?? EMPTY_DRAFT), ...change } })), []);
   const saveDraftBody = useCallback((spaceId: string, body: string) => updateDraft(spaceId, { body }), [updateDraft]);
@@ -119,9 +120,9 @@ export function ChatPage({ snapshot, actions }: PageProps) {
     event.preventDefault();
     if (!activeSpace || sends[activeSpace.id]?.pending) return;
     const spaceId = activeSpace.id;
-    const sentAttachment = (drafts[spaceId] ?? EMPTY_DRAFT).attachmentFileId;
+    const sentAttachments = (drafts[spaceId] ?? EMPTY_DRAFT).attachmentFileIds;
     const body = value(new FormData(event.currentTarget), "message");
-    if (!body) return;
+    if (!body && sentAttachments.length === 0) return;
     setSends((current) => ({ ...current, [spaceId]: { pending: true, error: null } }));
     // The draft and attachment stay until the message is saved, so a refused send loses nothing.
     actions.run(() => window.agentCompany.sendMessage({
@@ -131,14 +132,14 @@ export function ChatPage({ snapshot, actions }: PageProps) {
       senderType: "employee",
       senderId: employee.id,
       bodyMd: body,
-      attachmentFileIds: sentAttachment ? [sentAttachment] : [],
+      attachmentFileIds: sentAttachments,
     })).then(() => {
       // Clear this conversation's mounted composer directly; reset() could restore the sent text as its default.
       const node = composerRef.current;
       if (node?.form?.dataset.spaceId === spaceId) node.value = "";
       setDrafts((current) => {
-        const kept = (current[spaceId] ?? EMPTY_DRAFT).attachmentFileId;
-        return { ...current, [spaceId]: { body: "", attachmentFileId: kept === sentAttachment ? "" : kept } };
+        const kept = (current[spaceId] ?? EMPTY_DRAFT).attachmentFileIds.filter((fileId) => !sentAttachments.includes(fileId));
+        return { ...current, [spaceId]: { body: "", attachmentFileIds: kept } };
       });
       setSends((current) => ({ ...current, [spaceId]: { pending: false, error: null } }));
     }).catch((error: unknown) => {
@@ -198,8 +199,18 @@ export function ChatPage({ snapshot, actions }: PageProps) {
     if (!activeSpaceId) return;
     const spaceId = activeSpaceId;
     void window.agentCompany.importFile({ orgId, spaceId }).then((result) => {
-      if (!result.ok) throw new Error(result.error.message);
-      if (result.data) updateDraft(spaceId, { attachmentFileId: result.data });
+      if (!result.ok) {
+        setAttachErrors((current) => ({ ...current, [spaceId]: result.error.message }));
+        return;
+      }
+      const { fileIds, failures } = result.data;
+      setDrafts((current) => {
+        const draft = current[spaceId] ?? EMPTY_DRAFT;
+        const added = fileIds.filter((fileId) => !draft.attachmentFileIds.includes(fileId));
+        return { ...current, [spaceId]: { ...draft, attachmentFileIds: [...draft.attachmentFileIds, ...added] } };
+      });
+      const reason = failures.map((failure) => `${failure.name} (${failure.reason})`).join("; ");
+      setAttachErrors((current) => ({ ...current, [spaceId]: reason || null }));
     });
   };
 
@@ -231,10 +242,13 @@ export function ChatPage({ snapshot, actions }: PageProps) {
         files={files}
         context={{ employees, agents, readersByMessage }}
         draft={(activeSpaceId ? drafts[activeSpaceId] : undefined) ?? EMPTY_DRAFT}
+        attachError={(activeSpaceId ? attachErrors[activeSpaceId] : undefined) ?? null}
         onDraftLeave={saveDraftBody}
         currentEmployeeId={employee.id}
-        onAttachmentChange={(fileId) => {
-          if (activeSpaceId) updateDraft(activeSpaceId, { attachmentFileId: fileId });
+        onAttachmentRemove={(fileId) => {
+          if (!activeSpaceId) return;
+          const remaining = ((drafts[activeSpaceId] ?? EMPTY_DRAFT).attachmentFileIds).filter((id) => id !== fileId);
+          updateDraft(activeSpaceId, { attachmentFileIds: remaining });
         }}
         onAttach={attachFile}
         onApprove={(approvalId) => decideApproval(approvalId, "approved")}

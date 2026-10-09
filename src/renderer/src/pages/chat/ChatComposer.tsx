@@ -11,22 +11,23 @@ export interface SendState {
   error: string | null;
 }
 
-/** A conversation's unsent message: its text and the file picked to go with it. */
+/** A conversation's unsent message: its text and the files picked to go with it. */
 export interface Draft {
   body: string;
-  attachmentFileId: string;
+  attachmentFileIds: string[];
 }
 
 export function ChatComposer({
   disabled,
   send,
   draft,
+  attachError,
   spaceId,
   onLeave,
   files,
   agents,
   employees,
-  onAttachmentChange,
+  onAttachmentRemove,
   onAttach,
   onSubmit,
   composerRef,
@@ -34,13 +35,15 @@ export function ChatComposer({
   disabled: boolean;
   send: SendState;
   draft: Draft;
+  /** Why some picked files could not be attached, or null. */
+  attachError: string | null;
   spaceId: string | null;
   /** Called with the unsent text when the composer goes away, so the conversation keeps it; must be stable. */
   onLeave: (spaceId: string, body: string) => void;
   files: FileObjectRecord[];
   agents: AgentRecord[];
   employees: EmployeeRecord[];
-  onAttachmentChange: (next: string) => void;
+  onAttachmentRemove: (fileId: string) => void;
   onAttach: () => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   composerRef: MutableRefObject<HTMLTextAreaElement | null>;
@@ -48,7 +51,7 @@ export function ChatComposer({
   const [slashOpen, setSlashOpen] = useState(false);
   // While a send is in flight nothing may change the draft it will clear on success.
   const locked = disabled || send.pending;
-  const attachment = files.find((file) => file.id === draft.attachmentFileId) ?? null;
+  const attachments = draft.attachmentFileIds.map((fileId) => files.find((file) => file.id === fileId) ?? { id: fileId, name: fileId });
   const internalRef = useRef<HTMLTextAreaElement | null>(null);
   const ref = composerRef ?? internalRef;
   useEffect(() => {
@@ -89,27 +92,28 @@ export function ChatComposer({
         <div className="row" style={{ paddingTop: 6, borderTop: "1px solid var(--border-soft)", gap: 4 }}>
           <IconButton icon="attach" label={t("Attach file")} onClick={onAttach} disabled={locked} />
           <IconButton icon="sparkle" label={t("Commands")} onClick={() => setSlashOpen((open) => !open)} disabled={locked} />
-          {attachment && (
-            <span className="pill" style={{ maxWidth: 220 }}>
+          {attachments.map((attachment) => (
+            <span key={attachment.id} className="pill" style={{ maxWidth: 220 }}>
               <Icon name="file" size={14} />
               <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{attachment.name}</span>
               <button
                 type="button"
-                aria-label={t("Remove attachment")}
+                aria-label={t("Remove {name}", { name: attachment.name })}
                 disabled={locked}
-                onClick={() => onAttachmentChange("")}
+                onClick={() => onAttachmentRemove(attachment.id)}
                 style={{ display: "inline-flex", border: 0, background: "transparent", padding: 0, color: "var(--text-3)", cursor: "pointer" }}
               >
                 <Icon name="x" size={14} />
               </button>
             </span>
-          )}
+          ))}
           <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6 }}>
             <span className="mono" style={{ fontSize: 12, color: "var(--text-3)" }}>Ctrl+Enter</span>
             <Button tone="primary" size="small" type="submit" disabled={locked}><Icon name="send" size={12} /> {t("Send")}</Button>
           </div>
         </div>
         {send.error && <div className="form-error" role="alert">{t("Not sent: {reason}", { reason: send.error })}</div>}
+        {attachError && <div className="form-error" role="alert">{t("Not attached: {reason}", { reason: attachError })}</div>}
         {slashOpen && !locked && (
           <div style={{ marginTop: 8, display: "flex", flexWrap: "wrap", gap: 6 }}>
             {SLASH_COMMANDS.map((command) => (

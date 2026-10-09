@@ -340,9 +340,9 @@ export function registerIpcHandlers(deps: IpcDeps): void {
 
   handle("importFile", async (input) => {
     try {
-      const fileId = await files.importFile(input);
-      if (fileId) notifyDataChanged();
-      return ok(fileId);
+      const imported = await files.importFile(input);
+      if (imported.fileIds.length > 0) notifyDataChanged();
+      return ok(imported);
     } catch (error) {
       return fail("file_import_failed", error instanceof Error ? error.message : String(error));
     }

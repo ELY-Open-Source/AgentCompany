@@ -25,9 +25,10 @@ export function ChatConversation({
   files,
   context,
   draft,
+  attachError,
   onDraftLeave,
   currentEmployeeId,
-  onAttachmentChange,
+  onAttachmentRemove,
   onAttach,
   onApprove,
   onDecline,
@@ -48,9 +49,10 @@ export function ChatConversation({
   files: FileObjectRecord[];
   context: MessageContext;
   draft: Draft;
+  attachError: string | null;
   onDraftLeave: (spaceId: string, body: string) => void;
   currentEmployeeId: string;
-  onAttachmentChange: (next: string) => void;
+  onAttachmentRemove: (fileId: string) => void;
   onAttach: () => void;
   onApprove: (approvalId: string) => void;
   onDecline: (approvalId: string) => void;
@@ -144,9 +146,10 @@ export function ChatConversation({
         agents={context.agents}
         employees={context.employees}
         draft={draft}
+        attachError={attachError}
         spaceId={space?.id ?? null}
         onLeave={onDraftLeave}
-        onAttachmentChange={onAttachmentChange}
+        onAttachmentRemove={onAttachmentRemove}
         onAttach={onAttach}
         onSubmit={onSubmit}
         composerRef={composerRef}

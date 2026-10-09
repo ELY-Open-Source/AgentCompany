@@ -120,7 +120,7 @@ export class ChatService {
 
   sendMessage(input: SendMessageInput): string {
     const body = input.bodyMd.trim();
-    if (!body) throw new Error("Message body is required.");
+    if (!body && (input.attachmentFileIds ?? []).length === 0) throw new Error("A message needs text or a file.");
     const space = this.requireSpace(input.orgId, input.spaceId);
     const sender = this.requireSender(input.orgId, input.senderType, input.senderId);
     if (sender) this.requireMembership(space.id, sender);
@@ -160,7 +160,7 @@ export class ChatService {
       this.db.prepare(`
         insert into chat_threads(id, org_id, space_id, root_message_id, title, state, created_at, updated_at)
         values (?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(threadId, input.orgId, input.spaceId, id, createThreadTitle(body), "open", now, now);
+      `).run(threadId, input.orgId, input.spaceId, id, createThreadTitle(body || this.fileNames(input.orgId, attachmentFileIds)), "open", now, now);
     } else {
       this.db.prepare("update chat_threads set updated_at = ? where id = ? and org_id = ?").run(now, input.threadId, input.orgId);
     }
@@ -424,6 +424,13 @@ export class ChatService {
     `).get(threadId, orgId, spaceId) as ThreadRow | undefined;
     if (!thread) throw new Error("Chat thread was not found in this space.");
     return thread;
+  }
+
+  /** The attached files' names, in order, to title a thread whose first message is files alone. */
+  private fileNames(orgId: string, fileIds: string[]): string {
+    const names = this.db.prepare("select id, name from file_objects where org_id = ?").all(orgId) as Array<{ id: string; name: string }>;
+    const byId = new Map(names.map((file) => [file.id, file.name]));
+    return fileIds.map((fileId) => byId.get(fileId)!).join(", ");
   }
 
   private requireAttachments(orgId: string, fileIds: string[], sender: PrincipalRef | null): FileHandoffAttachment[] {

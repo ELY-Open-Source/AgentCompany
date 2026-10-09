@@ -3,7 +3,7 @@ import { copyFile } from "node:fs/promises";
 import { basename, join } from "node:path";
 import type { DatabaseSync } from "node:sqlite";
 import { dialog, shell } from "electron";
-import type { ImportFileInput, OpenFileInput } from "../../shared/commands";
+import type { ImportedFiles, ImportFileInput, OpenFileInput } from "../../shared/commands";
 import { FILE_SCAN_STATE } from "../../shared/domain";
 import { createId } from "../../shared/ids";
 import { AuditService } from "./audit-service";
@@ -26,13 +26,24 @@ export class FileService {
     mkdirSync(this.artifactRoot, { recursive: true });
   }
 
-  async importFile(input: ImportFileInput): Promise<string | null> {
+  /** Imports every file the user picks, in order; one that fails is reported and does not undo or hide the others. */
+  async importFile(input: ImportFileInput): Promise<ImportedFiles> {
     const result = await dialog.showOpenDialog({
-      properties: ["openFile"],
+      properties: ["openFile", "multiSelections"],
       securityScopedBookmarks: true,
     });
-    if (result.canceled || result.filePaths.length === 0) return null;
-    return this.importPath(input.orgId, result.filePaths[0], input.spaceId ?? null);
+    const imported: ImportedFiles = { fileIds: [], failures: [] };
+    if (result.canceled) return imported;
+    for (const path of result.filePaths) {
+      try {
+        imported.fileIds.push(await this.importPath(input.orgId, path, input.spaceId ?? null));
+      } catch (error) {
+        const reason = error instanceof Error ? error.message : String(error);
+        console.warn(`[files] import of ${basename(path)} failed: ${reason}`);
+        imported.failures.push({ name: basename(path), reason });
+      }
+    }
+    return imported;
   }
 
   /** A file imported into a direct conversation or restricted channel is readable by that space's members only. */
