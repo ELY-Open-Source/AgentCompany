@@ -11,10 +11,10 @@ import type {
   ProviderRateLimitStateRecord,
   ProviderRecord,
 } from "../../../../shared/domain";
-import { PROVIDER_DATA_POLICY } from "../../../../shared/domain";
 import { ProviderLogo } from "../../shared/ProviderLogo";
 import { ModelPicker, ProviderConnectFields, ProviderOAuthFields } from "./ProviderConnectionDialog";
 import { composeSecret } from "./provider-secret";
+import { ProviderPolicyTable } from "./ProviderPolicyTable";
 import type { SnapshotActions } from "../../app/useSnapshot";
 
 interface ProvidersPanelProps {
@@ -30,8 +30,6 @@ interface ProvidersPanelProps {
 }
 
 const PRICE_GRID = "minmax(150px, 1.4fr) 110px 110px 110px 92px";
-const POLICY_GRID = "minmax(150px, 1.2fr) minmax(118px, 0.8fr) minmax(140px, 1fr) 112px 124px 124px 92px";
-type WorkspaceScope = "organization" | "workspace";
 
 export function ProvidersPanel({ orgId, companyName, employeeId, providers, authProfiles, catalog, agents, providerRateLimits, actions }: ProvidersPanelProps) {
   const [active, setActive] = useState<ProviderRecord | null>(null);
@@ -167,45 +165,6 @@ export function ProvidersPanel({ orgId, companyName, employeeId, providers, auth
   );
 }
 
-function ProviderPolicyTable({
-  orgId,
-  providers,
-  providerRateLimits,
-  actions,
-}: {
-  orgId: string;
-  providers: ProviderRecord[];
-  providerRateLimits: ProviderRateLimitStateRecord[];
-  actions: SnapshotActions;
-}) {
-  return (
-    <>
-      <div className="section-label" style={{ marginBottom: 10 }}>{t("Runtime policy")}</div>
-      <div className="card" style={{ padding: 0, overflowX: "auto", marginBottom: 28 }}>
-        <div
-          className="table-row head"
-          style={{ gridTemplateColumns: POLICY_GRID, minWidth: 900 }}
-        >
-          <div>{t("Provider")}</div><div>{t("Scope")}</div><div>{t("Data policy")}</div><div>{t("Background")}</div><div>{t("Monthly limit")}</div><div>{t("Context window (tokens)")}</div><div>{t("Usage")}</div>
-        </div>
-        {providers.map((provider, index) => {
-          const rateLimit = requireProviderRateLimit(provider, providerRateLimits);
-          return (
-            <ProviderPolicyRow
-              key={provider.id}
-              orgId={orgId}
-              provider={provider}
-              rateLimit={rateLimit}
-              last={index === providers.length - 1}
-              actions={actions}
-            />
-          );
-        })}
-      </div>
-    </>
-  );
-}
-
 /** Prices turn recorded token usage into spend, which agent and department budgets are checked against. */
 function ProviderPricesTable({ orgId, providers, actions }: { orgId: string; providers: ProviderRecord[]; actions: SnapshotActions }) {
   return (
@@ -246,110 +205,6 @@ function ProviderPricesRow({ orgId, provider, actions }: { orgId: string; provid
       <div>
         <button type="button" className="button small" aria-label={t("Save {label} prices", { label: provider.label })} onClick={save}>{t("Save")}</button>
         {error && <div className="form-error" role="alert">{error}</div>}
-      </div>
-    </div>
-  );
-}
-
-function ProviderPolicyRow({
-  orgId,
-  provider,
-  rateLimit,
-  last,
-  actions,
-}: {
-  orgId: string;
-  provider: ProviderRecord;
-  rateLimit: ProviderRateLimitStateRecord;
-  last: boolean;
-  actions: SnapshotActions;
-}) {
-  const [dataPolicy, setDataPolicy] = useState(provider.dataPolicy);
-  const [backgroundEnabled, setBackgroundEnabled] = useState(provider.backgroundEnabled);
-  const [monthlyRequestLimit, setMonthlyRequestLimit] = useState(String(provider.monthlyRequestLimit));
-  const [contextWindowTokens, setContextWindowTokens] = useState(String(provider.contextWindowTokens));
-  const [workspaceScope, setWorkspaceScope] = useState<WorkspaceScope>(provider.workspaceScope === "workspace" ? "workspace" : "organization");
-
-  const savePolicy = () => {
-    void actions.run(() => window.agentCompany.updateProviderPolicy({
-      orgId,
-      providerId: provider.id,
-      dataPolicy,
-      backgroundEnabled,
-      monthlyRequestLimit: Number(monthlyRequestLimit),
-      workspaceScope,
-      contextWindowTokens: Number(contextWindowTokens),
-    }));
-  };
-
-  const updateDataPolicy = (value: ProviderRecord["dataPolicy"]) => {
-    setDataPolicy(value);
-    if (value === PROVIDER_DATA_POLICY.ZERO_DATA_RETENTION) setBackgroundEnabled(false);
-  };
-
-  return (
-    <div
-      className="table-row"
-      style={{
-        gridTemplateColumns: POLICY_GRID,
-        minWidth: 900,
-        borderBottom: last ? "none" : "1px solid var(--border-soft)",
-      }}
-    >
-      <div style={{ minWidth: 0 }}>
-        <div style={{ fontWeight: 540, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{provider.label}</div>
-      </div>
-      <select
-        className="input"
-        aria-label={t("{label} workspace scope", { label: provider.label })}
-        value={workspaceScope}
-        onChange={(event) => setWorkspaceScope(event.target.value === "workspace" ? "workspace" : "organization")}
-      >
-        <option value="organization">{t("Organization")}</option>
-        <option value="workspace">{t("Workspace")}</option>
-      </select>
-      <select
-        className="input"
-        aria-label={t("{label} data policy", { label: provider.label })}
-        value={dataPolicy}
-        onChange={(event) => updateDataPolicy(event.target.value as ProviderRecord["dataPolicy"])}
-      >
-        <option value={PROVIDER_DATA_POLICY.STANDARD}>{t("Standard retention")}</option>
-        <option value={PROVIDER_DATA_POLICY.ZERO_DATA_RETENTION}>{t("Zero data retention")}</option>
-      </select>
-      <label className="row" style={{ gap: 8, fontSize: 12, color: "var(--text-2)" }}>
-        <input
-          aria-label={t("{label} background execution", { label: provider.label })}
-          type="checkbox"
-          checked={backgroundEnabled}
-          disabled={dataPolicy === PROVIDER_DATA_POLICY.ZERO_DATA_RETENTION}
-          onChange={(event) => setBackgroundEnabled(event.target.checked)}
-        />
-        {t("Allow")}
-      </label>
-      <input
-        className="input"
-        aria-label={t("{label} monthly request limit", { label: provider.label })}
-        type="number"
-        min={1}
-        value={monthlyRequestLimit}
-        onChange={(event) => setMonthlyRequestLimit(event.target.value)}
-      />
-      <input
-        className="input"
-        aria-label={t("{label} context window", { label: provider.label })}
-        title={t("The model's context window. Runs keep prompts, skills, history, and tool results inside it.")}
-        type="number"
-        min={24000}
-        step={1000}
-        value={contextWindowTokens}
-        onChange={(event) => setContextWindowTokens(event.target.value)}
-      />
-      <div>
-        <div className="num mono">{rateLimit.requestCount} / {rateLimit.monthlyRequestLimit}</div>
-        <button type="button" className="button small" aria-label={t("Save {label} policy", { label: provider.label })} onClick={savePolicy}>
-          {t("Save")}
-        </button>
       </div>
     </div>
   );
@@ -457,15 +312,6 @@ function readableAuth(authType: ProviderRecord["authType"]): string {
   if (authType === "account_subscription") return t("Account");
   if (authType === "cloud") return t("Cloud");
   return authType;
-}
-
-function requireProviderRateLimit(
-  provider: ProviderRecord,
-  rateLimits: ProviderRateLimitStateRecord[],
-): ProviderRateLimitStateRecord {
-  const rateLimit = rateLimits.find((item) => item.providerId === provider.id);
-  if (!rateLimit) throw new Error(`Provider rate limit state missing for ${provider.id}.`);
-  return rateLimit;
 }
 
 function requireCatalogEntry(catalog: ProviderCatalogEntry[], providerKey: string): ProviderCatalogEntry {

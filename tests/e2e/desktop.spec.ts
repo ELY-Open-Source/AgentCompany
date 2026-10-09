@@ -184,7 +184,10 @@ test("onboards, hires, and creates work in the Electron shell", async () => {
       await expect(page.getByText(label, { exact: true })).toBeVisible();
     }
     await page.getByLabel("OpenAI background execution").check();
+    await expect(page.getByText("Unsaved", { exact: true })).toBeVisible();
     await page.getByRole("button", { name: "Save OpenAI policy" }).click();
+    await expect(page.getByText("Saved", { exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Save OpenAI policy" })).toBeDisabled();
 
     // The operator request console lives under Advanced.
     await page.getByRole("button", { name: "Advanced" }).click();
@@ -197,8 +200,11 @@ test("onboards, hires, and creates work in the Electron shell", async () => {
     await page.getByRole("button", { name: "Providers" }).click();
     await page.getByLabel("OpenAI data policy").selectOption("zero_data_retention");
     await expect(page.getByLabel("OpenAI background execution")).not.toBeChecked();
-    await page.getByLabel("OpenAI monthly request limit").fill("25");
+    await expect(page.getByText("Zero data retention switched background off.")).toBeVisible();
+    await page.getByLabel("OpenAI monthly request limit").fill("25.9");
     await page.getByRole("button", { name: "Save OpenAI policy" }).click();
+    await expect(page.getByText("Saved", { exact: true })).toBeVisible();
+    await expect(page.getByLabel("OpenAI monthly request limit")).toHaveValue("25");
     await expect(page.getByText("0 / 25").first()).toBeVisible();
 
     // Changing only the default model asks for no key and keeps the sign-in.

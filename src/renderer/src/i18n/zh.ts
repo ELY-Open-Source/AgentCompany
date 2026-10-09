@@ -687,4 +687,12 @@ export const zh: Record<string, string> = {
   "{model} (provider default)": "{model}（Provider 默认）",
   "Chosen when the session starts": "会话开始时确定",
   "The default model reaches {following} agents without their own model; {own} keep their own. Sessions already started keep the model they began with.": "默认模型作用于 {following} 个未单独设置模型的 Agent；{own} 个保留自己的模型。已开始的会话继续使用开始时的模型。",
+  "Scope: “Workspace” refuses every call that is not made for a workspace, including agent sessions on tasks without one.": "范围：选择“工作区”后，凡不是为某个工作区发起的调用都会被拒绝，包括没有工作区的任务上的 Agent 会话。",
+  "Data policy: zero data retention refuses background requests, so it also switches background off.": "数据策略：零数据保留会拒绝后台请求，因此会同时关闭后台执行。",
+  "Background: lets requests from the request console run in the provider's background mode.": "后台：允许请求控制台发出的请求以 Provider 的后台模式运行。",
+  "Monthly limit: counts every model call this company makes through the provider in the calendar month (UTC); at the limit, calls are refused and agent work waits until the month resets.": "月额度：统计本公司在当月（UTC 自然月）通过该 Provider 发起的每次模型调用；达到上限后调用会被拒绝，Agent 工作等待到下月重置。",
+  "Context window: the size new sessions fit prompts, skills, history and tool results into; sessions already running keep theirs.": "上下文窗口：新会话把提示、技能、历史和工具结果放入的容量；已在运行的会话保持原值。",
+  "Zero data retention switched background off.": "零数据保留已关闭后台执行。",
+  "Resets {date} (UTC)": "{date} 重置（UTC）",
+  "Unsaved": "未保存",
 };
