@@ -1,3 +1,4 @@
+import { StartupScreen } from "./StartupScreen";
 import type { Focus } from "../pages/types";
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { Shell, type RouteId } from "../shared/Shell";
@@ -17,7 +18,7 @@ import { SettingsPage } from "../pages/SettingsPage";
 import { OfficePage } from "../pages/OfficePage";
 
 export function App() {
-  const { snapshot, actions } = useSnapshot();
+  const { snapshot, syncFailure, actions } = useSnapshot();
   const [route, setRoute] = useState<RouteId>("home");
   const [focus, setFocus] = useState<Focus | null>(null);
   // Opening a page for an object remembers it; plain navigation forgets it.
@@ -61,7 +62,8 @@ export function App() {
   }, [theme]);
 
   if (!snapshot) {
-    return <div className="app-shell" style={{ display: "grid", placeItems: "center" }} />;
+    // A failed manual retry is already recorded in syncFailure, which the screen shows.
+    return <StartupScreen failure={syncFailure} onRetry={() => void actions.reload().catch(() => undefined)} />;
   }
   // A company exists from Launch on, but its setup is unfinished until the connectors step is done; that is stored, so a restart resumes it.
   const unfinished = snapshot.organizations.find((organization) => organization.setupCompletedAt === null) ?? null;

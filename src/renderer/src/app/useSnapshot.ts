@@ -7,16 +7,31 @@ export interface SnapshotActions {
   reload(): Promise<void>;
 }
 
+/** The latest failed load since the last success, and how many loads in a row have failed. */
+export interface SyncFailure {
+  message: string;
+  attempts: number;
+}
+
 export function useSnapshot(): {
   snapshot: AppSnapshot | null;
+  syncFailure: SyncFailure | null;
   actions: SnapshotActions;
 } {
   const [snapshot, setSnapshot] = useState<AppSnapshot | null>(null);
+  const [syncFailure, setSyncFailure] = useState<SyncFailure | null>(null);
 
   const load = useCallback(async () => {
-    const result = await window.agentCompany.loadSnapshot();
-    if (!result.ok) throw new Error(result.error.message);
-    setSnapshot(result.data);
+    try {
+      const result = await window.agentCompany.loadSnapshot();
+      if (!result.ok) throw new Error(result.error.message);
+      setSnapshot(result.data);
+      setSyncFailure(null);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setSyncFailure((current) => ({ message, attempts: (current?.attempts ?? 0) + 1 }));
+      throw error;
+    }
   }, []);
 
   const run = useCallback(async <T extends AppSnapshot | null>(
@@ -72,5 +87,5 @@ export function useSnapshot(): {
   }, [load]);
 
   const actions = useMemo<SnapshotActions>(() => ({ run, reload: load }), [run, load]);
-  return { snapshot, actions };
+  return { snapshot, syncFailure, actions };
 }
