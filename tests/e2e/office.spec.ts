@@ -5,6 +5,8 @@ import { join, resolve } from "node:path";
 import { randomUUID } from "node:crypto";
 import { buildFloorPlan } from "../../src/renderer/src/pages/office/floor-plan";
 import { cameraFor } from "../../src/renderer/src/pages/office/simulation";
+import { isoFrame, isoPixelSize, toIso } from "../../src/renderer/src/pages/office/iso";
+import type { FloorPlan, Vec } from "../../src/renderer/src/pages/office/office-types";
 import { seedBuiltinSkillsFixture } from "./builtin-skills-fixture";
 
 test("the office floor opens agent details on click", async () => {
@@ -53,9 +55,8 @@ test("the office floor opens agent details on click", async () => {
     const box = await canvas.boundingBox();
     expect(box).not.toBeNull();
     const plan = buildFloorPlan(0);
-    const camera = cameraFor(plan.world, box!.width, box!.height, plan.entrance);
-    const clickX = box!.x + plan.ceoSeat.x - camera.x;
-    const clickY = box!.y + plan.ceoSeat.y - 20 - camera.y;
+    const ratio = await page.evaluate(() => window.devicePixelRatio);
+    const { x: clickX, y: clickY } = onScreen(plan, box!, ratio, plan.ceoSeat, 20);
 
     await page.mouse.click(clickX, clickY);
     const card = page.getByRole("dialog", { name: "Agent CEO" });
@@ -78,7 +79,8 @@ test("the office floor opens agent details on click", async () => {
     await expect(card).not.toBeVisible();
 
     // Clicking empty corridor floor selects nothing.
-    await page.mouse.click(box!.x + 500 - camera.x, box!.y + 320 - camera.y);
+    const corridor = onScreen(plan, box!, ratio, { x: 500, y: 320 }, 0);
+    await page.mouse.click(corridor.x, corridor.y);
     await expect(page.getByRole("dialog", { name: /Agent / })).not.toBeVisible();
 
     // WASD input is accepted without disturbing the page.
@@ -102,12 +104,8 @@ test("the office floor opens agent details on click", async () => {
 
     const populated = buildFloorPlan(2);
     const populatedBox = await canvas.boundingBox();
-    const populatedCamera = cameraFor(populated.world, populatedBox!.width, populatedBox!.height, populated.entrance);
-    const firstDesk = populated.desks[0].seat;
-    await page.mouse.click(
-      populatedBox!.x + firstDesk.x - populatedCamera.x,
-      populatedBox!.y + firstDesk.y - 20 - populatedCamera.y,
-    );
+    const firstDesk = onScreen(populated, populatedBox!, ratio, populated.desks[0].seat, 20);
+    await page.mouse.click(firstDesk.x, firstDesk.y);
     const avaCard = page.getByRole("dialog", { name: "Agent Ava Patel" });
     await expect(avaCard).toBeVisible();
     await expect(avaCard.getByText("Design", { exact: true })).toBeVisible();
@@ -131,4 +129,13 @@ async function hireAgent(page: Page, name: string, role: string, department: str
   await page.getByLabel("Monthly budget").fill("100");
   await page.locator(".modal").getByRole("button", { name: "Hire" }).click();
   await expect(page.getByText(name).first()).toBeVisible();
+}
+
+/** Where a plan point, lifted by `lift` iso pixels, is drawn: the same projection, camera and pixel size the page uses, with the player at the entrance. */
+function onScreen(plan: FloorPlan, box: { x: number; y: number; width: number; height: number }, ratio: number, point: Vec, lift: number): Vec {
+  const pixel = isoPixelSize(ratio);
+  const frame = isoFrame(plan.world);
+  const camera = cameraFor(frame.size, box.width / pixel, box.height / pixel, toIso(frame, plan.entrance));
+  const at = toIso(frame, point, lift);
+  return { x: box.x + (at.x - Math.round(camera.x)) * pixel, y: box.y + (at.y - Math.round(camera.y)) * pixel };
 }

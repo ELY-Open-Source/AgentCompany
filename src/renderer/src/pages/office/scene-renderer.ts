@@ -1,24 +1,26 @@
 import type { FloorPlan, Rect, RoomSpec } from "./office-types";
 import { WALL } from "./floor-plan";
 import { drawWindowSky, type SkyScene } from "./sky";
+import { BACK_WALL_H, depthOf, drawBox, setGroundTransform, setNorthWallTransform, type BoxColors, type IsoFrame } from "./iso";
+import type { Season } from "../../shared/palette-clock";
 
-/**
- * Draws the static office world in a 3/4 top-down pixel style: wood floor,
- * room interiors, wall faces with windows, furniture, and door signage.
- * Everything here is a pure function of the floor plan and the visible rect.
- */
+/** One thing in the scene that people can stand in front of or behind; drawn in depth order with them. */
+export interface Drawable {
+  depth: number;
+  draw: (ctx: CanvasRenderingContext2D) => void;
+}
 
-/** Height of the visible north-wall face inside each room. */
-export const WALL_FACE_H = 48;
+/** Interior walls are cut away to this height so rooms stay visible. */
+const INNER_WALL_H = 14;
+/** Longest stretch of a block that sorts as one piece. */
+const PIECE = 32;
 
 const PALETTE = {
   wood: "#b08a62",
   woodSeam: "#9c7852",
   corridor: "#a8815c",
-  wallFill: "#4c4239",
-  wallEdge: "#3b332c",
-  wallFace: "#6b5f52",
-  wallFaceShadow: "#5d5246",
+  wall: "#6b5f52",
+  wallTop: "#4c4239",
   baseboard: "#4f463c",
   ceoCarpet: "#5c6a94",
   ceoCarpetEdge: "#505d85",
@@ -28,50 +30,43 @@ const PALETTE = {
   snackTileB: "#cbb891",
   restTileA: "#adbfd2",
   restTileB: "#9db0c5",
-  deskWood: "#8a6d4c",
-  deskWoodDark: "#75593b",
-  deskLeg: "#5f4832",
+  desk: "#8a6d4c",
+  deskExec: "#6a5238",
+  monitor: "#4b5058",
   screenOff: "#20242c",
-  monitorShell: "#4b5058",
+  screenOn: "#37d38a",
   chair: "#3d4148",
-  chairDark: "#33373d",
   frame: "#3f3831",
-  signPlate: "#2f2a25",
-  signText: "#d8cfc2",
 } as const;
 
-export function drawWorld(ctx: CanvasRenderingContext2D, plan: FloorPlan, view: Rect, sky: SkyScene): void {
-  drawFloor(ctx, plan, view);
-  for (const room of plan.rooms) drawRoomFloor(ctx, room);
-  drawStructure(ctx, plan, sky);
-  for (const room of plan.rooms) drawRoomFurniture(ctx, plan, room);
-  drawCorridorPlants(ctx, plan);
-  for (const desk of plan.desks) {
-    if (rectsTouch(view, expand(desk.bounds, 40))) drawDesk(ctx, desk.bounds, false);
-  }
-  for (const room of plan.rooms) drawDoorSign(ctx, room);
-  drawEntrance(ctx, plan);
+const LEAVES: Record<Season, { leaf: string; light: string }> = {
+  spring: { leaf: "#5f9a52", light: "#e9a3c2" },
+  summer: { leaf: "#3f7f3a", light: "#6fb25c" },
+  autumn: { leaf: "#b5652a", light: "#e0a23a" },
+  winter: { leaf: "#5a7466", light: "#e8eef2" },
+};
+
+/** Top, south and east faces of a block from one base colour: lit from above, the east side darkest. */
+export function faces(hex: string): BoxColors {
+  return { top: hex, south: shade(hex, 0.82), east: shade(hex, 0.66) };
 }
 
-/** The monitor screen glass for a desk; the activity glow overlay reuses it. */
-export function deskScreenRect(desk: Rect): Rect {
-  return { x: desk.x + desk.w / 2 - 13, y: desk.y - 15, w: 26, h: 15 };
-}
-
-function drawFloor(ctx: CanvasRenderingContext2D, plan: FloorPlan, view: Rect): void {
+/** Floor, rugs and tiles, flat on the ground plane. */
+export function drawGround(ctx: CanvasRenderingContext2D, frame: IsoFrame, plan: FloorPlan): void {
+  ctx.save();
+  setGroundTransform(ctx, frame);
   const { w, h } = plan.world;
   ctx.fillStyle = PALETTE.wood;
   ctx.fillRect(0, 0, w, h);
   ctx.fillStyle = PALETTE.woodSeam;
-  const top = Math.max(0, Math.floor(view.y / 16) * 16);
-  const bottom = Math.min(h, view.y + view.h);
-  for (let y = top; y < bottom; y += 16) {
+  for (let y = 0; y < h; y += 16) {
     ctx.fillRect(0, y, w, 1);
-    const offset = (y / 16) % 2 === 0 ? 0 : 48;
-    for (let x = offset; x < w; x += 96) ctx.fillRect(x, y, 1, 16);
+    for (let x = (y / 16) % 2 === 0 ? 0 : 48; x < w; x += 96) ctx.fillRect(x, y, 1, 16);
   }
   ctx.fillStyle = PALETTE.corridor;
-  ctx.fillRect(WALL, 288, plan.world.w - 2 * WALL, 64);
+  ctx.fillRect(WALL, 288, w - 2 * WALL, 64);
+  for (const room of plan.rooms) drawRoomFloor(ctx, room);
+  ctx.restore();
 }
 
 function drawRoomFloor(ctx: CanvasRenderingContext2D, room: RoomSpec): void {
@@ -84,9 +79,7 @@ function drawRoomFloor(ctx: CanvasRenderingContext2D, room: RoomSpec): void {
     ctx.strokeRect(b.x + 6, b.y + 6, b.w - 12, b.h - 12);
     return;
   }
-  const [tileA, tileB] = room.kind === "snack"
-    ? [PALETTE.snackTileA, PALETTE.snackTileB]
-    : [PALETTE.restTileA, PALETTE.restTileB];
+  const [tileA, tileB] = room.kind === "snack" ? [PALETTE.snackTileA, PALETTE.snackTileB] : [PALETTE.restTileA, PALETTE.restTileB];
   for (let ty = 0; ty < b.h; ty += 16) {
     for (let tx = 0; tx < b.w; tx += 16) {
       ctx.fillStyle = ((tx + ty) / 16) % 2 === 0 ? tileA : tileB;
@@ -95,280 +88,160 @@ function drawRoomFloor(ctx: CanvasRenderingContext2D, room: RoomSpec): void {
   }
 }
 
-function drawStructure(ctx: CanvasRenderingContext2D, plan: FloorPlan, sky: SkyScene): void {
+/** The tall north and west walls, which everything stands in front of, with windows and wall art on the north face. */
+export function drawBackWalls(ctx: CanvasRenderingContext2D, frame: IsoFrame, plan: FloorPlan, sky: SkyScene): void {
   const { w, h } = plan.world;
-  ctx.fillStyle = PALETTE.wallFill;
-  ctx.fillRect(0, 0, w, WALL);
-  ctx.fillRect(0, h - WALL, w, WALL);
-  ctx.fillRect(0, WALL, WALL, 280);
-  ctx.fillRect(0, 344, WALL, h - 344 - WALL);
-  ctx.fillRect(w - WALL, WALL, WALL, h - 2 * WALL);
-
+  const wall = faces(PALETTE.wall);
+  drawBox(ctx, frame, { x: 0, y: WALL, w: WALL, h: 280 }, 0, BACK_WALL_H, wall);
+  drawBox(ctx, frame, { x: 0, y: 344, w: WALL, h: h - 344 - WALL }, 0, BACK_WALL_H, wall);
+  drawBox(ctx, frame, { x: 0, y: 0, w, h: WALL }, 0, BACK_WALL_H, { ...wall, top: PALETTE.wallTop });
+  ctx.save();
+  setNorthWallTransform(ctx, frame, WALL);
+  ctx.fillStyle = PALETTE.baseboard;
+  ctx.fillRect(0, BACK_WALL_H - 3, w, 3);
   for (const room of plan.rooms) {
-    const b = room.bounds;
-    ctx.fillStyle = PALETTE.wallFace;
-    ctx.fillRect(b.x, b.y, b.w, WALL_FACE_H);
-    ctx.fillStyle = PALETTE.wallFaceShadow;
-    ctx.fillRect(b.x, b.y + WALL_FACE_H - 6, b.w, 6);
-    ctx.fillStyle = PALETTE.baseboard;
-    ctx.fillRect(b.x, b.y + WALL_FACE_H, b.w, 2);
-    drawRoomWindows(ctx, room, sky);
+    windowRects(room).forEach((rect, index) => {
+      ctx.fillStyle = PALETTE.frame;
+      ctx.fillRect(rect.x - 2, rect.y - 2, rect.w + 4, rect.h + 4);
+      drawWindowSky(ctx, rect, sky, Math.round(room.bounds.x) + index * 53);
+      ctx.fillStyle = PALETTE.frame;
+      ctx.fillRect(rect.x + rect.w / 2 - 1, rect.y, 2, rect.h);
+    });
   }
-
-  ctx.fillStyle = PALETTE.wallFill;
-  ctx.fillRect(304, WALL, WALL, 272);
-  ctx.fillRect(624, WALL, WALL, 272);
-  ctx.fillRect(896, WALL, WALL, 272);
-  for (const room of plan.rooms) drawSouthWall(ctx, room);
-  ctx.fillStyle = PALETTE.wallEdge;
-  ctx.fillRect(0, 0, w, 2);
+  drawWallArt(ctx);
+  ctx.restore();
 }
 
-function drawSouthWall(ctx: CanvasRenderingContext2D, room: RoomSpec): void {
-  const b = room.bounds;
-  const y = b.y + b.h;
-  const gapL = room.doorCx - 24;
-  const gapR = room.doorCx + 24;
-  ctx.fillStyle = PALETTE.wallFill;
-  ctx.fillRect(b.x - WALL, y, gapL - b.x + WALL, WALL);
-  ctx.fillRect(gapR, y, b.x + b.w - gapR + WALL, WALL);
-  ctx.fillStyle = PALETTE.wallEdge;
-  ctx.fillRect(b.x - WALL, y + WALL - 2, gapL - b.x + WALL, 2);
-  ctx.fillRect(gapR, y + WALL - 2, b.x + b.w - gapR + WALL, 2);
-  ctx.fillStyle = PALETTE.frame;
-  ctx.fillRect(gapL - 3, y, 3, WALL);
-  ctx.fillRect(gapR, y, 3, WALL);
-}
-
-function drawRoomWindows(ctx: CanvasRenderingContext2D, room: RoomSpec, sky: SkyScene): void {
-  const rects = windowRects(room);
-  for (let i = 0; i < rects.length; i++) {
-    drawWindowFrame(ctx, rects[i], sky, Math.round(room.bounds.x) + i * 53);
-  }
-}
-
-/** Window glass rects on each room's north wall face (world coordinates). */
+/** Window glass on each room's stretch of the north wall face: x along the wall, y down from its top. */
 export function windowRects(room: RoomSpec): Rect[] {
   const b = room.bounds;
-  const y = b.y + 8;
-  const h = WALL_FACE_H - 20;
-  if (room.kind === "restroom") {
-    return [{ x: b.x + b.w - 190, y: y + 6, w: 44, h: h - 10 }];
+  if (room.kind === "restroom") return [{ x: b.x + b.w - 190, y: 12, w: 44, h: 18 }];
+  if (room.kind === "snack") return [{ x: b.x + 104, y: 8, w: 72, h: 24 }];
+  return [{ x: b.x + 28, y: 8, w: 72, h: 24 }, { x: b.x + b.w - 100, y: 8, w: 72, h: 24 }];
+}
+
+function drawWallArt(ctx: CanvasRenderingContext2D): void {
+  // CEO office wall screen and meeting-room whiteboard, between their windows.
+  ctx.fillStyle = PALETTE.frame;
+  ctx.fillRect(143, 8, 34, 22);
+  ctx.fillStyle = "#7f96b8";
+  ctx.fillRect(145, 10, 30, 18);
+  ctx.fillStyle = "#f2efe8";
+  ctx.fillRect(424, 6, 96, 28);
+  ctx.fillStyle = "#b3543f";
+  ctx.fillRect(432, 12, 26, 3);
+  ctx.fillStyle = "#4f7fae";
+  ctx.fillRect(432, 19, 40, 3);
+  ctx.fillStyle = "#6d9c6b";
+  ctx.fillRect(432, 26, 33, 3);
+}
+
+/** A block sorted by its footprint centre; one resting on `support` sorts just after every piece of it underneath, so no part of that surface paints over it. */
+export function blockDrawable(frame: IsoFrame, foot: Rect, height: number, colors: BoxColors, z = 0, support?: Rect): Drawable {
+  const centerDepth = (rect: Rect) => depthOf({ x: rect.x + rect.w / 2, y: rect.y + rect.h / 2 });
+  if (!support) return { depth: centerDepth(foot), draw: (ctx) => drawBox(ctx, frame, foot, z, height, colors) };
+  const under = split(support).filter((piece) => overlaps(piece, foot));
+  if (under.length === 0) throw new Error("A resting block must sit over its support.");
+  return {
+    depth: Math.max(...under.map(centerDepth)) + 0.25,
+    draw: (ctx) => drawBox(ctx, frame, foot, z, height, colors),
+  };
+}
+
+/** Interior walls, furniture and desks as blocks, each sorted by depth against the people; `lit` desks have their screen on. */
+export function sceneDrawables(frame: IsoFrame, plan: FloorPlan, season: Season, lit: Set<Rect>): Drawable[] {
+  const items: Drawable[] = [];
+  // Long blocks go in pieces so each sorts against nearby people on its own.
+  const block = (foot: Rect, height: number, colors: BoxColors, z = 0, support?: Rect) => {
+    for (const piece of support ? [foot] : split(foot)) items.push(blockDrawable(frame, piece, height, colors, z, support));
+  };
+  for (const wall of innerWalls(plan)) block(wall, INNER_WALL_H, faces(PALETTE.wall));
+  const leaves = LEAVES[season];
+  const plant = (cx: number, cy: number) => {
+    const pot = { x: cx - 6, y: cy - 6, w: 12, h: 12 };
+    block(pot, 8, faces("#8a5a3b"));
+    block({ x: cx - 8, y: cy - 8, w: 16, h: 16 }, 12, faces(leaves.leaf), 8, pot);
+    block({ x: cx - 4, y: cy - 4, w: 8, h: 8 }, 6, faces(leaves.light), 20, pot);
+  };
+  // CEO office: rug, executive desk, sofa, plant.
+  block({ x: 32, y: 96, w: 24, h: 72 }, 10, faces("#7a4a41"));
+  plant(280, 40);
+  deskBlocks(plan.ceoDesk, true, lit.has(plan.ceoDesk)).forEach((item) => items.push(item(frame)));
+  // Meeting room: table and chairs.
+  block({ x: 392, y: 120, w: 160, h: 64 }, 12, faces("#75593b"));
+  for (let i = 0; i < 3; i++) {
+    block({ x: 414 + i * 52, y: 100, w: 14, h: 12 }, 8, faces(PALETTE.chair));
+    block({ x: 414 + i * 52, y: 192, w: 14, h: 12 }, 8, faces(PALETTE.chair));
   }
-  if (room.kind === "snack") {
-    return [{ x: b.x + 24, y, w: 72, h }];
-  }
-  const w = 72;
+  // Snack bar: counter, fridge, coffee machine, table and stools.
+  const counter = { x: 656, y: 40, w: 224, h: 28 };
+  block(counter, 16, faces("#8f8578"));
+  block({ x: 700, y: 20, w: 24, h: 20 }, 22, faces("#d5dade"));
+  block({ x: 744, y: 44, w: 14, h: 14 }, 12, faces("#2e3238"), 16, counter);
+  block({ x: 806, y: 46, w: 12, h: 10 }, 8, faces("#c9a86a"), 16, counter);
+  block({ x: 826, y: 46, w: 12, h: 10 }, 10, faces("#b3543f"), 16, counter);
+  block({ x: 748, y: 170, w: 40, h: 40 }, 12, faces("#94897b"));
+  block({ x: 728, y: 182, w: 12, h: 12 }, 7, faces("#6d5334"));
+  block({ x: 796, y: 182, w: 12, h: 12 }, 7, faces("#6d5334"));
+  // Restroom: three stalls and a sink counter.
+  for (let i = 0; i < 3; i++) block({ x: 1064 + i * 40, y: WALL, w: 38, h: 72 }, 30, faces("#7d8a99"));
+  block({ x: 928, y: 32, w: 96, h: 32 }, 14, faces("#c6d2de"));
+  for (const [cx, cy] of [[312, 300], [632, 300], [904, 300]] as const) plant(cx, cy);
+  for (const desk of plan.desks) deskBlocks(desk.bounds, false, lit.has(desk.bounds)).forEach((item) => items.push(item(frame)));
+  return items;
+}
+
+/** A desk, its monitor and its chair, each a separate block so a seated person sorts between them. */
+function deskBlocks(desk: Rect, executive: boolean, screenOn: boolean): Array<(frame: IsoFrame) => Drawable> {
+  const monitor = deskMonitor(desk);
   return [
-    { x: b.x + 28, y, w, h },
-    { x: b.x + b.w - 28 - w, y, w, h },
+    ...split(desk).map((piece) => (frame: IsoFrame) => blockDrawable(frame, piece, 14, faces(executive ? PALETTE.deskExec : PALETTE.desk))),
+    (frame) => blockDrawable(frame, monitor, 12, { top: PALETTE.monitor, south: screenOn ? PALETTE.screenOn : PALETTE.screenOff, east: shade(PALETTE.monitor, 0.7) }, 14, desk),
+    (frame) => blockDrawable(frame, { x: desk.x + desk.w / 2 - 8, y: desk.y + desk.h + 6, w: 16, h: 12 }, 9, faces(PALETTE.chair)),
   ];
 }
 
-function drawWindowFrame(ctx: CanvasRenderingContext2D, rect: Rect, sky: SkyScene, seed: number): void {
-  ctx.fillStyle = PALETTE.frame;
-  ctx.fillRect(rect.x - 3, rect.y - 3, rect.w + 6, rect.h + 6);
-  drawWindowSky(ctx, rect, sky, seed);
-  ctx.fillStyle = PALETTE.frame;
-  ctx.fillRect(rect.x + rect.w / 2 - 1, rect.y, 2, rect.h);
+/** Footprint of a desk's monitor, at the back of the desktop with its screen facing south. */
+export function deskMonitor(desk: Rect): Rect {
+  return { x: desk.x + desk.w / 2 - 14, y: desk.y + 4, w: 28, h: 6 };
 }
 
-function drawRoomFurniture(ctx: CanvasRenderingContext2D, plan: FloorPlan, room: RoomSpec): void {
-  if (room.kind === "ceo") drawCeoFurniture(ctx, plan);
-  if (room.kind === "meeting") drawMeetingFurniture(ctx);
-  if (room.kind === "snack") drawSnackFurniture(ctx);
-  if (room.kind === "restroom") drawRestroomFurniture(ctx);
-}
-
-function drawCeoFurniture(ctx: CanvasRenderingContext2D, plan: FloorPlan): void {
-  const desk = plan.ceoDesk;
-  ctx.fillStyle = "#414b6e";
-  ctx.fillRect(desk.x - 16, desk.y - 8, desk.w + 32, desk.h + 40);
-  drawDesk(ctx, desk, true);
-  drawSofa(ctx, 32, 96);
-  drawPlant(ctx, 280, 48);
-  // Wall screen centered in the gap between the two windows (116..204).
-  ctx.fillStyle = PALETTE.frame;
-  ctx.fillRect(143, 24, 34, 22);
-  ctx.fillStyle = "#7f96b8";
-  ctx.fillRect(145, 26, 30, 18);
-  ctx.fillStyle = "#5c7a9c";
-  ctx.fillRect(145, 36, 30, 8);
-}
-
-function drawMeetingFurniture(ctx: CanvasRenderingContext2D): void {
-  const table: Rect = { x: 392, y: 120, w: 160, h: 64 };
-  ctx.fillStyle = PALETTE.deskWoodDark;
-  ctx.fillRect(table.x, table.y, table.w, table.h);
-  ctx.fillStyle = PALETTE.deskWood;
-  ctx.fillRect(table.x + 3, table.y + 3, table.w - 6, table.h - 9);
-  for (let i = 0; i < 3; i++) {
-    drawChair(ctx, table.x + 22 + i * 52, table.y - 16);
-    drawChair(ctx, table.x + 22 + i * 52, table.y + table.h + 4);
+/** Partitions, room fronts (with door gaps) and the low outer east and south walls. */
+function innerWalls(plan: FloorPlan): Rect[] {
+  const { w, h } = plan.world;
+  const walls: Rect[] = [
+    { x: 304, y: WALL, w: WALL, h: 272 },
+    { x: 624, y: WALL, w: WALL, h: 272 },
+    { x: 896, y: WALL, w: WALL, h: 272 },
+    { x: w - WALL, y: WALL, w: WALL, h: h - 2 * WALL },
+    { x: 0, y: h - WALL, w, h: WALL },
+  ];
+  for (const room of plan.rooms) {
+    const b = room.bounds;
+    const y = b.y + b.h;
+    walls.push({ x: b.x - WALL, y, w: room.doorCx - 24 - b.x + WALL, h: WALL });
+    walls.push({ x: room.doorCx + 24, y, w: b.x + b.w - room.doorCx - 24 + WALL, h: WALL });
   }
-  // Whiteboard centered in the gap between the two windows (420..524).
-  ctx.fillStyle = "#f2efe8";
-  ctx.fillRect(424, 22, 96, 30);
-  ctx.fillStyle = PALETTE.frame;
-  ctx.strokeStyle = PALETTE.frame;
-  ctx.lineWidth = 2;
-  ctx.strokeRect(424, 22, 96, 30);
-  ctx.fillStyle = "#b3543f";
-  ctx.fillRect(432, 30, 26, 3);
-  ctx.fillStyle = "#4f7fae";
-  ctx.fillRect(432, 38, 40, 3);
-  ctx.fillStyle = "#6d9c6b";
-  ctx.fillRect(432, 44, 33, 3);
+  return walls;
 }
 
-function drawSnackFurniture(ctx: CanvasRenderingContext2D): void {
-  ctx.fillStyle = "#8f8578";
-  ctx.fillRect(656, 40, 224, 28);
-  ctx.fillStyle = "#a99e8f";
-  ctx.fillRect(656, 40, 224, 8);
-  ctx.fillStyle = "#d5dade";
-  ctx.fillRect(660, 8, 30, 48);
-  ctx.fillStyle = "#b9c0c6";
-  ctx.fillRect(660, 30, 30, 3);
-  ctx.fillRect(682, 14, 4, 12);
-  drawCoffeeMachine(ctx, 694, 26);
-  ctx.fillStyle = "#c9a86a";
-  ctx.fillRect(806, 30, 14, 12);
-  ctx.fillStyle = "#b3543f";
-  ctx.fillRect(826, 28, 12, 14);
-  ctx.fillStyle = "#6d9c6b";
-  ctx.fillRect(844, 30, 12, 12);
-  ctx.fillStyle = "#94897b";
-  ctx.fillRect(748, 170, 40, 40);
-  ctx.fillStyle = "#a89d8e";
-  ctx.fillRect(751, 173, 34, 34);
-  drawStool(ctx, 738, 184);
-  drawStool(ctx, 792, 184);
-}
-
-function drawCoffeeMachine(ctx: CanvasRenderingContext2D, x: number, y: number): void {
-  ctx.fillStyle = "#2e3238";
-  ctx.fillRect(x, y, 22, 30);
-  ctx.fillStyle = "#454b52";
-  ctx.fillRect(x + 2, y + 2, 18, 8);
-  ctx.fillStyle = "#c9553e";
-  ctx.fillRect(x + 8, y + 12, 6, 4);
-  ctx.fillStyle = "#d8d3c8";
-  ctx.fillRect(x + 7, y + 20, 8, 7);
-}
-
-function drawRestroomFurniture(ctx: CanvasRenderingContext2D): void {
-  for (let i = 0; i < 3; i++) {
-    const x = 1064 + i * 40;
-    ctx.fillStyle = "#7d8a99";
-    ctx.fillRect(x, 16, 40, 72);
-    ctx.fillStyle = "#8f9dad";
-    ctx.fillRect(x + 4, 28, 32, 58);
-    ctx.fillStyle = "#6c7887";
-    ctx.fillRect(x + 30, 54, 4, 8);
+function split(wall: Rect): Rect[] {
+  const horizontal = wall.w >= wall.h;
+  const length = horizontal ? wall.w : wall.h;
+  const pieces: Rect[] = [];
+  for (let start = 0; start < length; start += PIECE) {
+    const size = Math.min(PIECE, length - start);
+    pieces.push(horizontal ? { x: wall.x + start, y: wall.y, w: size, h: wall.h } : { x: wall.x, y: wall.y + start, w: wall.w, h: size });
   }
-  ctx.fillStyle = "#c6d2de";
-  ctx.fillRect(928, 32, 96, 32);
-  ctx.fillStyle = "#e4ebf2";
-  for (let i = 0; i < 2; i++) ctx.fillRect(940 + i * 44, 38, 28, 14);
-  ctx.fillStyle = "#aab8c6";
-  ctx.fillRect(936, 18, 80, 10);
+  return pieces;
 }
 
-function drawCorridorPlants(ctx: CanvasRenderingContext2D, plan: FloorPlan): void {
-  void plan;
-  drawPlant(ctx, 312, 300);
-  drawPlant(ctx, 632, 300);
-  drawPlant(ctx, 904, 300);
-}
-
-function drawPlant(ctx: CanvasRenderingContext2D, cx: number, cy: number): void {
-  ctx.fillStyle = "#8a5a3b";
-  ctx.fillRect(cx - 7, cy, 14, 10);
-  ctx.fillStyle = "#4e7a46";
-  ctx.fillRect(cx - 9, cy - 12, 18, 12);
-  ctx.fillStyle = "#659a58";
-  ctx.fillRect(cx - 5, cy - 18, 10, 8);
-}
-
-function drawSofa(ctx: CanvasRenderingContext2D, x: number, y: number): void {
-  ctx.fillStyle = "#7a4a41";
-  ctx.fillRect(x, y, 24, 72);
-  ctx.fillStyle = "#94594e";
-  ctx.fillRect(x + 8, y + 4, 16, 64);
-}
-
-function drawChair(ctx: CanvasRenderingContext2D, x: number, y: number): void {
-  ctx.fillStyle = PALETTE.chairDark;
-  ctx.fillRect(x, y, 16, 12);
-  ctx.fillStyle = PALETTE.chair;
-  ctx.fillRect(x + 2, y + 2, 12, 8);
-}
-
-function drawStool(ctx: CanvasRenderingContext2D, x: number, y: number): void {
-  ctx.fillStyle = "#6d5334";
-  ctx.fillRect(x, y, 10, 10);
-}
-
-function drawDesk(ctx: CanvasRenderingContext2D, desk: Rect, executive: boolean): void {
-  ctx.fillStyle = PALETTE.deskLeg;
-  ctx.fillRect(desk.x + 4, desk.y + desk.h - 6, 5, 10);
-  ctx.fillRect(desk.x + desk.w - 9, desk.y + desk.h - 6, 5, 10);
-  ctx.fillStyle = executive ? "#5f4a33" : PALETTE.deskWoodDark;
-  ctx.fillRect(desk.x, desk.y, desk.w, desk.h);
-  ctx.fillStyle = executive ? "#75593b" : PALETTE.deskWood;
-  ctx.fillRect(desk.x + 2, desk.y + 2, desk.w - 4, desk.h - 7);
-
-  const screen = deskScreenRect(desk);
-  ctx.fillStyle = PALETTE.monitorShell;
-  ctx.fillRect(screen.x - 2, screen.y - 2, screen.w + 4, screen.h + 4);
-  ctx.fillStyle = PALETTE.screenOff;
-  ctx.fillRect(screen.x, screen.y, screen.w, screen.h);
-  ctx.fillStyle = PALETTE.monitorShell;
-  ctx.fillRect(screen.x + screen.w / 2 - 3, screen.y + screen.h + 2, 6, 3);
-  if (executive) {
-    ctx.fillStyle = "#d8d3c8";
-    ctx.fillRect(desk.x + desk.w - 22, desk.y + 8, 12, 8);
-    ctx.fillStyle = "#4e7a46";
-    ctx.fillRect(desk.x + 8, desk.y + 6, 8, 10);
-  }
-  ctx.fillStyle = "#23262b";
-  ctx.fillRect(desk.x + desk.w / 2 - 8, desk.y + desk.h - 12, 16, 5);
-  drawChair(ctx, desk.x + desk.w / 2 - 8, desk.y + desk.h + 4);
-}
-
-function drawDoorSign(ctx: CanvasRenderingContext2D, room: RoomSpec): void {
-  const label = room.label;
-  ctx.font = "bold 8px monospace";
-  const width = ctx.measureText(label).width + 10;
-  const x = room.doorCx - width / 2;
-  const y = room.bounds.y + room.bounds.h - 13;
-  ctx.fillStyle = PALETTE.signPlate;
-  ctx.fillRect(x, y, width, 12);
-  ctx.fillStyle = PALETTE.signText;
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.fillText(label, room.doorCx, y + 7);
-  ctx.textAlign = "start";
-  ctx.textBaseline = "alphabetic";
-}
-
-function drawEntrance(ctx: CanvasRenderingContext2D, plan: FloorPlan): void {
-  void plan;
-  ctx.fillStyle = PALETTE.frame;
-  ctx.fillRect(0, 292, 4, 56);
-  ctx.fillStyle = "#7fb3d9";
-  ctx.fillRect(4, 296, 4, 48);
-  ctx.fillStyle = "#8d6a45";
-  ctx.fillRect(20, 300, 26, 40);
-  ctx.fillStyle = "#9c7852";
-  ctx.fillRect(22, 302, 22, 36);
-}
-
-function rectsTouch(a: Rect, b: Rect): boolean {
+function overlaps(a: Rect, b: Rect): boolean {
   return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
 }
 
-function expand(rect: Rect, margin: number): Rect {
-  return { x: rect.x - margin, y: rect.y - margin, w: rect.w + margin * 2, h: rect.h + margin * 2 };
+function shade(hex: string, factor: number): string {
+  const value = Number.parseInt(hex.slice(1), 16);
+  const channel = (shift: number) => Math.round(((value >> shift) & 0xff) * factor);
+  return `rgb(${channel(16)}, ${channel(8)}, ${channel(0)})`;
 }

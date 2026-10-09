@@ -7,7 +7,10 @@ import { OfficeSimulation, cameraFor, type MoveInput } from "./office/simulation
 import { AgentDetailCard } from "./office/AgentDetailCard";
 import { officeActivityLabel } from "../i18n/labels";
 import { cardPositionFor, CARD_FALLBACK_H } from "./office/agent-card-position";
-import type { AgentActivity, Camera, OfficeAgentInput, Vec } from "./office/office-types";
+import { isoFrame, isoPixelSize, pickAt, toIso, type IsoFrame } from "./office/iso";
+import { dayPart, season } from "../shared/palette-clock";
+import { pixelScale } from "../shared/pixel-scale";
+import type { AgentActivity, Camera, OfficeAgentInput } from "./office/office-types";
 import { t } from "../i18n/i18n";
 
 const FPS_INTERVAL = 1000 / 24;
@@ -29,6 +32,8 @@ export function OfficePage({ snapshot }: PageProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const keysRef = useRef<MoveInput>({ up: false, down: false, left: false, right: false });
   const cameraRef = useRef<Camera>({ x: 0, y: 0 });
+  /** How the last frame mapped plan to screen, for turning clicks into picks. */
+  const viewRef = useRef<{ frame: IsoFrame; pixel: number } | null>(null);
   const selectedIdRef = useRef<string | null>(null);
   const cardBoxRef = useRef<HTMLDivElement>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -112,6 +117,7 @@ export function OfficePage({ snapshot }: PageProps) {
     let running = true;
     let raf = 0;
     let lastFrame = 0;
+    const scene = document.createElement("canvas");
 
     const tick = (now: number) => {
       if (!running) return;
@@ -134,9 +140,12 @@ export function OfficePage({ snapshot }: PageProps) {
 
       const sim = simRef.current!;
       sim.step(elapsed, keysRef.current);
-      const focus = sim.player ? { x: sim.player.x, y: sim.player.y } : { x: sim.plan.world.w / 2, y: viewH / 2 };
-      const camera = cameraFor(sim.plan.world, viewW, viewH, focus);
+      const frame = isoFrame(sim.plan.world);
+      const pixel = isoPixelSize(dpr);
+      const focus = sim.player ? { x: sim.player.x, y: sim.player.y } : { x: sim.plan.world.w / 2, y: sim.plan.world.h / 2 };
+      const camera = cameraFor(frame.size, viewW / pixel, viewH / pixel, toIso(frame, focus));
       cameraRef.current = camera;
+      viewRef.current = { frame, pixel };
       const people: RenderPerson[] = sim.agents.map((agent) => ({
         id: agent.input.id,
         name: agent.input.name,
@@ -169,7 +178,22 @@ export function OfficePage({ snapshot }: PageProps) {
           carrying: null,
         });
       }
-      renderOffice(ctx, viewW, viewH, sim.plan, camera, people, now, new Date(), selectedIdRef.current);
+      const clock = new Date();
+      renderOffice(ctx, scene, {
+        frame,
+        plan: sim.plan,
+        camera,
+        pixel,
+        fontScale: pixelScale(dpr),
+        viewW,
+        viewH,
+        people,
+        timeMs: now,
+        clock,
+        dayPart: dayPart(clock),
+        season: season(clock),
+        selectedId: selectedIdRef.current,
+      });
 
       // The detail card rides beside its agent, even while they walk.
       const cardBox = cardBoxRef.current;
@@ -178,7 +202,8 @@ export function OfficePage({ snapshot }: PageProps) {
         : null;
       if (cardBox && selected) {
         const cardH = cardBox.offsetHeight || CARD_FALLBACK_H;
-        const position = cardPositionFor({ x: selected.x, y: selected.y }, camera, viewW, viewH, cardH);
+        const feet = toIso(frame, selected);
+        const position = cardPositionFor({ x: (feet.x - camera.x) * pixel, y: (feet.y - camera.y) * pixel }, { x: 0, y: 0 }, viewW, viewH, cardH);
         cardBox.style.transform = `translate(${position.left}px, ${position.top}px)`;
         cardBox.style.visibility = "visible";
       }
@@ -191,28 +216,26 @@ export function OfficePage({ snapshot }: PageProps) {
     };
   }, []);
 
-  const worldPointFrom = (event: MouseEvent<HTMLCanvasElement>): Vec | null => {
+  /** The agent drawn under the pointer, picked in the same iso pixels the frame was drawn in. */
+  const agentAt = (event: MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
-    if (!canvas) return null;
+    const view = viewRef.current;
+    if (!canvas || !view) return null;
     const bounds = canvas.getBoundingClientRect();
-    return {
-      x: event.clientX - bounds.left + cameraRef.current.x,
-      y: event.clientY - bounds.top + cameraRef.current.y,
+    const point = {
+      x: (event.clientX - bounds.left) / view.pixel + Math.round(cameraRef.current.x),
+      y: (event.clientY - bounds.top) / view.pixel + Math.round(cameraRef.current.y),
     };
+    return pickAt(view.frame, simRef.current!.agents, point);
   };
 
   const onCanvasClick = (event: MouseEvent<HTMLCanvasElement>) => {
-    const point = worldPointFrom(event);
-    if (!point) return;
-    const hit = simRef.current!.hitTest(point);
+    const hit = agentAt(event);
     setSelectedId(hit ? hit.input.id : null);
   };
 
   const onCanvasMouseMove = (event: MouseEvent<HTMLCanvasElement>) => {
-    const canvas = canvasRef.current;
-    const point = worldPointFrom(event);
-    if (!canvas || !point) return;
-    canvas.style.cursor = simRef.current!.hitTest(point) ? "pointer" : "default";
+    event.currentTarget.style.cursor = agentAt(event) ? "pointer" : "default";
   };
 
   return (
