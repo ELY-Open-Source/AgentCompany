@@ -14,7 +14,7 @@ export function CompanyDialog({ organization, open, actions, onClose }: { organi
     const form = new FormData(event.currentTarget);
     const value = (key: string) => String(form.get(key) ?? "");
     setError(null);
-    actions.run(() => window.agentCompany.updateOrganization({
+    return actions.run(() => window.agentCompany.updateOrganization({
       orgId: organization.id,
       name: value("name"),
       description: value("description"),

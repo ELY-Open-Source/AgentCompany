@@ -31,7 +31,7 @@ export function ProjectDialog({
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
-    void actions.run(() => window.agentCompany.createProject({
+    return actions.run(() => window.agentCompany.createProject({
       orgId,
       goalId: optional(form, "goalId"),
       name: text(form, "name"),

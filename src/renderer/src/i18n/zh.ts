@@ -695,6 +695,7 @@ export const zh: Record<string, string> = {
   "Unsaved": "未保存",
   "Working language": "工作语言",
   "That did not work": "操作未成功",
+  "Working…": "处理中…",
   "This page could not be shown.": "此页面无法显示。",
   "AgentCompany hit an error it could not recover from here.": "AgentCompany 遇到了无法在此恢复的错误。",
   "The rest of the app still works; go to another page or try this one again.": "应用的其他部分仍可使用；可以前往其他页面，或重试此页面。",

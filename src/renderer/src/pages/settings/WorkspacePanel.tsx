@@ -55,7 +55,7 @@ export function WorkspacePanel({
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
-    void actions.run(() => window.agentCompany.createWorkspace({
+    return actions.run(() => window.agentCompany.createWorkspace({
       orgId,
       name: text(form, "name"),
       localPath: text(form, "localPath"),

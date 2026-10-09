@@ -152,7 +152,7 @@ export function ChatPage({ snapshot, actions }: PageProps) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     const existingSpaceIds = new Set(spaces.map((space) => space.id));
-    void actions.run(() => window.agentCompany.createChatSpace({
+    return actions.run(() => window.agentCompany.createChatSpace({
       orgId,
       spaceType: value(form, "spaceType") as SpaceType,
       name: value(form, "name"),

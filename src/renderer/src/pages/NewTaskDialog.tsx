@@ -50,7 +50,7 @@ export function NewTaskDialog({
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
-    void actions.run(() => window.agentCompany.createTask({
+    return actions.run(() => window.agentCompany.createTask({
       orgId,
       title: value(form, "title"),
       description: value(form, "description"),

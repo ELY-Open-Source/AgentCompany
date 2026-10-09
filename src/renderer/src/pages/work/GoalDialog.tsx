@@ -29,7 +29,7 @@ export function GoalDialog({
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
-    void actions.run(() => window.agentCompany.createGoal({
+    return actions.run(() => window.agentCompany.createGoal({
       orgId,
       title: text(form, "title"),
       description: text(form, "description"),

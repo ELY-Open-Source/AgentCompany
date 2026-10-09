@@ -245,7 +245,7 @@ function ProfileDialog({ employee, onClose }: { employee: EmployeeRecord; onClos
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
-    void window.agentCompany.updateEmployeeProfile({
+    return window.agentCompany.updateEmployeeProfile({
       orgId: employee.orgId,
       employeeId: employee.id,
       displayName: String(form.get("displayName") ?? "").trim(),

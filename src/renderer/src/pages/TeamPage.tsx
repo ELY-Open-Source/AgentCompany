@@ -55,7 +55,7 @@ export function TeamPage({ snapshot, actions }: PageProps) {
     const form = new FormData(event.currentTarget);
     const selectedProvider = providers.find((provider) => provider.id === hireProviderId) ?? null;
     const modelId = selectedProvider ? hireModelId.trim() || null : null;
-    void actions.run(() => window.agentCompany.createAgent({
+    return actions.run(() => window.agentCompany.createAgent({
       orgId,
       name: text(form, "name"),
       role: text(form, "role"),
@@ -79,7 +79,7 @@ export function TeamPage({ snapshot, actions }: PageProps) {
     event.preventDefault();
     if (!editingAgent) return;
     const form = new FormData(event.currentTarget);
-    void actions.run(() => window.agentCompany.updateAgent({
+    return actions.run(() => window.agentCompany.updateAgent({
       orgId,
       agentId: editingAgent.id,
       name: text(form, "name"),

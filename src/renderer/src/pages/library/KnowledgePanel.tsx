@@ -52,7 +52,7 @@ export function KnowledgePanel({
 
   const perform = (operation: () => Promise<unknown>, done: () => void) => {
     setError(null);
-    void operation().then(done, (failure: unknown) => setError(failure instanceof Error ? failure.message : String(failure)));
+    return operation().then(done, (failure: unknown) => setError(failure instanceof Error ? failure.message : String(failure)));
   };
   const text = (form: FormData, key: string) => String(form.get(key) ?? "");
 
@@ -60,7 +60,7 @@ export function KnowledgePanel({
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     const validUntil = text(form, "validUntil");
-    perform(() => actions.run(() => window.agentCompany.createKnowledgeEntry({
+    return perform(() => actions.run(() => window.agentCompany.createKnowledgeEntry({
       orgId,
       topic: text(form, "topic"),
       category: text(form, "category"),
@@ -79,7 +79,7 @@ export function KnowledgePanel({
     event.preventDefault();
     if (!selected) return;
     const form = new FormData(event.currentTarget);
-    perform(() => actions.run(() => window.agentCompany.updateKnowledgeEntry({
+    return perform(() => actions.run(() => window.agentCompany.updateKnowledgeEntry({
       orgId,
       entryId: selected.id,
       topic: text(form, "topic"),
@@ -202,7 +202,7 @@ export function KnowledgePanel({
           onClose={() => setDialog(null)}
           onSubmit={(event) => {
             event.preventDefault();
-            perform(() => actions.run(() => window.agentCompany.deleteKnowledgeEntry({ orgId, entryId: selected.id, deletedByEmployeeId: employeeId })), () => {
+            return perform(() => actions.run(() => window.agentCompany.deleteKnowledgeEntry({ orgId, entryId: selected.id, deletedByEmployeeId: employeeId })), () => {
               setDialog(null);
               setSelectedId(null);
             });

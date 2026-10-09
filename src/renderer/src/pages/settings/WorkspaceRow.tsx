@@ -12,14 +12,14 @@ export function WorkspaceRow({ workspace, projects, focused, actions }: { worksp
   const [error, setError] = useState<string | null>(null);
   const act = (operation: () => Promise<unknown>, after?: () => void) => {
     setError(null);
-    operation().then(after, (reason: unknown) => setError(reason instanceof Error ? reason.message : String(reason)));
+    return operation().then(after, (reason: unknown) => setError(reason instanceof Error ? reason.message : String(reason)));
   };
   const orgId = workspace.orgId;
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     const value = (key: string) => String(form.get(key) ?? "");
-    act(() => actions.run(() => window.agentCompany.updateWorkspace({
+    return act(() => actions.run(() => window.agentCompany.updateWorkspace({
       orgId, workspaceId: workspace.id, name: value("name"), localPath: value("localPath"), projectId: value("projectId") || null,
     })), () => setEditing(false));
   };

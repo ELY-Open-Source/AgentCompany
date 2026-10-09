@@ -1,3 +1,4 @@
+import { useBusySubmit } from "../../shared/useBusySubmit";
 import { approvalStateLabel, runTriggerLabel, taskEventLabel } from "../../i18n/labels";
 import { TaskHoldNotice } from "./TaskHoldNotice";
 import { useState, type FormEvent } from "react";
@@ -104,7 +105,7 @@ export function TaskDetailDialog({
     const form = new FormData(event.currentTarget);
     const val = (key: string) => String(form.get(key) ?? "").trim();
     setEditError(null);
-    void actions.run(() => window.agentCompany.updateTask({
+    return actions.run(() => window.agentCompany.updateTask({
       orgId,
       taskId: task.id,
       title: val("title"),
@@ -323,13 +324,14 @@ function ActivityTab({ audit, approvals, onOpenApproval }: { audit: AuditEventRe
 function EditOverlay({ task, companyLanguage, agents, allTasks, projects, goals, workspaces, error, onSubmit, onCancel }: {
   task: TaskRecord; companyLanguage: WorkLanguage; agents: AgentRecord[]; allTasks: TaskRecord[];
   projects: ProjectRecord[]; goals: GoalRecord[]; workspaces: WorkspaceRecord[]; error: string | null;
-  onSubmit: (e: FormEvent<HTMLFormElement>) => void; onCancel: () => void;
+  onSubmit: (e: FormEvent<HTMLFormElement>) => void | Promise<unknown>; onCancel: () => void;
 }) {
+  const { busy, submit } = useBusySubmit(onSubmit);
   const beneath = descendantIds(task.id, allTasks);
   const otherTasks = allTasks.filter((t) => t.id !== task.id && t.orgId === task.orgId && !beneath.has(t.id));
   return (
     <div style={{ position: "absolute", inset: 0, background: "var(--bg)", borderRadius: 14, padding: 24, overflow: "auto", zIndex: 2 }}>
-      <form onSubmit={onSubmit}>
+      <form onSubmit={submit} aria-busy={busy}>
         <h3 style={{ margin: "0 0 14px", fontSize: 15, fontWeight: 600 }}>{t("Edit task")}</h3>
         <Field label={t("Title")}><input className="input" name="title" defaultValue={task.title} required /></Field>
         <Field label={t("Description")}><textarea className="input" name="description" rows={4} defaultValue={task.description} /></Field>
@@ -387,7 +389,7 @@ function EditOverlay({ task, companyLanguage, agents, allTasks, projects, goals,
         {error && <div className="form-error" role="alert">{error}</div>}
         <div className="modal-actions">
           <Button onClick={onCancel}>{t("Cancel")}</Button>
-          <Button tone="primary" type="submit">{t("Save")}</Button>
+          <Button tone="primary" type="submit" disabled={busy}>{busy ? t("Working…") : t("Save")}</Button>
         </div>
       </form>
     </div>

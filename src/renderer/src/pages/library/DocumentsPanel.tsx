@@ -60,7 +60,7 @@ export function DocumentsPanel({
     event.preventDefault();
     if (!selected) return;
     const form = new FormData(event.currentTarget);
-    void perform(() => actions.run(() => window.agentCompany.updateDocument({
+    return perform(() => actions.run(() => window.agentCompany.updateDocument({
       orgId,
       documentId: selected.id,
       title: String(form.get("title") ?? ""),
@@ -141,7 +141,7 @@ export function DocumentsPanel({
           onClose={() => setConfirmDelete(false)}
           onSubmit={(event) => {
             event.preventDefault();
-            void perform(() => actions.run(() => window.agentCompany.deleteDocument({ orgId, documentId: selected.id, deletedByEmployeeId: employeeId })), () => {
+            return perform(() => actions.run(() => window.agentCompany.deleteDocument({ orgId, documentId: selected.id, deletedByEmployeeId: employeeId })), () => {
               setConfirmDelete(false);
               setSelectedId(null);
             });

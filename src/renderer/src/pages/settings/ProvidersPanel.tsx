@@ -55,7 +55,7 @@ export function ProvidersPanel({ orgId, companyName, employeeId, providers, auth
     if (!active || !activeCatalogEntry || activeIsOAuth) return;
     const form = new FormData(event.currentTarget);
     const secret = composeSecret(activeCatalogEntry, form);
-    void actions.run(() => window.agentCompany.saveProviderCredential({
+    return actions.run(() => window.agentCompany.saveProviderCredential({
       orgId,
       providerId: active.id,
       secret,
@@ -68,7 +68,7 @@ export function ProvidersPanel({ orgId, companyName, employeeId, providers, auth
     if (!modelFor) return;
     const model = String(new FormData(event.currentTarget).get("model") ?? "");
     setModelError(null);
-    void actions.run(() => window.agentCompany.setProviderModel({ orgId, providerId: modelFor.id, model }))
+    return actions.run(() => window.agentCompany.setProviderModel({ orgId, providerId: modelFor.id, model }))
       .then((result) => { if (result) setModelFor(null); })
       .catch((reason: unknown) => setModelError(reason instanceof Error ? reason.message : String(reason)));
   };
