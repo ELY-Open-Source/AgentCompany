@@ -70,3 +70,37 @@ test("a dialog keeps the keyboard inside it, closes on Escape, and gives focus b
     await closeApp(app);
   }
 });
+
+test("mention suggestions are announced, and an input method's Enter never picks a person", async () => {
+  const profileDir = join(tmpdir(), `agentcompany-new-e2e-mention-${randomUUID()}`);
+  mkdirSync(profileDir, { recursive: true });
+  const builtinDir = seedBuiltinSkillsFixture(join(tmpdir(), `agentcompany-new-e2e-mention-builtin-${randomUUID()}`));
+  const app = await electron.launch({
+    args: [resolve("out/main/index.js")],
+    env: { ...process.env, AGENTCOMPANY_NEW_PROFILE_DIR: profileDir, AGENTCOMPANY_NEW_AUTORUN: "0", AGENTCOMPANY_NEW_BUILTIN_SKILLS_DIR: builtinDir },
+  });
+  try {
+    const page = await app.firstWindow();
+    await onboard(page, "Mention Co");
+    await page.getByRole("button", { name: "Messages" }).click();
+    const composer = page.getByRole("textbox", { name: "Message" });
+    await composer.fill("@");
+    await composer.press("End");
+    await composer.type("c");
+    const list = page.getByRole("listbox", { name: "People to mention" });
+    await expect(list).toBeVisible();
+    const active = await composer.getAttribute("aria-activedescendant");
+    expect(active).toBeTruthy();
+    await expect(list.locator(`[id="${active}"]`)).toHaveAttribute("aria-selected", "true");
+    // An Enter that confirms composed text (isComposing) leaves the words as typed.
+    await composer.evaluate((node) => node.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", isComposing: true, bubbles: true, cancelable: true })));
+    await expect(composer).toHaveValue("@c");
+    await expect(list).toBeVisible();
+    // A plain Enter picks the highlighted person.
+    await composer.press("Enter");
+    await expect(composer).toHaveValue(/^@\S+ $/);
+    await expect(list).toHaveCount(0);
+  } finally {
+    await closeApp(app);
+  }
+});

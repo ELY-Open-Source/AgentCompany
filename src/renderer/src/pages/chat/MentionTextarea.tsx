@@ -1,4 +1,5 @@
-import { useRef, useState, type MutableRefObject } from "react";
+import { t } from "../../i18n/i18n";
+import { useId, useRef, useState, type MutableRefObject } from "react";
 import { Avatar } from "../../shared/ui";
 import type { AgentRecord, EmployeeRecord } from "../../../../shared/domain";
 import { canonicalMentionHandle } from "../../../../shared/mention-handles";
@@ -40,6 +41,7 @@ export function MentionTextarea({
 }) {
   const [query, setQuery] = useState<string | null>(null);
   const [index, setIndex] = useState(0);
+  const listId = useId();
   const anchor = useRef(0);
   const innerRef = useRef<HTMLTextAreaElement | null>(null);
   const ref = textareaRef ?? innerRef;
@@ -52,6 +54,7 @@ export function MentionTextarea({
     : [];
 
   const close = () => setQuery(null);
+  const open = !disabled && query !== null && filtered.length > 0;
 
   const insertMention = (handle: string) => {
     const node = ref.current;
@@ -81,6 +84,8 @@ export function MentionTextarea({
   };
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // While an input method is composing, Enter and Tab confirm its text; they never pick a person or send.
+    if (event.nativeEvent.isComposing || event.keyCode === 229) return;
     if (query !== null && filtered.length > 0) {
       if (event.key === "ArrowDown") {
         event.preventDefault();
@@ -111,8 +116,8 @@ export function MentionTextarea({
 
   return (
     <div style={{ position: "relative" }}>
-      {!disabled && query !== null && filtered.length > 0 && (
-        <div style={{
+      {open && (
+        <div id={listId} role="listbox" aria-label={t("People to mention")} style={{
           position: "absolute",
           bottom: "100%",
           left: 0,
@@ -129,7 +134,11 @@ export function MentionTextarea({
           {filtered.map((c, i) => (
             <button
               key={c.handle}
+              id={`${listId}-${i}`}
               type="button"
+              role="option"
+              aria-selected={i === index}
+              tabIndex={-1}
               onMouseDown={(e) => { e.preventDefault(); insertMention(c.handle); }}
               style={{
                 display: "flex",
@@ -158,6 +167,9 @@ export function MentionTextarea({
         rows={rows}
         disabled={disabled}
         aria-label={ariaLabel}
+        aria-autocomplete="list"
+        aria-controls={open ? listId : undefined}
+        aria-activedescendant={open ? `${listId}-${index}` : undefined}
         style={{
           width: "100%",
           border: 0,

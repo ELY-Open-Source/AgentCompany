@@ -698,6 +698,7 @@ export const zh: Record<string, string> = {
   "Working…": "处理中…",
   "Waiting for the {name} sign-in in your browser (check {check} of {checks}).": "正在等待你在浏览器中完成 {name} 登录（第 {check}/{checks} 次检查）。",
   "Stop waiting": "停止等待",
+  "People to mention": "可提及的人",
   "Layout": "布局",
   "View": "视图",
   "Run status": "运行状态",
