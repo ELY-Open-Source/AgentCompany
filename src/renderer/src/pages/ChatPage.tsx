@@ -1,3 +1,5 @@
+import { useLeaveGuard } from "../app/leave-guard";
+import { setDrafts, useDrafts } from "./chat/draft-store";
 import { useCallback, useMemo, useRef, useState, type FormEvent } from "react";
 import { ChatSidebar } from "./chat/ChatSidebar";
 import { ChatConversation } from "./chat/ChatConversation";
@@ -66,8 +68,9 @@ export function ChatPage({ snapshot, actions }: PageProps) {
   );
   const [selectedSpaceId, setSelectedSpaceId] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
-  // Text and attachment are kept per conversation, so switching neither loses one nor carries the other along.
-  const [drafts, setDrafts] = useState<Record<string, Draft>>({});
+  const requestLeave = useLeaveGuard();
+  // Text and attachment are kept per conversation, outside the page, so switching conversations or pages loses neither.
+  const drafts = useDrafts();
   const [attachErrors, setAttachErrors] = useState<Record<string, string | null>>({});
   const updateDraft = useCallback((spaceId: string, change: Partial<Draft>) =>
     setDrafts((current) => ({ ...current, [spaceId]: { ...(current[spaceId] ?? EMPTY_DRAFT), ...change } })), []);
@@ -226,7 +229,7 @@ export function ChatPage({ snapshot, actions }: PageProps) {
         conversations={conversations}
         presence={snapshot.chatPresence}
         activeSpaceId={activeSpaceId}
-        onSelect={setSelectedSpaceId}
+        onSelect={(spaceId) => requestLeave(() => setSelectedSpaceId(spaceId))}
         onCreateSpace={() => setCreateOpen(true)}
       />
 

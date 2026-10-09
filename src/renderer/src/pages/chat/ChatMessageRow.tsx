@@ -1,3 +1,4 @@
+import { useUnsaved } from "../../shared/unsaved";
 import { fileKindLabel } from "../../i18n/labels";
 import { useState, type FormEvent, type ReactNode } from "react";
 import { Avatar, Button, Icon, IconButton } from "../../shared/ui";
@@ -48,6 +49,8 @@ export function ChatMessageRow({
   onOpenFile?: (fileId: string) => void;
 }) {
   const [editing, setEditing] = useState(false);
+  const [changed, setChanged] = useState(false);
+  useUnsaved(editing && changed);
   const [saving, setSaving] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
   const name = senderName(message, context);
@@ -68,6 +71,7 @@ export function ChatMessageRow({
     onEdit(value).then(() => {
       setSaving(false);
       setEditing(false);
+      setChanged(false);
     }).catch((reason: unknown) => {
       const message = reason instanceof Error ? reason.message : String(reason);
       console.error(`[chat] edit failed: ${message}`);
@@ -111,7 +115,7 @@ export function ChatMessageRow({
         {deleted ? (
           <div style={{ fontSize: 14, color: "var(--text-3)", fontStyle: "italic" }}>{t("Message deleted")}</div>
         ) : editing ? (
-          <form onSubmit={submitEdit}>
+          <form onSubmit={submitEdit} onInput={() => setChanged(true)}>
             <textarea
               name="body"
               defaultValue={message.bodyMd}
@@ -124,7 +128,7 @@ export function ChatMessageRow({
             {editError && <div className="form-error" role="alert" style={{ marginBottom: 6 }}>{t("Not saved: {reason}", { reason: editError })}</div>}
             <div className="row" style={{ gap: 6 }}>
               <Button tone="primary" size="small" type="submit" disabled={saving}>{t("Save")}</Button>
-              <Button tone="ghost" size="small" disabled={saving} onClick={() => { setEditing(false); setEditError(null); }}>{t("Cancel")}</Button>
+              <Button tone="ghost" size="small" disabled={saving} onClick={() => { setEditing(false); setChanged(false); setEditError(null); }}>{t("Cancel")}</Button>
             </div>
           </form>
         ) : (

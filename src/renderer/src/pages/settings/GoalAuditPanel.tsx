@@ -1,3 +1,4 @@
+import { useUnsaved } from "../../shared/unsaved";
 import { useState, type FormEvent } from "react";
 import type { OrganizationRecord, ProviderRecord } from "../../../../shared/domain";
 import type { SnapshotActions } from "../../app/useSnapshot";
@@ -9,6 +10,7 @@ export function GoalAuditPanel({ organization, providers, actions }: { organizat
   const [providerId, setProviderId] = useState(organization.auditProviderId ?? "");
   const [modelId, setModelId] = useState(organization.auditModelId ?? "");
   const [error, setError] = useState<string | null>(null);
+  useUnsaved(providerId !== (organization.auditProviderId ?? "") || modelId !== (organization.auditModelId ?? ""));
   const save = (event: FormEvent) => {
     event.preventDefault();
     setError(null);

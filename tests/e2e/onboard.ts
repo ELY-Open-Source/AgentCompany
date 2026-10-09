@@ -1,4 +1,4 @@
-import { expect, type Page } from "@playwright/test";
+import { expect, type ElectronApplication, type Page } from "@playwright/test";
 
 /** Runs the setup wizard with a fake OpenAI key and enters the app. */
 export async function onboard(page: Page, company: string): Promise<void> {
@@ -16,4 +16,12 @@ export async function onboard(page: Page, company: string): Promise<void> {
   await page.getByRole("button", { name: "Launch" }).click();
   await page.getByRole("button", { name: "Finish" }).click();
   await expect(page.getByRole("button", { name: "Settings" })).toBeVisible();
+}
+
+/** Closes the app, answering the unsaved-input question (a native dialog Playwright cannot click) with "discard". */
+export async function closeApp(app: ElectronApplication): Promise<void> {
+  await app.evaluate(({ dialog }) => {
+    dialog.showMessageBoxSync = () => 0;
+  });
+  await app.close();
 }

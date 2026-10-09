@@ -11,6 +11,7 @@ import { SkillService } from "./services/skill-service";
 import { startProviderBackgroundWorker } from "./app/provider-background-worker";
 import { recoverInterruptedWork } from "./app/startup-recovery";
 import { startTaskQueueWorker } from "./app/task-queue-worker";
+import { confirmDiscardOnClose } from "./app/unsaved-guard";
 import { stopAllRunsAndWait } from "./services/run-control";
 
 const QUIT_GRACE_MS = 10_000;
@@ -66,8 +67,17 @@ if (!app.requestSingleInstanceLock()) {
     });
 
     let shutdown: "running" | "draining" | "drained" = "running";
+    const uiLanguage = language === "zh" ? "zh" : "en";
+    // Asked before anything shuts down, so choosing to stay leaves the app fully running.
+    win.on("close", (event) => {
+      if (shutdown === "running" && !confirmDiscardOnClose(win, uiLanguage)) event.preventDefault();
+    });
     app.on("before-quit", (event) => {
       if (shutdown === "drained") return;
+      if (shutdown === "running" && !confirmDiscardOnClose(win, uiLanguage)) {
+        event.preventDefault();
+        return;
+      }
       // Hold every exit request until running sessions are stopped and have recorded how they ended.
       event.preventDefault();
       if (shutdown === "draining") return;

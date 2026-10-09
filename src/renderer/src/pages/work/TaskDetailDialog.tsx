@@ -1,3 +1,4 @@
+import { useUnsaved } from "../../shared/unsaved";
 import { useBusySubmit } from "../../shared/useBusySubmit";
 import { approvalStateLabel, runTriggerLabel, taskEventLabel } from "../../i18n/labels";
 import { TaskHoldNotice } from "./TaskHoldNotice";
@@ -86,6 +87,9 @@ export function TaskDetailDialog({
     operation().then(after, (error: unknown) => setActionError(error instanceof Error ? error.message : String(error)));
   };
   const [editing, setEditing] = useState(false);
+  const [editDirty, setEditDirty] = useState(false);
+  const [confirmClose, setConfirmClose] = useState(false);
+  useUnsaved(editing && editDirty);
   const [editError, setEditError] = useState<string | null>(null);
 
   if (!task) return null;
@@ -120,7 +124,7 @@ export function TaskDetailDialog({
       requiresFilesystem: form.get("requiresFilesystem") === "on",
       writingMode: val("writingMode") as WritingMode,
       workLanguage: readWorkLanguage(form),
-    })).then((r) => { if (r) setEditing(false); }, (error: unknown) => setEditError(error instanceof Error ? error.message : String(error)));
+    })).then((r) => { if (r) { setEditing(false); setEditDirty(false); } }, (error: unknown) => setEditError(error instanceof Error ? error.message : String(error)));
   };
 
   const askDelete = () => {
@@ -134,15 +138,23 @@ export function TaskDetailDialog({
   const confirmDelete = (taskId: string) => act(async () => {
     await actions.run(() => window.agentCompany.deleteTask({ orgId, taskId }));
   }, onClose);
+  const requestClose = () => (editing && editDirty ? setConfirmClose(true) : onClose());
 
   return (
-    <div className="modal-backdrop" role="presentation" onMouseDown={onClose}>
+    <div className="modal-backdrop" role="presentation" onMouseDown={requestClose}>
       <div className="modal" style={{ maxWidth: 560 }} role="dialog" aria-label={task.title} onMouseDown={(e) => e.stopPropagation()}>
+        {confirmClose && (
+          <div role="alertdialog" aria-label={t("Discard your changes?")} className="row" style={{ position: "absolute", left: 0, right: 0, top: 0, zIndex: 3, gap: 8, padding: 12, background: "var(--panel)", borderBottom: "1px solid var(--border)", borderRadius: "14px 14px 0 0" }}>
+            <span style={{ marginRight: "auto", fontSize: 13 }}>{t("Discard your changes?")}</span>
+            <Button tone="ghost" size="small" onClick={() => setConfirmClose(false)}>{t("Keep editing")}</Button>
+            <Button tone="primary" size="small" onClick={onClose}>{t("Discard")}</Button>
+          </div>
+        )}
         <div className="row" style={{ alignItems: "flex-start", gap: 10, marginBottom: 8 }}>
           {task.priority === "high" && <span style={{ width: 3, height: 18, background: "var(--red)", borderRadius: 2, marginTop: 2, flexShrink: 0 }} />}
           <h2 className="modal-title" style={{ margin: 0, flex: 1 }}>{task.title}</h2>
           <IconButton icon="edit" label={t("Edit")} onClick={() => { setEditError(null); setEditing(true); }} />
-          <IconButton icon="x" label={t("Close")} onClick={onClose} />
+          <IconButton icon="x" label={t("Close")} onClick={requestClose} />
         </div>
         <div className="row" style={{ flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
           <Pill>{prettyStatus(task.status)}</Pill>
@@ -208,6 +220,7 @@ export function TaskDetailDialog({
 
         {editing && (
           <EditOverlay
+            onEdited={() => setEditDirty(true)}
             task={task}
             companyLanguage={companyLanguage}
             agents={agents}
@@ -217,7 +230,7 @@ export function TaskDetailDialog({
             workspaces={workspaces}
             error={editError}
             onSubmit={submitEdit}
-            onCancel={() => { setEditing(false); setEditError(null); }}
+            onCancel={() => { setEditing(false); setEditDirty(false); setEditError(null); }}
           />
         )}
       </div>
@@ -321,8 +334,8 @@ function ActivityTab({ audit, approvals, onOpenApproval }: { audit: AuditEventRe
   );
 }
 
-function EditOverlay({ task, companyLanguage, agents, allTasks, projects, goals, workspaces, error, onSubmit, onCancel }: {
-  task: TaskRecord; companyLanguage: WorkLanguage; agents: AgentRecord[]; allTasks: TaskRecord[];
+function EditOverlay({ onEdited, task, companyLanguage, agents, allTasks, projects, goals, workspaces, error, onSubmit, onCancel }: {
+  onEdited: () => void; task: TaskRecord; companyLanguage: WorkLanguage; agents: AgentRecord[]; allTasks: TaskRecord[];
   projects: ProjectRecord[]; goals: GoalRecord[]; workspaces: WorkspaceRecord[]; error: string | null;
   onSubmit: (e: FormEvent<HTMLFormElement>) => void | Promise<unknown>; onCancel: () => void;
 }) {
@@ -331,7 +344,7 @@ function EditOverlay({ task, companyLanguage, agents, allTasks, projects, goals,
   const otherTasks = allTasks.filter((t) => t.id !== task.id && t.orgId === task.orgId && !beneath.has(t.id));
   return (
     <div style={{ position: "absolute", inset: 0, background: "var(--bg)", borderRadius: 14, padding: 24, overflow: "auto", zIndex: 2 }}>
-      <form onSubmit={submit} aria-busy={busy}>
+      <form onSubmit={submit} onInput={onEdited} onChange={onEdited} aria-busy={busy}>
         <h3 style={{ margin: "0 0 14px", fontSize: 15, fontWeight: 600 }}>{t("Edit task")}</h3>
         <Field label={t("Title")}><input className="input" name="title" defaultValue={task.title} required /></Field>
         <Field label={t("Description")}><textarea className="input" name="description" rows={4} defaultValue={task.description} /></Field>

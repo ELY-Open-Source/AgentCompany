@@ -14,6 +14,7 @@ const noInput = z.undefined();
 export const IPC_CONTRACTS: { [K in InvokedMethod]: z.ZodType<InputOf<K>> } = {
   loadSnapshot: noInput,
   relaunchApp: noInput,
+  reportUnsaved: z.strictObject({ unsaved: z.boolean() }),
   runningSessionCount: noInput,
   pickDirectory: noInput,
   listConnectorCatalog: noInput,

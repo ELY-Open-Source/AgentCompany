@@ -1,3 +1,4 @@
+import { useUnsaved } from "../../shared/unsaved";
 import { credentialSourceLabel } from "../../i18n/labels";
 import { defaultModelReach } from "../../../../shared/agent-model";
 import { ScopeNote } from "./ScopeNote";
@@ -201,6 +202,8 @@ function ProviderPricesRow({ orgId, provider, actions }: { orgId: string; provid
   const [output, setOutput] = useState(asDollars(provider.outputCentsPerMtok));
   const [error, setError] = useState<string | null>(null);
   const price = (value: string) => (value.trim() === "" ? null : Number(value));
+  const saved = (cents: number | null) => (cents === null ? null : cents / 100);
+  useUnsaved(price(input) !== saved(provider.inputCentsPerMtok) || price(cached) !== saved(provider.cachedInputCentsPerMtok) || price(output) !== saved(provider.outputCentsPerMtok));
   const save = () => {
     setError(null);
     actions.run(() => window.agentCompany.setProviderPrices({

@@ -1,3 +1,4 @@
+import { useUnsaved } from "../../shared/unsaved";
 import { useEffect, useState, type FormEvent } from "react";
 import { Button, IconButton } from "../../shared/ui";
 import type { FileObjectRecord } from "../../../../shared/domain";
@@ -48,6 +49,8 @@ export function ThreadPanel({
   }, [orgId, threadId, refreshKey]);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [replyTyped, setReplyTyped] = useState(false);
+  useUnsaved(replyTyped);
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const form = event.currentTarget;
@@ -59,6 +62,7 @@ export function ThreadPanel({
     // The reply stays in the box until it is saved, so a refused one loses nothing.
     onReply(body).then(() => {
       field.value = "";
+      setReplyTyped(false);
       setPending(false);
     }).catch((reason: unknown) => {
       const message = reason instanceof Error ? reason.message : String(reason);
@@ -88,7 +92,7 @@ export function ThreadPanel({
           />
         ))}
       </div>
-      <form onSubmit={submit} style={{ padding: 12, borderTop: "1px solid var(--border-soft)" }}>
+      <form onSubmit={submit} onInput={(event) => setReplyTyped(Boolean((event.currentTarget.elements.namedItem("reply") as HTMLTextAreaElement).value.trim()))} style={{ padding: 12, borderTop: "1px solid var(--border-soft)" }}>
         <MentionTextarea name="reply" rows={2} disabled={pending} ariaLabel={t("Reply")} agents={context.agents} employees={context.employees} />
         {error && <div className="form-error" role="alert">{t("Not sent: {reason}", { reason: error })}</div>}
         <div className="row" style={{ marginTop: 6 }}>

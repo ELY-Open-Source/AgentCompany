@@ -1,6 +1,7 @@
 export const IPC_CHANNELS = {
   loadSnapshot: "agentcompany:load-snapshot",
   relaunchApp: "agentcompany:relaunch-app",
+  reportUnsaved: "agentcompany:report-unsaved",
   saveOnboardingDraft: "agentcompany:save-onboarding-draft",
   completeSetup: "agentcompany:complete-setup",
   runningSessionCount: "agentcompany:running-session-count",

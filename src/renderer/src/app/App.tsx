@@ -1,3 +1,7 @@
+import { LeaveGuardContext } from "./leave-guard";
+import { t } from "../i18n/i18n";
+import { Button } from "../shared/ui";
+import { hasPageUnsaved } from "../shared/unsaved";
 import { ErrorBoundary } from "../shared/ErrorBoundary";
 import { StartupScreen } from "./StartupScreen";
 import type { Focus } from "../pages/types";
@@ -22,11 +26,17 @@ export function App() {
   const { snapshot, syncFailure, actions } = useSnapshot();
   const [route, setRoute] = useState<RouteId>("home");
   const [focus, setFocus] = useState<Focus | null>(null);
+  // Leaving a page with input that would be lost asks first.
+  const [leaving, setLeaving] = useState<{ proceed: () => void } | null>(null);
+  const requestLeave = (proceed: () => void) => {
+    if (hasPageUnsaved()) setLeaving({ proceed });
+    else proceed();
+  };
   // Opening a page for an object remembers it; plain navigation forgets it.
-  const navigate = (next: RouteId, nextFocus?: Focus) => {
+  const navigate = (next: RouteId, nextFocus?: Focus) => requestLeave(() => {
     setRoute(next);
     setFocus(nextFocus ?? null);
-  };
+  });
   const avatarDirectory = useMemo(() => {
     // Scope the directory to the active organization: names are only unique
     // within one org, and a same-named principal in another org must not
@@ -98,16 +108,30 @@ export function App() {
 
   return (
     <AvatarDirectoryContext.Provider value={avatarDirectory}>
+      <LeaveGuardContext.Provider value={requestLeave}>
       <Shell
         snapshot={snapshot}
         route={route}
         setRoute={(next) => navigate(next)}
-        onSwitchOrg={(orgId) => void actions.run(() => window.agentCompany.setActiveOrganization({ orgId }))}
-        onDeleteOrg={(orgId) => void actions.run(() => window.agentCompany.deleteOrganization({ orgId }))}
-        onNewOrg={() => setCreatingOrg(true)}
+        onSwitchOrg={(orgId) => requestLeave(() => void actions.run(() => window.agentCompany.setActiveOrganization({ orgId })))}
+        onDeleteOrg={(orgId) => requestLeave(() => void actions.run(() => window.agentCompany.deleteOrganization({ orgId })))}
+        onNewOrg={() => requestLeave(() => setCreatingOrg(true))}
       >
         <ErrorBoundary key={pageKey} scope="page">{page}</ErrorBoundary>
       </Shell>
+      </LeaveGuardContext.Provider>
+      {leaving && (
+        <div className="modal-backdrop" role="presentation">
+          <div className="modal" role="alertdialog" aria-label={t("Leave this page?")}>
+            <h2 className="modal-title">{t("Leave this page?")}</h2>
+            <p style={{ margin: 0 }}>{t("What you typed here is lost if you leave.")}</p>
+            <div className="modal-actions">
+              <Button tone="ghost" onClick={() => setLeaving(null)}>{t("Stay")}</Button>
+              <Button tone="primary" onClick={() => { setLeaving(null); leaving.proceed(); }}>{t("Leave")}</Button>
+            </div>
+          </div>
+        </div>
+      )}
     </AvatarDirectoryContext.Provider>
   );
 }

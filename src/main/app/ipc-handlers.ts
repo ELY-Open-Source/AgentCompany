@@ -42,6 +42,7 @@ import { runHistory } from "../services/run-history";
 import { deleteWorkspace, setPrimaryWorkspace, updateWorkspace } from "../services/workspace-admin";
 import { setProviderModel } from "../services/provider-default-model";
 import { completeSetup, saveOnboardingDraft } from "../services/onboarding-progress";
+import { setUnsavedInput } from "./unsaved-guard";
 import { providerDisconnectImpact } from "../services/provider-disconnect-impact";
 
 export interface IpcDeps {
@@ -151,6 +152,10 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     }
   });
   handle("completeSetup", (input) => mutate(() => completeSetup(deps.connection.db, input.orgId)));
+  handle("reportUnsaved", (input) => {
+    setUnsavedInput(input.unsaved);
+    return ok(null);
+  });
   handle("runningSessionCount", () => ok((deps.connection.db.prepare("select count(*) as n from task_runs where state = 'running'").get() as { n: number }).n));
   // Chromium's locale is fixed at launch; the reply goes out before the process exits.
   handle("relaunchApp", () => {

@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { randomUUID } from "node:crypto";
 import { seedBuiltinSkillsFixture } from "./builtin-skills-fixture";
+import { closeApp } from "./onboard";
 
 /**
  * The founder's direct line to the CEO: onboarding leaves a pinned CEO
@@ -418,6 +419,6 @@ test("the pinned CEO conversation is the Messages front door", async () => {
     await expect(doomed).toHaveCount(0);
     await expect(page.getByRole("button", { name: /Operationalize goal: Ship the FlowPilot MVP\./ })).toHaveCount(0);
   } finally {
-    await app.close();
+    await closeApp(app);
   }
 });

@@ -1,3 +1,4 @@
+import { noteTyping } from "./draft-store";
 import { shortcutLabel } from "../../i18n/labels";
 import { useEffect, useRef, useState, type FormEvent, type MutableRefObject } from "react";
 import { Button, Icon, IconButton } from "../../shared/ui";
@@ -71,13 +72,14 @@ export function ChatComposer({
     const before = node.value.slice(0, start);
     const after = node.value.slice(end);
     node.value = `${before}${text} ${after}`;
+    if (spaceId) noteTyping(spaceId, node.value);
     const caret = before.length + text.length + 1;
     node.setSelectionRange(caret, caret);
     node.focus();
   };
 
   return (
-    <form onSubmit={onSubmit} data-space-id={spaceId ?? undefined} style={{ padding: 14, paddingTop: 4, flexShrink: 0 }}>
+    <form onSubmit={onSubmit} onInput={() => { if (spaceId && ref.current) noteTyping(spaceId, ref.current.value); }} data-space-id={spaceId ?? undefined} style={{ padding: 14, paddingTop: 4, flexShrink: 0 }}>
       <div style={{ border: "1px solid var(--border-strong)", borderRadius: 12, background: "var(--panel)", padding: "10px 12px" }}>
         <MentionTextarea
           name="message"

@@ -136,7 +136,13 @@ test("onboards, hires, and creates work in the Electron shell", async () => {
     await expect(toast).toContainText('An agent named "Alex Turing" is already on staff');
     await toast.getByRole("button", { name: "Dismiss" }).click();
     await expect(toast).toHaveCount(0);
+    // Closing a dialog with typed input asks before discarding it.
     await page.locator(".modal").getByRole("button", { name: "Cancel" }).click();
+    await page.getByRole("alertdialog", { name: "Discard your changes?" }).getByRole("button", { name: "Keep editing" }).click();
+    await expect(page.locator(".modal").getByLabel("Name", { exact: true })).toHaveValue("Alex Turing");
+    await page.locator(".modal-backdrop").click({ position: { x: 5, y: 5 } });
+    await page.getByRole("alertdialog", { name: "Discard your changes?" }).getByRole("button", { name: "Discard" }).click();
+    await expect(page.locator(".modal")).toHaveCount(0);
 
     // The operator edits their own name and avatar from the sidebar foot.
     await page.getByRole("button", { name: "Edit profile" }).click();

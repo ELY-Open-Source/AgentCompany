@@ -1,3 +1,4 @@
+import { useLeaveGuard } from "../../app/leave-guard";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type MutableRefObject } from "react";
 import { Avatar, AvatarStack, Icon, IconButton } from "../../shared/ui";
 import type {
@@ -83,6 +84,8 @@ export function ChatConversation({
   const [query, setQuery] = useState("");
   // The component is keyed by space, so an open thread closes when the conversation changes.
   const [openThreadId, setOpenThreadId] = useState<string | null>(null);
+  // A reply typed in one thread is lost by opening another or closing the panel.
+  const requestLeave = useLeaveGuard();
   // The snapshot holds recent chat only; older messages come from the database, paged back from the oldest one loaded.
   const [oldestId, setOldestId] = useState<string | null>(null);
   const [exhausted, setExhausted] = useState(false);
@@ -222,7 +225,7 @@ export function ChatConversation({
                 onLoadOlder={loadOlder}
                 threadLinks={threadLinks}
                 replyStatuses={allReplyStatuses}
-                onOpenThread={setOpenThreadId}
+                onOpenThread={(threadId) => requestLeave(() => setOpenThreadId(threadId))}
                 onApprove={onApprove}
                 onDecline={onDecline}
                 onEditMessage={onEditMessage}
@@ -263,7 +266,7 @@ export function ChatConversation({
           files={files}
           context={context}
           onReply={(body) => onReplyInThread(openThreadId, body)}
-          onClose={() => setOpenThreadId(null)}
+          onClose={() => requestLeave(() => setOpenThreadId(null))}
           onOpenFile={onOpenFile}
         />
       )}

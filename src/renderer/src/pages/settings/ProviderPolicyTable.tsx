@@ -1,3 +1,4 @@
+import { useUnsaved } from "../../shared/unsaved";
 import { useState } from "react";
 import { Pill } from "../../shared/ui";
 import { t } from "../../i18n/i18n";
@@ -78,6 +79,7 @@ function ProviderPolicyRow({
     || Number(monthlyRequestLimit) !== provider.monthlyRequestLimit
     || Number(contextWindowTokens) !== provider.contextWindowTokens
     || workspaceScope !== savedScope;
+  useUnsaved(dirty);
   const edited = <T,>(set: (value: T) => void) => (value: T) => { set(value); setStatus(null); };
 
   const savePolicy = () => {

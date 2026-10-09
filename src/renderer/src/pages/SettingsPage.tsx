@@ -1,3 +1,4 @@
+import { useLeaveGuard } from "../app/leave-guard";
 import { useMemo, useState } from "react";
 import { ProvidersPanel } from "./settings/ProvidersPanel";
 import { WorkspacePanel } from "./settings/WorkspacePanel";
@@ -26,6 +27,7 @@ export function SettingsPage({ snapshot, actions, focus }: PageProps) {
   const organization = requireActiveOrganization(snapshot);
   const employee = requireActiveEmployee(snapshot);
   const [tab, setTab] = useState<SettingsTab>("general");
+  const requestLeave = useLeaveGuard();
 
   const agents = useMemo(() => snapshot.agents.filter((item) => item.orgId === orgId), [snapshot.agents, orgId]);
   const providers = useMemo(() => snapshot.providers.filter((item) => item.orgId === orgId), [snapshot.providers, orgId]);
@@ -41,7 +43,7 @@ export function SettingsPage({ snapshot, actions, focus }: PageProps) {
       <aside className="secondary-pane">
         <div style={{ fontSize: 14, fontWeight: 600, padding: "4px 8px 14px" }}>{t("Settings")}</div>
         <div className="pane-scroll">
-          <NavGroup items={TABS} active={tab} onChange={setTab} />
+          <NavGroup items={TABS} active={tab} onChange={(next) => requestLeave(() => setTab(next))} />
         </div>
       </aside>
       <div className="main" style={{ flex: 1, minWidth: 0 }}>
