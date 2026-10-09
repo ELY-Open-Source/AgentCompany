@@ -8,12 +8,8 @@ const SEGMENTS: ReadonlyArray<{ id: TaskStatus; label: string; tone: string }> =
   { id: TASK_STATUS.BACKLOG, label: t("Backlog"), tone: "var(--panel-3)" },
 ];
 
-/**
- * Execution timeline by goal: each goal carries a segmented bar of its tasks
- * by status (done → review → in progress → backlog), then one row per
- * project with the same bar at project scope.
- */
-export function TimelineView({ tasks, goals, projects }: { tasks: TaskRecord[]; goals: GoalRecord[]; projects: ProjectRecord[] }) {
+/** How far work is per goal and project, as bars of task status; it shows progress, not dates. */
+export function ProgressView({ tasks, goals, projects }: { tasks: TaskRecord[]; goals: GoalRecord[]; projects: ProjectRecord[] }) {
   const unlinked = tasks.filter((task) => !task.goalId);
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>

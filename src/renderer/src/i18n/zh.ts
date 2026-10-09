@@ -571,7 +571,7 @@ export const zh: Record<string, string> = {
   "Tests": "测试",
   "Theme": "主题",
   "Thinking": "思考中",
-  "Timeline": "时间线",
+  "Progress": "进度",
   "Title": "标题",
   "Today": "今天",
   "Token usage": "Token 用量",

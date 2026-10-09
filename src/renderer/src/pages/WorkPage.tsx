@@ -19,13 +19,13 @@ import { ProjectDialog } from "./work/ProjectDialog";
 import { TaskDetailDialog } from "./work/TaskDetailDialog";
 import { ProjectOverview } from "./work/ProjectOverview";
 import { ListView } from "./work/ListView";
-import { TimelineView } from "./work/TimelineView";
+import { ProgressView } from "./work/ProgressView";
 import { isBusinessTask, latestTaskRun, nextStatus, prettyRunState, providerFor, runBlocker, runTone } from "./work/task-helpers";
 import type { PageProps } from "./types";
 import { activeOrgId, type Focus } from "./types";
 import { t } from "../i18n/i18n";
 
-type View = "board" | "list" | "timeline";
+type View = "board" | "list" | "progress";
 
 const COLUMNS: ReadonlyArray<{ id: TaskStatus; label: string; tone: string }> = [
   { id: TASK_STATUS.BACKLOG, label: t("Backlog"), tone: "var(--text-4)" },
@@ -37,7 +37,7 @@ const COLUMNS: ReadonlyArray<{ id: TaskStatus; label: string; tone: string }> = 
 const VIEW_OPTIONS: ReadonlyArray<{ id: View; label: string }> = [
   { id: "board", label: t("Board") },
   { id: "list", label: t("List") },
-  { id: "timeline", label: t("Timeline") },
+  { id: "progress", label: t("Progress") },
 ];
 
 export function WorkPage({ snapshot, actions, navigate, focus }: PageProps) {
@@ -153,9 +153,9 @@ export function WorkPage({ snapshot, actions, navigate, focus }: PageProps) {
             />
           </div>
         )}
-        {view === "timeline" && (
+        {view === "progress" && (
           <div className="work-scroll">
-            <TimelineView tasks={tasks} goals={goals} projects={projects} />
+            <ProgressView tasks={tasks} goals={goals} projects={projects} />
           </div>
         )}
       </div>

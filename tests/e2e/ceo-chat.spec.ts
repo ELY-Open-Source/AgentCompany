@@ -81,6 +81,9 @@ test("the pinned CEO conversation is the Messages front door", async () => {
 
     // From a task, its goal, run and back are one click each.
     await page.getByRole("button", { name: "Work" }).click();
+    // The goal view says what it shows: progress, not a timeline without dates.
+    await expect(page.getByText("Progress", { exact: true })).toBeVisible();
+    await expect(page.getByText("Timeline", { exact: true })).toHaveCount(0);
     // The CEO's reply to the founder is a chat vehicle, not work: it stays off the board.
     await expect(page.getByRole("button", { name: /Reply to Yang/ })).toHaveCount(0);
     await page.getByRole("button", { name: /Operationalize goal: Ship the FlowPilot MVP\./ }).first().click();
