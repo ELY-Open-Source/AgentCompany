@@ -244,21 +244,6 @@ export interface ApprovalRecord {
   decidedAt: string | null;
 }
 
-export interface MeetingRecord {
-  id: string;
-  orgId: string;
-  title: string;
-  meetingType: string;
-  status: string;
-  scheduledAt: string | null;
-  durationMinutes: number;
-  agenda: string;
-  notes: string;
-  decisions: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
 export interface SprintRecord {
   id: string;
   orgId: string;

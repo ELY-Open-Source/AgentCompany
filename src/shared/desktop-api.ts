@@ -19,9 +19,7 @@ import type {
   CreateApprovalInput,
   CreateDocumentInput,
   CreateGoalInput,
-  CreateMeetingInput,
   CreateSprintInput,
-  DeleteMeetingInput,
   DeleteSprintInput,
   CreateKnowledgeEntryInput,
   UpdateKnowledgeEntryInput,
@@ -161,8 +159,6 @@ export interface DesktopApi {
   updateKnowledgeEntry(input: UpdateKnowledgeEntryInput): Promise<DesktopResult<AppSnapshot>>;
   listDocumentVersions(input: ListDocumentVersionsInput): Promise<DesktopResult<DocumentVersionRecord[]>>;
   listKnowledgeRevisions(input: ListKnowledgeRevisionsInput): Promise<DesktopResult<KnowledgeRevisionRecord[]>>;
-  createMeeting(input: CreateMeetingInput): Promise<DesktopResult<AppSnapshot>>;
-  deleteMeeting(input: DeleteMeetingInput): Promise<DesktopResult<AppSnapshot>>;
   createSprint(input: CreateSprintInput): Promise<DesktopResult<AppSnapshot>>;
   deleteSprint(input: DeleteSprintInput): Promise<DesktopResult<AppSnapshot>>;
   createApproval(input: CreateApprovalInput): Promise<DesktopResult<AppSnapshot>>;

@@ -104,20 +104,6 @@ export interface DeleteKnowledgeEntryInput {
   deletedByEmployeeId: string;
 }
 
-export interface CreateMeetingInput {
-  orgId: string;
-  title: string;
-  meetingType: string;
-  scheduledAt: string | null;
-  durationMinutes: number;
-  agenda: string;
-}
-
-export interface DeleteMeetingInput {
-  orgId: string;
-  meetingId: string;
-}
-
 export interface CreateSprintInput {
   orgId: string;
   name: string;

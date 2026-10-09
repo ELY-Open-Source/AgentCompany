@@ -26,10 +26,6 @@ export const collaborationContracts = {
   }) satisfies z.ZodType<C.UpdateKnowledgeEntryInput>,
   deleteKnowledgeEntry: z.strictObject({ orgId: id, entryId: id, deletedByEmployeeId: id }) satisfies z.ZodType<C.DeleteKnowledgeEntryInput>,
   listKnowledgeRevisions: z.strictObject({ orgId: id, entryId: id }) satisfies z.ZodType<C.ListKnowledgeRevisionsInput>,
-  createMeeting: z.strictObject({
-    orgId: id, title: z.string(), meetingType: z.string(), scheduledAt: z.string().nullable(), durationMinutes: z.number(), agenda: z.string(),
-  }) satisfies z.ZodType<C.CreateMeetingInput>,
-  deleteMeeting: z.strictObject({ orgId: id, meetingId: id }) satisfies z.ZodType<C.DeleteMeetingInput>,
   createSprint: z.strictObject({ orgId: id, name: z.string(), goal: z.string(), startDate: z.string(), endDate: z.string() }) satisfies z.ZodType<C.CreateSprintInput>,
   deleteSprint: z.strictObject({ orgId: id, sprintId: id }) satisfies z.ZodType<C.DeleteSprintInput>,
   createChatSpace: z.strictObject({

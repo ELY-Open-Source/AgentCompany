@@ -23,7 +23,6 @@ import { OperationsService } from "../services/operations-service";
 import { TaskExecutionService } from "../services/task-execution-service";
 import { DocumentService } from "../services/document-service";
 import { KnowledgeService } from "../services/knowledge-service";
-import { MeetingService } from "../services/meeting-service";
 import { SprintService } from "../services/sprint-service";
 import { ComposioConnectionService } from "../services/composio/composio-connection-service";
 import { ConnectorGrantsService } from "../services/composio/connector-grants";
@@ -91,7 +90,6 @@ export function registerIpcHandlers(deps: IpcDeps): void {
   const operations = new OperationsService(deps.connection.db);
   const documents = new DocumentService(deps.connection.db);
   const knowledge = new KnowledgeService(deps.connection.db);
-  const meetingService = new MeetingService(deps.connection.db);
   const sprintService = new SprintService(deps.connection.db);
   const onboarding = new OnboardingService({
     db: deps.connection.db,
@@ -240,8 +238,6 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       revision: r.revision, topic: r.topic, category: r.category, content: r.content, importance: r.importance,
       changedByType: r.changed_by_type, changedById: r.changed_by_id, reason: r.reason, createdAt: r.created_at,
     }))));
-  handle("createMeeting", (input) => mutate(() => meetingService.create(input)));
-  handle("deleteMeeting", (input) => mutate(() => meetingService.delete(input)));
   handle("createSprint", (input) => mutate(() => sprintService.create(input)));
   handle("deleteSprint", (input) => mutate(() => sprintService.delete(input)));
   handle("createApproval", (input) => mutate(() => approvals.create(input)));

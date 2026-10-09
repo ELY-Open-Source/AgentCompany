@@ -28,7 +28,6 @@ import type {
   FileObjectRecord,
   GoalRecord,
   KnowledgeEntryRecord,
-  MeetingRecord,
   MigrationReportRecord,
   OrganizationRecord,
   PolicyRuleRecord,
@@ -126,7 +125,6 @@ export interface AppSnapshot {
   auditEvents: AuditEventRecord[];
   documents: DocumentRecord[];
   knowledgeEntries: KnowledgeEntryRecord[];
-  meetings: MeetingRecord[];
   sprints: SprintRecord[];
   connectorAccounts: ConnectorAccountRecord[];
   connectorGrants: ConnectorGrantRecord[];

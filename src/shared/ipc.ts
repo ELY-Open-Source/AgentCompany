@@ -77,8 +77,6 @@ export const IPC_CHANNELS = {
   updateKnowledgeEntry: "agentcompany:update-knowledge-entry",
   listDocumentVersions: "agentcompany:list-document-versions",
   listKnowledgeRevisions: "agentcompany:list-knowledge-revisions",
-  createMeeting: "agentcompany:create-meeting",
-  deleteMeeting: "agentcompany:delete-meeting",
   createSprint: "agentcompany:create-sprint",
   deleteSprint: "agentcompany:delete-sprint",
   listConnectorCatalog: "agentcompany:list-connector-catalog",

@@ -151,7 +151,6 @@ export class SnapshotService {
       auditEvents: recentInOrg<AppSnapshot["auditEvents"][number]>(this.db, "audit_events", "created_at desc", 200, activeOrgId),
       documents: list(this.db, "documents", "updated_at desc"),
       knowledgeEntries: list(this.db, "knowledge_entries", "updated_at desc"),
-      meetings: list(this.db, "meetings", "scheduled_at desc"),
       sprints: list(this.db, "sprints", "start_date desc"),
       connectorAccounts: list(this.db, "connector_accounts", "toolkit_slug asc"),
       connectorGrants: list(this.db, "agent_connector_grants", "toolkit_slug asc, created_at asc"),
