@@ -1,3 +1,4 @@
+import { XpBar } from "../shared/XpBar";
 import { runTriggerLabel } from "../i18n/labels";
 import { goalProgress, type GoalPace } from "./home/goal-progress";
 import { nextUp } from "./home/next-up";
@@ -122,9 +123,7 @@ function GoalCard({
         <span style={{ fontSize: 12, color: "var(--text-3)" }}>{progress?.pace ? statusLabel(progress.pace) : t("no target date")}</span>
         {goal && <TargetDate goal={goal} actions={actions} />}
       </div>
-      <div style={{ marginTop: 12, height: 4, background: "var(--panel-3)", borderRadius: 999, overflow: "hidden" }}>
-        <div style={{ width: `${percent}%`, height: "100%", background: "var(--text-1)", transition: "width var(--motion-slow) var(--ease-out)" }} />
-      </div>
+      <div style={{ marginTop: 12 }}><XpBar percent={percent} label={t("Goal progress")} /></div>
       {goal?.status === "active" && goal.stalledReason && (
         <div className="row" style={{ marginTop: 12, gap: 8, alignItems: "center" }}>
           <span className="form-error" role="status" style={{ flex: 1, marginTop: 0 }}>{goal.stalledReason}</span>
@@ -156,9 +155,7 @@ function SpendCard({
         <span className="num" style={{ fontSize: 18, fontWeight: 600 }}>{money(totalBudgetCents)}</span>
         <span style={{ fontSize: 12, color: "var(--text-3)" }}>{capCents > 0 ? `/ ${money(capCents)}` : t("allocated")}</span>
       </div>
-      <div style={{ marginTop: 12, height: 4, background: "var(--panel-3)", borderRadius: 999, overflow: "hidden" }}>
-        <div style={{ width: `${fillPct}%`, height: "100%", background: "var(--text-1)" }} />
-      </div>
+      <div style={{ marginTop: 12 }}><XpBar percent={fillPct} label={t("Budget allocated")} /></div>
       <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 8 }}>
         {connected.slice(0, 3).map((provider) => {
           const allocatedCents = agents.filter((agent) => agent.modelProviderId === provider.id).reduce((sum, agent) => sum + agent.budgetCents, 0);

@@ -1,3 +1,4 @@
+import { XpBar } from "../shared/XpBar";
 import { useRevealObject } from "../shared/reveal";
 import { oneOf, usePersistentState } from "../shared/view-state";
 import { agentModel } from "../../../shared/agent-model";
@@ -322,14 +323,8 @@ function RosterRow({ row, last, onEdit }: { row: RosterEntry; last: boolean; onE
           <span style={{ color: "var(--text-4)" }}>—</span>
         ) : (
           <div className="row" style={{ gap: 8 }}>
-            <div style={{ flex: 1, height: 3, background: "var(--panel-3)", borderRadius: 2, overflow: "hidden", maxWidth: 100 }}>
-              <div
-                style={{
-                  width: `${row.budgetCapCents && row.budgetCapCents > 0 ? Math.min(100, Math.round((row.budgetCents / row.budgetCapCents) * 100)) : 0}%`,
-                  height: "100%",
-                  background: "var(--text-2)",
-                }}
-              />
+            <div style={{ flex: 1, maxWidth: 100 }}>
+              <XpBar percent={row.budgetCapCents && row.budgetCapCents > 0 ? (row.budgetCents / row.budgetCapCents) * 100 : 0} label={t("Budget compared with the largest agent budget")} />
             </div>
             <span className="num mono" style={{ fontSize: 12, color: "var(--text-3)" }}>{money(row.budgetCents)}</span>
           </div>

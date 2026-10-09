@@ -35,7 +35,8 @@ test("a first load that fails says why, keeps retrying, and recovers", async () 
   await expect(failure).toContainText(/attempt [2-9]/);
 
   setDraft(null);
-  await page.getByRole("button", { name: "Retry now" }).click();
+  await expect(failure).toContainText("GAME OVER");
+  await page.getByRole("button", { name: "Continue" }).click();
   await expect(page.getByRole("heading", { name: "Welcome" })).toBeVisible();
   await app.close();
 });

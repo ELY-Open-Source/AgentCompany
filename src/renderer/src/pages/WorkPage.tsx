@@ -1,3 +1,4 @@
+import { HintBubble } from "../shared/HintBubble";
 import { oneOf, usePersistentState } from "../shared/view-state";
 import { useMemo, useState } from "react";
 import { Avatar, Button, Icon, IconButton, Pill, Segmented } from "../shared/ui";
@@ -113,7 +114,7 @@ export function WorkPage({ snapshot, actions, navigate, focus }: PageProps) {
         <Button tone="primary" onClick={() => setNewTaskOpen(true)}><Icon name="plus" /> {t("New task")}</Button>
       </TopbarActions>
       <h1 className="page-h1">{t("Work")}</h1>
-      <p className="page-sub">{t("Only a task runs: an agent picks it up and does the work. Goals and projects group tasks; documents and knowledge are what agents read and write along the way.")}</p>
+      <HintBubble>{t("Only a task runs: an agent picks it up and does the work. Goals and projects group tasks; documents and knowledge are what agents read and write along the way.")}</HintBubble>
       {scope && (
         <div className="row" style={{ gap: 8, marginBottom: 8 }}>
           <Pill>

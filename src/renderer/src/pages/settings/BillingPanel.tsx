@@ -1,3 +1,4 @@
+import { XpBar } from "../../shared/XpBar";
 import { Avatar, Pill } from "../../shared/ui";
 import type { AgentRecord, HiringPolicyRecord, ProviderRecord } from "../../../../shared/domain";
 import { money } from "../types";
@@ -52,9 +53,7 @@ export function BillingPanel({
         </div>
         <div className="card" style={{ padding: 14 }}>
           <div className="card-label" style={{ marginBottom: 8 }}>{t("Spent this month")}</div>
-          <div style={{ height: 6, background: "var(--panel-3)", borderRadius: 3, overflow: "hidden", marginBottom: 8 }}>
-            <div style={{ width: `${totalBudget > 0 ? Math.min(100, Math.round((spentCents / totalBudget) * 100)) : 0}%`, height: "100%", background: "var(--accent)" }} />
-          </div>
+          <div style={{ marginBottom: 8 }}><XpBar percent={totalBudget > 0 ? (spentCents / totalBudget) * 100 : 0} label={t("Spent this month")} /></div>
           <div style={{ fontSize: 12, color: "var(--text-3)" }}>
             {t("${spent} of ${allocated} allocated to agents", { spent: (spentCents / 100).toFixed(2), allocated: (totalBudget / 100).toFixed(2) })}
             {unpricedCalls > 0 && <> · {t("{count} calls not priced", { count: unpricedCalls })}</>}

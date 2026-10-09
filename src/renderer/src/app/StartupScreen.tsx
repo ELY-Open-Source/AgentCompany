@@ -1,4 +1,4 @@
-import { Button } from "../shared/ui";
+import { GameOver } from "../shared/GameOver";
 import { t } from "../i18n/i18n";
 import type { SyncFailure } from "./useSnapshot";
 
@@ -7,12 +7,12 @@ export function StartupScreen({ failure, onRetry }: { failure: SyncFailure | nul
   return (
     <div className="app-shell" style={{ display: "grid", placeItems: "center", padding: 24 }}>
       {failure ? (
-        <div role="alert" style={{ maxWidth: 480, display: "grid", gap: 12, textAlign: "center" }}>
-          <strong>{t("AgentCompany could not load its data.")}</strong>
-          <div className="mono" style={{ fontSize: 12, color: "var(--text-2)", wordBreak: "break-word" }}>{failure.message}</div>
-          <div style={{ fontSize: 13, color: "var(--text-3)" }}>{t("Retrying every few seconds (attempt {count}).", { count: failure.attempts })}</div>
-          <div><Button onClick={onRetry}>{t("Retry now")}</Button></div>
-        </div>
+        <GameOver
+          title={t("AgentCompany could not load its data.")}
+          error={failure.message}
+          note={t("Retrying every few seconds (attempt {count}); Continue tries now.", { count: failure.attempts })}
+          onContinue={onRetry}
+        />
       ) : (
         <div role="status" style={{ color: "var(--text-3)" }}>{t("Starting AgentCompany…")}</div>
       )}

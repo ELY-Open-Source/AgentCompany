@@ -60,7 +60,21 @@ test("text uses the bundled pixel font, and the palette follows the day part, se
     await page.keyboard.press("Escape");
     await expect(dialog).toHaveCount(0);
 
+    // Progress is an XP bar announced as a value; hints are spoken by the guide in a bubble.
+    await page.getByRole("button", { name: "Home" }).click();
+    await expect(page.getByRole("progressbar", { name: "Goal progress" })).toHaveAttribute("aria-valuenow", "0");
+    // On the roster the only agent holds the largest budget, and the bar says it compares budgets, not spend.
+    await page.getByRole("button", { name: "Team", exact: true }).click();
+    await expect(page.getByRole("progressbar", { name: "Budget compared with the largest agent budget" })).toHaveAttribute("aria-valuenow", "100");
+    await page.getByRole("button", { name: "Work", exact: true }).click();
+    const hint = page.getByRole("note").filter({ hasText: "Only a task runs" });
+    await expect(hint.locator(".hint-speaker svg.pixel-icon")).toHaveCount(1);
+    // Tabs are raised pixel tabs; fields are sunken pixel boxes.
+    const views = page.getByRole("radiogroup", { name: "View" });
+    expect(await views.locator("[aria-checked=true]").evaluate((tab) => getComputedStyle(tab).borderBottomColor === getComputedStyle(tab).backgroundColor)).toBe(true);
+
     await page.getByRole("button", { name: "Settings" }).click();
+    expect(await page.getByRole("combobox", { name: "Theme" }).evaluate((field) => [getComputedStyle(field).borderTopWidth, getComputedStyle(field).borderRadius])).toEqual(["2px", "0px"]);
     await page.getByRole("combobox", { name: "Theme" }).selectOption("dark");
     await expect(root).toHaveAttribute("data-theme", "dark");
     await page.getByRole("combobox", { name: "Theme" }).selectOption({ label: "Follow the clock" });

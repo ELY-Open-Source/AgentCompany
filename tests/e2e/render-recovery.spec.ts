@@ -33,6 +33,10 @@ test("a record that breaks one page leaves the rest of the app working", async (
     await page.getByRole("button", { name: "Approvals" }).click();
     const failure = page.getByRole("alert").filter({ hasText: "This page could not be shown." });
     await expect(failure).toContainText("Approval risk tone is missing.");
+    // A failure reads as a game over, with Continue to try again; the same fault fails the same way.
+    await expect(failure).toContainText("GAME OVER");
+    await failure.getByRole("button", { name: "Continue" }).click();
+    await expect(failure).toContainText("Approval risk tone is missing.");
     await page.getByRole("button", { name: "Home" }).click();
     await expect(failure).toHaveCount(0);
     await expect(page.getByRole("button", { name: "Approvals" })).toBeVisible();

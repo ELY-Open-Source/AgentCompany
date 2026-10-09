@@ -26,7 +26,7 @@ export function FilesGrid({
   onTogglePin: (file: FileObjectRecord) => void;
 }) {
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 12 }}>
+    <div className="inventory">
       {files.map((file) => (
         <PinnedCard
           key={file.id}
@@ -58,22 +58,12 @@ export function PinnedCard({
   return (
     <div
       data-object-id={file.id}
-      className={canOpen ? "clickable-card" : ""}
+      className={`inventory-slot ${canOpen ? "clickable-card" : ""}`.trim()}
       role={canOpen ? "button" : undefined}
       tabIndex={canOpen ? 0 : undefined}
       onClick={canOpen ? onOpen : undefined}
       onKeyDown={canOpen ? (event) => { if (event.key === "Enter") onOpen(); } : undefined}
-      style={{
-        border: "1px solid var(--border)",
-        borderRadius: 10,
-        background: "var(--panel)",
-        padding: 14,
-        display: "flex",
-        flexDirection: "column",
-        gap: 10,
-        minWidth: 0,
-        cursor: canOpen ? "pointer" : "default",
-      }}
+      style={{ cursor: canOpen ? "pointer" : "default" }}
     >
       <div className="row" style={{ gap: 10 }}>
         <FileIcon kind={file.kind} big />

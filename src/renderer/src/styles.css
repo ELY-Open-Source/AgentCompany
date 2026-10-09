@@ -21,6 +21,7 @@
   --amber: #a85a1d;
   --amber-soft: #fbe6c4;
   --red: #b13e53;
+  --red-soft: #f6d5da;
 
   --r-sm: 0;
   --r-md: 0;
@@ -88,6 +89,7 @@
   --amber: #ffcd75;
   --amber-soft: #3d3220;
   --red: #ef7d57;
+  --red-soft: #3d1f26;
 
   --shadow-sm: 2px 2px 0 0 #10111c;
   --shadow-md: 4px 4px 0 0 rgba(0, 0, 0, 0.5);

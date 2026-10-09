@@ -59,3 +59,29 @@
 
 /* Icons share the font's grid: 12 icon pixels at the same whole-screen-pixel scale. */
 .pixel-icon { width: calc(12px * var(--px)); height: calc(12px * var(--px)); flex-shrink: 0; }
+
+/* XP bar: a framed track, filled in 6px blocks with a 2px gap, a lighter top row for shine. */
+.xp-bar { height: calc(10px * var(--px)); padding: 1px; border: 2px solid var(--border-strong); background: var(--panel-3); }
+.xp-fill {
+  height: 100%;
+  background: repeating-linear-gradient(90deg, var(--accent) 0 6px, transparent 6px 8px);
+  box-shadow: inset 0 2px 0 0 rgba(255, 255, 255, 0.35);
+  transition: width var(--motion-slow) var(--ease-out);
+}
+
+/* Hint bubble: the guide's portrait and a speech box with a stepped tail. */
+.hint-bubble { display: flex; align-items: flex-start; gap: 10px; margin: 0 0 var(--sp-4); }
+.hint-speaker { display: grid; place-items: center; width: calc(24px * var(--px)); height: calc(24px * var(--px)); background: var(--accent); color: var(--btn-primary-fg); box-shadow: 2px 2px 0 0 var(--border-strong); flex-shrink: 0; }
+.hint-text { position: relative; margin: 0; padding: 6px 10px; background: var(--panel); border: 2px solid var(--border-strong); color: var(--text-2); }
+.hint-text::before { content: ""; position: absolute; left: -8px; top: 6px; width: 6px; height: 8px; background: var(--border-strong); clip-path: polygon(100% 0, 100% 100%, 67% 100%, 67% 75%, 34% 75%, 34% 50%, 0 50%, 0 25%, 34% 25%, 34% 0); }
+
+/* Game over: a framed panel with a blinking banner and Continue. */
+.game-over { display: grid; gap: 12px; max-width: 520px; text-align: center; justify-items: center; }
+.game-over-banner { font-size: var(--fs-display); color: var(--red); letter-spacing: 0.1em; animation: px-blink 1.2s steps(1, end) infinite; }
+.game-over-error { font-size: var(--fs-caption); color: var(--text-2); word-break: break-word; }
+.game-over-note { color: var(--text-3); }
+
+/* Inventory: files sit in square-cornered bevelled slots. */
+.inventory { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; padding: 8px; background: var(--panel-3); box-shadow: inset 2px 2px 0 0 var(--border-soft); }
+.inventory-slot { display: flex; flex-direction: column; gap: 10px; min-width: 0; padding: 12px; background: var(--panel); border: 2px solid var(--border-strong); box-shadow: inset -2px -2px 0 0 var(--border-soft), inset 2px 2px 0 0 #ffffff40; }
+.inventory-slot:hover { background: var(--hover); }
