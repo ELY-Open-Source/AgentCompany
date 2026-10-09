@@ -83,9 +83,3 @@ export interface RunChaosDrillInput {
   orgId: string;
   drillId: string;
 }
-
-export interface SetPrBotGateInput {
-  orgId: string;
-  gateId: string;
-  enabled: boolean;
-}

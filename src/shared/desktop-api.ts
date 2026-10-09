@@ -83,7 +83,6 @@ import type {
   SetFilePinnedInput,
   SetFeatureFlagInput,
   SetLegalHoldStateInput,
-  SetPrBotGateInput,
   SetRollbackSnapshotActiveInput,
   SetRetentionFreezeStateInput,
   SetScheduledPostStateInput,
@@ -190,7 +189,6 @@ export interface DesktopApi {
   resolveMigrationReconciliation(input: ResolveMigrationReconciliationInput): Promise<DesktopResult<AppSnapshot>>;
   setFeatureFlag(input: SetFeatureFlagInput): Promise<DesktopResult<AppSnapshot>>;
   runChaosDrill(input: RunChaosDrillInput): Promise<DesktopResult<AppSnapshot>>;
-  setPrBotGate(input: SetPrBotGateInput): Promise<DesktopResult<AppSnapshot>>;
   createComplianceExport(input: CreateComplianceExportInput): Promise<DesktopResult<AppSnapshot>>;
   createAuditReplay(input: CreateAuditReplayInput): Promise<DesktopResult<AppSnapshot>>;
   createLegalHold(input: CreateLegalHoldInput): Promise<DesktopResult<AppSnapshot>>;

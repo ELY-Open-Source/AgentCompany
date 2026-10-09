@@ -81,8 +81,6 @@ export class SnapshotService {
       .map((event) => ({ ...event, success: toBool(event.success) }));
     const chaosDrills = list<AppSnapshot["chaosDrills"][number]>(this.db, "chaos_drills", "key asc")
       .map((drill) => ({ ...drill, enabled: toBool(drill.enabled) }));
-    const prBotGates = list<AppSnapshot["prBotGates"][number]>(this.db, "pr_bot_gates", "key asc")
-      .map((gate) => ({ ...gate, enabled: toBool(gate.enabled) }));
     const rollbackSnapshots = list<AppSnapshot["rollbackSnapshots"][number]>(this.db, "rollback_snapshots", "created_at desc")
       .map((snapshot) => ({ ...snapshot, active: toBool(snapshot.active) }));
 
@@ -162,7 +160,6 @@ export class SnapshotService {
       operationalEvents,
       chaosDrills,
       chaosDrillRuns: list(this.db, "chaos_drill_runs", "started_at desc"),
-      prBotGates,
       auditReplayRuns: list(this.db, "audit_replay_runs", "created_at desc"),
       auditEvents: recentList<AppSnapshot["auditEvents"][number]>(this.db, "audit_events", "created_at desc", 200),
       documents: list(this.db, "documents", "updated_at desc"),

@@ -7,7 +7,6 @@ import { PolicyService } from "./policy-service";
 import { IdentityAccessService } from "./identity-access-service";
 import { OrgGovernanceService } from "./org-governance-service";
 import { OperationsService } from "./operations-service";
-import { SdlcService } from "./sdlc-service";
 import { assertUsableMentionName } from "../../shared/mention-handles";
 
 /**
@@ -22,7 +21,6 @@ export function seedOrganization(db: DatabaseSync, input: CreateOrganizationInpu
   const identityAccess = new IdentityAccessService(db);
   const governance = new OrgGovernanceService(db);
   const operations = new OperationsService(db);
-  const sdlc = new SdlcService(db);
 
   assertUsableMentionName(input.employeeName);
   const orgId = createId("org");
@@ -50,7 +48,6 @@ export function seedOrganization(db: DatabaseSync, input: CreateOrganizationInpu
   identityAccess.seedEmployeeAccess(orgId, employeeId, now);
   governance.seedOrganizationGovernance(orgId, employeeId, now);
   operations.seedOrganizationOperations(orgId, now);
-  sdlc.seedOrganizationSdlc(orgId, now);
 
   for (const space of [
     ["company", "general", "Company coordination", "workspace"],

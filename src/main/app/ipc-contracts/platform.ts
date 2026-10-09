@@ -57,7 +57,6 @@ export const platformContracts = {
   resolveMigrationReconciliation: z.strictObject({ orgId: id, reconciliationItemId: id, employeeId: id }) satisfies z.ZodType<C.ResolveMigrationReconciliationInput>,
   setFeatureFlag: z.strictObject({ orgId: id, flagId: id, enabled: z.boolean() }) satisfies z.ZodType<C.SetFeatureFlagInput>,
   runChaosDrill: z.strictObject({ orgId: id, drillId: id }) satisfies z.ZodType<C.RunChaosDrillInput>,
-  setPrBotGate: z.strictObject({ orgId: id, gateId: id, enabled: z.boolean() }) satisfies z.ZodType<C.SetPrBotGateInput>,
   createComplianceExport: z.strictObject({
     orgId: id, subjectType: z.enum(["employee", "agent"]), subjectId: id, exportType: z.enum(COMPLIANCE_EXPORT_TYPE), requestedByEmployeeId: id,
   }) satisfies z.ZodType<C.CreateComplianceExportInput>,

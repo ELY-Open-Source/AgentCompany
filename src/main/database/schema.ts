@@ -93,6 +93,7 @@ import { requestPurposeSchema } from "./migrations/091-request-purpose";
 import { runActionTargetsSchema } from "./migrations/092-run-action-targets";
 import { taskEnqueueErrorSchema } from "./migrations/093-task-enqueue-error";
 import { dropConfigCountEvalsSchema } from "./migrations/094-drop-config-count-evals";
+import { dropPrBotGatesSchema } from "./migrations/095-drop-pr-bot-gates";
 
 interface Migration {
   version: number;
@@ -195,6 +196,7 @@ const MIGRATIONS: Migration[] = [
   { version: 92, name: "run_action_targets", sql: runActionTargetsSchema },
   { version: 93, name: "task_enqueue_error", sql: taskEnqueueErrorSchema },
   { version: 94, name: "drop_config_count_evals", sql: dropConfigCountEvalsSchema },
+  { version: 95, name: "drop_pr_bot_gates", sql: dropPrBotGatesSchema },
 ];
 
 const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;

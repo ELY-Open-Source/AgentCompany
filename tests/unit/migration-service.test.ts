@@ -132,7 +132,6 @@ describe("migration service", () => {
       create table operational_events(id text primary key, org_id text);
       create table chaos_drills(id text primary key, org_id text);
       create table chaos_drill_runs(id text primary key, org_id text, drill_id text);
-      create table pr_bot_gates(id text primary key, org_id text);
       create table chat_spaces(id text primary key, org_id text);
       create table chat_messages(id text primary key, org_id text, space_id text, thread_id text);
       create table chat_threads(id text primary key, org_id text, space_id text, root_message_id text);
@@ -205,7 +204,6 @@ describe("migration service", () => {
       insert into operational_events(id, org_id) values ('op-1', 'org-1');
       insert into chaos_drills(id, org_id) values ('drill-1', 'org-1');
       insert into chaos_drill_runs(id, org_id, drill_id) values ('drill-run-1', 'org-1', 'drill-1');
-      insert into pr_bot_gates(id, org_id) values ('gate-1', 'org-1');
       insert into chat_threads(id, org_id, space_id, root_message_id) values ('thread-1', 'org-1', 'space-1', null);
       insert into chat_messages(id, org_id, space_id, thread_id) values ('msg-1', 'org-1', 'space-1', 'thread-1');
       insert into chat_memberships(space_id, principal_type, principal_id) values ('space-1', 'employee', 'emp-1');
