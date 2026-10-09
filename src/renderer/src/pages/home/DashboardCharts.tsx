@@ -1,7 +1,7 @@
+import { workloadBars } from "./workload-bars";
 import type { UsageStatsRecord } from "../../../../shared/usage-stats";
 import { useState, type ReactNode } from "react";
 import type { AgentRecord, TaskRecord } from "../../../../shared/domain";
-import { TASK_STATUS } from "../../../../shared/domain";
 import { t } from "../../i18n/i18n";
 
 const CHART_H = 116;
@@ -22,16 +22,15 @@ function ChartCard({ title, readout, children }: { title: string; readout: strin
   );
 }
 
+/** Agents beyond this share one bar, so a large team still fits and is still counted. */
+const MAX_WORKLOAD_BARS = 8;
+
 export function AgentWorkloadChart({ agents, tasks }: { agents: AgentRecord[]; tasks: TaskRecord[] }) {
-  const data = agents.slice(0, 8).map((a) => ({
-    name: a.name.split(/\s+/)[0] ?? a.name,
-    count: tasks.filter((t) => t.assigneeAgentId === a.id && t.status !== TASK_STATUS.DONE).length,
-  }));
-  const total = data.reduce((s, d) => s + d.count, 0);
+  const { bars: data, total } = workloadBars(agents, tasks, MAX_WORKLOAD_BARS);
   const max = Math.max(1, ...data.map((d) => d.count));
   const barW = data.length > 0 ? (CHART_W - (data.length - 1) * BAR_GAP) / data.length : 0;
   const [hover, setHover] = useState<number | null>(null);
-  const readout = hover !== null && data[hover] ? `${data[hover]!.name} · ${data[hover]!.count}` : t("{n} open", { n: total });
+  const readout = hover !== null && data[hover] ? `${data[hover]!.label} · ${data[hover]!.count}` : t("{n} open", { n: total });
 
   return (
     <ChartCard title={t("Agent workload")} readout={readout}>
@@ -40,7 +39,7 @@ export function AgentWorkloadChart({ agents, tasks }: { agents: AgentRecord[]; t
           const h = (d.count / max) * (CHART_H - 22);
           const x = i * (barW + BAR_GAP);
           return (
-            <g key={d.name} onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)}>
+            <g key={d.key} onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)}>
               <rect x={x} y={0} width={barW} height={CHART_H - 16} fill="transparent" />
               <rect
                 x={x}
@@ -52,7 +51,7 @@ export function AgentWorkloadChart({ agents, tasks }: { agents: AgentRecord[]; t
                 opacity={hover === null || hover === i ? 0.85 : 0.32}
                 style={{ transition: "opacity var(--motion-fast) var(--ease-out)" }}
               />
-              <text x={x + barW / 2} y={CHART_H - 2} textAnchor="middle" fontSize="9" fill="var(--text-3)">{d.name}</text>
+              <text x={x + barW / 2} y={CHART_H - 2} textAnchor="middle" fontSize="9" fill="var(--text-3)">{d.label}</text>
             </g>
           );
         })}

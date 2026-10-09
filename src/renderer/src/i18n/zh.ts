@@ -54,6 +54,7 @@ export const zh: Record<string, string> = {
   "Cancel run": "取消运行",
   "Show older runs": "显示更早的运行",
   "Target date": "目标日期",
+  "{n} others": "其余 {n} 人",
   "Work accepted (7 days)": "工作验收（近 7 天）",
   "{accepted} done · {returned} sent back · sessions: {ok} ended, {failed} failed": "{accepted} 项完成 · {returned} 项退回 · 会话：{ok} 次结束，{failed} 次失败",
   "no target date": "未设目标日期",
