@@ -204,4 +204,36 @@ describe("search service", () => {
     expect(search.search({ orgId, employeeId, query: "!!", entityTypes: ["task"] })).toEqual({ results: [], total: 0 });
     connection.close();
   });
+
+  test("filters by type and permission before cutting a page, so a readable match behind many unreadable ones is found", () => {
+    const connection = createConnection();
+    const organization = new OrganizationService(connection.db);
+    const chat = new ChatService(connection.db);
+    const search = new SearchService(connection.db);
+    let orgId = "";
+    let ownerId = "";
+    const outsiderId = createId("emp");
+    connection.transaction(() => {
+      orgId = organization.createOrganization({ organizationName: "Order Co", employeeName: "Dana Lee", mission: "m", goal: "g" });
+      ownerId = (connection.db.prepare("select id from employees where org_id = ?").get(orgId) as { id: string }).id;
+      connection.db.prepare("insert into employees(id, org_id, display_name, role, created_at) values (?, ?, ?, ?, ?)")
+        .run(outsiderId, orgId, "Riley Chen", "Observer", new Date().toISOString());
+      const spaceId = chat.createSpace({ orgId, spaceType: "project", name: "private-beacon", topic: "t", visibility: "restricted", memberEmployeeIds: [ownerId] });
+      // The strongest matches are messages the outsider may not read.
+      for (let index = 0; index < 100; index += 1) {
+        chat.sendMessage({ orgId, spaceId, threadId: null, senderType: "employee", senderId: ownerId, bodyMd: "beacon beacon beacon", attachmentFileIds: [] });
+      }
+      organization.createTask({
+        orgId, title: "Harbor survey", description: `A long survey of the harbor that mentions the beacon only once. ${"Plain words. ".repeat(40)}`,
+        status: TASK_STATUS.BACKLOG, assigneeAgentId: null, risk: "low", projectId: null, goalId: null, workspaceId: null, priority: "normal", requiresFilesystem: false,
+      });
+    });
+    const outsider = search.search({ orgId, employeeId: outsiderId, query: "beacon", limit: 12 });
+    expect(outsider.total).toBe(1);
+    expect(outsider.results.map((hit) => hit.title)).toEqual(["Harbor survey"]);
+    // The same holds for a type filter behind many matches of other types.
+    const tasks = search.search({ orgId, employeeId: ownerId, query: "beacon", entityTypes: ["task"], limit: 12 });
+    expect(tasks.results.map((hit) => hit.title)).toEqual(["Harbor survey"]);
+    connection.close();
+  });
 });
