@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, readdirSync, rmSync, truncateSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, test, vi } from "vitest";
@@ -13,7 +13,7 @@ const { FileService } = await import("../../src/main/services/file-service");
 const { dispatchAgentTool } = await import("../../src/main/services/agent-tools");
 
 describe("files shared in a private conversation", () => {
-  test("a file imported into a direct conversation is readable by its members only", () => {
+  test("a file imported into a direct conversation is readable by its members only", async () => {
     const connection = new DatabaseConnection(join(tmpdir(), `ac-private-${randomUUID()}.db`));
     const organization = new OrganizationService(connection.db);
     const chat = new ChatService(connection.db);
@@ -33,7 +33,7 @@ describe("files shared in a private conversation", () => {
     mkdirSync(source, { recursive: true });
     writeFileSync(join(source, "salary.md"), "Dana's raise: 10%");
     const artifacts = join(tmpdir(), `ac-private-art-${randomUUID()}`);
-    const fileId = new FileService(connection.db, artifacts).importPath(orgId, join(source, "salary.md"), dm);
+    const fileId = await new FileService(connection.db, artifacts).importPath(orgId, join(source, "salary.md"), dm);
 
     const deps = { db: connection.db, organization, chat };
     const as = (agentId: string) => ({ orgId, agent: { id: agentId, modelProviderId: null, modelId: null }, taskProjectId: null, taskGoalId: null, taskId: null, sourceThreadId: null, workspace: null });
@@ -48,6 +48,22 @@ describe("files shared in a private conversation", () => {
     expect(connection.db.prepare("select count(*) as n from tasks where title in ('Leak', 'Pass on')").get()).toEqual({ n: 0 });
     expect(connection.db.prepare("select granted_to_type as type from file_access_grants where file_id = ? order by granted_to_type").all(fileId))
       .toEqual([{ type: "agent" }, { type: "employee" }]);
+    connection.close();
+  });
+
+  test("a file over the import limit is refused before anything is copied", async () => {
+    const connection = new DatabaseConnection(join(tmpdir(), `ac-import-limit-${randomUUID()}.db`));
+    let orgId = "";
+    connection.transaction(() => {
+      orgId = new OrganizationService(connection.db).createOrganization({ organizationName: "Acme", employeeName: "Yang", mission: "m", goal: "g" });
+    });
+    const huge = join(tmpdir(), `ac-huge-${randomUUID()}.bin`);
+    writeFileSync(huge, "");
+    truncateSync(huge, 1024 * 1024 * 1024 + 1);
+    const artifacts = join(tmpdir(), `ac-import-limit-art-${randomUUID()}`);
+    await expect(new FileService(connection.db, artifacts).importPath(orgId, huge, null)).rejects.toThrow("files over 1024.0 MiB cannot be imported");
+    expect(readdirSync(artifacts, { recursive: true })).toEqual([]);
+    rmSync(huge);
     connection.close();
   });
 });

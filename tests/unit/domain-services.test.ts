@@ -459,7 +459,7 @@ describe("domain services", () => {
     connection.close();
   });
 
-  test("imports files with checksum, scan labels, object refs, and workspace grants", () => {
+  test("imports files with checksum, scan labels, object refs, and workspace grants", async () => {
     const connection = createConnection();
     const organization = new OrganizationService(connection.db);
     const snapshot = new SnapshotService(connection.db);
@@ -483,8 +483,8 @@ describe("domain services", () => {
         goal: "Ship a verified control plane.",
       });
     });
-    const cleanFileId = fileService.importPath(orgId, cleanPath, null);
-    const blockedFileId = fileService.importPath(orgId, secretPath, null);
+    const cleanFileId = await fileService.importPath(orgId, cleanPath, null);
+    const blockedFileId = await fileService.importPath(orgId, secretPath, null);
 
     const state = snapshot.load();
     const cleanFile = state.files.find((file) => file.id === cleanFileId);

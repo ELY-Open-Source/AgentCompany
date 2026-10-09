@@ -1,5 +1,5 @@
-import { createHash } from "node:crypto";
-import { copyFileSync, mkdirSync, readFileSync, statSync } from "node:fs";
+import { mkdirSync, statSync } from "node:fs";
+import { copyFile } from "node:fs/promises";
 import { basename, join } from "node:path";
 import type { DatabaseSync } from "node:sqlite";
 import { dialog, shell } from "electron";
@@ -7,7 +7,13 @@ import type { ImportFileInput, OpenFileInput } from "../../shared/commands";
 import { FILE_SCAN_STATE } from "../../shared/domain";
 import { createId } from "../../shared/ids";
 import { AuditService } from "./audit-service";
-import { fileKind, readVerifiedFile, scanFileContent, upsertFileObject } from "./files/file-object-store";
+import { fileKind, readVerifiedFile, scanFileAt, upsertFileObject } from "./files/file-object-store";
+
+const MAX_IMPORT_BYTES = 1024 * 1024 * 1024;
+
+function formatBytes(bytes: number): string {
+  return bytes >= 1024 * 1024 ? `${(bytes / (1024 * 1024)).toFixed(1)} MiB` : `${bytes} bytes`;
+}
 
 export class FileService {
   private readonly audit: AuditService;
@@ -30,20 +36,21 @@ export class FileService {
   }
 
   /** A file imported into a direct conversation or restricted channel is readable by that space's members only. */
-  importPath(orgId: string, sourcePath: string, spaceId: string | null): string {
+  async importPath(orgId: string, sourcePath: string, spaceId: string | null): Promise<string> {
     const access = spaceId ? spaceAccess(this.db, orgId, spaceId) : "workspace";
     const id = createId("fil");
     const now = new Date().toISOString();
-    const stats = statSync(sourcePath);
-    if (!stats.isFile()) throw new Error("Selected path is not a file.");
+    const source = statSync(sourcePath);
+    if (!source.isFile()) throw new Error("Selected path is not a file.");
+    if (source.size > MAX_IMPORT_BYTES) throw new Error(`${basename(sourcePath)} is ${formatBytes(source.size)}; files over ${formatBytes(MAX_IMPORT_BYTES)} cannot be imported.`);
     const name = basename(sourcePath);
-    const bytes = readFileSync(sourcePath);
-    const hash = createHash("sha256").update(bytes).digest("hex");
-    const scan = scanFileContent(name, bytes);
     const orgDir = join(this.artifactRoot, orgId);
     mkdirSync(orgDir, { recursive: true });
     const target = join(orgDir, `${id}-${name}`);
-    copyFileSync(sourcePath, target);
+    // The stored copy is what gets hashed and scanned, so the record describes exactly the bytes kept; nothing is held in memory whole.
+    await copyFile(sourcePath, target);
+    const { scan, sha256: hash, size } = await scanFileAt(target, name);
+    console.info(`[files] imported ${name} (${formatBytes(size)})`);
     this.db.exec("begin immediate");
     try {
       upsertFileObject(this.db, {
@@ -51,7 +58,7 @@ export class FileService {
         orgId,
         name,
         kind: fileKind(name),
-        sizeBytes: stats.size,
+        sizeBytes: size,
         sha256: hash,
         storagePath: target,
         sourcePath: target,
@@ -68,7 +75,7 @@ export class FileService {
         actorType: "system",
         actorId: null,
         action: "imported",
-        payload: { sha256: hash, sizeBytes: stats.size, scanState: scan.state, scanLabels: scan.labels, objectRef: target },
+        payload: { sha256: hash, sizeBytes: size, scanState: scan.state, scanLabels: scan.labels, objectRef: target },
       });
       this.db.exec("commit");
     } catch (error) {

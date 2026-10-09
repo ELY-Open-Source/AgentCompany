@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { open } from "node:fs/promises";
 import { basename, dirname, extname, isAbsolute, join, relative } from "node:path";
 import type { DatabaseSync } from "node:sqlite";
 import { FILE_SCAN_STATE, type FileScanState } from "../../../shared/domain";
@@ -52,32 +53,65 @@ export function fileKind(path: string): string {
 
 /** Pattern checks for secrets and the antivirus test string over the whole file; not an antivirus engine, and compressed contents are not opened. */
 export function scanFileContent(name: string, bytes: Buffer): FileScanResult {
-  const labels = new Set(scanLabels(name, bytes.length));
-  let blocked = false;
-  // Overlapping windows cover every byte with bounded memory; the overlap is longer than any pattern match.
+  const state = { labels: new Set(scanLabels(name, bytes.length)), blocked: false };
   for (let start = 0; start === 0 || start < bytes.length; start += SCAN_WINDOW_BYTES) {
-    // A window owns the matches that start in its own MiB; context on both sides keeps word boundaries real at the cuts.
-    const ownEnd = Math.min(bytes.length, start + SCAN_WINDOW_BYTES);
-    const lead = bytes.subarray(Math.max(0, start - SCAN_CONTEXT_BYTES), start).toString("utf8");
-    const own = bytes.subarray(start, ownEnd).toString("utf8");
-    const tail = bytes.subarray(ownEnd, Math.min(bytes.length, ownEnd + SCAN_OVERLAP_BYTES + SCAN_CONTEXT_BYTES)).toString("utf8");
-    const text = lead + own + tail;
-    const range = { from: lead.length, until: lead.length + own.length };
-    if (bytes.subarray(start, ownEnd + SCAN_OVERLAP_BYTES).toString("latin1").includes("EICAR-STANDARD-ANTIVIRUS-TEST-FILE")) {
-      labels.add("av:eicar");
-      blocked = true;
-    }
-    for (const scan of TEXT_SCAN_PATTERNS) {
-      if (!matchesWithin(scan.pattern, text, range)) continue;
-      labels.add(scan.label);
-      if (scan.block) blocked = true;
-    }
-    if (containsPaymentCard(text, range)) {
-      labels.add("dlp:payment-card");
-      blocked = true;
-    }
+    scanWindow(state, bytes.length, start, (from, to) => bytes.subarray(from, to));
   }
-  if (isEncodedContainer(bytes)) labels.add("scan:contents-not-inspected");
+  return finishScan(state, bytes.subarray(0, 12));
+}
+
+/** The same scan over a file on disk, one window in memory at a time and without blocking; the hash comes from the same reads, so both describe one set of bytes. */
+export async function scanFileAt(path: string, name: string): Promise<{ scan: FileScanResult; sha256: string; size: number }> {
+  const handle = await open(path, "r");
+  try {
+    const size = (await handle.stat()).size;
+    const state = { labels: new Set(scanLabels(name, size)), blocked: false };
+    const hash = createHash("sha256");
+    let head = Buffer.alloc(0);
+    for (let start = 0; start === 0 || start < size; start += SCAN_WINDOW_BYTES) {
+      const spanStart = Math.max(0, start - SCAN_CONTEXT_BYTES);
+      const spanEnd = Math.min(size, start + SCAN_WINDOW_BYTES + SCAN_OVERLAP_BYTES + SCAN_CONTEXT_BYTES);
+      const span = Buffer.alloc(spanEnd - spanStart);
+      const { bytesRead } = await handle.read(span, 0, span.length, spanStart);
+      if (bytesRead !== span.length) throw new Error(`${name} changed size while it was being scanned.`);
+      if (start === 0) head = Buffer.from(span.subarray(0, 12));
+      // Each window's own range follows the last, so the hash sees every byte once, in order.
+      hash.update(span.subarray(start - spanStart, Math.min(size, start + SCAN_WINDOW_BYTES) - spanStart));
+      scanWindow(state, size, start, (from, to) => span.subarray(from - spanStart, to - spanStart));
+    }
+    if ((await handle.stat()).size !== size) throw new Error(`${name} changed size while it was being scanned.`);
+    return { scan: finishScan(state, head), sha256: hash.digest("hex"), size };
+  } finally {
+    await handle.close();
+  }
+}
+
+/** One window owns the matches that start in its own MiB; context on both sides keeps word boundaries real at the cuts. */
+function scanWindow(state: { labels: Set<string>; blocked: boolean }, size: number, start: number, read: (from: number, to: number) => Buffer): void {
+  const ownEnd = Math.min(size, start + SCAN_WINDOW_BYTES);
+  const lead = read(Math.max(0, start - SCAN_CONTEXT_BYTES), start).toString("utf8");
+  const own = read(start, ownEnd).toString("utf8");
+  const tail = read(ownEnd, Math.min(size, ownEnd + SCAN_OVERLAP_BYTES + SCAN_CONTEXT_BYTES)).toString("utf8");
+  const text = lead + own + tail;
+  const range = { from: lead.length, until: lead.length + own.length };
+  if (read(start, Math.min(size, ownEnd + SCAN_OVERLAP_BYTES)).toString("latin1").includes("EICAR-STANDARD-ANTIVIRUS-TEST-FILE")) {
+    state.labels.add("av:eicar");
+    state.blocked = true;
+  }
+  for (const scan of TEXT_SCAN_PATTERNS) {
+    if (!matchesWithin(scan.pattern, text, range)) continue;
+    state.labels.add(scan.label);
+    if (scan.block) state.blocked = true;
+  }
+  if (containsPaymentCard(text, range)) {
+    state.labels.add("dlp:payment-card");
+    state.blocked = true;
+  }
+}
+
+function finishScan(state: { labels: Set<string>; blocked: boolean }, head: Buffer): FileScanResult {
+  const { labels, blocked } = state;
+  if (isEncodedContainer(head)) labels.add("scan:contents-not-inspected");
   labels.add("scan:whole-file");
   labels.add(blocked ? "classification:restricted" : labels.has("dlp:email") ? "classification:confidential" : "classification:internal");
   return {

@@ -1,5 +1,9 @@
+import { createHash, randomUUID } from "node:crypto";
+import { appendFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, test } from "vitest";
-import { scanFileContent } from "../../src/main/services/files/file-object-store";
+import { scanFileAt, scanFileContent } from "../../src/main/services/files/file-object-store";
 
 const MIB = 1024 * 1024;
 
@@ -39,5 +43,32 @@ describe("the file scan", () => {
     expect(scanFileContent("archive.gz", Buffer.from([0x1f, 0x8b, 0x08, 0x00])).labels).toContain("scan:contents-not-inspected");
     expect(scanFileContent("photo.png", Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a])).labels).toContain("scan:contents-not-inspected");
     expect(scanFileContent("plan.md", Buffer.from("# Plan")).labels).not.toContain("scan:contents-not-inspected");
+  });
+});
+
+describe("scanning a file on disk", () => {
+  test("streams the same verdict and hash as scanning it in memory", async () => {
+    const path = join(tmpdir(), `ac-scan-${randomUUID()}.bin`);
+    const content = Buffer.concat([Buffer.from("PK\u0003\u0004"), Buffer.alloc(2 * MIB, "x"), Buffer.from(" AKIAABCDEFGHIJKLMNOP ")]);
+    writeFileSync(path, content);
+    const streamed = await scanFileAt(path, "bundle.zip");
+    const inMemory = scanFileContent("bundle.zip", content);
+    expect({ state: streamed.scan.state, labels: streamed.scan.labels }).toEqual({ state: inMemory.state, labels: inMemory.labels });
+    expect(streamed.scan.labels).toEqual(expect.arrayContaining(["dlp:aws-access-key", "scan:contents-not-inspected"]));
+    expect(streamed.sha256).toBe(createHash("sha256").update(content).digest("hex"));
+    expect(streamed.size).toBe(content.length);
+  });
+});
+
+describe("a file that changes while it is scanned", () => {
+  test("is never approved without its new bytes having been scanned", async () => {
+    const path = join(tmpdir(), `ac-grow-${randomUUID()}.txt`);
+    writeFileSync(path, Buffer.alloc(8 * MIB, "x"));
+    const scanning = scanFileAt(path, "grow.txt").then(
+      (result) => (result.scan.state === "blocked" ? "blocked" : "approved"),
+      (error: Error) => error.message,
+    );
+    appendFileSync(path, "\nAKIAABCDEFGHIJKLMNOP\n");
+    expect(["blocked", "grow.txt changed size while it was being scanned."]).toContain(await scanning);
   });
 });
