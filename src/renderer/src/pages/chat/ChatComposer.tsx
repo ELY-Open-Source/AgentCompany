@@ -1,4 +1,4 @@
-import { useRef, useState, type FormEvent, type MutableRefObject } from "react";
+import { useEffect, useRef, useState, type FormEvent, type MutableRefObject } from "react";
 import { Button, Icon, IconButton } from "../../shared/ui";
 import type { AgentRecord, EmployeeRecord, FileObjectRecord } from "../../../../shared/domain";
 import { SLASH_COMMANDS } from "./chat-helpers";
@@ -11,13 +11,21 @@ export interface SendState {
   error: string | null;
 }
 
+/** A conversation's unsent message: its text and the file picked to go with it. */
+export interface Draft {
+  body: string;
+  attachmentFileId: string;
+}
+
 export function ChatComposer({
   disabled,
   send,
+  draft,
+  spaceId,
+  onLeave,
   files,
   agents,
   employees,
-  attachmentFileId,
   onAttachmentChange,
   onAttach,
   onSubmit,
@@ -25,10 +33,13 @@ export function ChatComposer({
 }: {
   disabled: boolean;
   send: SendState;
+  draft: Draft;
+  spaceId: string | null;
+  /** Called with the unsent text when the composer goes away, so the conversation keeps it; must be stable. */
+  onLeave: (spaceId: string, body: string) => void;
   files: FileObjectRecord[];
   agents: AgentRecord[];
   employees: EmployeeRecord[];
-  attachmentFileId: string;
   onAttachmentChange: (next: string) => void;
   onAttach: () => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
@@ -37,9 +48,16 @@ export function ChatComposer({
   const [slashOpen, setSlashOpen] = useState(false);
   // While a send is in flight nothing may change the draft it will clear on success.
   const locked = disabled || send.pending;
-  const attachment = files.find((file) => file.id === attachmentFileId) ?? null;
+  const attachment = files.find((file) => file.id === draft.attachmentFileId) ?? null;
   const internalRef = useRef<HTMLTextAreaElement | null>(null);
   const ref = composerRef ?? internalRef;
+  useEffect(() => {
+    // The node is captured now: React detaches the ref before this cleanup runs.
+    const node = ref.current;
+    return () => {
+      if (node && spaceId) onLeave(spaceId, node.value);
+    };
+  }, [ref, spaceId, onLeave]);
 
   const insert = (text: string) => {
     const node = ref.current;
@@ -55,10 +73,11 @@ export function ChatComposer({
   };
 
   return (
-    <form onSubmit={onSubmit} style={{ padding: 14, paddingTop: 4, flexShrink: 0 }}>
+    <form onSubmit={onSubmit} data-space-id={spaceId ?? undefined} style={{ padding: 14, paddingTop: 4, flexShrink: 0 }}>
       <div style={{ border: "1px solid var(--border-strong)", borderRadius: 12, background: "var(--panel)", padding: "10px 12px" }}>
         <MentionTextarea
           name="message"
+          defaultValue={draft.body}
           rows={2}
           disabled={locked}
           ariaLabel={t("Message")}

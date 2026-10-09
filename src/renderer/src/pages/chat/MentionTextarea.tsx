@@ -19,6 +19,7 @@ function buildCandidates(agents: AgentRecord[], employees: EmployeeRecord[]): Me
 
 export function MentionTextarea({
   name,
+  defaultValue,
   rows,
   disabled,
   ariaLabel,
@@ -28,6 +29,7 @@ export function MentionTextarea({
   style,
 }: {
   name: string;
+  defaultValue?: string;
   rows: number;
   disabled?: boolean;
   ariaLabel: string;
@@ -152,6 +154,7 @@ export function MentionTextarea({
       <textarea
         ref={ref}
         name={name}
+        defaultValue={defaultValue}
         rows={rows}
         disabled={disabled}
         aria-label={ariaLabel}

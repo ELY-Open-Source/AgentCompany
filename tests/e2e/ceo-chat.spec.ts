@@ -108,6 +108,16 @@ test("the pinned CEO conversation is the Messages front door", async () => {
     await expect(chatLog.getByText("Second thought: what is blocked?")).toBeVisible();
     await expect(composer).toHaveValue("");
     await expect(page.getByRole("alert")).toHaveCount(0);
+
+    // Each conversation keeps its own unsent draft.
+    await composer.fill("Draft for the CEO only");
+    await page.locator(".convo-item", { hasText: "general" }).click();
+    await expect(composer).toHaveValue("");
+    await composer.fill("Draft for general");
+    await page.locator(".convo-item").first().click();
+    await expect(composer).toHaveValue("Draft for the CEO only");
+    await page.locator(".convo-item", { hasText: "general" }).click();
+    await expect(composer).toHaveValue("Draft for general");
   } finally {
     await app.close();
   }

@@ -9,7 +9,7 @@ import type {
   ChatSlashInvocationRecord,
   FileObjectRecord,
 } from "../../../../shared/domain";
-import { ChatComposer, type SendState } from "./ChatComposer";
+import { ChatComposer, type Draft, type SendState } from "./ChatComposer";
 import { ChatTimeline } from "./ChatTimeline";
 import type { MessageContext } from "./chat-helpers";
 import { t } from "../../i18n/i18n";
@@ -24,7 +24,8 @@ export function ChatConversation({
   slashInvocations,
   files,
   context,
-  attachmentFileId,
+  draft,
+  onDraftLeave,
   currentEmployeeId,
   onAttachmentChange,
   onAttach,
@@ -46,7 +47,8 @@ export function ChatConversation({
   slashInvocations: ChatSlashInvocationRecord[];
   files: FileObjectRecord[];
   context: MessageContext;
-  attachmentFileId: string;
+  draft: Draft;
+  onDraftLeave: (spaceId: string, body: string) => void;
   currentEmployeeId: string;
   onAttachmentChange: (next: string) => void;
   onAttach: () => void;
@@ -141,7 +143,9 @@ export function ChatConversation({
         files={files}
         agents={context.agents}
         employees={context.employees}
-        attachmentFileId={attachmentFileId}
+        draft={draft}
+        spaceId={space?.id ?? null}
+        onLeave={onDraftLeave}
         onAttachmentChange={onAttachmentChange}
         onAttach={onAttach}
         onSubmit={onSubmit}

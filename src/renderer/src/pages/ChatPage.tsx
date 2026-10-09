@@ -1,10 +1,10 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { Field } from "../shared/ui";
 import { Dialog } from "../shared/Dialog";
 import { t } from "../i18n/i18n";
 import { ChatSidebar } from "./chat/ChatSidebar";
 import { ChatConversation } from "./chat/ChatConversation";
-import type { SendState } from "./chat/ChatComposer";
+import type { Draft, SendState } from "./chat/ChatComposer";
 import {
   buildConversations,
   collectParticipants,
@@ -22,6 +22,7 @@ function value(form: FormData, key: string): string {
 }
 
 const IDLE_SEND: SendState = { pending: false, error: null };
+const EMPTY_DRAFT: Draft = { body: "", attachmentFileId: "" };
 
 export function ChatPage({ snapshot, actions }: PageProps) {
   const orgId = activeOrgId(snapshot);
@@ -69,7 +70,11 @@ export function ChatPage({ snapshot, actions }: PageProps) {
   );
   const [selectedSpaceId, setSelectedSpaceId] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
-  const [attachmentFileId, setAttachmentFileId] = useState<string>("");
+  // Text and attachment are kept per conversation, so switching neither loses one nor carries the other along.
+  const [drafts, setDrafts] = useState<Record<string, Draft>>({});
+  const updateDraft = useCallback((spaceId: string, change: Partial<Draft>) =>
+    setDrafts((current) => ({ ...current, [spaceId]: { ...(current[spaceId] ?? EMPTY_DRAFT), ...change } })), []);
+  const saveDraftBody = useCallback((spaceId: string, body: string) => updateDraft(spaceId, { body }), [updateDraft]);
   // Sends are tracked per conversation, so a late answer lands in the conversation that sent it.
   const [sends, setSends] = useState<Record<string, SendState>>({});
   const composerRef = useRef<HTMLTextAreaElement | null>(null);
@@ -114,9 +119,8 @@ export function ChatPage({ snapshot, actions }: PageProps) {
     event.preventDefault();
     if (!activeSpace || sends[activeSpace.id]?.pending) return;
     const spaceId = activeSpace.id;
-    const sentAttachment = attachmentFileId;
-    const formElement = event.currentTarget;
-    const body = value(new FormData(formElement), "message");
+    const sentAttachment = (drafts[spaceId] ?? EMPTY_DRAFT).attachmentFileId;
+    const body = value(new FormData(event.currentTarget), "message");
     if (!body) return;
     setSends((current) => ({ ...current, [spaceId]: { pending: true, error: null } }));
     // The draft and attachment stay until the message is saved, so a refused send loses nothing.
@@ -129,8 +133,13 @@ export function ChatPage({ snapshot, actions }: PageProps) {
       bodyMd: body,
       attachmentFileIds: sentAttachment ? [sentAttachment] : [],
     })).then(() => {
-      formElement.reset();
-      setAttachmentFileId((current) => (current === sentAttachment ? "" : current));
+      // Clear this conversation's mounted composer directly; reset() could restore the sent text as its default.
+      const node = composerRef.current;
+      if (node?.form?.dataset.spaceId === spaceId) node.value = "";
+      setDrafts((current) => {
+        const kept = (current[spaceId] ?? EMPTY_DRAFT).attachmentFileId;
+        return { ...current, [spaceId]: { body: "", attachmentFileId: kept === sentAttachment ? "" : kept } };
+      });
       setSends((current) => ({ ...current, [spaceId]: { pending: false, error: null } }));
     }).catch((error: unknown) => {
       const reason = error instanceof Error ? error.message : String(error);
@@ -186,13 +195,11 @@ export function ChatPage({ snapshot, actions }: PageProps) {
     }));
 
   const attachFile = () => {
-    importAttachment(setAttachmentFileId);
-  };
-
-  const importAttachment = (onSelect: (fileId: string) => void) => {
-    void window.agentCompany.importFile({ orgId, ...(activeSpaceId ? { spaceId: activeSpaceId } : {}) }).then((result) => {
+    if (!activeSpaceId) return;
+    const spaceId = activeSpaceId;
+    void window.agentCompany.importFile({ orgId, spaceId }).then((result) => {
       if (!result.ok) throw new Error(result.error.message);
-      if (result.data) onSelect(result.data);
+      if (result.data) updateDraft(spaceId, { attachmentFileId: result.data });
     });
   };
 
@@ -223,9 +230,12 @@ export function ChatPage({ snapshot, actions }: PageProps) {
         slashInvocations={slashInvocationsAll}
         files={files}
         context={{ employees, agents, readersByMessage }}
-        attachmentFileId={attachmentFileId}
+        draft={(activeSpaceId ? drafts[activeSpaceId] : undefined) ?? EMPTY_DRAFT}
+        onDraftLeave={saveDraftBody}
         currentEmployeeId={employee.id}
-        onAttachmentChange={setAttachmentFileId}
+        onAttachmentChange={(fileId) => {
+          if (activeSpaceId) updateDraft(activeSpaceId, { attachmentFileId: fileId });
+        }}
         onAttach={attachFile}
         onApprove={(approvalId) => decideApproval(approvalId, "approved")}
         onDecline={(approvalId) => decideApproval(approvalId, "declined")}
