@@ -10,7 +10,7 @@ export function setAutonomousPaused(db: DatabaseSync, paused: boolean): void {
 }
 
 /** The app-wide theme and language, kept for every company. */
-export function updateUiPreferences(db: DatabaseSync, input: { theme?: "system" | "light" | "dark"; language?: "en" | "zh" }): void {
+export function updateUiPreferences(db: DatabaseSync, input: { theme?: "system" | "light" | "dark" | "clock"; language?: "en" | "zh" }): void {
   const current = db.prepare("select theme, language from app_state where id = 1")
     .get() as { theme: string; language: string } | undefined;
   const theme = input.theme ?? current?.theme ?? "system";

@@ -67,7 +67,7 @@ export class OrganizationService {
     setAutonomousPaused(this.db, paused);
   }
 
-  updateUiPreferences(input: { theme?: "system" | "light" | "dark"; language?: "en" | "zh" }): void {
+  updateUiPreferences(input: { theme?: "system" | "light" | "dark" | "clock"; language?: "en" | "zh" }): void {
     updateUiPreferences(this.db, input);
   }
 

@@ -601,6 +601,7 @@ export const zh: Record<string, string> = {
   "Version (semver)": "版本（semver）",
   "Visibility": "可见性",
   "Needs you": "需要你处理",
+  "Follow the clock": "跟随时间（夜间变暗）",
   "Next in line": "下一项工作",
   "Stopped: {reason}": "已停下：{reason}",
   "{n} more after these": "之后还有 {n} 项",

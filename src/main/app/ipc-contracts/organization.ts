@@ -21,7 +21,7 @@ export const organizationContracts = {
     goalTitle: z.string(), goalDescription: z.string(), providerKey: z.string(), providerSecret: z.string(), providerModel: z.string(),
   }) satisfies z.ZodType<C.BootstrapOnboardingInput>,
   setActiveOrganization: z.strictObject({ orgId: id }) satisfies z.ZodType<C.SetActiveOrganizationInput>,
-  setUiPreferences: z.strictObject({ theme: z.enum(["system", "light", "dark"]).optional(), language: z.enum(["en", "zh"]).optional() }) satisfies z.ZodType<C.SetUiPreferencesInput>,
+  setUiPreferences: z.strictObject({ theme: z.enum(["system", "light", "dark", "clock"]).optional(), language: z.enum(["en", "zh"]).optional() }) satisfies z.ZodType<C.SetUiPreferencesInput>,
   deleteOrganization: z.strictObject({ orgId: id }) satisfies z.ZodType<C.DeleteOrganizationInput>,
   createOrganization: z.strictObject({
     organizationName: z.string(), description: z.string().optional(), mission: z.string(), goal: z.string(), employeeName: z.string(),

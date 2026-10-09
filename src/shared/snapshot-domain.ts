@@ -54,7 +54,8 @@ import type {
   SocialAuditRecord,
 } from "./social-domain";
 
-export type UiTheme = "system" | "light" | "dark";
+/** "clock" turns dark at night and light by day. */
+export type UiTheme = "system" | "light" | "dark" | "clock";
 export type UiLanguage = "en" | "zh";
 
 export interface UiPreferences {

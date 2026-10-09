@@ -7,6 +7,7 @@ import "./styles/fonts.css";
 import "./styles.css";
 import "./styles/components.css";
 import "./overlays.css";
+import "./styles/pixel.css";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>

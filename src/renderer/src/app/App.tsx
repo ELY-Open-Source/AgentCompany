@@ -1,3 +1,5 @@
+import { usePaletteClock } from "../shared/palette-clock";
+import { usePixelScale } from "../shared/pixel-scale";
 import { Modal } from "../shared/Modal";
 import { StaleBanner } from "./StaleBanner";
 import { oneOf, readViewState, seedViewState, writeViewState } from "../shared/view-state";
@@ -8,7 +10,7 @@ import { hasPageUnsaved } from "../shared/unsaved";
 import { ErrorBoundary } from "../shared/ErrorBoundary";
 import { StartupScreen } from "./StartupScreen";
 import type { Focus } from "../pages/types";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Shell } from "../shared/Shell";
 import { ROUTE_IDS, type RouteId } from "../shared/routes";
 import { AvatarDirectoryContext, type AvatarLook } from "../shared/ui";
@@ -67,18 +69,8 @@ export function App() {
   }, [snapshot?.agents, snapshot?.employees, snapshot?.activeOrgId]);
   const [creatingOrg, setCreatingOrg] = useState(false);
 
-  const theme = snapshot?.uiPreferences.theme ?? "system";
-  useEffect(() => {
-    const media = window.matchMedia("(prefers-color-scheme: dark)");
-    const apply = () => {
-      const resolved = theme === "system" ? (media.matches ? "dark" : "light") : theme;
-      document.documentElement.dataset.theme = resolved;
-    };
-    apply();
-    if (theme !== "system") return;
-    media.addEventListener("change", apply);
-    return () => media.removeEventListener("change", apply);
-  }, [theme]);
+  usePaletteClock(snapshot?.uiPreferences.theme ?? "system");
+  usePixelScale();
 
   if (!snapshot) {
     // A failed manual retry is already recorded in syncFailure, which the screen shows.

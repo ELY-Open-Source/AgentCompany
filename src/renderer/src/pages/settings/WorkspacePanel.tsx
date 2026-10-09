@@ -100,6 +100,7 @@ export function WorkspacePanel({
             <option value="system">{t("System")}</option>
             <option value="light">{t("Light")}</option>
             <option value="dark">{t("Dark")}</option>
+            <option value="clock">{t("Follow the clock")}</option>
           </select>
         </Field>
         <LanguageField uiPreferences={uiPreferences} actions={actions} />

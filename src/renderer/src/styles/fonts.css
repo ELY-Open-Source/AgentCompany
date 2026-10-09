@@ -1,12 +1,10 @@
-/* Geist is vendored locally (variable woff2) so the desktop build stays
-   offline and CSP-clean (font-src 'self'). One file per family covers every
-   weight via the variable axis. */
+/* Fonts are vendored so the build stays offline and CSP-clean (font-src 'self'). Fusion Pixel 12px (OFL, see fonts/fusion-pixel-licenses) covers Latin and Simplified Chinese. */
 @font-face {
-  font-family: "Geist";
+  font-family: "Fusion Pixel";
   font-style: normal;
-  font-weight: 100 900;
-  font-display: swap;
-  src: url("../fonts/Geist-Variable.woff2") format("woff2");
+  font-weight: 400;
+  font-display: block;
+  src: url("../fonts/FusionPixel-12px-zh_hans.woff2") format("woff2");
 }
 @font-face {
   font-family: "Geist Mono";

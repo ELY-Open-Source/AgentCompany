@@ -1,0 +1,58 @@
+/* Palette rotation: the day part tints the ground, the season sets the accent (shared/palette-clock.ts sets both on the root). */
+:root[data-theme="light"][data-daypart="dawn"] { --bg: #ebe1ea; --panel-2: #f1e9ef; }
+:root[data-theme="light"][data-daypart="dusk"] { --bg: #f0e0cf; --panel-2: #f6ebdf; }
+:root[data-theme="light"][data-daypart="night"] { --bg: #cfd7e4; --panel-2: #e1e7f0; }
+:root[data-theme="dark"][data-daypart="dawn"] { --bg: #221c30; --panel: #2c2540; }
+:root[data-theme="dark"][data-daypart="day"] { --bg: #1c2236; --panel: #27304a; }
+:root[data-theme="dark"][data-daypart="dusk"] { --bg: #2a1c2a; --panel: #34243a; }
+
+:root[data-theme="light"][data-season="spring"] { --accent: #b03a6e; --accent-soft: #f6d3e3; --btn-primary-hover: #7a2450; }
+:root[data-theme="light"][data-season="autumn"] { --accent: #b4501d; --accent-soft: #f7d9c4; --btn-primary-hover: #7d3713; }
+:root[data-theme="light"][data-season="winter"] { --accent: #257179; --accent-soft: #c7e8ea; --btn-primary-hover: #174a50; }
+:root[data-theme="dark"][data-season="spring"] { --accent: #f49ac1; --accent-soft: #4a2238; --btn-primary-hover: #ffc4dd; }
+:root[data-theme="dark"][data-season="autumn"] { --accent: #ef7d57; --accent-soft: #4a2a1c; --btn-primary-hover: #ffcd75; }
+:root[data-theme="dark"][data-season="winter"] { --accent: #73eff7; --accent-soft: #1d4048; --btn-primary-hover: #c9fbff; }
+
+/* 9-slice frame: an 8px pixel tile (outline, top-left light, bottom-right shade, fill) scaled 2x; corners are notched. */
+:root {
+  --px-frame: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8' shape-rendering='crispEdges'%3E%3Cpath fill='%23333c57' d='M1 0h6v1H1zM1 7h6v1H1zM0 1h1v6H0zM7 1h1v6H7z'/%3E%3Cpath fill='%23ffffff' d='M1 1h6v1H1zM1 2h1v5H1z'/%3E%3Cpath fill='%2394b0c2' d='M2 6h5v1H2zM6 2h1v4H6z'/%3E%3Cpath fill='%23f4f4f4' d='M2 2h4v4H2z'/%3E%3C/svg%3E");
+  --px-dither: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='2' height='2' shape-rendering='crispEdges'%3E%3Cpath fill='%231a1c2c' fill-opacity='0.07' d='M0 0h1v1H0zM1 1h1v1H1z'/%3E%3C/svg%3E");
+}
+:root[data-theme="dark"] {
+  --px-frame: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8' shape-rendering='crispEdges'%3E%3Cpath fill='%2394b0c2' d='M1 0h6v1H1zM1 7h6v1H1zM0 1h1v6H0zM7 1h1v6H7z'/%3E%3Cpath fill='%23566c86' d='M1 1h6v1H1zM1 2h1v5H1z'/%3E%3Cpath fill='%2310111c' d='M2 6h5v1H2zM6 2h1v4H6z'/%3E%3Cpath fill='%23262b44' d='M2 2h4v4H2z'/%3E%3C/svg%3E");
+  --px-dither: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='2' height='2' shape-rendering='crispEdges'%3E%3Cpath fill='%23f4f4f4' fill-opacity='0.05' d='M0 0h1v1H0zM1 1h1v1H1z'/%3E%3C/svg%3E");
+}
+
+/* Ground: a faint 2x2 checker scaled to 4px cells, on every layer that paints the ground colour. */
+.app-shell, .sidebar, .main {
+  background-image: var(--px-dither);
+  background-size: 4px 4px;
+}
+
+/* Dialogs are framed by the 9-slice tile at 2x. */
+.modal {
+  border: 6px solid transparent;
+  border-image: var(--px-frame) 3 fill / 6px stretch;
+  background: none;
+  box-shadow: var(--shadow-md);
+}
+
+/* Menu arrow: the chosen or pointed-at nav row shows a blinking right-pointing pixel arrow. */
+.nav > .nav-item { position: relative; padding-left: 18px; }
+.nav > .nav-item::before {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 50%;
+  width: 6px;
+  height: 10px;
+  margin-top: -5px;
+  background: currentColor;
+  clip-path: polygon(0 0, 34% 0, 34% 20%, 67% 20%, 67% 40%, 100% 40%, 100% 60%, 67% 60%, 67% 80%, 34% 80%, 34% 100%, 0 100%);
+  visibility: hidden;
+}
+.nav > .nav-item:is(:hover, :focus-visible, [aria-current], .active)::before {
+  visibility: visible;
+  animation: px-blink 0.8s steps(1, end) infinite;
+}
+@keyframes px-blink { 50% { visibility: hidden; } }
