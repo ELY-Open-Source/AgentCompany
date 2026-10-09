@@ -250,6 +250,7 @@ function ProviderRow({
   const boundCount = agents.filter((agent) => agent.modelProviderId === provider.id).length;
   return (
     <div
+      data-object-id={provider.id}
       className="reveal-row"
       style={{
         display: "flex",
@@ -299,6 +300,7 @@ function ProviderHealth({ provider }: { provider: ProviderRecord }) {
 function ProviderCard({ provider, onConnect }: { provider: ProviderRecord; onConnect: () => void }) {
   return (
     <div
+      data-object-id={provider.id}
       style={{
         display: "flex",
         alignItems: "center",

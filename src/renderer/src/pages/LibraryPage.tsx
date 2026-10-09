@@ -13,10 +13,10 @@ const TABS: Array<{ id: LibraryTab; label: string }> = [
   { id: "knowledge", label: t("Knowledge") },
 ];
 
-export function LibraryPage({ snapshot, actions }: PageProps) {
+export function LibraryPage({ snapshot, actions, focus }: PageProps) {
   const orgId = activeOrgId(snapshot);
   const employee = requireActiveEmployee(snapshot);
-  const [tab, setTab] = usePersistentState<LibraryTab>(`${orgId}:library.tab`, "documents", oneOf(["documents", "knowledge"] as const));
+  const [tab, setTab] = usePersistentState<LibraryTab>(`${orgId}:library.tab`, "documents", oneOf(["documents", "knowledge"] as const), focus?.kind === "document" ? "documents" : focus?.kind === "knowledge" ? "knowledge" : undefined);
   const documents = useMemo(() => inOrg(snapshot.documents, orgId), [snapshot.documents, orgId]);
   const entries = useMemo(() => inOrg(snapshot.knowledgeEntries, orgId), [snapshot.knowledgeEntries, orgId]);
   const tasks = useMemo(() => inOrg(snapshot.tasks, orgId), [snapshot.tasks, orgId]);
@@ -50,8 +50,8 @@ export function LibraryPage({ snapshot, actions }: PageProps) {
           <div className="page">
             <h1 className="page-h1">{tab === "documents" ? t("Documents") : t("Knowledge")}</h1>
             {tab === "documents"
-              ? <DocumentsPanel orgId={orgId} employeeId={employee.id} documents={documents} tasks={tasks} actions={actions} />
-              : <KnowledgePanel orgId={orgId} employeeId={employee.id} entries={entries} scopes={scopes} actions={actions} />}
+              ? <DocumentsPanel focusId={focus?.kind === "document" ? focus.id : null} orgId={orgId} employeeId={employee.id} documents={documents} tasks={tasks} actions={actions} />
+              : <KnowledgePanel focusId={focus?.kind === "knowledge" ? focus.id : null} orgId={orgId} employeeId={employee.id} entries={entries} scopes={scopes} actions={actions} />}
           </div>
         </div>
       </div>

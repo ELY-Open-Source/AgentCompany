@@ -80,7 +80,7 @@ export function ChatMessageRow({
     });
   };
   return (
-    <div className="chat-message" style={{ display: "flex", gap: 12, marginBottom: 18 }}>
+    <div className="chat-message" data-object-id={message.id} style={{ display: "flex", gap: 12, marginBottom: 18 }}>
       <Avatar name={name} bot={bot} />
       <div style={{ flex: 1, minWidth: 0 }}>
         <div className="row" style={{ alignItems: "baseline", gap: 8, marginBottom: 2 }}>

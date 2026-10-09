@@ -670,3 +670,6 @@ a { color: inherit; }
     transition-duration: 0.01ms !important;
   }
 }
+
+/* The object a link or search hit opened. */
+[data-revealed="true"] { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }

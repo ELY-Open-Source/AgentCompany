@@ -1,3 +1,4 @@
+import { useRevealObject } from "../../shared/reveal";
 import { isIdOrNull, usePersistentState } from "../../shared/view-state";
 import { DOCUMENT_STATUS_VALUES, documentStatusLabel } from "../../i18n/labels";
 import { useEffect, useState, type FormEvent } from "react";
@@ -10,19 +11,23 @@ import { formatTime } from "../types";
 import { t } from "../../i18n/i18n";
 
 export function DocumentsPanel({
+  focusId,
   orgId,
   employeeId,
   documents,
   tasks,
   actions,
 }: {
+  /** A document opened by a link: selected and shown. */
+  focusId: string | null;
   orgId: string;
   employeeId: string;
   documents: DocumentRecord[];
   tasks: TaskRecord[];
   actions: SnapshotActions;
 }) {
-  const [selectedId, setSelectedId] = usePersistentState<string | null>(`${orgId}:library.document`, null, isIdOrNull);
+  const [selectedId, setSelectedId] = usePersistentState<string | null>(`${orgId}:library.document`, null, isIdOrNull, focusId ?? undefined);
+  useRevealObject(focusId);
   const selected = documents.find((doc) => doc.id === selectedId) ?? null;
   const [loaded, setLoaded] = useState<{ documentId: string; versions: DocumentVersionRecord[] } | null>(null);
   const [shownVersion, setShownVersion] = useState<number | null>(null);
@@ -83,6 +88,7 @@ export function DocumentsPanel({
         {documents.map((doc) => (
           <button
             key={doc.id}
+            data-object-id={doc.id}
             type="button"
             role="listitem"
             aria-current={doc.id === selectedId}

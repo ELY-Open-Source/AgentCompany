@@ -1,3 +1,4 @@
+import { useRevealObject } from "../shared/reveal";
 import { oneOf, usePersistentState } from "../shared/view-state";
 import { useMemo } from "react";
 import { Button, Icon, Segmented } from "../shared/ui";
@@ -28,7 +29,7 @@ const isSection = (value: unknown): value is Section => {
   return (section.kind === "department" || section.kind === "agent") && typeof section.value === "string";
 };
 
-export function FilesPage({ snapshot, actions }: PageProps) {
+export function FilesPage({ snapshot, actions, focus }: PageProps) {
   const orgId = activeOrgId(snapshot);
   const employees = snapshot.employees.filter((employee) => employee.orgId === orgId);
   const agents = snapshot.agents.filter((agent) => agent.orgId === orgId);
@@ -38,9 +39,11 @@ export function FilesPage({ snapshot, actions }: PageProps) {
     () => snapshot.fileAccessGrants.filter((grant) => grant.orgId === orgId),
     [snapshot.fileAccessGrants, orgId],
   );
-  const [section, setSection] = usePersistentState<Section>(`${orgId}:files.section`, { kind: "all" }, isSection);
+  const fileFocus = focus?.kind === "file" ? focus.id : null;
+  const [section, setSection] = usePersistentState<Section>(`${orgId}:files.section`, { kind: "all" }, isSection, fileFocus ? { kind: "all" } : undefined);
+  useRevealObject(fileFocus);
   const [view, setView] = usePersistentState<ViewMode>(`${orgId}:files.view`, "list", oneOf(["grid", "list"] as const));
-  const [scanFilter, setScanFilter] = usePersistentState<FileScanState | "all">(`${orgId}:files.scan`, "all", (value): value is FileScanState | "all" => typeof value === "string");
+  const [scanFilter, setScanFilter] = usePersistentState<FileScanState | "all">(`${orgId}:files.scan`, "all", (value): value is FileScanState | "all" => typeof value === "string", fileFocus ? "all" : undefined);
 
   const departments = collectDepartments(files, agents);
   const filesByAgent = collectAgentFiles(files, agents);

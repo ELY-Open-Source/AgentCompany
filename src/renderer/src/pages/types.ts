@@ -9,8 +9,11 @@ import { t } from "../i18n/i18n";
 
 /** One object a page should open when navigated to: a task, run, approval, workspace, or the goal or project to scope work by. */
 export interface Focus {
-  kind: "task" | "run" | "approval" | "goal" | "project" | "workspace";
+  kind: "task" | "run" | "approval" | "goal" | "project" | "workspace" | "space" | "message" | "document" | "knowledge" | "file" | "agent" | "employee" | "provider";
   id: string;
+  /** A message's conversation and thread, so it can be shown even outside the loaded window. */
+  spaceId?: string;
+  threadId?: string;
 }
 
 export interface PageProps {

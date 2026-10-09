@@ -1,3 +1,4 @@
+import { useRevealObject } from "../shared/reveal";
 import { oneOf, usePersistentState } from "../shared/view-state";
 import { agentModel } from "../../../shared/agent-model";
 import { useMemo, useState, type FormEvent } from "react";
@@ -19,13 +20,14 @@ function optional(form: FormData, key: string): string | null {
   return text(form, key) || null;
 }
 
-export function TeamPage({ snapshot, actions }: PageProps) {
+export function TeamPage({ snapshot, actions, focus }: PageProps) {
   const orgId = activeOrgId(snapshot);
   const [hireOpen, setHireOpen] = useState(false);
   const [hireProviderId, setHireProviderId] = useState("");
   const [hireModelId, setHireModelId] = useState("");
   const [editAgentId, setEditAgentId] = useState<string | null>(null);
-  const [filter, setFilter] = usePersistentState<"all" | "human" | "agent">(`${orgId}:team.filter`, "all", oneOf(["all", "human", "agent"] as const));
+  const [filter, setFilter] = usePersistentState<"all" | "human" | "agent">(`${orgId}:team.filter`, "all", oneOf(["all", "human", "agent"] as const), focus?.kind === "agent" || focus?.kind === "employee" ? "all" : undefined);
+  useRevealObject(focus?.kind === "agent" || focus?.kind === "employee" ? focus.id : null);
 
   const employees = useMemo(() => snapshot.employees.filter((item) => item.orgId === orgId), [snapshot.employees, orgId]);
   const agents = useMemo(() => snapshot.agents.filter((item) => item.orgId === orgId), [snapshot.agents, orgId]);
@@ -291,6 +293,7 @@ function ModelSuggestions({ id, providerId, providers, catalog }: { id: string; 
 function RosterRow({ row, last, onEdit }: { row: RosterEntry; last: boolean; onEdit: (() => void) | null }) {
   return (
     <div
+      data-object-id={row.id}
       className="table-row"
       style={{ gridTemplateColumns: "minmax(0, 2fr) minmax(0, 1.2fr) minmax(0, 1.4fr) minmax(0, 1.4fr) 60px", borderBottom: last ? "none" : "1px solid var(--border-soft)" }}
     >

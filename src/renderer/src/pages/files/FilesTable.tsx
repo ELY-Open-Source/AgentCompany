@@ -66,6 +66,7 @@ function FileRow({
   const canOpen = file.scanState === "approved";
   return (
     <div
+      data-object-id={file.id}
       className={`table-row ${canOpen ? "clickable" : ""}`.trim()}
       role={canOpen ? "button" : undefined}
       tabIndex={canOpen ? 0 : undefined}

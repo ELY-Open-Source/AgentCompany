@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState, type CSSProperties, type FormEvent } from "react";
 import type { AppSnapshot, SearchEntityType, SearchResultRecord } from "../../../shared/domain";
 import { SEARCH_ENTITY_TYPES } from "../../../shared/domain";
-import type { RouteId } from "./Shell";
+import type { RouteId } from "./routes";
+import type { Focus } from "../pages/types";
 import { Button, Icon, Pill } from "./ui";
 import { t } from "../i18n/i18n";
 
@@ -19,8 +20,6 @@ const LABELS: Record<SearchEntityType, string> = {
   chat_message: t("Message"),
   file: t("File"),
   provider: t("Provider"),
-  social_account: t("Social"),
-  scheduled_post: t("Post"),
   document: t("Document"),
   knowledge: t("Knowledge"),
 };
@@ -34,7 +33,7 @@ export function SearchDialog({
   snapshot: AppSnapshot;
   open: boolean;
   onClose: () => void;
-  onNavigate: (route: RouteId) => void;
+  onNavigate: (route: RouteId, focus: Focus) => void;
 }) {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<SearchFilter>("all");
@@ -73,13 +72,17 @@ export function SearchDialog({
   }, [onClose, open]);
 
   if (!open) return null;
+  const openResult = (result: SearchResultRecord) => {
+    const target = targetFor(result);
+    onNavigate(target.route, target.focus);
+    onClose();
+  };
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const first = visibleResults[0];
     if (!first) return;
-    onNavigate(routeFor(first.entityType));
-    onClose();
+    openResult(first);
   };
 
   return (
@@ -117,10 +120,7 @@ export function SearchDialog({
             <button
               key={`${result.entityType}:${result.entityId}`}
               type="button"
-              onClick={() => {
-                onNavigate(routeFor(result.entityType));
-                onClose();
-              }}
+              onClick={() => openResult(result)}
               style={rowStyle}
             >
               <Pill>{LABELS[result.entityType]}</Pill>
@@ -137,15 +137,30 @@ export function SearchDialog({
   );
 }
 
-function routeFor(entityType: SearchEntityType): RouteId {
-  if (entityType === "employee" || entityType === "agent") return "team";
-  if (entityType === "approval") return "approvals";
-  if (entityType === "chat_space" || entityType === "chat_message") return "chat";
-  if (entityType === "file") return "files";
-  if (entityType === "provider") return "settings";
-  if (entityType === "social_account" || entityType === "scheduled_post") return "connectors";
-  if (entityType === "document" || entityType === "knowledge") return "library";
-  return "work";
+/** The page and the object on it that a hit opens. */
+function targetFor(result: SearchResultRecord): { route: RouteId; focus: Focus } {
+  const id = result.entityId;
+  switch (result.entityType) {
+    case "employee": return { route: "team", focus: { kind: "employee", id } };
+    case "agent": return { route: "team", focus: { kind: "agent", id } };
+    case "task": return { route: "work", focus: { kind: "task", id } };
+    case "goal": return { route: "work", focus: { kind: "goal", id } };
+    case "project": return { route: "work", focus: { kind: "project", id } };
+    case "workspace": return { route: "settings", focus: { kind: "workspace", id } };
+    case "approval": return { route: "approvals", focus: { kind: "approval", id } };
+    case "chat_space": return { route: "chat", focus: { kind: "space", id } };
+    case "chat_message": return { route: "chat", focus: { kind: "message", id, spaceId: requireFacet(result, "space"), threadId: requireFacet(result, "thread") } };
+    case "file": return { route: "files", focus: { kind: "file", id } };
+    case "provider": return { route: "settings", focus: { kind: "provider", id } };
+    case "document": return { route: "library", focus: { kind: "document", id } };
+    case "knowledge": return { route: "library", focus: { kind: "knowledge", id } };
+  }
+}
+
+function requireFacet(result: SearchResultRecord, name: string): string {
+  const value = result.facets[name];
+  if (!value) throw new Error(`Search result ${result.entityId} has no ${name}.`);
+  return value;
 }
 
 const overlayStyle = {

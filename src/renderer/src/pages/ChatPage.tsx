@@ -1,3 +1,4 @@
+import { useRevealObject } from "../shared/reveal";
 import { isIdOrNull, usePersistentState } from "../shared/view-state";
 import { useLeaveGuard } from "../app/leave-guard";
 import { setDrafts, useDrafts } from "./chat/draft-store";
@@ -23,7 +24,7 @@ function value(form: FormData, key: string): string {
 const IDLE_SEND: SendState = { pending: false, error: null };
 const EMPTY_DRAFT: Draft = { body: "", attachmentFileIds: [] };
 
-export function ChatPage({ snapshot, actions }: PageProps) {
+export function ChatPage({ snapshot, actions, focus }: PageProps) {
   const orgId = activeOrgId(snapshot);
   const employee = requireActiveEmployee(snapshot);
   const spaces = useMemo(() => snapshot.chatSpaces.filter((space) => space.orgId === orgId), [snapshot.chatSpaces, orgId]);
@@ -67,7 +68,8 @@ export function ChatPage({ snapshot, actions }: PageProps) {
     }),
     [spaces, snapshot.chatMemberships, messagesAll, snapshot.chatReadStates, employees, agents, employee.id, ceoAgentId],
   );
-  const [selectedSpaceId, setSelectedSpaceId] = usePersistentState<string | null>(`${orgId}:chat.space`, null, isIdOrNull);
+  const [selectedSpaceId, setSelectedSpaceId] = usePersistentState<string | null>(`${orgId}:chat.space`, null, isIdOrNull, focus?.kind === "space" ? focus.id : focus?.kind === "message" ? focus.spaceId : undefined);
+  useRevealObject(focus?.kind === "message" ? focus.id : null);
   const [createOpen, setCreateOpen] = useState(false);
   const requestLeave = useLeaveGuard();
   // Text and attachment are kept per conversation, outside the page, so switching conversations or pages loses neither.
@@ -236,6 +238,7 @@ export function ChatPage({ snapshot, actions }: PageProps) {
 
       <ChatConversation
         key={activeSpace?.id ?? "none"}
+        initialThreadId={focus?.kind === "message" && focus.spaceId === activeSpace?.id ? focus.threadId ?? null : null}
         space={activeSpace}
         members={members}
         messagesInSpace={messagesInSpace}

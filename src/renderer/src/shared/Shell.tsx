@@ -1,3 +1,4 @@
+import type { Focus } from "../pages/types";
 import type { RouteId } from "./routes";
 import { shortcutLabel } from "../i18n/labels";
 import { isBusinessTask } from "../pages/work/task-helpers";
@@ -45,11 +46,14 @@ export function Shell({
   onSwitchOrg,
   onDeleteOrg,
   onNewOrg,
+  onOpen,
   children,
 }: {
   snapshot: AppSnapshot;
   route: RouteId;
   setRoute: (route: RouteId) => void;
+  /** Opens an object on its page, as a search hit does. */
+  onOpen: (route: RouteId, focus: Focus) => void;
   onSwitchOrg: (orgId: string) => void;
   onDeleteOrg: (orgId: string) => void;
   onNewOrg: () => void;
@@ -163,7 +167,7 @@ export function Shell({
         snapshot={snapshot}
         open={searchOpen}
         onClose={() => setSearchOpen(false)}
-        onNavigate={setRoute}
+        onNavigate={onOpen}
       />
     </div>
   );

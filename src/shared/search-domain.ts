@@ -10,8 +10,6 @@ export const SEARCH_ENTITY_TYPES = [
   "chat_message",
   "file",
   "provider",
-  "social_account",
-  "scheduled_post",
   "document",
   "knowledge",
 ] as const;

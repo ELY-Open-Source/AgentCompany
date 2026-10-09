@@ -1,3 +1,4 @@
+import { useRevealObject } from "../../shared/reveal";
 import { isIdOrNull, oneOf, usePersistentState } from "../../shared/view-state";
 import { useEffect, useState, type FormEvent } from "react";
 import type { AgentRecord, GoalRecord, KnowledgeEntryRecord, ProjectRecord, TaskRecord } from "../../../../shared/domain";
@@ -16,12 +17,15 @@ const FILTER_LABELS: Record<EntryState, string> = {
 };
 
 export function KnowledgePanel({
+  focusId,
   orgId,
   employeeId,
   entries,
   scopes,
   actions,
 }: {
+  /** An entry opened by a link: selected, shown, and its state's list chosen. */
+  focusId: string | null;
   orgId: string;
   employeeId: string;
   entries: KnowledgeEntryRecord[];
@@ -29,8 +33,10 @@ export function KnowledgePanel({
   actions: SnapshotActions;
 }) {
   const now = new Date().toISOString();
-  const [filter, setFilter] = usePersistentState<EntryState>(`${orgId}:library.knowledgeFilter`, "active", oneOf(["active", "superseded", "expired"] as const));
-  const [selectedId, setSelectedId] = usePersistentState<string | null>(`${orgId}:library.entry`, null, isIdOrNull);
+  const focused = focusId ? entries.find((entry) => entry.id === focusId) ?? null : null;
+  const [filter, setFilter] = usePersistentState<EntryState>(`${orgId}:library.knowledgeFilter`, "active", oneOf(["active", "superseded", "expired"] as const), focused ? entryState(focused, now) : undefined);
+  const [selectedId, setSelectedId] = usePersistentState<string | null>(`${orgId}:library.entry`, null, isIdOrNull, focusId ?? undefined);
+  useRevealObject(focusId);
   const [loaded, setLoaded] = useState<{ entryId: string; revisions: KnowledgeRevisionRecord[] } | null>(null);
   const [dialog, setDialog] = useState<"new" | "revise" | "delete" | null>(null);
   const [scopeType, setScopeType] = useState<KnowledgeScopeType>("organization");
@@ -116,6 +122,7 @@ export function KnowledgePanel({
           {visible.map((entry) => (
             <button
               key={entry.id}
+              data-object-id={entry.id}
               type="button"
               role="listitem"
               aria-current={entry.id === selectedId}

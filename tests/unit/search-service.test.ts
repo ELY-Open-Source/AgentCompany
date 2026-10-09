@@ -92,7 +92,12 @@ describe("search service", () => {
       });
     });
 
-    expect(search.search({ orgId, employeeId: ownerId, query: "secret", entityTypes: ["chat_message"] })).toHaveLength(1);
+    const hits = search.search({ orgId, employeeId: ownerId, query: "secret", entityTypes: ["chat_message"] });
+    expect(hits).toHaveLength(1);
+    // A hit names its conversation and thread, so opening it shows the message itself.
+    const message = connection.db.prepare("select space_id, thread_id from chat_messages where id = ?").get(hits[0]!.entityId) as { space_id: string; thread_id: string };
+    expect(hits[0]!.facets).toMatchObject({ space: spaceId, thread: message.thread_id });
+    expect(message.space_id).toBe(spaceId);
     expect(search.search({ orgId, employeeId: outsiderId, query: "secret", entityTypes: ["chat_message"] })).toHaveLength(0);
     connection.close();
   });
@@ -124,6 +129,25 @@ describe("search service", () => {
     expect(docs.map((r) => [r.entityType, r.title, r.facets.kind])).toEqual([["document", "Pricing memo", "memo"]]);
     const entries = search.search({ orgId, employeeId, query: "refunds", entityTypes: ["knowledge"] });
     expect(entries.map((r) => r.facets.state).sort()).toEqual(["active", "superseded"]);
+    connection.close();
+  });
+
+  test("lists only current file versions, as the Files page does", () => {
+    const connection = createConnection();
+    const organization = new OrganizationService(connection.db);
+    const search = new SearchService(connection.db);
+    let orgId = "";
+    connection.transaction(() => {
+      orgId = organization.createOrganization({ organizationName: "Files Co", employeeName: "Dana Lee", mission: "m", goal: "g" });
+    });
+    const employeeId = (connection.db.prepare("select id from employees where org_id = ?").get(orgId) as { id: string }).id;
+    const file = (id: string, supersededAt: string | null) => connection.db.prepare(`
+      insert into file_objects(id, org_id, name, kind, size_bytes, sha256, storage_path, owner_type, owner_id, created_at, superseded_at)
+      values (?, ?, 'roadmap.md', 'md', 1, ?, '/tmp/x', 'employee', ?, ?, ?)
+    `).run(id, orgId, id, employeeId, new Date().toISOString(), supersededAt);
+    file("fil_old", new Date().toISOString());
+    file("fil_new", null);
+    expect(search.search({ orgId, employeeId, query: "roadmap", entityTypes: ["file"] }).map((hit) => hit.entityId)).toEqual(["fil_new"]);
     connection.close();
   });
 });

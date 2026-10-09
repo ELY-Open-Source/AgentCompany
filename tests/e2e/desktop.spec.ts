@@ -176,6 +176,10 @@ test("onboards, hires, and creates work in the Electron shell", async () => {
     await page.getByRole("textbox", { name: "Search query" }).fill("production");
     await expect(page.getByText("Production deploy").first()).toBeVisible();
     await page.getByRole("dialog", { name: "Search" }).getByRole("button").filter({ hasText: "Production deploy" }).first().click();
+    // The hit opens the task itself.
+    const deployTask = page.getByRole("dialog", { name: "Production deploy" });
+    await expect(deployTask).toBeVisible();
+    await deployTask.getByRole("button", { name: "Close" }).click();
 
     await page.getByRole("button", { name: "Approvals" }).click();
     await expect(page.getByText("Production deploy").first()).toBeVisible();

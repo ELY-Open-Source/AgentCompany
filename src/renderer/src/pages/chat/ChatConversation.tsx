@@ -24,6 +24,7 @@ import { Popover } from "../../shared/Popover";
 import { t } from "../../i18n/i18n";
 
 export function ChatConversation({
+  initialThreadId,
   space,
   members,
   messagesInSpace,
@@ -52,6 +53,8 @@ export function ChatConversation({
   send,
   composerRef,
 }: {
+  /** The thread to show at once, as when a search hit opens one of its messages. */
+  initialThreadId: string | null;
   space: ChatSpaceRecord | null;
   members: SpaceMember[];
   messagesInSpace: ChatMessageRecord[];
@@ -83,7 +86,7 @@ export function ChatConversation({
 }) {
   const [query, setQuery] = useState("");
   // The component is keyed by space, so an open thread closes when the conversation changes.
-  const [openThreadId, setOpenThreadId] = useState<string | null>(null);
+  const [openThreadId, setOpenThreadId] = useState<string | null>(initialThreadId);
   // A reply typed in one thread is lost by opening another or closing the panel.
   const requestLeave = useLeaveGuard();
   // The snapshot holds recent chat only; older messages come from the database, paged back from the oldest one loaded.

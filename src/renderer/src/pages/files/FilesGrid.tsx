@@ -57,6 +57,7 @@ export function PinnedCard({
   const canOpen = file.scanState === "approved";
   return (
     <div
+      data-object-id={file.id}
       className={canOpen ? "clickable-card" : ""}
       role={canOpen ? "button" : undefined}
       tabIndex={canOpen ? 0 : undefined}

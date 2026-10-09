@@ -1,3 +1,4 @@
+import { useRevealObject } from "../shared/reveal";
 import { oneOf, usePersistentState } from "../shared/view-state";
 import { useLeaveGuard } from "../app/leave-guard";
 import { useMemo } from "react";
@@ -29,7 +30,8 @@ export function SettingsPage({ snapshot, actions, focus }: PageProps) {
   const organization = requireActiveOrganization(snapshot);
   const employee = requireActiveEmployee(snapshot);
   // A workspace link opens General, where workspaces are, whatever section was left open.
-  const [tab, setTab] = usePersistentState<SettingsTab>(`${orgId}:settings.tab`, "general", oneOf(SETTINGS_TABS), focus?.kind === "workspace" ? "general" : undefined);
+  const [tab, setTab] = usePersistentState<SettingsTab>(`${orgId}:settings.tab`, "general", oneOf(SETTINGS_TABS), focus?.kind === "workspace" ? "general" : focus?.kind === "provider" ? "providers" : undefined);
+  useRevealObject(focus?.kind === "provider" ? focus.id : null);
   const requestLeave = useLeaveGuard();
 
   const agents = useMemo(() => snapshot.agents.filter((item) => item.orgId === orgId), [snapshot.agents, orgId]);

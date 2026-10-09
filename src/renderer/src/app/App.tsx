@@ -126,6 +126,7 @@ export function App() {
         onSwitchOrg={(orgId) => requestLeave(() => void actions.run(() => window.agentCompany.setActiveOrganization({ orgId })))}
         onDeleteOrg={(orgId) => requestLeave(() => void actions.run(() => window.agentCompany.deleteOrganization({ orgId })))}
         onNewOrg={() => requestLeave(() => setCreatingOrg(true))}
+        onOpen={navigate}
       >
         <ErrorBoundary key={pageKey} scope="page">{page}</ErrorBoundary>
       </Shell>

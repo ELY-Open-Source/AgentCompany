@@ -86,8 +86,6 @@ export class SearchService {
       ...this.chatMessageDocs(orgId),
       ...this.fileDocs(orgId),
       ...this.providerDocs(orgId),
-      ...this.socialDocs(orgId),
-      ...this.scheduledPostDocs(orgId),
       ...this.documentDocs(orgId),
       ...this.knowledgeDocs(orgId),
     ];
@@ -134,28 +132,19 @@ export class SearchService {
   }
 
   private chatMessageDocs(orgId: string): SearchDoc[] {
-    const rows = this.db.prepare("select id, thread_id, body_md, sender_type from chat_messages where org_id = ? and deleted_at is null").all(orgId) as Array<{ id: string; thread_id: string; body_md: string; sender_type: string }>;
-    return rows.map((row) => doc("chat_message", row.id, createTitle(row.body_md), row.body_md, { type: "Messages", sender: row.sender_type, thread: row.thread_id }));
+    const rows = this.db.prepare("select id, space_id, thread_id, body_md, sender_type from chat_messages where org_id = ? and deleted_at is null").all(orgId) as Array<{ id: string; space_id: string; thread_id: string; body_md: string; sender_type: string }>;
+    return rows.map((row) => doc("chat_message", row.id, createTitle(row.body_md), row.body_md, { type: "Messages", sender: row.sender_type, space: row.space_id, thread: row.thread_id }));
   }
 
   private fileDocs(orgId: string): SearchDoc[] {
-    const rows = this.db.prepare("select id, name, kind, sha256, scan_state from file_objects where org_id = ?").all(orgId) as Array<{ id: string; name: string; kind: string; sha256: string; scan_state: string }>;
+    // Superseded versions are kept for records but listed nowhere, so they are not search hits either.
+    const rows = this.db.prepare("select id, name, kind, sha256, scan_state from file_objects where org_id = ? and superseded_at is null").all(orgId) as Array<{ id: string; name: string; kind: string; sha256: string; scan_state: string }>;
     return rows.map((row) => doc("file", row.id, row.name, `${row.kind} ${row.sha256}`, { type: "Files", state: row.scan_state }));
   }
 
   private providerDocs(orgId: string): SearchDoc[] {
     const rows = this.db.prepare("select id, label, provider_key, auth_state, health_state from providers where org_id = ?").all(orgId) as Array<{ id: string; label: string; provider_key: string; auth_state: string; health_state: string }>;
     return rows.map((row) => doc("provider", row.id, row.label, row.provider_key, { type: "Settings", auth: row.auth_state, health: row.health_state }));
-  }
-
-  private socialDocs(orgId: string): SearchDoc[] {
-    const rows = this.db.prepare("select id, platform, handle, display_name from social_accounts where org_id = ?").all(orgId) as Array<{ id: string; platform: string; handle: string; display_name: string }>;
-    return rows.map((row) => doc("social_account", row.id, row.display_name, `${row.platform} ${row.handle}`, { type: "Social", platform: row.platform }));
-  }
-
-  private scheduledPostDocs(orgId: string): SearchDoc[] {
-    const rows = this.db.prepare("select id, social_account_id, body_md, state from scheduled_posts where org_id = ?").all(orgId) as Array<{ id: string; social_account_id: string; body_md: string; state: string }>;
-    return rows.map((row) => doc("scheduled_post", row.id, createTitle(row.body_md), row.body_md, { type: "Social", state: row.state, account: row.social_account_id }));
   }
 
   private documentDocs(orgId: string): SearchDoc[] {
@@ -180,8 +169,6 @@ export class SearchService {
     if (entityType === "chat_space") return this.canReadSpace(entityId, employeeId);
     if (entityType === "chat_message") return this.canReadMessage(orgId, entityId, employeeId);
     if (entityType === "file") return this.canReadFile(orgId, entityId, employeeId);
-    if (entityType === "social_account") return this.canReadSocialAccount(entityId, employeeId);
-    if (entityType === "scheduled_post") return this.canReadScheduledPost(entityId, employeeId);
     return true;
   }
 
@@ -208,16 +195,6 @@ export class SearchService {
       limit 1
     `).get(orgId, fileId, employeeId, workspaceGroupId);
     return Boolean(grant);
-  }
-
-  private canReadSocialAccount(accountId: string, employeeId: string): boolean {
-    const grant = this.db.prepare("select id from social_account_grants where social_account_id = ? and employee_id = ? limit 1").get(accountId, employeeId);
-    return Boolean(grant);
-  }
-
-  private canReadScheduledPost(postId: string, employeeId: string): boolean {
-    const row = this.db.prepare("select social_account_id from scheduled_posts where id = ?").get(postId) as { social_account_id: string } | undefined;
-    return row ? this.canReadSocialAccount(row.social_account_id, employeeId) : false;
   }
 
   private assertEmployee(orgId: string, employeeId: string): void {
