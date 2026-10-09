@@ -1,3 +1,4 @@
+import { COMPANY_PRESETS } from "../../shared/company-presets";
 import type { DatabaseSync } from "node:sqlite";
 import type {
   BootstrapOnboardingInput,
@@ -60,7 +61,7 @@ export class OnboardingService {
       department: "Executive",
       modelProviderId: providerId,
       modelId: input.providerModel.trim(),
-      budgetCents: 25000,
+      budgetCents: COMPANY_PRESETS.ceoBudgetCents,
       managerAgentId: null,
       roleLevel: "c_suite",
       modelStrategy: "explicit",

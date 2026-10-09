@@ -1,3 +1,4 @@
+import { COMPANY_PRESETS } from "../../shared/company-presets";
 import type { DatabaseSync } from "node:sqlite";
 import { RISK_LEVEL, TASK_PRIORITY, TASK_STATUS, WRITING_MODE, type RiskLevel, type WorkLanguage, type WritingMode } from "../../shared/domain";
 import { ORGANIZATION_DEPARTMENTS } from "./org-governance-service";
@@ -20,7 +21,6 @@ import { CEO_FIRST_HIRES } from "./org-building";
 import type { JsonRecord } from "./provider-http";
 import type { ToolCall, ToolDefinition } from "./provider-tool-turn";
 
-const HIRE_BUDGET_CENTS = 25000;
 const HEARTBEAT_INTERVAL_SEC = 120;
 
 export interface AgentToolContext {
@@ -327,7 +327,7 @@ function hireAgent(deps: AgentToolDeps, ctx: AgentToolContext, args: JsonRecord)
     department,
     modelProviderId: ctx.agent.modelProviderId,
     modelId: model,
-    budgetCents: HIRE_BUDGET_CENTS,
+    budgetCents: COMPANY_PRESETS.agentHireBudgetCents,
     managerAgentId: ctx.agent.id,
     roleLevel: seniority,
     workspaceId: ctx.workspace?.id ?? null,

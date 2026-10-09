@@ -1,3 +1,4 @@
+import { COMPANY_PRESETS } from "../../shared/company-presets";
 import type { DatabaseSync } from "node:sqlite";
 import type { RiskLevel } from "../../shared/domain";
 import { RISK_LEVEL } from "../../shared/domain";
@@ -21,7 +22,7 @@ export class PolicyService {
     this.db.prepare(`
       insert into policy_rules(id, org_id, subject_type, subject_id, action, effect, risk_ceiling, created_at)
       values (?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(createId("pol"), orgId, "organization", orgId, "task_create", "require_approval", RISK_LEVEL.MEDIUM, now);
+    `).run(createId("pol"), orgId, "organization", orgId, "task_create", "require_approval", COMPANY_PRESETS.taskRiskCeiling, now);
   }
 
   evaluateTaskCreation(orgId: string, risk: RiskLevel): PolicyDecision {

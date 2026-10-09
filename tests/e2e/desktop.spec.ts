@@ -40,6 +40,14 @@ test("onboards, hires, and creates work in the Electron shell", async () => {
     await page.getByLabel("Your name").fill("Dana Lee");
     await page.getByLabel("Description").fill("Coordinate agents with auditable approvals.");
     await page.getByRole("button", { name: "Continue" }).click();
+    // The mode step spells out what each mode lets the company do, and the amounts it starts with.
+    const allows = page.getByRole("region", { name: "What this mode allows" });
+    await expect(allows).toContainText("Approved without you: tasks above Medium risk, tasks that run commands in a workspace, and hires over $5,000 a month.");
+    await expect(allows).toContainText("The CEO starts with a $250 monthly budget, and each agent it hires gets $250.");
+    await expect(allows).toContainText("Each provider allows 1,000 model calls a month.");
+    await page.getByRole("button", { name: /AI Co-Founder/ }).click();
+    await expect(allows).toContainText("Deliverables wait for your review before they are written.");
+    await page.getByRole("button", { name: /AI CEO/ }).click();
     await page.getByRole("button", { name: "Continue" }).click();
     await page.getByLabel("Goal").fill("Ship a verified control plane.");
     await page.getByLabel("Acceptance criteria").fill("The CEO creates the kickoff operating loop.");

@@ -1,3 +1,4 @@
+import { COMPANY_PRESETS } from "../../shared/company-presets";
 import type { DatabaseSync } from "node:sqlite";
 import type { CreateOrganizationInput } from "../../shared/commands";
 import { PROVIDER_CATALOG } from "../../shared/provider-catalog";
@@ -68,8 +69,8 @@ export function seedOrganization(db: DatabaseSync, input: CreateOrganizationInpu
 
   for (const provider of PROVIDER_CATALOG) {
     db.prepare(`
-      insert into providers(id, org_id, provider_key, label, auth_type, model, credential_id, enabled, created_at)
-      values (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      insert into providers(id, org_id, provider_key, label, auth_type, model, credential_id, enabled, monthly_request_limit, created_at)
+      values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       createId("prv"),
       orgId,
@@ -79,6 +80,7 @@ export function seedOrganization(db: DatabaseSync, input: CreateOrganizationInpu
       provider.defaultModel,
       null,
       0,
+      COMPANY_PRESETS.providerMonthlyRequests,
       now,
     );
   }

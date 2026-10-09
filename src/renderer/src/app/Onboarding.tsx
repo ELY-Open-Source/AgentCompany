@@ -1,3 +1,4 @@
+import { AutonomySummary } from "./AutonomySummary";
 import { useMemo, useState, type FormEvent } from "react";
 import {
   PROVIDER_AUTH_TYPE,
@@ -307,16 +308,17 @@ function ModeStep({ draft, onChange, onBack, onNext }: StepProps) {
       <p style={{ color: "var(--text-3)", fontSize: 14 }}>{t("How autonomous should the CEO be?")}</p>
       <ModeCard
         title={t("AI CEO")}
-        description={t("Agents auto-approve hires up to the budget envelope and ship work that clears policy.")}
+        description={t("Runs on its own: approves its risky work and large hires, and writes deliverables without review.")}
         active={draft.executionMode === "ai_ceo"}
         onClick={() => onChange({ executionMode: "ai_ceo" })}
       />
       <ModeCard
         title={t("AI Co-Founder")}
-        description={t("Hires need your stamp; deliverables route through review before shipping.")}
+        description={t("Checks with you: risky work and large hires wait for you, and deliverables wait for your review.")}
         active={draft.executionMode === "ai_cofounder"}
         onClick={() => onChange({ executionMode: "ai_cofounder" })}
       />
+      <AutonomySummary mode={draft.executionMode} />
       <Actions onBack={onBack} onNext={onNext} />
     </div>
   );

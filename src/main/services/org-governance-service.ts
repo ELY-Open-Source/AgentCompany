@@ -1,3 +1,4 @@
+import { COMPANY_PRESETS } from "../../shared/company-presets";
 import type { DatabaseSync } from "node:sqlite";
 import type { CreateAgentInput } from "../../shared/commands";
 import { RISK_LEVEL, ROUTE_TO_TYPE, type RiskLevel } from "../../shared/domain";
@@ -127,14 +128,14 @@ export class OrgGovernanceService {
   private seedDepartmentPolicy(orgId: string, departmentName: string, now: string): void {
     this.db.prepare(`
       insert into org_departments(id, org_id, name, lead_agent_id, headcount_limit, monthly_budget_limit_cents, created_at, updated_at)
-      values (?, ?, ?, null, 12, 2500000, ?, ?)
+      values (?, ?, ?, null, ?, ?, ?, ?)
       on conflict(org_id, name) do nothing
-    `).run(createId("dep"), orgId, departmentName, now, now);
+    `).run(createId("dep"), orgId, departmentName, COMPANY_PRESETS.departmentHeadcount, COMPANY_PRESETS.departmentBudgetCents, now, now);
     this.db.prepare(`
       insert into hiring_policies(id, org_id, department_name, max_headcount, monthly_budget_limit_cents, require_approval_above_cents, created_at, updated_at)
-      values (?, ?, ?, 12, 2500000, 500000, ?, ?)
+      values (?, ?, ?, ?, ?, ?, ?, ?)
       on conflict(org_id, department_name) do nothing
-    `).run(createId("hpl"), orgId, departmentName, now, now);
+    `).run(createId("hpl"), orgId, departmentName, COMPANY_PRESETS.departmentHeadcount, COMPANY_PRESETS.departmentBudgetCents, COMPANY_PRESETS.hireReviewAboveCents, now, now);
   }
 
   private resolveRoutingRule(orgId: string, kind: string, risk: RiskLevel): ApprovalRoutingRuleRow {
