@@ -1,5 +1,5 @@
-import { buildFloorPlan, findPath, rectContains } from "./floor-plan";
-import { HIT_REACT_MS, WHIP_CRACK_MS, type AmenitySpot, type Camera, type FloorPlan, type OfficeAgentInput, type Rect, type RoomKind, type Vec, type WhipCrackEffect } from "./office-types";
+import { buildFloorPlan, findPath } from "./floor-plan";
+import type { AmenitySpot, Camera, FloorPlan, OfficeAgentInput, Rect, Vec } from "./office-types";
 import { appearanceFor, type Carrying, type Facing, type SpriteAppearance } from "./sprites";
 
 export type AgentBehavior =
@@ -21,10 +21,6 @@ export interface AgentSim {
   behavior: AgentBehavior;
   carryRemainingMs: number;
   settledMs: number;
-  /** While positive, the agent hustles (a whip crack sent them home). */
-  hustleMs: number;
-  /** While positive, the agent flinches from a whip strike. */
-  hitReactMs: number;
 }
 
 export interface PlayerSim {
@@ -48,7 +44,7 @@ const PLAYER_SPEED = 0.14;
 const AGENT_SPEED = 0.085;
 const MAX_STEP_MS = 100;
 const WALK_CYCLE = 0.02;
-/** Everyone wanders off roughly every minute and a half, working or not. */
+/** An idle agent wanders off roughly every minute and a half; one with work stays at the desk. */
 const MEAN_TRIP_INTERVAL_MS = 90_000;
 /** Nobody leaves their desk in the first moments after settling in. */
 const SETTLE_MS = 20_000;
@@ -61,9 +57,6 @@ const MEETING_SPREAD_MS = 12_000;
 const MEAN_MEETING_INTERVAL_MS = 180_000;
 const CARRY_MIN_MS = 20_000;
 const CARRY_SPREAD_MS = 20_000;
-/** How long a whipped agent hustles, and how much faster they move. */
-const HUSTLE_MS = 6_000;
-const HUSTLE_MULTIPLIER = 1.8;
 
 /**
  * Holds the living state of the office: who sits where and where everyone
@@ -74,8 +67,6 @@ export class OfficeSimulation {
   plan: FloorPlan;
   agents: AgentSim[] = [];
   player: PlayerSim | null = null;
-  /** Transient whip-crack flashes, aged by step() and dropped when spent. */
-  effects: WhipCrackEffect[] = [];
   private openDeskDemand = -1;
   private readonly random: () => number;
 
@@ -106,26 +97,15 @@ export class OfficeSimulation {
     };
   }
 
-  /**
-   * Advances the world by one frame: board-member movement plus agent life.
-   * Everyone — the CEO and working agents included — periodically wanders to
-   * the restroom, snack bar, or coffee machine, and every few minutes the
-   * office convenes a meeting of at least two attendees around the table.
-   */
+  /** Advances one frame; only idle agents leave their desks, an agent with work stays put. */
   step(dtMs: number, input: MoveInput): void {
     const dt = Math.min(dtMs, MAX_STEP_MS);
     if (this.player) this.stepPlayer(this.player, dt, input);
     for (const agent of this.agents) this.stepAgent(agent, dt);
-    if (this.effects.length > 0) {
-      for (const effect of this.effects) effect.ageMs += dt;
-      this.effects = this.effects.filter((effect) => effect.ageMs < WHIP_CRACK_MS);
-    }
     if (this.random() < dt / MEAN_MEETING_INTERVAL_MS) this.conveneMeeting();
   }
 
   private stepAgent(agent: AgentSim, dt: number): void {
-    if (agent.hustleMs > 0) agent.hustleMs = Math.max(0, agent.hustleMs - dt);
-    if (agent.hitReactMs > 0) agent.hitReactMs = Math.max(0, agent.hitReactMs - dt);
     if (agent.carryRemainingMs > 0) {
       agent.carryRemainingMs -= dt;
       if (agent.carryRemainingMs <= 0) {
@@ -136,7 +116,7 @@ export class OfficeSimulation {
     switch (agent.behavior.kind) {
       case "seated": {
         agent.settledMs += dt;
-        if (agent.settledMs >= SETTLE_MS && this.random() < dt / MEAN_TRIP_INTERVAL_MS) {
+        if (agent.input.activity === "idle" && agent.settledMs >= SETTLE_MS && this.random() < dt / MEAN_TRIP_INTERVAL_MS) {
           agent.settledMs = 0;
           this.startTrip(agent);
         }
@@ -176,15 +156,11 @@ export class OfficeSimulation {
     return options[Math.floor(this.random() * options.length) % options.length];
   }
 
-  /**
-   * Gathers a group around the meeting table. A meeting needs at least two
-   * settled attendees; with fewer, nobody goes to sit alone in the room.
-   * Returns the number of attendees who set off.
-   */
+  /** Gathers two or more settled idle agents around the table; returns how many set off. */
   conveneMeeting(): number {
     const spots = this.plan.amenities.filter((spot) => spot.kind === "meeting");
     const candidates = this.agents.filter(
-      (agent) => agent.behavior.kind === "seated" && agent.settledMs >= SETTLE_MS,
+      (agent) => agent.input.activity === "idle" && agent.behavior.kind === "seated" && agent.settledMs >= SETTLE_MS,
     );
     if (candidates.length < 2 || spots.length < 2) return 0;
     const size = Math.min(spots.length, candidates.length, 2 + Math.floor(this.random() * 3));
@@ -224,7 +200,7 @@ export class OfficeSimulation {
 
   private walkAlong(agent: AgentSim, dt: number): void {
     if (agent.behavior.kind !== "walking") return;
-    let budget = AGENT_SPEED * (agent.hustleMs > 0 ? HUSTLE_MULTIPLIER : 1) * dt;
+    let budget = AGENT_SPEED * dt;
     while (budget > 0) {
       const target = agent.behavior.path[agent.behavior.next];
       if (!target) {
@@ -266,34 +242,6 @@ export class OfficeSimulation {
     }
     agent.facing = "south";
     agent.behavior = { kind: "seated" };
-  }
-
-  /**
-   * Cracks the whip at an agent. The crack flash and the target's flinch
-   * play wherever the strike lands — desk, corridor, anywhere. Only slackers
-   * in the snack bar or restroom are additionally sent hustling back to
-   * their desk (snack abandoned); agents at their desk, in the CEO office,
-   * or in a meeting keep working. Returns true when someone was sent home.
-   */
-  whip(agentId: string): boolean {
-    const agent = this.agents.find((candidate) => candidate.input.id === agentId);
-    if (!agent) return false;
-    this.effects.push({ x: agent.x, y: agent.y - 18, ageMs: 0 });
-    agent.hitReactMs = HIT_REACT_MS;
-    const room = this.roomAt({ x: agent.x, y: agent.y });
-    if (room !== "snack" && room !== "restroom") return false;
-    agent.carrying = null;
-    agent.carryRemainingMs = 0;
-    agent.hustleMs = HUSTLE_MS;
-    this.sendHome(agent);
-    return true;
-  }
-
-  private roomAt(point: Vec): RoomKind | null {
-    for (const room of this.plan.rooms) {
-      if (rectContains(room.bounds, point)) return room.kind;
-    }
-    return null;
   }
 
   /**
@@ -375,10 +323,10 @@ export class OfficeSimulation {
         behavior: prev?.behavior ?? { kind: "seated" },
         carryRemainingMs: prev?.carryRemainingMs ?? 0,
         settledMs: prev?.settledMs ?? 0,
-        hustleMs: prev?.hustleMs ?? 0,
-        hitReactMs: prev?.hitReactMs ?? 0,
       };
-      if (planRebuilt && prev && (agent.x !== seat.x || agent.y !== seat.y)) {
+      const onBreak = agent.behavior.kind === "dwelling" || (agent.behavior.kind === "walking" && agent.behavior.destination === "amenity");
+      const workStarted = input.activity !== "idle" && onBreak;
+      if (workStarted || (planRebuilt && prev && (agent.x !== seat.x || agent.y !== seat.y))) {
         this.sendHome(agent);
       }
       return agent;

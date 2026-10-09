@@ -269,21 +269,7 @@ textarea.input { min-height: 84px; resize: vertical; line-height: 1.5; }
   border-radius: 10px;
   box-shadow: 0 8px 24px rgba(16, 16, 24, 0.18);
 }
-.office-tool {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  border: none;
-  background: none;
-  color: var(--text-2);
-  font: inherit;
-  font-size: 13px;
-  padding: 6px 10px;
-  border-radius: 7px;
-  cursor: pointer;
-}
-.office-tool:hover { background: var(--hover); color: var(--text-1); }
-.office-tool.active { background: var(--accent); color: #fff; }
+.office-legend { align-self: center; padding: 0 6px; font-size: 12px; color: var(--text-2); }
 
 /* Floating "jump to latest" pill above the chat composer */
 .jump-latest {

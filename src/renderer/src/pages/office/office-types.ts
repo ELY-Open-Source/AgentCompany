@@ -61,18 +61,6 @@ export interface FloorPlan {
   entrance: Vec;
 }
 
-/** A whip crack in flight: drawn at the strike point, fading as it ages. */
-export interface WhipCrackEffect {
-  x: number;
-  y: number;
-  ageMs: number;
-}
-
-/** How long the crack flash stays on screen. */
-export const WHIP_CRACK_MS = 450;
-/** How long a struck agent visibly flinches. */
-export const HIT_REACT_MS = 600;
-
 export type AgentActivity = "active" | "thinking" | "busy" | "idle";
 
 /** Snapshot-derived facts the office simulation needs about one agent. */

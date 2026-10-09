@@ -32,8 +32,6 @@ export function OfficePage({ snapshot }: PageProps) {
   const selectedIdRef = useRef<string | null>(null);
   const cardBoxRef = useRef<HTMLDivElement>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [tool, setTool] = useState<"select" | "whip">("select");
-  const toolRef = useRef(tool);
   const simRef = useRef<OfficeSimulation | null>(null);
   if (simRef.current === null) simRef.current = new OfficeSimulation();
 
@@ -65,14 +63,9 @@ export function OfficePage({ snapshot }: PageProps) {
   }, [selectedId]);
 
   useEffect(() => {
-    toolRef.current = tool;
-  }, [tool]);
-
-  useEffect(() => {
     const onEscape = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
-      if (toolRef.current === "whip") setTool("select");
-      else if (selectedIdRef.current) setSelectedId(null);
+      if (selectedIdRef.current) setSelectedId(null);
     };
     window.addEventListener("keydown", onEscape);
     return () => window.removeEventListener("keydown", onEscape);
@@ -158,7 +151,6 @@ export function OfficePage({ snapshot }: PageProps) {
         facing: agent.facing,
         walkPhase: agent.walkPhase,
         carrying: agent.carrying,
-        hitReactMs: agent.hitReactMs,
       }));
       if (sim.player) {
         people.push({
@@ -175,10 +167,9 @@ export function OfficePage({ snapshot }: PageProps) {
           facing: sim.player.facing,
           walkPhase: sim.player.walkPhase,
           carrying: null,
-          hitReactMs: 0,
         });
       }
-      renderOffice(ctx, viewW, viewH, sim.plan, camera, people, now, new Date(), selectedIdRef.current, sim.effects);
+      renderOffice(ctx, viewW, viewH, sim.plan, camera, people, now, new Date(), selectedIdRef.current);
 
       // The detail card rides beside its agent, even while they walk.
       const cardBox = cardBoxRef.current;
@@ -214,10 +205,6 @@ export function OfficePage({ snapshot }: PageProps) {
     const point = worldPointFrom(event);
     if (!point) return;
     const hit = simRef.current!.hitTest(point);
-    if (tool === "whip") {
-      if (hit) simRef.current!.whip(hit.input.id);
-      return;
-    }
     setSelectedId(hit ? hit.input.id : null);
   };
 
@@ -225,10 +212,6 @@ export function OfficePage({ snapshot }: PageProps) {
     const canvas = canvasRef.current;
     const point = worldPointFrom(event);
     if (!canvas || !point) return;
-    if (tool === "whip") {
-      canvas.style.cursor = "crosshair";
-      return;
-    }
     canvas.style.cursor = simRef.current!.hitTest(point) ? "pointer" : "default";
   };
 
@@ -252,27 +235,13 @@ export function OfficePage({ snapshot }: PageProps) {
           className="input"
           aria-label={t("Show a person")}
           value={selectedId ?? ""}
-          onChange={(event) => {
-            setTool("select");
-            setSelectedId(event.target.value || null);
-          }}
+          onChange={(event) => setSelectedId(event.target.value || null)}
           style={{ width: 200, height: 30 }}
         >
           <option value="">{t("Show a person…")}</option>
           {inputs.map((input) => <option key={input.id} value={input.id}>{t("{name}, {activity}", { name: input.name, activity: officeActivityLabel(input.activity) })}</option>)}
         </select>
-        <button
-          type="button"
-          className={`office-tool ${tool === "whip" ? "active" : ""}`.trim()}
-          aria-pressed={tool === "whip"}
-          title={t("Crack the whip: slackers in the snack bar or restroom hustle back to their desks. Working or meeting agents are unaffected.")}
-          onClick={() => {
-            setSelectedId(null);
-            setTool(tool === "whip" ? "select" : "whip");
-          }}
-        >
-          <span aria-hidden>⚡</span> {t("Whip")}
-        </button>
+        <span className="office-legend">{t("Agents with work stay at their desks. Only idle agents walk to coffee, snacks or the meeting table.")}</span>
       </div>
     </div>
   );

@@ -121,49 +121,53 @@ describe("office simulation", () => {
     expect(agent.carrying).toBe("coffee");
   });
 
-  test("working agents (and the CEO) take breaks too", () => {
-    const sim = new OfficeSimulation(() => 0);
-    sim.sync([agentInput("ceo", "c_suite", "active")]);
-    const agent = sim.agents[0];
-    let leftTheDesk = false;
-    for (let i = 0; i < 3000 && !leftTheDesk; i++) {
-      sim.step(16, IDLE);
-      if (agent.behavior.kind !== "seated") leftTheDesk = true;
+  test("agents with a run, thinking or busy never leave their desk", () => {
+    for (const activity of ["active", "thinking", "busy"] as const) {
+      const sim = new OfficeSimulation(() => 0);
+      sim.sync([agentInput("ceo", "c_suite", activity), agentInput("a", "staff", activity)]);
+      for (let i = 0; i < 6000; i++) {
+        sim.step(16, IDLE);
+        for (const agent of sim.agents) expect(agent.behavior.kind).toBe("seated");
+      }
     }
-    expect(leftTheDesk).toBe(true);
   });
 
-  test("a snapshot refresh mid-break never recalls the walker", () => {
+  test("an idle refresh keeps a break going; a run starting sends the agent straight back to the desk", () => {
     const sim = new OfficeSimulation(() => 0);
     sim.sync([agentInput("a")]);
     const agent = sim.agents[0];
     for (let i = 0; i < 3000 && agent.behavior.kind === "seated"; i++) sim.step(16, IDLE);
     for (let i = 0; i < 30; i++) sim.step(16, IDLE);
     expect(agent.behavior.kind).toBe("walking");
+    expect(agent.behavior.kind === "walking" && agent.behavior.destination).toBe("amenity");
 
-    // Becoming busy does not cancel the human ritual of a coffee run.
+    sim.sync([agentInput("a")]);
+    expect(sim.agents[0].behavior.kind === "walking" && sim.agents[0].behavior.destination).toBe("amenity");
+
     sim.sync([agentInput("a", "staff", "active")]);
-    const refreshed = sim.agents[0];
-    expect(refreshed.behavior.kind).toBe("walking");
-    let dwelled = false;
-    for (let i = 0; i < 6000 && !dwelled; i++) {
+    const working = sim.agents[0];
+    expect(working.behavior.kind === "walking" && working.behavior.destination).toBe("seat");
+    for (let i = 0; i < 6000 && working.behavior.kind !== "seated"; i++) {
       sim.step(16, IDLE);
-      if (refreshed.behavior.kind === "dwelling") dwelled = true;
+      expect(working.behavior.kind).not.toBe("dwelling");
     }
-    expect(dwelled).toBe(true);
+    expect(working.x).toBe(working.seat.x);
+    expect(working.y).toBe(working.seat.y);
   });
 
-  test("meetings convene at least two attendees around the table, then everyone returns", () => {
+  test("only idle agents gather around the table, and anyone with a run stays at their desk", () => {
     const sim = new OfficeSimulation(() => 0);
-    sim.sync([agentInput("a", "staff", "active"), agentInput("b"), agentInput("ceo", "c_suite", "active")]);
+    sim.sync([agentInput("a"), agentInput("b"), agentInput("ceo", "c_suite", "active")]);
     // Nobody has settled yet: a meeting cannot be convened.
     expect(sim.conveneMeeting()).toBe(0);
     for (const agent of sim.agents) agent.settledMs = 30_000;
 
     const attendees = sim.conveneMeeting();
     expect(attendees).toBeGreaterThanOrEqual(2);
+    expect(attendees).toBe(2);
     const walkers = sim.agents.filter((agent) => agent.behavior.kind === "walking");
     expect(walkers).toHaveLength(attendees);
+    expect(sim.agents.find((agent) => agent.input.id === "ceo")!.behavior.kind).toBe("seated");
     const spots = new Set(
       walkers.map((agent) => (agent.behavior.kind === "walking" ? `${agent.behavior.spot?.stand.x}` : "")),
     );
@@ -187,80 +191,6 @@ describe("office simulation", () => {
     sim.agents[0].settledMs = 30_000;
     expect(sim.conveneMeeting()).toBe(0);
     expect(sim.agents[0].behavior.kind).toBe("seated");
-  });
-
-  test("the whip sends snack-bar and restroom slackers hustling home, snack abandoned", () => {
-    const sim = new OfficeSimulation(() => 0);
-    sim.sync([agentInput("a"), agentInput("b")]);
-    const snacker = sim.agents[0];
-    const snackSpot = sim.plan.amenities.find((spot) => spot.kind === "snack")!;
-    snacker.x = snackSpot.stand.x;
-    snacker.y = snackSpot.stand.y;
-    snacker.carrying = "snack";
-    snacker.behavior = { kind: "dwelling", spot: snackSpot, remainingMs: 60_000 };
-
-    expect(sim.whip("a")).toBe(true);
-    expect(snacker.behavior.kind).toBe("walking");
-    expect(snacker.carrying).toBeNull();
-    expect(snacker.hustleMs).toBeGreaterThan(0);
-
-    const restroomSpot = sim.plan.amenities.find((spot) => spot.kind === "restroom")!;
-    const rester = sim.agents[1];
-    rester.x = restroomSpot.stand.x;
-    rester.y = restroomSpot.stand.y;
-    rester.behavior = { kind: "dwelling", spot: restroomSpot, remainingMs: 60_000 };
-    expect(sim.whip("b")).toBe(true);
-    expect(rester.behavior.kind).toBe("walking");
-
-    // The whipped walker makes it back to their desk.
-    for (let i = 0; i < 4000 && sim.agents[0].behavior.kind !== "seated"; i++) sim.step(16, IDLE);
-    expect(snacker.x).toBe(snacker.seat.x);
-    expect(snacker.y).toBe(snacker.seat.y);
-  });
-
-  test("the whip does nothing to agents at their desk or in a meeting", () => {
-    const sim = new OfficeSimulation(() => 0);
-    sim.sync([agentInput("a"), agentInput("b"), agentInput("ceo", "c_suite")]);
-    // Seated at the desk: working, untouched.
-    expect(sim.whip("a")).toBe(false);
-    expect(sim.agents[0].behavior.kind).toBe("seated");
-
-    // Dwelling in the meeting room: in a meeting, untouched.
-    const meetingSpot = sim.plan.amenities.find((spot) => spot.kind === "meeting")!;
-    const attendee = sim.agents[1];
-    attendee.x = meetingSpot.stand.x;
-    attendee.y = meetingSpot.stand.y;
-    attendee.behavior = { kind: "dwelling", spot: meetingSpot, remainingMs: 20_000 };
-    expect(sim.whip("b")).toBe(false);
-    expect(attendee.behavior.kind).toBe("dwelling");
-
-    // The CEO in their own office is working, untouched.
-    expect(sim.whip("ceo")).toBe(false);
-    expect(sim.whip("nobody")).toBe(false);
-  });
-
-  test("every whip strike plays a crack and a flinch, wherever the target is", () => {
-    const sim = new OfficeSimulation(() => 0);
-    sim.sync([agentInput("a")]);
-    const agent = sim.agents[0];
-
-    // Struck at the desk: no discipline effect, but the animation still fires.
-    expect(sim.whip("a")).toBe(false);
-    expect(agent.behavior.kind).toBe("seated");
-    expect(agent.hitReactMs).toBeGreaterThan(0);
-    expect(sim.effects).toHaveLength(1);
-    expect(sim.effects[0]).toMatchObject({ x: agent.x, ageMs: 0 });
-
-    // A second strike stacks another crack; a missing target adds nothing.
-    sim.whip("a");
-    expect(sim.effects).toHaveLength(2);
-    sim.whip("nobody");
-    expect(sim.effects).toHaveLength(2);
-
-    // Both the crack flash and the flinch drain away with time.
-    for (let i = 0; i < 50; i++) sim.step(16, IDLE);
-    expect(sim.effects).toHaveLength(0);
-    expect(agent.hitReactMs).toBe(0);
   });
 
   test("clicks hit the agent drawn at that spot, frontmost first", () => {
