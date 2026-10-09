@@ -1,5 +1,7 @@
 import { runTriggerLabel } from "../i18n/labels";
 import { goalProgress, type GoalPace } from "./home/goal-progress";
+import { nextUp } from "./home/next-up";
+import { NextUpCard } from "./home/NextUpCard";
 import { newestRuns } from "./runs/newest-runs";
 import { isBusinessTask } from "./work/task-helpers";
 import { useMemo, useState, type CSSProperties } from "react";
@@ -7,7 +9,6 @@ import { Avatar, Button, Icon, Pill } from "../shared/ui";
 import { TopbarActions } from "../shared/TopbarActions";
 import type {
   AgentRecord,
-  ApprovalRecord,
   ChatMessageRecord,
   EmployeeRecord,
   GoalRecord,
@@ -46,7 +47,7 @@ export function HomePage({ snapshot, actions, navigate }: PageProps) {
   const usageStats = requireUsageStats(snapshot.usageStats, orgId);
   const [newTaskOpen, setNewTaskOpen] = useState(false);
 
-  const pendingApprovals = approvals.filter((approval) => approval.state === "pending");
+  const { needsYou, next } = nextUp(approvals, businessTasks);
   const totalBudgetCents = agents.reduce((sum, agent) => sum + agent.budgetCents, 0);
   const primaryGoal = goals.find((goal) => goal.status === "active") ?? goals[0] ?? null;
   const progress = primaryGoal ? goalProgress(primaryGoal, businessTasks, new Date()) : null;
@@ -59,17 +60,19 @@ export function HomePage({ snapshot, actions, navigate }: PageProps) {
         <Button tone="primary" onClick={() => setNewTaskOpen(true)}><Icon name="plus" size={16} /> {t("New task")}</Button>
       </TopbarActions>
       <h1 className="page-h1">{greeting}, {firstName}</h1>
-      <p className="page-sub">{renderSummary(pendingApprovals.length, agents.length)}</p>
+      <p className="page-sub">{renderSummary(needsYou.length, agents.length)}</p>
 
       <div style={STRIP}>
         <GoalCard goal={primaryGoal} progress={progress} organizationName={organization.name} actions={actions} />
         <SpendCard providers={providers} totalBudgetCents={totalBudgetCents} capCents={budgetCapCents} agents={agents} />
-        <WaitingCard
-          approvals={pendingApprovals}
+        <NextUpCard
+          needsYou={needsYou}
+          next={next}
           agents={agents}
           employees={[employee]}
           onApprove={(approvalId) => void actions.run(() => window.agentCompany.decideApproval({ orgId, approvalId, state: "approved", decidedByEmployeeId: employee.id }))}
-          onOpen={() => navigate("approvals")}
+          onOpenApprovals={() => navigate("approvals")}
+          onOpenTask={(taskId) => navigate("work", { kind: "task", id: taskId })}
         />
       </div>
 
@@ -168,49 +171,6 @@ function SpendCard({
         })}
         {connected.length === 0 && <span style={{ fontSize: 14, color: "var(--text-3)" }}>{t("No providers connected")}</span>}
       </div>
-    </section>
-  );
-}
-
-function WaitingCard({
-  approvals,
-  agents,
-  employees,
-  onApprove,
-  onOpen,
-}: {
-  approvals: ApprovalRecord[];
-  agents: AgentRecord[];
-  employees: EmployeeRecord[];
-  onApprove: (approvalId: string) => void;
-  onOpen: () => void;
-}) {
-  return (
-    <section className="card">
-      <div className="row" style={{ marginBottom: 12 }}>
-        <span className="card-label">{t("Waiting on you")}</span>
-        {approvals.length > 0 && <span style={{ marginLeft: "auto" }}><Pill tone="amber">{approvals.length}</Pill></span>}
-      </div>
-      {approvals.length === 0 ? (
-        <div className="row" style={{ gap: 8, color: "var(--text-3)", fontSize: 14 }}>
-          <Icon name="check" size={16} /><span>{t("You're all caught up")}</span>
-        </div>
-      ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          {approvals.slice(0, 2).map((approval) => (
-            <div key={approval.id}>
-              <div style={{ fontSize: 14, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{approval.title}</div>
-              <div style={{ fontSize: 12, color: "var(--text-3)", margin: "2px 0 8px" }}>
-                {t("{kind} · {risk} risk · from {requester}", { kind: humanizeLabel(approval.kind), risk: humanizeLabel(approval.risk), requester: resolveRequester(approval, employees, agents) })}
-              </div>
-              <div className="row" style={{ gap: 8 }}>
-                <Button tone="primary" size="small" onClick={() => onApprove(approval.id)}>{t("Approve")}</Button>
-                <Button size="small" onClick={onOpen}>{t("Open")}</Button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
     </section>
   );
 }
@@ -323,24 +283,6 @@ function renderSummary(pending: number, agents: number): string {
     ? t("{n} agent on deck", { n: agents })
     : t("{n} agents on deck", { n: agents });
   return `${things} · ${onDeck}`;
-}
-
-function humanizeLabel(value: string): string {
-  if (!value) return value;
-  const spaced = value.replace(/_/g, " ");
-  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
-}
-
-function resolveRequester(approval: ApprovalRecord, employees: EmployeeRecord[], agents: AgentRecord[]): string {
-  if (approval.requestedByType === "employee" && approval.requestedById) {
-    const employee = employees.find((item) => item.id === approval.requestedById);
-    if (employee) return employee.displayName;
-  }
-  if (approval.requestedByType === "agent" && approval.requestedById) {
-    const agent = agents.find((item) => item.id === approval.requestedById);
-    if (agent) return agent.name;
-  }
-  return t("System");
 }
 
 function runStateTone(state: string): "red" | "amber" | "violet" | "green" | undefined {
