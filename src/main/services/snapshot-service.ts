@@ -4,6 +4,7 @@ import { PROVIDER_CATALOG } from "../../shared/provider-catalog";
 import { IntegrationKeyStore } from "./integration-key-store";
 import { currentProviderUsageWindow } from "../../shared/provider-runtime-domain";
 import { buildUsageStats } from "./usage-stats";
+import { taskHolds } from "./task-holds";
 
 type Row = Record<string, unknown>;
 type ProviderUsageWindowRow = Pick<
@@ -49,8 +50,9 @@ export class SnapshotService {
     const activeOrgId = this.resolveActiveOrgId(organizations.map((org) => org.id));
     const agents = list<AppSnapshot["agents"][number]>(this.db, "agents", "created_at asc")
       .map((agent) => ({ ...agent, heartbeatEnabled: toBool(agent.heartbeatEnabled) }));
+    const holds = taskHolds(this.db, new Date());
     const tasks = list<AppSnapshot["tasks"][number]>(this.db, "tasks", "created_at asc")
-      .map((task) => ({ ...task, requiresFilesystem: toBool(task.requiresFilesystem) }));
+      .map((task) => ({ ...task, requiresFilesystem: toBool(task.requiresFilesystem), hold: holds.get(task.id) ?? null }));
     const workspaces = list<AppSnapshot["workspaces"][number]>(this.db, "workspaces", "created_at asc")
       .map((workspace) => ({ ...workspace, isPrimary: toBool(workspace.isPrimary) }));
     const providers = list<AppSnapshot["providers"][number]>(this.db, "providers", "label asc")

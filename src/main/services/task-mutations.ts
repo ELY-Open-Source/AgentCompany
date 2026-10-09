@@ -50,7 +50,7 @@ export class TaskMutations {
     }
     const result = this.db.prepare(`
       update tasks set title = ?, description = ?, assignee_agent_id = ?, risk = ?, priority = ?, parent_task_id = ?, updated_at = ?,
-        stalled_reason = null, run_budget_floor = (select coalesce(max(rowid), 0) from task_runs)
+        stalled_reason = null, enqueue_error = null, run_budget_floor = (select coalesce(max(rowid), 0) from task_runs)
       where id = ? and org_id = ?
     `).run(input.title.trim(), input.description.trim(), input.assigneeAgentId, input.risk, input.priority, input.parentTaskId, now, input.taskId, input.orgId);
     if (result.changes === 0) throw new Error("Task was not found.");

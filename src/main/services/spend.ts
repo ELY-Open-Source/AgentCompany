@@ -69,7 +69,8 @@ export function budgetBlock(db: DatabaseSync, agentId: string, paid: boolean, no
   const agentSpend = (db.prepare("select coalesce(sum(cost_cents), 0) as cents from provider_requests where agent_id = ? and created_at >= ?")
     .get(agentId, since) as { cents: number }).cents;
   if (agentSpend >= agent.budget_cents) {
-    return `${agent.name} has spent its monthly budget (${dollars(agentSpend)} of ${dollars(agent.budget_cents)}). Raise the budget or wait for next month.`;
+    const next = agent.budget_cents === 0 ? "Raise the budget to let it run." : "Raise the budget or wait for next month.";
+    return `${agent.name} has spent its monthly budget (${dollars(agentSpend)} of ${dollars(agent.budget_cents)}). ${next}`;
   }
   const department = db.prepare("select monthly_budget_limit_cents from org_departments where org_id = ? and name = ?")
     .get(agent.org_id, agent.department) as { monthly_budget_limit_cents: number } | undefined;

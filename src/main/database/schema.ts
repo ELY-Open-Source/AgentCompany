@@ -91,6 +91,7 @@ import { fileVersionsSchema } from "./migrations/089-file-versions";
 import { erasureReceiptsSchema } from "./migrations/090-erasure-receipts";
 import { requestPurposeSchema } from "./migrations/091-request-purpose";
 import { runActionTargetsSchema } from "./migrations/092-run-action-targets";
+import { taskEnqueueErrorSchema } from "./migrations/093-task-enqueue-error";
 
 interface Migration {
   version: number;
@@ -191,6 +192,7 @@ const MIGRATIONS: Migration[] = [
   { version: 90, name: "erasure_receipts", sql: erasureReceiptsSchema },
   { version: 91, name: "request_purpose", sql: requestPurposeSchema },
   { version: 92, name: "run_action_targets", sql: runActionTargetsSchema },
+  { version: 93, name: "task_enqueue_error", sql: taskEnqueueErrorSchema },
 ];
 
 const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;

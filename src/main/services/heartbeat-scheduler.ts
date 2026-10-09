@@ -85,11 +85,21 @@ export class HeartbeatScheduler {
       try {
         created.push(this.enqueueRun(row.org_id, row.task_id));
         pacedAgents.add(row.agent_id);
-      } catch {
-        // Skip tasks that cannot be prepared yet (e.g. provider not fully configured).
+        this.db.prepare("update tasks set enqueue_error = null where id = ? and enqueue_error is not null").run(row.task_id);
+      } catch (error) {
+        // A task that cannot be prepared yet (approval pending, setup missing) stays open; its task shows why until it queues.
+        this.recordEnqueueError(row.task_id, error instanceof Error ? error.message : String(error));
       }
     }
     return created;
+  }
+
+  /** Records on the task why it could not be queued, logging and notifying only when the reason changes. */
+  private recordEnqueueError(taskId: string, message: string): void {
+    const changed = this.db.prepare("update tasks set enqueue_error = ? where id = ? and enqueue_error is not ?").run(message, taskId, message);
+    if (changed.changes === 0) return;
+    console.warn(`[task-queue] task ${taskId} could not be queued: ${message}`);
+    this.notifyDataChanged();
   }
 
   /** Records once, on the task itself, that it spent its run budget without reaching done. */

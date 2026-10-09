@@ -338,6 +338,11 @@ function TaskCard({
       <div className="row" style={{ flexWrap: "wrap", gap: 6, minWidth: 0 }}>
         {project ? <Pill>{project.name}</Pill> : <Pill>{capitalize(task.risk)}</Pill>}
         {task.stalledReason && task.status !== "done" && <Pill tone="red">{t("stalled")}</Pill>}
+        {task.hold && !task.stalledReason && (
+          <span title={task.hold.reason} style={{ display: "inline-flex" }}>
+            <Pill tone={task.hold.waitingOn === "operator" ? "red" : "amber"}>{task.hold.waitingOn === "operator" ? t("needs you") : t("waiting")}</Pill>
+          </span>
+        )}
         {task.status !== "done" && latestRun && (
           <span style={{ flexShrink: 0, display: "inline-flex" }}>
             <Pill tone={runTone(latestRun.state)}>{prettyRunState(latestRun.state)}</Pill>

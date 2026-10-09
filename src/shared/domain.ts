@@ -87,6 +87,11 @@ export interface AgentRecord {
   createdAt: string;
 }
 
+/** What stops an open task: the reason, when it resumes on its own (null: only when someone acts), and who that is. */
+export type TaskHold =
+  | { reason: string; waitingOn: "provider"; resumesAt: string }
+  | { reason: string; waitingOn: "operator"; resumesAt: string | null };
+
 export interface TaskRecord {
   id: string;
   orgId: string;
@@ -104,6 +109,10 @@ export interface TaskRecord {
   writingMode: WritingMode;
   /** Set when the task spent its run budget without reaching done. */
   stalledReason: string | null;
+  /** Why the heartbeat last failed to queue the task; cleared once it queues. */
+  enqueueError: string | null;
+  /** Why the open task is not moving now, or null when nothing holds it. */
+  hold: TaskHold | null;
   /** Runs at or below this task_runs rowid no longer count toward the run budget. */
   runBudgetFloor: number;
   createdAt: string;
