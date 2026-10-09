@@ -116,7 +116,7 @@ export function ApprovalsPage({ snapshot, actions, navigate, focus }: PageProps)
           isBot={approval.requestedByType === "agent"}
           onApprove={() => decide(approval, "approved")}
           onDecline={() => decide(approval, "declined")}
-          onEdit={() => setEditingId(approval.id)}
+          onReview={() => setEditingId(approval.id)}
         />
       ))}
 
@@ -191,7 +191,12 @@ function ApprovalDetailDialog({
             <>
               <span style={{ color: "var(--text-3)" }}>{t("Source")}</span>
               {approval.sourceEntityType === "task" && approval.sourceEntityId
-                ? <button type="button" className="link-button" onClick={() => onOpenTask(approval.sourceEntityId!)}>{t("Open task")}</button>
+                ? (
+                  <span>
+                    <button type="button" className="link-button" onClick={() => onOpenTask(approval.sourceEntityId!)}>{t("Edit the task")}</button>
+                    <span style={{ color: "var(--text-3)" }}> · {t("Changing the task replaces this request with a fresh one.")}</span>
+                  </span>
+                )
                 : <span>{humanizeKind(approval.sourceEntityType)}</span>}
             </>
           )}
@@ -254,14 +259,15 @@ function ApprovalRow({
   isBot,
   onApprove,
   onDecline,
-  onEdit,
+  onReview,
 }: {
   approval: ApprovalRecord;
   requester: string;
   isBot: boolean;
   onApprove: () => void;
   onDecline: () => void;
-  onEdit: () => void;
+  /** Opens the request to read it in full and decide with notes; what is requested is changed at its source. */
+  onReview: () => void;
 }) {
   const tone = RISK_TONES[approval.risk];
   if (!tone) throw new Error("Approval risk tone is missing.");
@@ -297,7 +303,7 @@ function ApprovalRow({
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end" }}>
         <Button tone="primary" onClick={onApprove}>{t("Approve")}</Button>
-        <Button onClick={onEdit}>{t("Edit")}</Button>
+        <Button onClick={onReview}>{t("Review")}</Button>
         <Button tone="ghost" onClick={onDecline}>{t("Decline")}</Button>
       </div>
     </div>

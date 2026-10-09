@@ -97,6 +97,24 @@ test("the pinned CEO conversation is the Messages front door", async () => {
       return [task.writingMode, task.requiresFilesystem];
     });
     expect(edited).toEqual(["technical", true]);
+    // A pending request opens for review: read it in full and decide with notes; nothing there pretends to edit it.
+    await taskDialog.getByRole("button", { name: "Close" }).click();
+    await page.evaluate(async () => {
+      const api = (window as unknown as { agentCompany: {
+        loadSnapshot: () => Promise<{ ok: true; data: { activeOrgId: string } }>;
+        createApproval: (input: unknown) => Promise<{ ok: boolean }>;
+      } }).agentCompany;
+      const orgId = (await api.loadSnapshot()).data.activeOrgId;
+      await api.createApproval({ orgId, kind: "budget_increase", title: "Raise the ads budget", details: "From $200 to $500.", risk: "medium", requestedByType: "system", requestedById: null });
+    });
+    await page.getByRole("button", { name: "Approvals" }).click();
+    await expect(page.getByRole("button", { name: "Edit", exact: true })).toHaveCount(0);
+    await page.getByRole("button", { name: "Review" }).first().click();
+    const review = page.getByRole("dialog", { name: "Raise the ads budget" });
+    await expect(review.getByRole("textbox", { name: "Decision notes" })).toBeVisible();
+    await review.getByRole("button", { name: "Close" }).click();
+    await page.getByRole("button", { name: "Work" }).click();
+    await page.getByRole("button", { name: /Operationalize goal: Ship the FlowPilot MVP\./ }).first().click();
     // Blocking says why on the task and stops it; work can also move backwards.
     await taskDialog.getByRole("button", { name: "Block", exact: true }).click();
     await taskDialog.getByRole("textbox", { name: "Why is it blocked?" }).fill("Waiting for the legal review.");
