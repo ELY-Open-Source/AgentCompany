@@ -220,22 +220,19 @@ export class ChatService {
     const employee = this.db.prepare("select id from employees where id = ? and org_id = ?")
       .get(input.employeeId, input.orgId) as { id: string } | undefined;
     if (!employee) throw new Error("Employee was not found.");
-    // Read state is per-employee bookkeeping, not access control: the board
-    // observes every conversation in its org (agent↔agent directs included),
-    // so opening one clears its unread count even without membership.
-    const latest = this.db.prepare(`
-      select id from chat_messages
-      where space_id = ? and org_id = ?
-      order by created_at desc
-      limit 1
-    `).get(input.spaceId, input.orgId) as { id: string } | undefined;
-    const now = new Date().toISOString();
+    // Read state is per-employee bookkeeping, not access control: the board reads every conversation in its org.
+    const seen = this.db.prepare("select id, created_at from chat_messages where id = ? and space_id = ? and org_id = ?")
+      .get(input.upToMessageId, input.spaceId, input.orgId) as { id: string; created_at: string } | undefined;
+    if (!seen) throw new Error("The message read is not in this conversation.");
+    // Read up to what was seen, never past it; messages order by time then insertion, and a late mark never moves back.
     this.db.prepare(`
       insert into chat_read_state(org_id, employee_id, space_id, last_read_message_id, last_read_at)
       values (?, ?, ?, ?, ?)
       on conflict(employee_id, space_id)
       do update set last_read_message_id = excluded.last_read_message_id, last_read_at = excluded.last_read_at
-    `).run(input.orgId, input.employeeId, input.spaceId, latest?.id ?? null, now);
+      where (excluded.last_read_at, (select rowid from chat_messages where id = excluded.last_read_message_id))
+        > (chat_read_state.last_read_at, coalesce((select rowid from chat_messages where id = chat_read_state.last_read_message_id), -1))
+    `).run(input.orgId, input.employeeId, input.spaceId, seen.id, seen.created_at);
   }
 
   editMessage(input: EditMessageInput): void {

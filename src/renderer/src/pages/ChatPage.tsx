@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useCallback, useMemo, useRef, useState, type FormEvent } from "react";
 import { Field } from "../shared/ui";
 import { Dialog } from "../shared/Dialog";
 import { t } from "../i18n/i18n";
@@ -90,21 +90,10 @@ export function ChatPage({ snapshot, actions }: PageProps) {
   // whichever space just got a message and marking it read unseen.
   if (!selectedSpaceId && firstAvailableSpaceId) setSelectedSpaceId(firstAvailableSpaceId);
   const activeSpace = spaces.find((space) => space.id === activeSpaceId) ?? null;
-  const latestActiveMessageId = useMemo(() => {
-    if (!activeSpaceId) return null;
-    const inSpace = messagesAll.filter((message) => message.spaceId === activeSpaceId);
-    if (inSpace.length === 0) return null;
-    return inSpace[inSpace.length - 1].id;
-  }, [messagesAll, activeSpaceId]);
-
-  useEffect(() => {
-    if (!activeSpaceId || !latestActiveMessageId) return;
-    void actions.run(() => window.agentCompany.markChatSpaceRead({
-      orgId,
-      employeeId: employee.id,
-      spaceId: activeSpaceId,
-    }));
-  }, [activeSpaceId, latestActiveMessageId, orgId, employee.id, actions]);
+  // The conversation reports what the reader actually has in view; only that counts as read.
+  const markRead = useCallback((spaceId: string, upToMessageId: string) => {
+    void actions.run(() => window.agentCompany.markChatSpaceRead({ orgId, employeeId: employee.id, spaceId, upToMessageId }));
+  }, [actions, orgId, employee.id]);
 
   const messagesInSpace = useMemo(
     () => (activeSpace ? messagesAll.filter((m) => m.spaceId === activeSpace.id) : []),
@@ -271,6 +260,7 @@ export function ChatPage({ snapshot, actions }: PageProps) {
         onDeleteMessage={deleteChatMessage}
         onOpenFile={openFile}
         onSubmit={sendInChannel}
+        onRead={markRead}
         onReplyInThread={replyInThread}
         send={(activeSpaceId ? sends[activeSpaceId] : undefined) ?? IDLE_SEND}
         composerRef={composerRef}

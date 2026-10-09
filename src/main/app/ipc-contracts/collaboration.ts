@@ -52,5 +52,5 @@ export const collaborationContracts = {
   }) satisfies z.ZodType<C.SendMessageInput>,
   editMessage: z.strictObject({ orgId: id, messageId: id, actorType: sender, actorId: nullableId, bodyMd: z.string() }) satisfies z.ZodType<C.EditMessageInput>,
   deleteMessage: z.strictObject({ orgId: id, messageId: id, actorType: sender, actorId: nullableId }) satisfies z.ZodType<C.DeleteMessageInput>,
-  markChatSpaceRead: z.strictObject({ orgId: id, employeeId: id, spaceId: id }) satisfies z.ZodType<C.MarkChatSpaceReadInput>,
+  markChatSpaceRead: z.strictObject({ orgId: id, employeeId: id, spaceId: id, upToMessageId: id }) satisfies z.ZodType<C.MarkChatSpaceReadInput>,
 };

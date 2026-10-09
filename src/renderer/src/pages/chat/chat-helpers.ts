@@ -115,6 +115,34 @@ export interface ConversationItem {
   unread: number;
 }
 
+/** Unread messages per space for one reader, counted by position after the last read message (time then insertion order). */
+export function unreadBySpace(messages: ChatMessageRecord[], readStates: ChatReadStateRecord[], employeeId: string): Map<string, number> {
+  const countsSince = new Map<string, number>();
+  const readStateBySpace = new Map<string, ChatReadStateRecord>();
+  for (const state of readStates) {
+    if (state.employeeId === employeeId) readStateBySpace.set(state.spaceId, state);
+  }
+  const readPassed = new Set<string>();
+  const loadedIds = new Set(messages.map((message) => message.id));
+  for (const message of messages) {
+    const state = readStateBySpace.get(message.spaceId);
+    const readId = state?.lastReadMessageId ?? null;
+    const loadedRead = readId !== null && loadedIds.has(readId);
+    if (message.id === readId) {
+      readPassed.add(message.spaceId);
+      continue;
+    }
+    if (message.senderType === "employee" && message.senderId === employeeId) continue;
+    // A read message older than the loaded window means every loaded message came after it.
+    const unread = !state ? true
+      : loadedRead ? readPassed.has(message.spaceId)
+      : readId !== null ? true
+      : message.createdAt > state.lastReadAt;
+    if (unread) countsSince.set(message.spaceId, (countsSince.get(message.spaceId) ?? 0) + 1);
+  }
+  return countsSince;
+}
+
 /**
  * Folds spaces, messages, memberships, and per-employee read state into the
  * conversation list: every channel and direct conversation as its own row,
@@ -133,18 +161,8 @@ export function buildConversations(input: {
   ceoAgentId: string | null;
 }): ConversationItem[] {
   const lastBySpace = new Map<string, ChatMessageRecord>();
-  const countsSince = new Map<string, number>();
-  const lastReadBySpace = new Map<string, string>();
-  for (const state of input.readStates) {
-    if (state.employeeId === input.currentEmployeeId) lastReadBySpace.set(state.spaceId, state.lastReadAt);
-  }
-  for (const message of input.messages) {
-    lastBySpace.set(message.spaceId, message);
-    if (message.senderType === "employee" && message.senderId === input.currentEmployeeId) continue;
-    const lastRead = lastReadBySpace.get(message.spaceId);
-    if (lastRead && message.createdAt <= lastRead) continue;
-    countsSince.set(message.spaceId, (countsSince.get(message.spaceId) ?? 0) + 1);
-  }
+  for (const message of input.messages) lastBySpace.set(message.spaceId, message);
+  const countsSince = unreadBySpace(input.messages, input.readStates, input.currentEmployeeId);
   const membersBySpace = new Map<string, ChatMembershipRecord[]>();
   for (const membership of input.memberships) {
     const group = membersBySpace.get(membership.spaceId);

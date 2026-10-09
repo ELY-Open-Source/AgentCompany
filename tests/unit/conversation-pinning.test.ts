@@ -4,6 +4,7 @@ import type {
   AgentRecord,
   ChatMembershipRecord,
   ChatMessageRecord,
+  ChatReadStateRecord,
   ChatSpaceRecord,
   EmployeeRecord,
 } from "../../src/shared/domain";
@@ -101,5 +102,20 @@ describe("conversation pinning", () => {
     const conversations = build();
     expect(conversations[0].unread).toBe(1);
     expect(conversations[0].preview).toContain("CEO:");
+  });
+});
+
+describe("unread counts", () => {
+  test("count by position after the last read message, so a same-millisecond arrival is still unread", () => {
+    const { spaces, memberships } = fixtures();
+    const at = "2026-02-01T00:00:00.000Z";
+    const messages = [message("m_read", "spc_general", CEO, at), message("m_same_ms", "spc_general", ENGINEER, at)];
+    const unread = (readStates: ChatReadStateRecord[]) => buildConversations({ spaces, memberships, messages, readStates, employees, agents, currentEmployeeId: FOUNDER, ceoAgentId: CEO })
+      .find((item) => item.space.id === "spc_general")!.unread;
+    const state = (lastReadMessageId: string | null): ChatReadStateRecord => ({ orgId: ORG, employeeId: FOUNDER, spaceId: "spc_general", lastReadMessageId, lastReadAt: at });
+    expect(unread([state("m_read")])).toBe(1);
+    expect(unread([state("m_same_ms")])).toBe(0);
+    // A read message older than the loaded window means every loaded message came after it.
+    expect(unread([state("m_older_than_window")])).toBe(2);
   });
 });

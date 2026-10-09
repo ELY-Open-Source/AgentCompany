@@ -1,4 +1,4 @@
-import { useLayoutEffect, useMemo, useRef, useState, type FormEvent, type MutableRefObject } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type MutableRefObject } from "react";
 import { AvatarStack, Icon, IconButton } from "../../shared/ui";
 import type {
   ApprovalRecord,
@@ -40,6 +40,7 @@ export function ChatConversation({
   onDeleteMessage,
   onOpenFile,
   onSubmit,
+  onRead,
   onReplyInThread,
   send,
   composerRef,
@@ -66,6 +67,8 @@ export function ChatConversation({
   onDeleteMessage: (messageId: string) => void;
   onOpenFile: (fileId: string) => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  /** Marks the conversation read up to a message the reader has in view; must be stable. */
+  onRead: (spaceId: string, upToMessageId: string) => void;
   onReplyInThread: (threadId: string, body: string) => Promise<void>;
   send: SendState;
   composerRef: MutableRefObject<HTMLTextAreaElement | null>;
@@ -111,6 +114,20 @@ export function ChatConversation({
   useLayoutEffect(() => {
     if (atBottomRef.current) jumpToLatest("auto");
   }, [lastMessageId]);
+
+  // Read means seen: the newest message is in view, the window is visible, and no search hides messages.
+  const newestId = messagesInSpace.length > 0 ? messagesInSpace[messagesInSpace.length - 1].id : null;
+  const spaceId = space?.id ?? null;
+  const searching = trimmed.length > 0;
+  useEffect(() => {
+    const markIfSeen = () => {
+      // The DOM is measured, not the last scroll state: clearing a search can grow the list under a reader who was at the bottom.
+      if (spaceId && newestId && !searching && measureAtBottom() && document.visibilityState === "visible") onRead(spaceId, newestId);
+    };
+    markIfSeen();
+    document.addEventListener("visibilitychange", markIfSeen);
+    return () => document.removeEventListener("visibilitychange", markIfSeen);
+  }, [spaceId, newestId, atBottom, searching, onRead]);
 
   return (
     <>

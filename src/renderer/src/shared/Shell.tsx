@@ -1,3 +1,4 @@
+import { unreadBySpace } from "../pages/chat/chat-helpers";
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import type { AppSnapshot, EmployeeRecord } from "../../../shared/domain";
 import { Avatar, Field, Icon, IconButton } from "./ui";
@@ -225,19 +226,10 @@ function computeBadges(snapshot: AppSnapshot, orgId: string): Partial<Record<Rou
 }
 
 function countUnreadMessages(snapshot: AppSnapshot, orgId: string, employeeId: string): number {
-  const readByspace = new Map<string, string>();
-  for (const state of snapshot.chatReadStates) {
-    if (state.orgId !== orgId || state.employeeId !== employeeId) continue;
-    readByspace.set(state.spaceId, state.lastReadAt);
-  }
+  const messages = snapshot.chatMessages.filter((message) => message.orgId === orgId);
+  const readStates = snapshot.chatReadStates.filter((state) => state.orgId === orgId);
   let unread = 0;
-  for (const message of snapshot.chatMessages) {
-    if (message.orgId !== orgId) continue;
-    if (message.senderType === "employee" && message.senderId === employeeId) continue;
-    const lastRead = readByspace.get(message.spaceId);
-    if (lastRead && message.createdAt <= lastRead) continue;
-    unread += 1;
-  }
+  for (const count of unreadBySpace(messages, readStates, employeeId).values()) unread += count;
   return unread;
 }
 

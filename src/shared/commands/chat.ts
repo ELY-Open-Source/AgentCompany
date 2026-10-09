@@ -38,4 +38,6 @@ export interface MarkChatSpaceReadInput {
   orgId: string;
   employeeId: string;
   spaceId: string;
+  /** The newest message the reader actually saw; later arrivals stay unread. */
+  upToMessageId: string;
 }

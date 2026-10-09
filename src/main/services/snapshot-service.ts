@@ -96,11 +96,11 @@ export class SnapshotService {
       approvals: list(this.db, "approvals", "created_at desc"),
       chatSpaces: list(this.db, "chat_spaces", "created_at asc"),
       chatMemberships: list(this.db, "chat_memberships", "space_id asc, principal_type asc, principal_id asc"),
-      chatMessages: recentList<AppSnapshot["chatMessages"][number]>(this.db, "chat_messages", "created_at desc", 500).reverse(),
+      chatMessages: recentList<AppSnapshot["chatMessages"][number]>(this.db, "chat_messages", "created_at desc, rowid desc", 500).reverse(),
       // Every thread a loaded message belongs to, plus the most recently active ones, so no shown message loses its thread.
       chatThreads: all<Row>(this.db.prepare(`
         select * from chat_threads
-        where id in (select thread_id from (select thread_id from chat_messages order by created_at desc limit 500))
+        where id in (select thread_id from (select thread_id from chat_messages order by created_at desc, rowid desc limit 500))
           or id in (select id from chat_threads order by updated_at desc limit 200)
         order by updated_at desc
       `)).map((row) => camel(row) as unknown as AppSnapshot["chatThreads"][number]),

@@ -133,6 +133,39 @@ test("the pinned CEO conversation is the Messages front door", async () => {
     await expect(root).toContainText("1 reply");
     await thread.getByRole("button", { name: "Close thread" }).click();
     await expect(thread).toHaveCount(0);
+
+    // A message that arrives while the reader is up in history stays unread until they scroll down to it.
+    await page.evaluate(async () => {
+      const api = (window as unknown as { agentCompany: {
+        loadSnapshot: () => Promise<{ ok: true; data: { activeOrgId: string; employees: Array<{ id: string; orgId: string }>; chatSpaces: Array<{ id: string; orgId: string; spaceType: string }> } }>;
+        sendMessage: (input: unknown) => Promise<unknown>;
+      } }).agentCompany;
+      const snapshot = (await api.loadSnapshot()).data;
+      const employee = snapshot.employees.find((item) => item.orgId === snapshot.activeOrgId)!;
+      const ceoChat = snapshot.chatSpaces.find((item) => item.orgId === snapshot.activeOrgId && item.spaceType === "direct")!;
+      for (let index = 0; index < 40; index += 1) {
+        await api.sendMessage({ orgId: snapshot.activeOrgId, spaceId: ceoChat.id, threadId: null, senderType: "employee", senderId: employee.id, bodyMd: `History line ${index}`, attachmentFileIds: [] });
+      }
+    });
+    await expect(chatLog.getByText("History line 39")).toBeVisible();
+    await chatLog.evaluate((element) => {
+      element.scrollTop = 0;
+      element.dispatchEvent(new Event("scroll"));
+    });
+    await page.evaluate(async () => {
+      const api = (window as unknown as { agentCompany: {
+        loadSnapshot: () => Promise<{ ok: true; data: { activeOrgId: string; agents: Array<{ id: string; orgId: string; roleLevel: string }>; chatSpaces: Array<{ id: string; orgId: string; spaceType: string }> } }>;
+        sendMessage: (input: unknown) => Promise<unknown>;
+      } }).agentCompany;
+      const snapshot = (await api.loadSnapshot()).data;
+      const ceo = snapshot.agents.find((agent) => agent.orgId === snapshot.activeOrgId && agent.roleLevel === "c_suite")!;
+      const ceoChat = snapshot.chatSpaces.find((item) => item.orgId === snapshot.activeOrgId && item.spaceType === "direct")!;
+      await api.sendMessage({ orgId: snapshot.activeOrgId, spaceId: ceoChat.id, threadId: null, senderType: "agent", senderId: ceo.id, bodyMd: "An update you have not seen yet.", attachmentFileIds: [] });
+    });
+    const ceoRow = page.locator(".convo-item").first();
+    await expect(ceoRow.locator(".nav-badge")).toHaveText("1");
+    await page.getByRole("button", { name: "Jump to latest" }).click();
+    await expect(ceoRow.locator(".nav-badge")).toHaveCount(0);
   } finally {
     await app.close();
   }
