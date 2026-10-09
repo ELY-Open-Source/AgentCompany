@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "description": "Enterprise Electron control plane for AI agent companies.",
+  "homepage": "https://git.zacharyzhang.com/ZacharyZhang-NY/AgentCompany",
   "author": {
     "name": "AgentCompany",
     "email": "dev@agentcompany.ai"
