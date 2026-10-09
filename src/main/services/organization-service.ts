@@ -1,7 +1,7 @@
 import type { DatabaseSync } from "node:sqlite";
 import { APPROVAL_STATE, RISK_LEVEL, TASK_STATUS, WRITING_MODE, type RiskLevel } from "../../shared/domain";
 import { createId } from "../../shared/ids";
-import type { CreateAgentInput, CreateGoalInput, CreateOrganizationInput, CreateProjectInput, CreateTaskInput, CreateWorkspaceInput, DeleteTaskInput, UpdateAgentInput, UpdateEmployeeProfileInput, UpdateTaskInput } from "../../shared/commands";
+import type { CreateAgentInput, CreateGoalInput, CreateOrganizationInput, CreateProjectInput, CreateTaskInput, CreateWorkspaceInput, DeleteTaskInput, SetTaskBlockedInput, UpdateAgentInput, UpdateEmployeeProfileInput, UpdateTaskInput } from "../../shared/commands";
 import { AuditService } from "./audit-service";
 import { ensureAgentHeartbeat, resolveGoalKickoff, type GoalKickoffPlan } from "./goal-kickoff";
 import { PolicyService } from "./policy-service";
@@ -470,6 +470,10 @@ export class OrganizationService {
     this.verifyOptionalOrgEntity("workspaces", input.workspaceId, input.orgId, "Workspace");
     this.verifyProject(input.projectId, input.goalId, input.orgId);
     this.tasks.update(input);
+  }
+
+  setTaskBlocked(input: SetTaskBlockedInput): void {
+    this.tasks.setBlocked(input);
   }
 
   deleteTask(input: DeleteTaskInput): void {

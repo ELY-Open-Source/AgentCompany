@@ -1,6 +1,6 @@
 import type { DatabaseSync } from "node:sqlite";
 import { RISK_LEVEL, TASK_STATUS, type TaskPriority } from "../../shared/domain";
-import type { CreateTaskInput, DeleteTaskInput, UpdateTaskInput } from "../../shared/commands";
+import type { CreateTaskInput, DeleteTaskInput, SetTaskBlockedInput, UpdateTaskInput } from "../../shared/commands";
 import { AuditService } from "./audit-service";
 import { withSavepoint } from "../database/connection";
 import { heldWorkTitles } from "./held-deliverables";
@@ -67,6 +67,26 @@ export class TaskMutations {
       actorId: null,
       action: "updated",
       payload: { title: input.title.trim() },
+    });
+  }
+
+  /** Blocks the task with a reason (no session starts, queued ones are superseded) or unblocks it with null. */
+  setBlocked(input: SetTaskBlockedInput): void {
+    const reason = input.reason === null ? null : input.reason.trim();
+    if (reason === "") throw new Error("Say why the task is blocked.");
+    withSavepoint(this.db, "task_block", () => {
+      const result = this.db.prepare("update tasks set blocked_reason = ?, updated_at = ? where id = ? and org_id = ?").run(reason, new Date().toISOString(), input.taskId, input.orgId);
+      if (result.changes === 0) throw new Error("Task was not found.");
+      if (reason !== null) {
+        this.db.prepare(`
+          update task_runs set state = 'superseded', completed_at = ?, error_message = ?
+          where task_id = ? and org_id = ? and state = 'queued'
+        `).run(new Date().toISOString(), `Superseded: the task was blocked (${reason}).`, input.taskId, input.orgId);
+      }
+      this.audit.record({
+        orgId: input.orgId, entityType: "task", entityId: input.taskId, actorType: "employee", actorId: null,
+        action: reason === null ? "unblocked" : "blocked", payload: { reason },
+      });
     });
   }
 

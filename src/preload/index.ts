@@ -90,6 +90,7 @@ const api: DesktopApi = {
   runRequests: (input) => invoke(IPC_CHANNELS.runRequests, input),
   chatThreadHistory: (input) => invoke(IPC_CHANNELS.chatThreadHistory, input),
   chatSpaceHistory: (input) => invoke(IPC_CHANNELS.chatSpaceHistory, input),
+  setTaskBlocked: (input) => invoke(IPC_CHANNELS.setTaskBlocked, input),
   revokeConnector: (input) => invoke(IPC_CHANNELS.revokeConnector, input),
   refreshComposioAccounts: (input) => invoke(IPC_CHANNELS.refreshComposioAccounts, input),
   search: (input) => invoke(IPC_CHANNELS.search, input),

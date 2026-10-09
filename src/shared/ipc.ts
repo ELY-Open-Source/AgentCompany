@@ -83,6 +83,7 @@ export const IPC_CHANNELS = {
   runRequests: "agentcompany:run-requests",
   chatThreadHistory: "agentcompany:chat-thread-history",
   chatSpaceHistory: "agentcompany:chat-space-history",
+  setTaskBlocked: "agentcompany:set-task-blocked",
   revokeConnector: "agentcompany:revoke-connector",
   search: "agentcompany:search",
   rendererEvent: "agentcompany:renderer-event",

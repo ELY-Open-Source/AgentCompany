@@ -45,6 +45,7 @@ export const organizationContracts = {
     requiresFilesystem: z.boolean(), writingMode: z.enum(WRITING_MODE),
   }) satisfies z.ZodType<C.UpdateTaskInput>,
   deleteTask: z.strictObject({ orgId: id, taskId: id }) satisfies z.ZodType<C.DeleteTaskInput>,
+  setTaskBlocked: z.strictObject({ orgId: id, taskId: id, reason: z.string().nullable() }) satisfies z.ZodType<C.SetTaskBlockedInput>,
   updateTaskStatus: z.strictObject({ orgId: id, taskId: id, status: z.enum(TASK_STATUS) }) satisfies z.ZodType<C.UpdateTaskStatusInput>,
   runTask: z.strictObject({ orgId: id, taskId: id }) satisfies z.ZodType<C.RunTaskInput>,
   createGoal: z.strictObject({ orgId: id, title: z.string(), description: z.string(), ownerAgentId: nullableId }) satisfies z.ZodType<C.CreateGoalInput>,

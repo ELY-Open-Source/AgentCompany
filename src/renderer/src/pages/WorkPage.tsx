@@ -177,6 +177,12 @@ export function WorkPage({ snapshot, actions, navigate, focus }: PageProps) {
         onAdvance={advance}
         onRun={runTask}
         onOpenTask={setDetailTaskId}
+        onMove={async (task, status) => {
+          await actions.run(() => window.agentCompany.updateTaskStatus({ orgId, taskId: task.id, status }));
+        }}
+        onBlock={async (task, reason) => {
+          await actions.run(() => window.agentCompany.setTaskBlocked({ orgId, taskId: task.id, reason }));
+        }}
         onScope={(next) => {
           setScope(next);
           setDetailTaskId(null);
@@ -357,7 +363,10 @@ function TaskCard({
       <div className="row" style={{ flexWrap: "wrap", gap: 6, minWidth: 0 }}>
         {project ? <Pill>{project.name}</Pill> : <Pill>{capitalize(task.risk)}</Pill>}
         {task.stalledReason && task.status !== "done" && <Pill tone="red">{t("stalled")}</Pill>}
-        {task.hold && !task.stalledReason && (
+        {task.blockedReason && task.status !== "done" && (
+          <span title={task.blockedReason} style={{ display: "inline-flex" }}><Pill tone="red">{t("blocked")}</Pill></span>
+        )}
+        {task.hold && !task.stalledReason && !task.blockedReason && (
           <span title={task.hold.reason} style={{ display: "inline-flex" }}>
             <Pill tone={task.hold.waitingOn === "operator" ? "red" : "amber"}>{task.hold.waitingOn === "operator" ? t("needs you") : t("waiting")}</Pill>
           </span>

@@ -5,7 +5,9 @@ import { budgetBlock, isPriced, providerPrices } from "./spend";
 
 interface OpenTaskRow {
   id: string;
+  status: string;
   stalled_reason: string | null;
+  blocked_reason: string | null;
   enqueue_error: string | null;
   agent_id: string | null;
   provider_id: string | null;
@@ -20,7 +22,7 @@ interface OpenTaskRow {
 export function taskHolds(db: DatabaseSync, now: Date): Map<string, TaskHold> {
   const window = currentProviderUsageWindow(now);
   const rows = db.prepare(`
-    select t.id, t.stalled_reason, t.enqueue_error, a.id as agent_id, p.id as provider_id, p.label as provider_label,
+    select t.id, t.status, t.stalled_reason, t.blocked_reason, t.enqueue_error, a.id as agent_id, p.id as provider_id, p.label as provider_label,
       p.monthly_request_limit as request_limit, coalesce(u.request_count, 0) as request_count,
       c.until_ms as cooldown_until_ms, c.label as cooldown_label
     from tasks t
@@ -28,7 +30,7 @@ export function taskHolds(db: DatabaseSync, now: Date): Map<string, TaskHold> {
     left join providers p on p.id = a.model_provider_id
     left join provider_usage_windows u on u.org_id = p.org_id and u.provider_id = p.id and u.window_start = ?
     left join provider_cooldowns c on c.provider_id = p.id
-    where t.status in ('backlog', 'in_progress')
+    where (t.status in ('backlog', 'in_progress') or (t.status = 'review' and t.blocked_reason is not null))
       and not exists (select 1 from task_runs r where r.task_id = t.id and r.state = 'running')
   `).all(window.start) as unknown as OpenTaskRow[];
   const budgets = new Map<string, MoneyBlock | null>();
@@ -60,6 +62,9 @@ interface MoneyBlock {
 }
 
 function holdOf(row: OpenTaskRow, now: Date, windowEnd: string, budget: (agentId: string, providerId: string) => MoneyBlock | null): TaskHold | null {
+  if (row.blocked_reason) return { reason: `Blocked: ${row.blocked_reason}`, resumesAt: null, waitingOn: "operator" };
+  // Work in review waits on its reviewer, so only a block holds it here.
+  if (row.status === "review") return null;
   if (row.stalled_reason) return { reason: row.stalled_reason, resumesAt: null, waitingOn: "operator" };
   if (row.enqueue_error) return { reason: `Could not start: ${row.enqueue_error}`, resumesAt: null, waitingOn: "operator" };
   if (!row.agent_id || !row.provider_id) return null;

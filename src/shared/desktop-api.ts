@@ -34,6 +34,7 @@ import type {
   DeleteAutomationRuleInput,
   DeleteDocumentInput,
   DeleteTaskInput,
+  SetTaskBlockedInput,
   DeleteKnowledgeEntryInput,
   ResumeGoalInput,
   UpdateAutomationRuleInput,
@@ -199,6 +200,8 @@ export interface DesktopApi {
   /** One thread in full, beyond the snapshot's recent window. */
   chatThreadHistory(input: { orgId: string; threadId: string }): Promise<DesktopResult<ThreadHistory>>;
   /** The page of a conversation before a loaded message, for history older than the snapshot holds. */
+  /** Blocks a task with a reason, or unblocks it with null. */
+  setTaskBlocked(input: SetTaskBlockedInput): Promise<DesktopResult<AppSnapshot>>;
   chatSpaceHistory(input: { orgId: string; spaceId: string; beforeMessageId: string | null } & ({ limit: number } | { fromMessageId: string })): Promise<DesktopResult<SpaceHistoryPage>>;
   revokeConnector(input: RevokeConnectorInput): Promise<DesktopResult<AppSnapshot>>;
   search(input: SearchInput): Promise<DesktopResult<SearchResultRecord[]>>;

@@ -8,6 +8,7 @@ import { ProviderService } from "../../src/main/services/provider-service";
 import { providerAdapters } from "../../src/main/services/provider-adapters";
 import { TaskExecutionService } from "../../src/main/services/task-execution-service";
 import { SnapshotService } from "../../src/main/services/snapshot-service";
+import { OrganizationService } from "../../src/main/services/organization-service";
 import { currentProviderUsageWindow } from "../../src/shared/provider-runtime-domain";
 import type { AgentTurnResult } from "../../src/main/services/provider-tool-turn";
 
@@ -103,6 +104,32 @@ describe("why an open task is not moving", () => {
     const h = company();
     h.connection.db.prepare("update tasks set stalled_reason = 'Stalled: 3 sessions made no progress.' where id = ?").run(h.taskId);
     expect(h.hold()).toEqual({ reason: "Stalled: 3 sessions made no progress.", resumesAt: null, waitingOn: "operator" });
+    h.connection.close();
+  });
+});
+
+describe("blocking a task", () => {
+  test("stops it until unblocked: no new session, queued ones superseded, manual runs refused, and the board says why", async () => {
+    const h = company();
+    const organization = new OrganizationService(h.connection.db);
+    expect(h.connection.transaction(() => h.execution.enqueueHeartbeatRuns())).toHaveLength(1);
+    h.connection.transaction(() => organization.setTaskBlocked({ orgId: h.orgId, taskId: h.taskId, reason: "Waiting for the legal review." }));
+    expect(h.connection.db.prepare("select state from task_runs where task_id = ? order by rowid desc limit 1").get(h.taskId)).toEqual({ state: "superseded" });
+    expect(h.hold()).toEqual({ reason: "Blocked: Waiting for the legal review.", resumesAt: null, waitingOn: "operator" });
+    expect(h.connection.transaction(() => h.execution.enqueueHeartbeatRuns())).toEqual([]);
+    await expect(h.execution.runTask({ orgId: h.orgId, taskId: h.taskId })).rejects.toThrow("is blocked: Waiting for the legal review. Unblock it to run it.");
+    expect(() => organization.setTaskBlocked({ orgId: h.orgId, taskId: h.taskId, reason: "  " })).toThrow("Say why the task is blocked.");
+
+    h.connection.transaction(() => organization.setTaskBlocked({ orgId: h.orgId, taskId: h.taskId, reason: null }));
+    expect(h.hold()).toBeNull();
+    // Work in review can be blocked too, and says so.
+    h.connection.db.prepare("update tasks set status = 'review' where id = ?").run(h.taskId);
+    h.connection.transaction(() => organization.setTaskBlocked({ orgId: h.orgId, taskId: h.taskId, reason: "Spec changed." }));
+    expect(h.hold()).toEqual({ reason: "Blocked: Spec changed.", resumesAt: null, waitingOn: "operator" });
+    h.connection.transaction(() => organization.setTaskBlocked({ orgId: h.orgId, taskId: h.taskId, reason: null }));
+    expect(h.hold()).toBeNull();
+    h.connection.db.prepare("update tasks set status = 'backlog' where id = ?").run(h.taskId);
+    expect(h.connection.transaction(() => h.execution.enqueueHeartbeatRuns())).toHaveLength(1);
     h.connection.close();
   });
 });

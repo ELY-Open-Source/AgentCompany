@@ -21,6 +21,7 @@ export interface TaskExecutionTaskRow {
   writing_mode: WritingMode;
   handoff_json: string | null;
   origin: string | null;
+  blocked_reason: string | null;
 }
 
 export interface TaskExecutionAgentRow {

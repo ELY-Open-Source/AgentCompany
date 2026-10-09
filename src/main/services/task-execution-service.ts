@@ -90,6 +90,7 @@ export class TaskExecutionService {
   async runTask(input: RunTaskInput): Promise<string> {
     const task = requireTask(this.db, input.orgId, input.taskId);
     if (task.status === TASK_STATUS.DONE) throw new Error(`"${task.title}" is done. Reopen it before running it again.`);
+    if (task.blocked_reason !== null) throw new Error(`"${task.title}" is blocked: ${task.blocked_reason} Unblock it to run it.`);
     const inFlight = this.db.prepare("select state from task_runs where task_id = ? and state in ('queued', 'running') limit 1")
       .get(task.id) as { state: string } | undefined;
     if (inFlight) {
@@ -115,6 +116,7 @@ export class TaskExecutionService {
     try {
       const task = requireTask(this.db, orgId, run.task_id);
       if (task.status === TASK_STATUS.DONE) return this.supersedeRun(orgId, runId, run, "the task was closed after this run was queued.");
+      if (task.blocked_reason !== null) return this.supersedeRun(orgId, runId, run, `the task was blocked after this run was queued (${task.blocked_reason}).`);
       if (task.assignee_agent_id !== run.agent_id) {
         return this.supersedeRun(orgId, runId, run, `the task was reassigned after this run was queued (run agent ${run.agent_id}, assignee ${task.assignee_agent_id ?? "none"}).`);
       }

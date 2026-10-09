@@ -164,6 +164,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
   handle("clearIntegrationKey", (input) => mutate(() => integrationKeys.clear(input.name)));
   handle("createTask", (input) => mutate(() => organization.createTask(input)));
   handle("updateTask", (input) => mutate(() => organization.updateTask(input)));
+  handle("setTaskBlocked", (input) => mutate(() => organization.setTaskBlocked(input)));
   handle("deleteTask", (input) => mutate(() => organization.deleteTask(input)));
   handle("updateTaskStatus", (input) => mutate(() => organization.updateTaskStatus(input.orgId, input.taskId, input.status)));
   handle("runTask", async (input) => {

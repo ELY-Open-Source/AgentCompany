@@ -108,6 +108,8 @@ export interface TaskRecord {
   stalledReason: string | null;
   /** Why the heartbeat last failed to queue the task; cleared once it queues. */
   enqueueError: string | null;
+  /** Why the operator blocked the task; no session starts while it is set. */
+  blockedReason: string | null;
   /** Why the open task is not moving now, or null when nothing holds it. */
   hold: TaskHold | null;
   /** Runs at or below this task_runs rowid no longer count toward the run budget. */

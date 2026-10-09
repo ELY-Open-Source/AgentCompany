@@ -12,7 +12,7 @@ import type {
   TaskRunRecord,
   WorkspaceRecord,
 } from "../../../../shared/domain";
-import { TASK_STATUS, type WritingMode } from "../../../../shared/domain";
+import { TASK_STATUS, type TaskStatus, type WritingMode } from "../../../../shared/domain";
 import { auditEventLabel, formatRelative } from "../types";
 import { WRITING_OPTIONS, descendantIds, nextStatus, prettyRunState, prettyStatus, providerFor, runBlocker, runsForTask, runTone } from "./task-helpers";
 import type { SnapshotActions } from "../../app/useSnapshot";
@@ -43,6 +43,8 @@ export function TaskDetailDialog({
   onAdvance,
   onRun,
   onOpenTask,
+  onMove,
+  onBlock,
   onScope,
   navigate,
 }: {
@@ -62,10 +64,20 @@ export function TaskDetailDialog({
   onAdvance: (task: TaskRecord) => void;
   onRun: (task: TaskRecord) => void;
   onOpenTask: (taskId: string) => void;
+  /** Moves the task to any status, backwards included: send back, reopen, back to backlog. */
+  onMove: (task: TaskRecord, status: TaskStatus) => Promise<void>;
+  /** Blocks the task with a reason, or unblocks it with null. */
+  onBlock: (task: TaskRecord, reason: string | null) => Promise<void>;
   onScope: (scope: Focus) => void;
   navigate: PageProps["navigate"];
 }) {
   const [tab, setTab] = useState<Tab>("overview");
+  const [blocking, setBlocking] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const act = (operation: () => Promise<void>, after?: () => void) => {
+    setActionError(null);
+    operation().then(after, (error: unknown) => setActionError(error instanceof Error ? error.message : String(error)));
+  };
   const [editing, setEditing] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
 
@@ -148,8 +160,30 @@ export function TaskDetailDialog({
           <ActivityTab audit={taskAudit} approvals={taskApprovals} onOpenApproval={(approvalId) => navigate("approvals", { kind: "approval", id: approvalId })} />
         )}
 
+        {blocking && (
+          <form
+            className="row"
+            style={{ gap: 8, marginTop: 12 }}
+            onSubmit={(event) => {
+              event.preventDefault();
+              const reason = String(new FormData(event.currentTarget).get("reason") ?? "");
+              act(() => onBlock(task, reason), () => setBlocking(false));
+            }}
+          >
+            <input className="input" name="reason" aria-label={t("Why is it blocked?")} placeholder={t("Why is it blocked?")} required autoFocus style={{ flex: 1 }} />
+            <Button tone="primary" size="small" type="submit">{t("Block task")}</Button>
+            <Button tone="ghost" size="small" onClick={() => setBlocking(false)}>{t("Cancel")}</Button>
+          </form>
+        )}
+        {actionError && <div className="form-error" role="alert" style={{ marginTop: 8 }}>{actionError}</div>}
         <div className="modal-actions">
           <Button tone="ghost" onClick={deleteTask}><Icon name="x" size={16} /> {t("Delete")}</Button>
+          {task.blockedReason
+            ? <Button onClick={() => act(() => onBlock(task, null))}>{t("Unblock")}</Button>
+            : task.status !== TASK_STATUS.DONE && !blocking && <Button onClick={() => setBlocking(true)}>{t("Block")}</Button>}
+          {task.status === TASK_STATUS.REVIEW && <Button onClick={() => act(() => onMove(task, TASK_STATUS.IN_PROGRESS))}>{t("Send back")}</Button>}
+          {task.status === TASK_STATUS.DONE && <Button onClick={() => act(() => onMove(task, TASK_STATUS.IN_PROGRESS))}>{t("Reopen")}</Button>}
+          {task.status === TASK_STATUS.IN_PROGRESS && <Button onClick={() => act(() => onMove(task, TASK_STATUS.BACKLOG))}>{t("Back to backlog")}</Button>}
           {assignee && <Button onClick={() => onRun(task)} disabled={runBlocker(task, provider, taskRuns) !== null}><Icon name="send" size={16} /> {t("Run")}</Button>}
           {advanceTo && <Button tone="primary" onClick={() => onAdvance(task)}><Icon name="check" size={16} /> {prettyStatus(advanceTo)}</Button>}
         </div>

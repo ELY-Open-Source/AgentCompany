@@ -95,6 +95,16 @@ test("the pinned CEO conversation is the Messages front door", async () => {
       return [task.writingMode, task.requiresFilesystem];
     });
     expect(edited).toEqual(["technical", true]);
+    // Blocking says why on the task and stops it; work can also move backwards.
+    await taskDialog.getByRole("button", { name: "Block", exact: true }).click();
+    await taskDialog.getByRole("textbox", { name: "Why is it blocked?" }).fill("Waiting for the legal review.");
+    await taskDialog.getByRole("button", { name: "Block task" }).click();
+    await expect(taskDialog.getByRole("status")).toContainText("Blocked: Waiting for the legal review.");
+    await taskDialog.getByRole("button", { name: "Unblock" }).click();
+    await expect(taskDialog.getByText("Blocked: Waiting for the legal review.")).toHaveCount(0);
+    await taskDialog.getByRole("button", { name: "In progress" }).click();
+    await taskDialog.getByRole("button", { name: "Back to backlog" }).click();
+    await expect(taskDialog.getByRole("button", { name: "In progress" })).toBeVisible();
     await taskDialog.getByRole("button", { name: "Close" }).click();
     await page.getByRole("button", { name: "Messages" }).click();
 

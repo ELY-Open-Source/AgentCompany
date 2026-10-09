@@ -123,6 +123,13 @@ export interface UpdateTaskInput {
   writingMode: WritingMode;
 }
 
+export interface SetTaskBlockedInput {
+  orgId: string;
+  taskId: string;
+  /** Why the task is blocked; null unblocks it. */
+  reason: string | null;
+}
+
 export interface DeleteTaskInput {
   orgId: string;
   taskId: string;

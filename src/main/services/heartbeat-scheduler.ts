@@ -38,6 +38,7 @@ export class HeartbeatScheduler {
       left join provider_usage_windows u
         on u.org_id = p.org_id and u.provider_id = p.id and u.window_start = ?
       where t.status in ('backlog', 'in_progress')
+        and t.blocked_reason is null
         and a.heartbeat_enabled = 1
         and a.lifecycle = 'active'
         and p.enabled = 1
