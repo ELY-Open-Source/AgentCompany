@@ -49,10 +49,14 @@ export class TaskMutations {
       this.applyStatus(input.orgId, before, TASK_STATUS.IN_PROGRESS, { type: "system" }, null);
     }
     const result = this.db.prepare(`
-      update tasks set title = ?, description = ?, assignee_agent_id = ?, risk = ?, priority = ?, parent_task_id = ?, updated_at = ?,
+      update tasks set title = ?, description = ?, assignee_agent_id = ?, risk = ?, priority = ?, parent_task_id = ?,
+        project_id = ?, goal_id = ?, workspace_id = ?, requires_filesystem = ?, writing_mode = ?, updated_at = ?,
         stalled_reason = null, enqueue_error = null, run_budget_floor = (select coalesce(max(rowid), 0) from task_runs)
       where id = ? and org_id = ?
-    `).run(input.title.trim(), input.description.trim(), input.assigneeAgentId, input.risk, input.priority, input.parentTaskId, now, input.taskId, input.orgId);
+    `).run(
+      input.title.trim(), input.description.trim(), input.assigneeAgentId, input.risk, input.priority, input.parentTaskId,
+      input.projectId, input.goalId, input.workspaceId, input.requiresFilesystem ? 1 : 0, input.writingMode, now, input.taskId, input.orgId,
+    );
     if (result.changes === 0) throw new Error("Task was not found.");
     this.requestApproval(input.orgId, input.taskId);
     this.audit.record({

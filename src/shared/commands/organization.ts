@@ -116,6 +116,11 @@ export interface UpdateTaskInput {
   risk: RiskLevel;
   priority: TaskPriority;
   parentTaskId: string | null;
+  projectId: string | null;
+  goalId: string | null;
+  workspaceId: string | null;
+  requiresFilesystem: boolean;
+  writingMode: WritingMode;
 }
 
 export interface DeleteTaskInput {

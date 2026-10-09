@@ -12,9 +12,9 @@ import type {
   TaskRunRecord,
   WorkspaceRecord,
 } from "../../../../shared/domain";
-import { TASK_STATUS } from "../../../../shared/domain";
+import { TASK_STATUS, type WritingMode } from "../../../../shared/domain";
 import { auditEventLabel, formatRelative } from "../types";
-import { descendantIds, nextStatus, prettyRunState, prettyStatus, providerFor, runBlocker, runsForTask, runTone } from "./task-helpers";
+import { WRITING_OPTIONS, descendantIds, nextStatus, prettyRunState, prettyStatus, providerFor, runBlocker, runsForTask, runTone } from "./task-helpers";
 import type { SnapshotActions } from "../../app/useSnapshot";
 import type { Focus, PageProps } from "../types";
 import { t } from "../../i18n/i18n";
@@ -95,6 +95,11 @@ export function TaskDetailDialog({
       risk: (val("risk") || "low") as "low" | "medium" | "high",
       priority: (val("priority") || "normal") as "low" | "normal" | "high",
       parentTaskId: val("parentTaskId") || null,
+      projectId: val("projectId") || null,
+      goalId: val("goalId") || null,
+      workspaceId: val("workspaceId") || null,
+      requiresFilesystem: form.get("requiresFilesystem") === "on",
+      writingMode: val("writingMode") as WritingMode,
     })).then((r) => { if (r) setEditing(false); }, (error: unknown) => setEditError(error instanceof Error ? error.message : String(error)));
   };
 
@@ -149,7 +154,19 @@ export function TaskDetailDialog({
           {advanceTo && <Button tone="primary" onClick={() => onAdvance(task)}><Icon name="check" size={16} /> {prettyStatus(advanceTo)}</Button>}
         </div>
 
-        {editing && <EditOverlay task={task} agents={agents} allTasks={allTasks} error={editError} onSubmit={submitEdit} onCancel={() => { setEditing(false); setEditError(null); }} />}
+        {editing && (
+          <EditOverlay
+            task={task}
+            agents={agents}
+            allTasks={allTasks}
+            projects={projects}
+            goals={goals}
+            workspaces={workspaces}
+            error={editError}
+            onSubmit={submitEdit}
+            onCancel={() => { setEditing(false); setEditError(null); }}
+          />
+        )}
       </div>
     </div>
   );
@@ -251,8 +268,9 @@ function ActivityTab({ audit, approvals, onOpenApproval }: { audit: AuditEventRe
   );
 }
 
-function EditOverlay({ task, agents, allTasks, error, onSubmit, onCancel }: {
-  task: TaskRecord; agents: AgentRecord[]; allTasks: TaskRecord[]; error: string | null;
+function EditOverlay({ task, agents, allTasks, projects, goals, workspaces, error, onSubmit, onCancel }: {
+  task: TaskRecord; agents: AgentRecord[]; allTasks: TaskRecord[];
+  projects: ProjectRecord[]; goals: GoalRecord[]; workspaces: WorkspaceRecord[]; error: string | null;
   onSubmit: (e: FormEvent<HTMLFormElement>) => void; onCancel: () => void;
 }) {
   const beneath = descendantIds(task.id, allTasks);
@@ -287,6 +305,32 @@ function EditOverlay({ task, agents, allTasks, error, onSubmit, onCancel }: {
             {otherTasks.map((t) => <option key={t.id} value={t.id}>{t.title}</option>)}
           </select>
         </Field>
+        <Field label={t("Project")}>
+          <select className="input" name="projectId" defaultValue={task.projectId ?? ""}>
+            <option value="">{t("None")}</option>
+            {projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
+          </select>
+        </Field>
+        <Field label={t("Goal")}>
+          <select className="input" name="goalId" defaultValue={task.goalId ?? ""}>
+            <option value="">{t("None")}</option>
+            {goals.map((goal) => <option key={goal.id} value={goal.id}>{goal.title}</option>)}
+          </select>
+        </Field>
+        <Field label={t("Workspace")}>
+          <select className="input" name="workspaceId" defaultValue={task.workspaceId ?? ""}>
+            <option value="">{t("None")}</option>
+            {workspaces.map((workspace) => <option key={workspace.id} value={workspace.id}>{workspace.name}</option>)}
+          </select>
+        </Field>
+        <Field label={t("Writing")}>
+          <select className="input" name="writingMode" defaultValue={task.writingMode}>
+            {WRITING_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+          </select>
+        </Field>
+        <label className="checkbox-row">
+          <input type="checkbox" name="requiresFilesystem" defaultChecked={task.requiresFilesystem} /> {t("Requires workspace access")}
+        </label>
         {error && <div className="form-error" role="alert">{error}</div>}
         <div className="modal-actions">
           <Button onClick={onCancel}>{t("Cancel")}</Button>

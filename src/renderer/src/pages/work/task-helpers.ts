@@ -1,12 +1,22 @@
 import {
   TASK_STATUS,
+  WRITING_MODE,
   type AgentRecord,
   type ProviderRecord,
   type TaskRecord,
   type TaskRunRecord,
   type TaskStatus,
+  type WritingMode,
 } from "../../../../shared/domain";
 import { t } from "../../i18n/i18n";
+
+/** The writing modes a task can ask for, as the create and edit forms offer them. */
+export const WRITING_OPTIONS: ReadonlyArray<{ value: WritingMode; label: string }> = [
+  { value: WRITING_MODE.CONVERSATIONAL, label: t("Conversational (house style)") },
+  { value: WRITING_MODE.TECHNICAL, label: t("Technical spec") },
+  { value: WRITING_MODE.STRUCTURED, label: t("Structured output") },
+];
+
 
 export function nextStatus(status: TaskStatus): TaskStatus | null {
   if (status === TASK_STATUS.BACKLOG) return TASK_STATUS.IN_PROGRESS;

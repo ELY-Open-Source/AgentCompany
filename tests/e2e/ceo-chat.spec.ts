@@ -83,6 +83,18 @@ test("the pinned CEO conversation is the Messages front door", async () => {
     await expect(page.getByRole("button", { name: "Open task Operationalize goal: Ship the FlowPilot MVP." })).toBeVisible();
     await page.getByRole("button", { name: "Open task Operationalize goal: Ship the FlowPilot MVP." }).click();
     await expect(taskDialog).toBeVisible();
+    // A wrong link is corrected in the same task's editor, as at creation.
+    await taskDialog.getByRole("button", { name: "Edit" }).click();
+    await taskDialog.getByLabel("Writing").selectOption("technical");
+    await taskDialog.getByLabel("Requires workspace access").check();
+    await taskDialog.getByRole("button", { name: "Save" }).click();
+    await expect(taskDialog.getByRole("heading", { name: "Edit task" })).toHaveCount(0);
+    const edited = await page.evaluate(async () => {
+      const api = (window as unknown as { agentCompany: { loadSnapshot: () => Promise<{ ok: true; data: { tasks: Array<{ title: string; writingMode: string; requiresFilesystem: boolean }> } }> } }).agentCompany;
+      const task = (await api.loadSnapshot()).data.tasks.find((item) => item.title === "Operationalize goal: Ship the FlowPilot MVP.")!;
+      return [task.writingMode, task.requiresFilesystem];
+    });
+    expect(edited).toEqual(["technical", true]);
     await taskDialog.getByRole("button", { name: "Close" }).click();
     await page.getByRole("button", { name: "Messages" }).click();
 

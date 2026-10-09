@@ -466,6 +466,9 @@ export class OrganizationService {
   }
 
   updateTask(input: UpdateTaskInput): void {
+    this.verifyOptionalOrgEntity("goals", input.goalId, input.orgId, "Goal");
+    this.verifyOptionalOrgEntity("workspaces", input.workspaceId, input.orgId, "Workspace");
+    this.verifyProject(input.projectId, input.goalId, input.orgId);
     this.tasks.update(input);
   }
 

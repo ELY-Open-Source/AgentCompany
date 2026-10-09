@@ -41,7 +41,8 @@ export const organizationContracts = {
   }) satisfies z.ZodType<C.CreateTaskInput>,
   updateTask: z.strictObject({
     orgId: id, taskId: id, title: z.string(), description: z.string(), assigneeAgentId: nullableId, risk: z.enum(RISK_LEVEL),
-    priority: z.enum(TASK_PRIORITY), parentTaskId: nullableId,
+    priority: z.enum(TASK_PRIORITY), parentTaskId: nullableId, projectId: nullableId, goalId: nullableId, workspaceId: nullableId,
+    requiresFilesystem: z.boolean(), writingMode: z.enum(WRITING_MODE),
   }) satisfies z.ZodType<C.UpdateTaskInput>,
   deleteTask: z.strictObject({ orgId: id, taskId: id }) satisfies z.ZodType<C.DeleteTaskInput>,
   updateTaskStatus: z.strictObject({ orgId: id, taskId: id, status: z.enum(TASK_STATUS) }) satisfies z.ZodType<C.UpdateTaskStatusInput>,

@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { currentLinks } from "../helpers/task-links";
 import { describe, expect, test } from "vitest";
 import { DatabaseConnection } from "../../src/main/database/connection";
 import { OrganizationService } from "../../src/main/services/organization-service";
@@ -23,6 +24,7 @@ describe("task hierarchy", () => {
     });
     const reparent = (title: string, parent: string | null) => organization.updateTask({
       orgId, taskId: ids[title], title, description: "d", assigneeAgentId: null, risk: RISK_LEVEL.LOW, priority: TASK_PRIORITY.NORMAL, parentTaskId: parent,
+      ...currentLinks(connection.db, ids[title]),
     });
     reparent("B", ids.A);
     reparent("C", ids.B);

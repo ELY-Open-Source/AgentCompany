@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { currentLinks } from "../helpers/task-links";
 import { describe, expect, test } from "vitest";
 import { DatabaseConnection } from "../../src/main/database/connection";
 import { OrganizationService } from "../../src/main/services/organization-service";
@@ -302,6 +303,7 @@ describe("execution modes", () => {
     const taskApprovals = () => db.prepare("select id, state, details from approvals where source_entity_id = ? order by rowid").all(taskId) as Array<{ id: string; state: string; details: string }>;
     const edit = (description: string) => h.connection.transaction(() => h.deps.organization.updateTask({
       orgId: h.orgId, taskId, title: "Wipe staging", description, assigneeAgentId: h.ceoId, risk: "high", priority: TASK_PRIORITY.NORMAL, parentTaskId: null,
+      ...currentLinks(db, taskId),
     }));
     const decide = (id: string) => h.connection.transaction(() => approvals.decide({ orgId: h.orgId, approvalId: id, state: "approved", decidedByEmployeeId: employeeId }));
 

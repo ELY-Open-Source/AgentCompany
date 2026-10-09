@@ -5,6 +5,7 @@ import type { AppSnapshot, RiskLevel, TaskPriority, WritingMode } from "../../..
 import { RISK_LEVEL, TASK_PRIORITY, TASK_STATUS, WRITING_MODE } from "../../../shared/domain";
 import type { SnapshotActions } from "../app/useSnapshot";
 import { t } from "../i18n/i18n";
+import { WRITING_OPTIONS } from "./work/task-helpers";
 
 const RISK_OPTIONS: ReadonlyArray<{ value: RiskLevel; label: string }> = [
   { value: RISK_LEVEL.LOW, label: t("Low") },
@@ -16,12 +17,6 @@ const PRIORITY_OPTIONS: ReadonlyArray<{ value: TaskPriority; label: string }> = 
   { value: TASK_PRIORITY.LOW, label: t("Low") },
   { value: TASK_PRIORITY.NORMAL, label: t("Normal") },
   { value: TASK_PRIORITY.HIGH, label: t("High") },
-];
-
-const WRITING_OPTIONS: ReadonlyArray<{ value: WritingMode; label: string }> = [
-  { value: WRITING_MODE.CONVERSATIONAL, label: t("Conversational (house style)") },
-  { value: WRITING_MODE.TECHNICAL, label: t("Technical spec") },
-  { value: WRITING_MODE.STRUCTURED, label: t("Structured output") },
 ];
 
 function value(form: FormData, key: string): string {
