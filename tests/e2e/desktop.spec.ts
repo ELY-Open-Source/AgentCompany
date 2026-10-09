@@ -218,6 +218,8 @@ test("onboards, hires, and creates work in the Electron shell", async () => {
     await page.getByRole("button", { name: "Connectors", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Connectors" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Refresh" })).toHaveCount(0);
+    // Without a Composio key the account check fails, and the page says the statuses may be stale.
+    await expect(page.getByRole("alert").filter({ hasText: "Account status could not be checked with Composio" })).toBeVisible();
 
     await page.getByRole("button", { name: "Settings" }).click();
     await expect(page.getByText("AI CEO", { exact: true })).toBeVisible();

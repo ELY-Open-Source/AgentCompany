@@ -12,6 +12,9 @@ export type CatalogState =
 
 type CatalogSlot = { orgId: string; state: CatalogState } | null;
 
+/** Whether the account statuses on screen are what Composio reports now; the catalog loading says nothing about this. */
+export type AccountSync = { phase: "syncing" } | { phase: "synced"; at: string } | { phase: "failed"; message: string };
+
 /** Where a sign-in started from this window stands; it always ends connected, failed, or timed out. */
 export type SignIn = { slug: string; label: string; accountId: string } & (
   | { phase: "waiting"; check: number; checks: number }
@@ -34,6 +37,8 @@ export function useConnectorCatalog(orgId: string, actions: SnapshotActions): {
   busyAction: "connect" | "disconnect" | null;
   connectError: string | null;
   signIn: SignIn | null;
+  accountSync: AccountSync;
+  syncAccounts: () => void;
   stopWaiting: () => void;
   checkAgain: () => void;
   connect: (toolkitSlug: string, label: string) => void;
@@ -46,6 +51,8 @@ export function useConnectorCatalog(orgId: string, actions: SnapshotActions): {
   const [busy, setBusy] = useState<{ slug: string; action: "connect" | "disconnect" } | null>(null);
   const [connectError, setConnectError] = useState<string | null>(null);
   const [signIn, setSignIn] = useState<SignIn | null>(null);
+  const [sync, setSync] = useState<{ orgId: string; state: AccountSync } | null>(null);
+  const accountSync: AccountSync = sync && sync.orgId === orgId ? sync.state : { phase: "syncing" };
   const pollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Each sign-in check run has its own number; a stopped or replaced run's late answers are dropped.
   const pollRun = useRef(0);
@@ -84,16 +91,36 @@ export function useConnectorCatalog(orgId: string, actions: SnapshotActions): {
     if (pollTimer.current) clearTimeout(pollTimer.current);
   }, []);
 
-  // Account statuses sync from Composio on mount; a failure here is already
-  // expressed by the catalog error state.
-  useEffect(() => {
-    void window.agentCompany.refreshComposioAccounts({ orgId });
-  }, [orgId]);
-
+  // Every account refresh records whether it worked, so stale statuses are never shown as current.
   const refreshAccounts = useCallback(
-    () => actions.run(() => window.agentCompany.refreshComposioAccounts({ orgId })),
+    () => actions.run(() => window.agentCompany.refreshComposioAccounts({ orgId })).then((data) => {
+      setSync({ orgId, state: { phase: "synced", at: new Date().toISOString() } });
+      return data;
+    }, (error: unknown) => {
+      setSync({ orgId, state: { phase: "failed", message: error instanceof Error ? error.message : String(error) } });
+      throw error;
+    }),
     [actions, orgId],
   );
+
+  const syncAccounts = useCallback(() => {
+    setSync({ orgId, state: { phase: "syncing" } });
+    // The outcome is shown through accountSync.
+    void refreshAccounts().catch(() => undefined);
+  }, [refreshAccounts, orgId]);
+
+  useEffect(() => {
+    let live = true;
+    void window.agentCompany.refreshComposioAccounts({ orgId }).then((result) => {
+      if (!live) return;
+      setSync({ orgId, state: result.ok ? { phase: "synced", at: new Date().toISOString() } : { phase: "failed", message: result.error.message } });
+    }, (error: unknown) => {
+      if (live) setSync({ orgId, state: { phase: "failed", message: error instanceof Error ? error.message : String(error) } });
+    });
+    return () => {
+      live = false;
+    };
+  }, [orgId]);
 
   // Checks the account until it is ACTIVE, failed, or the checks run out; the card stays busy until one of those.
   const pollUntilActive = useCallback((toolkitSlug: string, label: string, accountId: string) => {
@@ -198,6 +225,8 @@ export function useConnectorCatalog(orgId: string, actions: SnapshotActions): {
     busyAction: busy?.action ?? null,
     connectError,
     signIn,
+    accountSync,
+    syncAccounts,
     stopWaiting,
     checkAgain,
     connect,
