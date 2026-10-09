@@ -7,6 +7,14 @@ const id = z.string();
 const nullableId = z.string().nullable();
 
 export const organizationContracts = {
+  saveOnboardingDraft: z.strictObject({
+    draft: z.strictObject({
+      step: z.enum(["welcome", "provider", "company", "mode", "mission"]), companyName: z.string(), companyDescription: z.string(), employeeName: z.string(),
+      workspacePath: z.string(), executionMode: z.enum(["ai_ceo", "ai_cofounder"]), providerKey: z.string(), providerBaseUrl: z.string(), providerModel: z.string(),
+      goalTitle: z.string(), goalDescription: z.string(),
+    }).nullable(),
+  }),
+  completeSetup: z.strictObject({ orgId: id }),
   bootstrapOnboarding: z.strictObject({
     companyName: z.string(), companyDescription: z.string(), employeeName: z.string(), workspacePath: z.string(),
     executionMode: z.enum(["ai_ceo", "ai_cofounder"]), autoApproveHires: z.boolean(), reviewDeliverables: z.boolean(),

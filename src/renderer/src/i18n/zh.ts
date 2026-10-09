@@ -694,6 +694,8 @@ export const zh: Record<string, string> = {
   "Resets {date} (UTC)": "{date} 重置（UTC）",
   "Unsaved": "未保存",
   "Working language": "工作语言",
+  "Your progress could not be saved: {error}": "无法保存你的进度：{error}",
+  "Your progress was restored. Keys are never saved before launch, so enter yours again.": "已恢复你的进度。启动前不会保存密钥，请重新输入。",
   "Runs on its own: approves its risky work and large hires, and writes deliverables without review.": "自主运行：自行批准高风险工作和大额招聘，交付物不经审核直接写入。",
   "Checks with you: risky work and large hires wait for you, and deliverables wait for your review.": "与你确认：高风险工作和大额招聘需要你批准，交付物需经你审核。",
   "What this mode allows": "此模式允许的范围",

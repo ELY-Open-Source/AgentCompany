@@ -74,6 +74,7 @@ import type {
   SaveProviderCredentialInput,
   SetProviderModelInput,
   ProviderEndpoint,
+  OnboardingDraft,
   ProviderDisconnectImpact,
   ConnectComposioToolkitInput,
   ConnectComposioToolkitResult,
@@ -122,6 +123,8 @@ export interface DesktopApi {
   loadSnapshot(): Promise<DesktopResult<AppSnapshot>>;
   /** Restarts the app, which a display-language change needs; the user asks for it after seeing what it interrupts. */
   relaunchApp(): Promise<DesktopResult<null>>;
+  saveOnboardingDraft(input: { draft: OnboardingDraft | null }): Promise<DesktopResult<null>>;
+  completeSetup(input: { orgId: string }): Promise<DesktopResult<AppSnapshot>>;
   /** Every agent session running now, in every company: what a restart interrupts. */
   runningSessionCount(): Promise<DesktopResult<number>>;
   bootstrapOnboarding(input: BootstrapOnboardingInput): Promise<DesktopResult<BootstrapOnboardingSummary>>;

@@ -1,3 +1,4 @@
+import { loadOnboardingDraft } from "./onboarding-progress";
 import type { DatabaseSync, StatementSync } from "node:sqlite";
 import type { AppSnapshot } from "../../shared/domain";
 import { PROVIDER_CATALOG } from "../../shared/provider-catalog";
@@ -86,6 +87,7 @@ export class SnapshotService {
     return {
       activeOrgId,
       uiPreferences: this.resolveUiPreferences(),
+      onboardingDraft: loadOnboardingDraft(this.db),
       autonomousPaused: this.resolveAutonomousPaused(),
       integrationKeys: new IntegrationKeyStore(this.db).statuses(),
       organizations,

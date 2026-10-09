@@ -46,10 +46,6 @@ export function App() {
     return directory;
   }, [snapshot?.agents, snapshot?.employees, snapshot?.activeOrgId]);
   const [creatingOrg, setCreatingOrg] = useState(false);
-  // Keeps the wizard mounted through its post-bootstrap connectors step: the
-  // organization exists from Launch onward, so the org-count check alone
-  // would flip to the shell mid-onboarding.
-  const [finishingSetup, setFinishingSetup] = useState(false);
 
   const theme = snapshot?.uiPreferences.theme ?? "system";
   useEffect(() => {
@@ -67,17 +63,16 @@ export function App() {
   if (!snapshot) {
     return <div className="app-shell" style={{ display: "grid", placeItems: "center" }} />;
   }
-  if (snapshot.organizations.length === 0 || creatingOrg || finishingSetup) {
+  // A company exists from Launch on, but its setup is unfinished until the connectors step is done; that is stored, so a restart resumes it.
+  const unfinished = snapshot.organizations.find((organization) => organization.setupCompletedAt === null) ?? null;
+  if (snapshot.organizations.length === 0 || creatingOrg || unfinished) {
     return (
       <Onboarding
         snapshot={snapshot}
         actions={actions}
-        onCancel={creatingOrg ? () => setCreatingOrg(false) : null}
-        onBootstrapped={() => setFinishingSetup(true)}
-        onCompleted={() => {
-          setCreatingOrg(false);
-          setFinishingSetup(false);
-        }}
+        onCancel={creatingOrg && !unfinished ? () => setCreatingOrg(false) : null}
+        resumeOrgId={unfinished?.id ?? null}
+        onCompleted={() => setCreatingOrg(false)}
       />
     );
   }

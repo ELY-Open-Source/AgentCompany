@@ -50,6 +50,8 @@ export interface OrganizationRecord {
   auditModelId: string | null;
   /** The language its agents work in unless a task sets its own. */
   workLanguage: WorkLanguage;
+  /** When the steps after creation (connectors) were finished; null reopens the setup wizard. */
+  setupCompletedAt: string | null;
   createdAt: string;
 }
 

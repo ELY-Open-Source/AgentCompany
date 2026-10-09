@@ -1,3 +1,4 @@
+import { saveOnboardingDraft } from "./onboarding-progress";
 import { COMPANY_PRESETS } from "../../shared/company-presets";
 import type { DatabaseSync } from "node:sqlite";
 import type {
@@ -32,6 +33,8 @@ export class OnboardingService {
 
   bootstrap(input: BootstrapOnboardingInput): BootstrapOnboardingSummary {
     const provider = this.resolveProvider(input.providerKey);
+    // The company now exists, so the saved wizard is spent; this commits with it.
+    saveOnboardingDraft(this.deps.db, null);
     const orgId = this.organization.createOrganization({
       organizationName: input.companyName,
       description: input.companyDescription,

@@ -41,6 +41,7 @@ import { cancelQueuedRun } from "../services/run-cancel";
 import { runHistory } from "../services/run-history";
 import { deleteWorkspace, setPrimaryWorkspace, updateWorkspace } from "../services/workspace-admin";
 import { setProviderModel } from "../services/provider-default-model";
+import { completeSetup, saveOnboardingDraft } from "../services/onboarding-progress";
 import { providerDisconnectImpact } from "../services/provider-disconnect-impact";
 
 export interface IpcDeps {
@@ -141,6 +142,15 @@ export function registerIpcHandlers(deps: IpcDeps): void {
   handle("createOrganization", (input) => mutate(() => organization.createOrganization(input)));
   handle("setActiveOrganization", (input) => mutate(() => organization.setActiveOrganization(input.orgId)));
   handle("setUiPreferences", (input) => mutate(() => organization.updateUiPreferences(input)));
+  handle("saveOnboardingDraft", (input) => {
+    try {
+      saveOnboardingDraft(deps.connection.db, input.draft);
+      return ok(null);
+    } catch (error) {
+      return fail("onboarding_draft_failed", error instanceof Error ? error.message : String(error));
+    }
+  });
+  handle("completeSetup", (input) => mutate(() => completeSetup(deps.connection.db, input.orgId)));
   handle("runningSessionCount", () => ok((deps.connection.db.prepare("select count(*) as n from task_runs where state = 'running'").get() as { n: number }).n));
   // Chromium's locale is fixed at launch; the reply goes out before the process exits.
   handle("relaunchApp", () => {

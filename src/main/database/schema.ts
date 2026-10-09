@@ -103,6 +103,7 @@ import { taskBlockedSchema } from "./migrations/101-task-blocked";
 import { goalDueDateSchema } from "./migrations/102-goal-due-date";
 import { workVerdictsSchema } from "./migrations/103-work-verdicts";
 import { workLanguageSchema } from "./migrations/104-work-language";
+import { onboardingProgressSchema } from "./migrations/105-onboarding-progress";
 
 interface Migration {
   version: number;
@@ -215,6 +216,7 @@ const MIGRATIONS: Migration[] = [
   { version: 102, name: "goal_due_date", sql: goalDueDateSchema },
   { version: 103, name: "work_verdicts", sql: workVerdictsSchema },
   { version: 104, name: "work_language", sql: workLanguageSchema },
+  { version: 105, name: "onboarding_progress", sql: onboardingProgressSchema },
 ];
 
 const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;

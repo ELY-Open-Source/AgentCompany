@@ -1,5 +1,7 @@
 import { AutonomySummary } from "./AutonomySummary";
-import { useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { RestartForLanguage } from "../pages/settings/LanguageField";
+import type { OnboardingDraft } from "../../../shared/commands";
 import {
   PROVIDER_AUTH_TYPE,
   type AppSnapshot,
@@ -12,21 +14,12 @@ import { ProviderStep } from "./OnboardingProviderStep";
 import { ConnectorsStep } from "./OnboardingConnectorsStep";
 import { t } from "../i18n/i18n";
 
-type Step = "welcome" | "provider" | "company" | "mode" | "mission" | "connectors";
+type Step = OnboardingDraft["step"] | "connectors";
 
-export interface Draft {
-  companyName: string;
-  companyDescription: string;
-  employeeName: string;
-  workspacePath: string;
-  executionMode: "ai_ceo" | "ai_cofounder";
-  providerKey: string;
-  providerSecret: string;
-  providerBaseUrl: string;
-  providerModel: string;
-  goalTitle: string;
-  goalDescription: string;
-}
+/** The wizard's fields; only the key is never saved between launches. */
+export type Draft = Omit<OnboardingDraft, "step"> & { providerSecret: string };
+
+const SAVE_DELAY_MS = 400;
 
 const STEPS: Array<{ id: Step; label: string }> = [
   { id: "welcome", label: t("Start") },
@@ -41,13 +34,14 @@ export function Onboarding({
   snapshot,
   actions,
   onCancel,
-  onBootstrapped,
+  resumeOrgId,
   onCompleted,
 }: {
   snapshot: AppSnapshot;
   actions: SnapshotActions;
   onCancel: (() => void) | null;
-  onBootstrapped: () => void;
+  /** A created company whose setup was not finished: the wizard reopens on its connectors step. */
+  resumeOrgId: string | null;
   onCompleted: () => void;
 }) {
   const availableProviders = useMemo(
@@ -57,23 +51,51 @@ export function Onboarding({
   const firstProvider = availableProviders[0];
   if (!firstProvider) throw new Error("Provider catalog must include at least one non-cloud provider.");
 
-  const [step, setStep] = useState<Step>("welcome");
-  const [draft, setDraft] = useState<Draft>({
-    companyName: "",
-    companyDescription: "",
-    employeeName: "",
-    workspacePath: "",
-    executionMode: "ai_ceo",
-    providerKey: firstProvider.key,
-    providerSecret: "",
-    providerBaseUrl: "",
-    providerModel: "",
-    goalTitle: "",
-    goalDescription: "",
+  const saved = resumeOrgId ? null : snapshot.onboardingDraft;
+  const [step, setStep] = useState<Step>(resumeOrgId ? "connectors" : saved?.step ?? "welcome");
+  const [draft, setDraft] = useState<Draft>(() => {
+    if (!saved) {
+      return {
+        companyName: "", companyDescription: "", employeeName: "", workspacePath: "", executionMode: "ai_ceo", providerKey: firstProvider.key,
+        providerSecret: "", providerBaseUrl: "", providerModel: "", goalTitle: "", goalDescription: "",
+      };
+    }
+    const fields: Partial<OnboardingDraft> = { ...saved };
+    delete fields.step;
+    return { ...(fields as Omit<OnboardingDraft, "step">), providerSecret: "" };
   });
+  const [restored] = useState(saved !== null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [bootstrappedOrgId, setBootstrappedOrgId] = useState<string | null>(null);
+  const [bootstrappedOrgId, setBootstrappedOrgId] = useState<string | null>(resumeOrgId);
+
+  // Saves the wizard (without the key) as it is filled in, so a restart resumes it; stops once the company exists.
+  useEffect(() => {
+    if (step === "connectors" || submitting || bootstrappedOrgId) return;
+    const fields: Partial<Draft> = { ...draft };
+    delete fields.providerSecret;
+    const timer = setTimeout(() => {
+      void window.agentCompany.saveOnboardingDraft({ draft: { ...(fields as Omit<OnboardingDraft, "step">), step } }).then((result) => {
+        if (!result.ok) setError(t("Your progress could not be saved: {error}", { error: result.error.message }));
+      });
+    }, SAVE_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, [draft, step, submitting, bootstrappedOrgId]);
+
+  // The snapshot is reloaded too, so reopening the wizard does not bring back the cancelled draft.
+  const cancel = onCancel && (() => {
+    void window.agentCompany.saveOnboardingDraft({ draft: null }).then(async (result) => {
+      if (!result.ok) return setError(result.error.message);
+      await actions.reload();
+      onCancel();
+    }).catch((reason: unknown) => setError(reason instanceof Error ? reason.message : String(reason)));
+  });
+
+  const finishSetup = (orgId: string) => {
+    void actions.run(() => window.agentCompany.completeSetup({ orgId }))
+      .then((result) => { if (result) onCompleted(); })
+      .catch((reason: unknown) => setError(reason instanceof Error ? reason.message : String(reason)));
+  };
 
   const selectedProvider = requireProvider(availableProviders, draft.providerKey);
   const isMac = window.agentCompany.platform === "darwin";
@@ -125,7 +147,6 @@ export function Onboarding({
       setError(result.error.message);
       return;
     }
-    onBootstrapped();
     setBootstrappedOrgId(result.data.orgId);
     await actions.reload();
     setStep("connectors");
@@ -148,8 +169,8 @@ export function Onboarding({
           <div className="row" style={{ gap: 8 }}>
             <div className="brand-mark">A</div>
             <div style={{ fontWeight: 540 }}>AgentCompany</div>
-            {onCancel && step !== "connectors" && (
-              <button type="button" className="button ghost" style={{ marginLeft: "auto" }} onClick={onCancel}>
+            {cancel && step !== "connectors" && (
+              <button type="button" className="button ghost" style={{ marginLeft: "auto" }} onClick={cancel}>
                 {t("Cancel")}
               </button>
             )}
@@ -179,6 +200,11 @@ export function Onboarding({
 
       <form className="onboarding-panel" onSubmit={submit} noValidate>
         <div key={step} className="step-view">
+          {restored && step !== "connectors" && (
+            <p role="status" style={{ fontSize: 13, color: "var(--text-2)", margin: "0 0 12px" }}>
+              {t("Your progress was restored. Keys are never saved before launch, so enter yours again.")}
+            </p>
+          )}
           {step === "welcome" && (
             <WelcomeStep
               language={snapshot.uiPreferences.language}
@@ -219,7 +245,7 @@ export function Onboarding({
               orgId={bootstrappedOrgId}
               snapshot={snapshot}
               actions={actions}
-              onFinish={onCompleted}
+              onFinish={() => finishSetup(bootstrappedOrgId)}
             />
           )}
         </div>
@@ -256,6 +282,7 @@ function WelcomeStep({
           options={[{ id: "en", label: "English" }, { id: "zh", label: "中文" }]}
         />
       </div>
+      <RestartForLanguage language={language} />
       <p style={{ color: "var(--text-2)", fontSize: 14, lineHeight: 1.55 }}>
         {t("AgentCompany sets up your operating loop in six steps. Bring an API key, pick a runtime for the founding CEO, and we'll wire up the first goal, project, and task.")}
       </p>

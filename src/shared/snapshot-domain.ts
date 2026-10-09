@@ -1,3 +1,4 @@
+import type { OnboardingDraft } from "./commands";
 import type { UsageStatsRecord } from "./usage-stats";
 import type { IntegrationKeyStatus } from "./commands/integration-keys";
 import type { BoardInterventionRecord as BoardInterventionRecordModel } from "./board-domain";
@@ -70,6 +71,8 @@ export interface UiPreferences {
 export interface AppSnapshot {
   activeOrgId: string | null;
   uiPreferences: UiPreferences;
+  /** The setup wizard left unfinished, resumed on the next launch. */
+  onboardingDraft: OnboardingDraft | null;
   /** True while the operator has paused the autonomous run engine. */
   autonomousPaused: boolean;
   integrationKeys: IntegrationKeyStatus[];
