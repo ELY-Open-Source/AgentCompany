@@ -1,7 +1,7 @@
 import type { AgentActivity, Camera, FloorPlan, Rect } from "./office-types";
 import { drawBackWalls, drawGround, sceneDrawables, type Drawable } from "./scene-renderer";
 import { depthOf, toIso, type IsoFrame } from "./iso";
-import { skyScene } from "./sky";
+import { skyScene, weatherFor } from "./sky";
 import { drawPerson, type Carrying, type Facing, type SpriteAppearance } from "./sprites";
 import type { DayPart, Season } from "../../shared/palette-clock";
 
@@ -77,9 +77,9 @@ export function renderOffice(ctx: CanvasRenderingContext2D, scene: HTMLCanvasEle
   sctx.translate(-Math.round(input.camera.x), -Math.round(input.camera.y));
 
   drawGround(sctx, input.frame, input.plan);
-  drawBackWalls(sctx, input.frame, input.plan, skyScene(input.clock));
+  drawBackWalls(sctx, input.frame, input.plan, { sky: skyScene(input.clock), weather: weatherFor(input.clock), clock: input.clock, timeMs: input.timeMs });
   const lit = new Set(input.people.filter((person) => person.desk && (person.activity === "active" || person.activity === "thinking")).map((person) => person.desk!));
-  const items: Drawable[] = [...sceneDrawables(input.frame, input.plan, input.season, lit), ...input.people.map((person) => personDrawable(input, person))];
+  const items: Drawable[] = [...sceneDrawables(input.frame, input.plan, input.season, lit, input.timeMs), ...input.people.map((person) => personDrawable(input, person))];
   items.sort((a, b) => a.depth - b.depth);
   for (const item of items) item.draw(sctx);
 

@@ -254,13 +254,13 @@ textarea.input { min-height: 84px; resize: vertical; line-height: 1.5; }
   transform: translateX(-50%);
   display: flex;
   gap: 6px;
+  width: max-content;
+  max-width: calc(100% - 32px);
   padding: 6px;
   background: var(--panel);
-  border: 1px solid var(--border-strong);
-  border-radius: 0;
-  box-shadow: 0 8px 24px rgba(16, 16, 24, 0.18);
+  border: 2px solid var(--border-strong);
+  box-shadow: var(--shadow-md);
 }
-.office-legend { align-self: center; padding: 0 6px; font-size: var(--fs-body); color: var(--text-2); }
 
 /* Floating "jump to latest" pill above the chat composer */
 .jump-latest {

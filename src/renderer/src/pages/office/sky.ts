@@ -1,4 +1,5 @@
 import type { Rect } from "./office-types";
+import { season } from "../../shared/palette-clock";
 
 /**
  * The world outside the office windows, driven by real local time: night
@@ -152,6 +153,34 @@ function drawSkyline(ctx: CanvasRenderingContext2D, glass: Rect, scene: SkyScene
     }
     x += w;
     column += 1;
+  }
+}
+
+export type Weather = "clear" | "rain" | "snow" | "leaves";
+
+/** Decoration for the view outside, from the season and a per-day roll; never a forecast. */
+export function weatherFor(date: Date): Weather {
+  const dayKey = date.getFullYear() * 400 + date.getMonth() * 32 + date.getDate();
+  const roll = Math.abs(Math.imul(dayKey ^ 0x5bd1e995, 2654435761) >> 7) % 100;
+  switch (season(date)) {
+    case "winter": return roll < 60 ? "snow" : "clear";
+    case "spring": return roll < 40 ? "rain" : "clear";
+    case "summer": return roll < 15 ? "rain" : "clear";
+    case "autumn": return roll < 45 ? "leaves" : roll < 65 ? "rain" : "clear";
+  }
+}
+
+/** Falling rain, snow or leaves inside a window, moving with time; each pane gets its own scatter. */
+export function drawWeather(ctx: CanvasRenderingContext2D, glass: Rect, weather: Weather, timeMs: number, seed: number): void {
+  if (weather === "clear") return;
+  const style = { rain: { color: "rgba(200,220,255,0.75)", w: 1, h: 3, speed: 0.06, drift: 0.01 }, snow: { color: "#f4f6fb", w: 1, h: 1, speed: 0.008, drift: 0.004 }, leaves: { color: "#d9822b", w: 2, h: 1, speed: 0.012, drift: 0.01 } }[weather];
+  ctx.fillStyle = style.color;
+  const count = Math.max(3, Math.floor(glass.w / 6));
+  for (let i = 0; i < count; i++) {
+    const offset = (seed * 37 + i * 53) % 1000;
+    const fall = (offset + timeMs * style.speed) % glass.h;
+    const sway = (offset * 7 + timeMs * style.drift) % glass.w;
+    ctx.fillRect(Math.floor(glass.x + sway), Math.floor(glass.y + fall), style.w, Math.min(style.h, glass.y + glass.h - Math.floor(glass.y + fall)));
   }
 }
 

@@ -1,7 +1,8 @@
 import type { FloorPlan, Rect, RoomSpec } from "./office-types";
 import { WALL } from "./floor-plan";
-import { drawWindowSky, type SkyScene } from "./sky";
-import { BACK_WALL_H, depthOf, drawBox, setGroundTransform, setNorthWallTransform, type BoxColors, type IsoFrame } from "./iso";
+import { drawWeather, drawWindowSky, type SkyScene, type Weather } from "./sky";
+import { BACK_WALL_H, depthOf, drawBox, setGroundTransform, setSouthFaceTransform, type BoxColors, type IsoFrame } from "./iso";
+import { drawBasin, drawCoffeeMachine, drawMonitorScreen, drawToilet, drawWallClock } from "./props";
 import type { Season } from "../../shared/palette-clock";
 
 /** One thing in the scene that people can stand in front of or behind; drawn in depth order with them. */
@@ -10,9 +11,14 @@ export interface Drawable {
   draw: (ctx: CanvasRenderingContext2D) => void;
 }
 
+/** A piece of the scene and the plan footprint it sorts by. */
+export interface SceneDrawable extends Drawable {
+  foot: Rect;
+}
+
 /** Interior walls are cut away to this height so rooms stay visible. */
 const INNER_WALL_H = 14;
-/** Longest stretch of a block that sorts as one piece. */
+/** Longest side of a block that sorts as one piece. */
 const PIECE = 32;
 
 const PALETTE = {
@@ -33,10 +39,9 @@ const PALETTE = {
   desk: "#8a6d4c",
   deskExec: "#6a5238",
   monitor: "#4b5058",
-  screenOff: "#20242c",
-  screenOn: "#37d38a",
   chair: "#3d4148",
   frame: "#3f3831",
+  panelSeam: "#5d5246",
 } as const;
 
 const LEAVES: Record<Season, { leaf: string; light: string }> = {
@@ -88,27 +93,42 @@ function drawRoomFloor(ctx: CanvasRenderingContext2D, room: RoomSpec): void {
   }
 }
 
-/** The tall north and west walls, which everything stands in front of, with windows and wall art on the north face. */
-export function drawBackWalls(ctx: CanvasRenderingContext2D, frame: IsoFrame, plan: FloorPlan, sky: SkyScene): void {
+/** What the back walls show: the sky and weather outside, and the time for the wall clock. */
+export interface Outside {
+  sky: SkyScene;
+  weather: Weather;
+  clock: Date;
+  timeMs: number;
+}
+
+/** The tall north and west walls, which everything stands in front of, with panels, windows, a clock and wall art on the north face. */
+export function drawBackWalls(ctx: CanvasRenderingContext2D, frame: IsoFrame, plan: FloorPlan, outside: Outside): void {
   const { w, h } = plan.world;
   const wall = faces(PALETTE.wall);
   drawBox(ctx, frame, { x: 0, y: WALL, w: WALL, h: 280 }, 0, BACK_WALL_H, wall);
   drawBox(ctx, frame, { x: 0, y: 344, w: WALL, h: h - 344 - WALL }, 0, BACK_WALL_H, wall);
   drawBox(ctx, frame, { x: 0, y: 0, w, h: WALL }, 0, BACK_WALL_H, { ...wall, top: PALETTE.wallTop });
   ctx.save();
-  setNorthWallTransform(ctx, frame, WALL);
+  setSouthFaceTransform(ctx, frame, WALL, BACK_WALL_H);
+  ctx.fillStyle = PALETTE.wallTop;
+  ctx.fillRect(0, 0, w, 2);
+  ctx.fillStyle = PALETTE.panelSeam;
+  for (let x = 32; x < w; x += 32) ctx.fillRect(x, 2, 1, BACK_WALL_H - 5);
   ctx.fillStyle = PALETTE.baseboard;
   ctx.fillRect(0, BACK_WALL_H - 3, w, 3);
   for (const room of plan.rooms) {
     windowRects(room).forEach((rect, index) => {
+      const seed = Math.round(room.bounds.x) + index * 53;
       ctx.fillStyle = PALETTE.frame;
       ctx.fillRect(rect.x - 2, rect.y - 2, rect.w + 4, rect.h + 4);
-      drawWindowSky(ctx, rect, sky, Math.round(room.bounds.x) + index * 53);
+      drawWindowSky(ctx, rect, outside.sky, seed);
+      drawWeather(ctx, rect, outside.weather, outside.timeMs, seed);
       ctx.fillStyle = PALETTE.frame;
       ctx.fillRect(rect.x + rect.w / 2 - 1, rect.y, 2, rect.h);
     });
   }
   drawWallArt(ctx);
+  drawWallClock(ctx, 664, 10, outside.clock);
   ctx.restore();
 }
 
@@ -134,23 +154,34 @@ function drawWallArt(ctx: CanvasRenderingContext2D): void {
   ctx.fillRect(432, 19, 40, 3);
   ctx.fillStyle = "#6d9c6b";
   ctx.fillRect(432, 26, 33, 3);
+  // Restroom mirror over the sinks.
+  ctx.fillStyle = PALETTE.frame;
+  ctx.fillRect(934, 8, 84, 22);
+  ctx.fillStyle = "#b9d3e6";
+  ctx.fillRect(936, 10, 80, 18);
+  ctx.fillStyle = "#e3f0f8";
+  ctx.fillRect(944, 12, 2, 12);
+  ctx.fillRect(948, 12, 1, 8);
 }
 
-/** A block sorted by its footprint centre; one resting on `support` sorts just after every piece of it underneath, so no part of that surface paints over it. */
-export function blockDrawable(frame: IsoFrame, foot: Rect, height: number, colors: BoxColors, z = 0, support?: Rect): Drawable {
-  const centerDepth = (rect: Rect) => depthOf({ x: rect.x + rect.w / 2, y: rect.y + rect.h / 2 });
-  if (!support) return { depth: centerDepth(foot), draw: (ctx) => drawBox(ctx, frame, foot, z, height, colors) };
+/** A block sorted by its footprint centre; one resting on `support` touches exactly one piece of it (overhanging its outer edge is fine) and sorts just after that piece. */
+export function blockDrawable(frame: IsoFrame, foot: Rect, height: number, colors: BoxColors, z = 0, support?: Rect): SceneDrawable {
+  return { foot, depth: support ? restingDepth(foot, support) : centerDepth(foot), draw: (ctx) => drawBox(ctx, frame, foot, z, height, colors) };
+}
+
+function restingDepth(foot: Rect, support: Rect): number {
   const under = split(support).filter((piece) => overlaps(piece, foot));
-  if (under.length === 0) throw new Error("A resting block must sit over its support.");
-  return {
-    depth: Math.max(...under.map(centerDepth)) + 0.25,
-    draw: (ctx) => drawBox(ctx, frame, foot, z, height, colors),
-  };
+  if (under.length !== 1) throw new Error("A resting block must touch exactly one piece of its support.");
+  return centerDepth(under[0]!) + 0.25;
 }
 
-/** Interior walls, furniture and desks as blocks, each sorted by depth against the people; `lit` desks have their screen on. */
-export function sceneDrawables(frame: IsoFrame, plan: FloorPlan, season: Season, lit: Set<Rect>): Drawable[] {
-  const items: Drawable[] = [];
+function centerDepth(rect: Rect): number {
+  return depthOf({ x: rect.x + rect.w / 2, y: rect.y + rect.h / 2 });
+}
+
+/** Interior walls, furniture and desks as blocks, each sorted by depth against the people; `lit` desks have their screen on, and `timeMs` animates screens and steam. */
+export function sceneDrawables(frame: IsoFrame, plan: FloorPlan, season: Season, lit: Set<Rect>, timeMs: number): SceneDrawable[] {
+  const items: SceneDrawable[] = [];
   // Long blocks go in pieces so each sorts against nearby people on its own.
   const block = (foot: Rect, height: number, colors: BoxColors, z = 0, support?: Rect) => {
     for (const piece of support ? [foot] : split(foot)) items.push(blockDrawable(frame, piece, height, colors, z, support));
@@ -166,7 +197,7 @@ export function sceneDrawables(frame: IsoFrame, plan: FloorPlan, season: Season,
   // CEO office: rug, executive desk, sofa, plant.
   block({ x: 32, y: 96, w: 24, h: 72 }, 10, faces("#7a4a41"));
   plant(280, 40);
-  deskBlocks(plan.ceoDesk, true, lit.has(plan.ceoDesk)).forEach((item) => items.push(item(frame)));
+  deskBlocks(plan.ceoDesk, true, lit.has(plan.ceoDesk), timeMs).forEach((item) => items.push(item(frame)));
   // Meeting room: table and chairs.
   block({ x: 392, y: 120, w: 160, h: 64 }, 12, faces("#75593b"));
   for (let i = 0; i < 3; i++) {
@@ -177,33 +208,51 @@ export function sceneDrawables(frame: IsoFrame, plan: FloorPlan, season: Season,
   const counter = { x: 656, y: 40, w: 224, h: 28 };
   block(counter, 16, faces("#8f8578"));
   block({ x: 700, y: 20, w: 24, h: 20 }, 22, faces("#d5dade"));
-  block({ x: 744, y: 44, w: 14, h: 14 }, 12, faces("#2e3238"), 16, counter);
-  block({ x: 806, y: 46, w: 12, h: 10 }, 8, faces("#c9a86a"), 16, counter);
+  const machine = { x: 726, y: 44, w: 14, h: 14 };
+  items.push({ foot: machine, depth: restingDepth(machine, counter), draw: (ctx) => drawCoffeeMachine(ctx, frame, machine, 16, timeMs) });
+  block({ x: 792, y: 46, w: 12, h: 10 }, 8, faces("#c9a86a"), 16, counter);
   block({ x: 826, y: 46, w: 12, h: 10 }, 10, faces("#b3543f"), 16, counter);
   block({ x: 748, y: 170, w: 40, h: 40 }, 12, faces("#94897b"));
   block({ x: 728, y: 182, w: 12, h: 12 }, 7, faces("#6d5334"));
   block({ x: 796, y: 182, w: 12, h: 12 }, 7, faces("#6d5334"));
-  // Restroom: three stalls and a sink counter.
-  for (let i = 0; i < 3; i++) block({ x: 1064 + i * 40, y: WALL, w: 38, h: 72 }, 30, faces("#7d8a99"));
-  block({ x: 928, y: 32, w: 96, h: 32 }, 14, faces("#c6d2de"));
+  // Restroom: three open stalls with toilets between partitions, and a sink counter.
+  for (let i = 0; i < 3; i++) {
+    const cx = 1084 + i * 40;
+    const toilet = { x: cx - 6, y: WALL + 2, w: 12, h: 16 };
+    items.push({ foot: toilet, depth: centerDepth(toilet), draw: (ctx) => drawToilet(ctx, frame, cx, WALL + 2) });
+  }
+  for (let i = 0; i <= 3; i++) block({ x: 1063 + i * 40, y: WALL, w: 2, h: 48 }, INNER_WALL_H, faces("#7d8a99"));
+  const sinks = { x: 928, y: 32, w: 96, h: 32 };
+  block(sinks, 14, { top: "#c6d2de", south: "#a7b4c2", east: "#909eae" });
+  for (let i = 0; i < 2; i++) {
+    const basin = { x: sinks.x + 2 + i * 64, y: sinks.y + 8, w: 28, h: 16 };
+    items.push({ foot: basin, depth: restingDepth(basin, sinks), draw: (ctx) => drawBasin(ctx, frame, basin, 14) });
+  }
   for (const [cx, cy] of [[312, 300], [632, 300], [904, 300]] as const) plant(cx, cy);
-  for (const desk of plan.desks) deskBlocks(desk.bounds, false, lit.has(desk.bounds)).forEach((item) => items.push(item(frame)));
+  for (const desk of plan.desks) deskBlocks(desk.bounds, false, lit.has(desk.bounds), timeMs).forEach((item) => items.push(item(frame)));
   return items;
 }
 
 /** A desk, its monitor and its chair, each a separate block so a seated person sorts between them. */
-function deskBlocks(desk: Rect, executive: boolean, screenOn: boolean): Array<(frame: IsoFrame) => Drawable> {
+function deskBlocks(desk: Rect, executive: boolean, screenOn: boolean, timeMs: number): Array<(frame: IsoFrame) => SceneDrawable> {
   const monitor = deskMonitor(desk);
   return [
     ...split(desk).map((piece) => (frame: IsoFrame) => blockDrawable(frame, piece, 14, faces(executive ? PALETTE.deskExec : PALETTE.desk))),
-    (frame) => blockDrawable(frame, monitor, 12, { top: PALETTE.monitor, south: screenOn ? PALETTE.screenOn : PALETTE.screenOff, east: shade(PALETTE.monitor, 0.7) }, 14, desk),
+    (frame) => {
+      const shell = blockDrawable(frame, monitor, 12, { top: PALETTE.monitor, south: PALETTE.monitor, east: shade(PALETTE.monitor, 0.7) }, 14, desk);
+      return { foot: monitor, depth: shell.depth, draw: (ctx) => {
+        shell.draw(ctx);
+        drawMonitorScreen(ctx, frame, monitor, 14, 12, screenOn, timeMs, Math.round(desk.x + desk.y));
+      } };
+    },
     (frame) => blockDrawable(frame, { x: desk.x + desk.w / 2 - 8, y: desk.y + desk.h + 6, w: 16, h: 12 }, 9, faces(PALETTE.chair)),
   ];
 }
 
-/** Footprint of a desk's monitor, at the back of the desktop with its screen facing south. */
-export function deskMonitor(desk: Rect): Rect {
-  return { x: desk.x + desk.w / 2 - 14, y: desk.y + 4, w: 28, h: 6 };
+/** Footprint of a desk's monitor, at the back of the desktop with its screen facing south, inside the desk piece that holds the desk's centre. */
+function deskMonitor(desk: Rect): Rect {
+  const piece = Math.floor(desk.w / 2 / PIECE) * PIECE;
+  return { x: desk.x + piece + 3, y: desk.y + 4, w: 26, h: 6 };
 }
 
 /** Partitions, room fronts (with door gaps) and the low outer east and south walls. */
@@ -225,13 +274,12 @@ function innerWalls(plan: FloorPlan): Rect[] {
   return walls;
 }
 
-function split(wall: Rect): Rect[] {
-  const horizontal = wall.w >= wall.h;
-  const length = horizontal ? wall.w : wall.h;
+function split(block: Rect): Rect[] {
   const pieces: Rect[] = [];
-  for (let start = 0; start < length; start += PIECE) {
-    const size = Math.min(PIECE, length - start);
-    pieces.push(horizontal ? { x: wall.x + start, y: wall.y, w: size, h: wall.h } : { x: wall.x, y: wall.y + start, w: wall.w, h: size });
+  for (let dy = 0; dy < block.h; dy += PIECE) {
+    for (let dx = 0; dx < block.w; dx += PIECE) {
+      pieces.push({ x: block.x + dx, y: block.y + dy, w: Math.min(PIECE, block.w - dx), h: Math.min(PIECE, block.h - dy) });
+    }
   }
   return pieces;
 }

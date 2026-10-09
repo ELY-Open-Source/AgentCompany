@@ -259,12 +259,11 @@ export function OfficePage({ snapshot }: PageProps) {
           aria-label={t("Show a person")}
           value={selectedId ?? ""}
           onChange={(event) => setSelectedId(event.target.value || null)}
-          style={{ width: 200, height: 30 }}
+          style={{ width: 200 }}
         >
           <option value="">{t("Show a person…")}</option>
           {inputs.map((input) => <option key={input.id} value={input.id}>{t("{name}, {activity}", { name: input.name, activity: officeActivityLabel(input.activity) })}</option>)}
         </select>
-        <span className="office-legend">{t("Agents with work stay at their desks. Only idle agents walk to coffee, snacks or the meeting table.")}</span>
       </div>
     </div>
   );

@@ -48,8 +48,6 @@ test("the library manages documents with versions and knowledge with history", a
     expect(orgId).toBeTruthy();
 
     await page.getByRole("button", { name: "Library", exact: true }).click();
-    // Each page says which object drives work: only a task runs.
-    await expect(page.getByText("Nothing here starts work; a task does.", { exact: false })).toBeVisible();
     await page.getByRole("listitem").filter({ hasText: "Pricing memo" }).click();
     await page.getByRole("button", { name: "Edit", exact: true }).click();
     await page.getByLabel("Content").fill("Price is 12.");
@@ -60,9 +58,7 @@ test("the library manages documents with versions and knowledge with history", a
     await expect(page.getByText("Price is 10.")).toBeVisible();
 
     await page.getByRole("button", { name: "Knowledge", exact: true }).click();
-    await expect(page.getByText("Nothing here starts work; a task does.", { exact: false })).toBeVisible();
     await page.getByRole("button", { name: "Work", exact: true }).click();
-    await expect(page.getByText("Only a task runs: an agent picks it up and does the work.", { exact: false })).toBeVisible();
     await page.getByRole("button", { name: "Library", exact: true }).click();
     await page.getByRole("button", { name: "Knowledge", exact: true }).click();
     await page.getByRole("button", { name: "New", exact: true }).click();

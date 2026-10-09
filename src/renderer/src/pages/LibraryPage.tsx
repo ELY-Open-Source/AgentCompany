@@ -1,4 +1,3 @@
-import { HintBubble } from "../shared/HintBubble";
 import { oneOf, usePersistentState } from "../shared/view-state";
 import { useMemo } from "react";
 import { DocumentsPanel } from "./library/DocumentsPanel";
@@ -50,7 +49,6 @@ export function LibraryPage({ snapshot, actions, focus }: PageProps) {
         <div className="content">
           <div className="page">
             <h1 className="page-h1">{tab === "documents" ? t("Documents") : t("Knowledge")}</h1>
-            <HintBubble>{t("Agents read and write these while working on tasks. Nothing here starts work; a task does.")}</HintBubble>
             {tab === "documents"
               ? <DocumentsPanel focusId={focus?.kind === "document" ? focus.id : null} orgId={orgId} employeeId={employee.id} documents={documents} tasks={tasks} actions={actions} />
               : <KnowledgePanel focusId={focus?.kind === "knowledge" ? focus.id : null} orgId={orgId} employeeId={employee.id} entries={entries} scopes={scopes} actions={actions} />}

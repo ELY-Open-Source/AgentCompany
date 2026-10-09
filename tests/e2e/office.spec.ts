@@ -91,9 +91,8 @@ test("the office floor opens agent details on click", async () => {
     }
     await expect(canvas).toBeVisible();
 
-    // The office offers no pretend controls over work, and says what a position means.
+    // The office offers no pretend controls over work.
     await expect(page.getByRole("button", { name: "Whip" })).toHaveCount(0);
-    await expect(page.getByText("Agents with work stay at their desks. Only idle agents walk to coffee, snacks or the meeting table.")).toBeVisible();
 
     // Hired agents take open-floor desks in hire order and are clickable too.
     await hireAgent(page, "Ava Patel", "Designer", "Design");

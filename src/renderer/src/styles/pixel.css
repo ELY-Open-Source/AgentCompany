@@ -69,11 +69,6 @@
   transition: width var(--motion-slow) var(--ease-out);
 }
 
-/* Hint bubble: the guide's portrait and a speech box with a stepped tail. */
-.hint-bubble { display: flex; align-items: flex-start; gap: 10px; margin: 0 0 var(--sp-4); }
-.hint-speaker { display: grid; place-items: center; width: calc(24px * var(--px)); height: calc(24px * var(--px)); background: var(--accent); color: var(--btn-primary-fg); box-shadow: 2px 2px 0 0 var(--border-strong); flex-shrink: 0; }
-.hint-text { position: relative; margin: 0; padding: 6px 10px; background: var(--panel); border: 2px solid var(--border-strong); color: var(--text-2); }
-.hint-text::before { content: ""; position: absolute; left: -8px; top: 6px; width: 6px; height: 8px; background: var(--border-strong); clip-path: polygon(100% 0, 100% 100%, 67% 100%, 67% 75%, 34% 75%, 34% 50%, 0 50%, 0 25%, 34% 25%, 34% 0); }
 
 /* Game over: a framed panel with a blinking banner and Continue. */
 .game-over { display: grid; gap: 12px; max-width: 520px; text-align: center; justify-items: center; }

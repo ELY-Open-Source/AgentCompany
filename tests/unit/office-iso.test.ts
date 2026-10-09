@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { depthOf, fromIso, isoFrame, isoPixelSize, pickAt, toIso } from "../../src/renderer/src/pages/office/iso";
-import { blockDrawable } from "../../src/renderer/src/pages/office/scene-renderer";
+import { blockDrawable, sceneDrawables } from "../../src/renderer/src/pages/office/scene-renderer";
+import { buildFloorPlan } from "../../src/renderer/src/pages/office/floor-plan";
 
 const frame = isoFrame({ w: 1216, h: 600 });
 
@@ -70,11 +71,26 @@ describe("office depth order", () => {
     const resting = blockDrawable(frame, cup, 12, colors, 16, counter);
     expect(loose.depth).toBeLessThan(underneath.depth);
     expect(resting.depth).toBeGreaterThan(underneath.depth);
-    expect(() => blockDrawable(frame, { x: 10, y: 10, w: 4, h: 4 }, 4, colors, 16, counter)).toThrow("A resting block must sit over its support.");
-    // The coffee machine straddles the pieces at 720..752 and 752..784: it sorts after both.
-    const machine = blockDrawable(frame, { x: 744, y: 44, w: 14, h: 14 }, 12, colors, 16, counter);
-    for (const x of [720, 752]) expect(machine.depth).toBeGreaterThan(blockDrawable(frame, { x, y: 40, w: 32, h: 28 }, 16, colors).depth);
+    // Off the support, or straddling two of its pieces, a resting block has no single surface to sort after: refused.
+    expect(() => blockDrawable(frame, { x: 10, y: 10, w: 4, h: 4 }, 4, colors, 16, counter)).toThrow("A resting block must touch exactly one piece of its support.");
+    expect(() => blockDrawable(frame, { x: 744, y: 44, w: 14, h: 14 }, 12, colors, 16, counter)).toThrow("A resting block must touch exactly one piece of its support.");
+    // Overhanging the support's outer edge, like a plant's leaves past its pot, still sorts after that one piece.
+    const overhang = blockDrawable(frame, { x: 726, y: 64, w: 14, h: 14 }, 12, colors, 16, counter);
+    expect(overhang.depth).toBeGreaterThan(underneath.depth);
     // A person standing in front of the counter still draws over what rests on it.
     expect(depthOf({ x: 704, y: 92 })).toBeGreaterThan(resting.depth);
   });
+});
+
+test("every piece of the scene sorts by a footprint no longer than 32 on either side, so a person beside a long block is never painted over", () => {
+  const plan = buildFloorPlan(12);
+  const items = sceneDrawables(isoFrame(plan.world), plan, "winter", new Set(), 0);
+  const oversized = items.filter((item) => item.foot.w > 32 || item.foot.h > 32).map((item) => item.foot);
+  expect(oversized).toEqual([]);
+  // A person at the left basin sorts after both the counter piece and the basin in front of them.
+  const atBasin = depthOf({ x: 944, y: 72 });
+  for (const foot of [{ x: 928, y: 32 }, { x: 930, y: 40 }]) {
+    const item = items.find((candidate) => candidate.foot.x === foot.x && candidate.foot.y === foot.y)!;
+    expect(atBasin).toBeGreaterThan(item.depth);
+  }
 });

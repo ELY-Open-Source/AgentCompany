@@ -36,14 +36,9 @@ export function setGroundTransform(ctx: CanvasRenderingContext2D, frame: IsoFram
   ctx.transform(K, K / 2, -K, K / 2, frame.originX, SKY_MARGIN);
 }
 
-/** Draws face-space art onto the south face of the back wall at plan y = `wallY`: x runs along the wall, y down from its top. */
-export function setNorthWallTransform(ctx: CanvasRenderingContext2D, frame: IsoFrame, wallY: number): void {
-  ctx.transform(K, K / 2, 0, 1, frame.originX - wallY * K, SKY_MARGIN + (wallY * K) / 2 - BACK_WALL_H);
-}
-
-/** Draws face-space art onto the east face of the back wall at plan x = `wallX`: x runs south along the wall, y down from its top. */
-export function setWestWallTransform(ctx: CanvasRenderingContext2D, frame: IsoFrame, wallX: number): void {
-  ctx.transform(-K, K / 2, 0, 1, frame.originX + wallX * K, SKY_MARGIN + (wallX * K) / 2 - BACK_WALL_H);
+/** Draws face-space art onto a south-facing face at plan y = `planeY` whose top is at height `topZ`: x runs along the face, y down from its top. */
+export function setSouthFaceTransform(ctx: CanvasRenderingContext2D, frame: IsoFrame, planeY: number, topZ: number): void {
+  ctx.transform(K, K / 2, 0, 1, frame.originX - planeY * K, SKY_MARGIN + (planeY * K) / 2 - topZ);
 }
 
 export interface BoxColors {
