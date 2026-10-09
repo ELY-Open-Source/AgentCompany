@@ -84,7 +84,7 @@ describe("office depth order", () => {
 
 test("every piece of the scene sorts by a footprint no longer than 32 on either side, so a person beside a long block is never painted over", () => {
   const plan = buildFloorPlan(12);
-  const items = sceneDrawables(isoFrame(plan.world), plan, "winter", new Set(), 0);
+  const items = sceneDrawables(isoFrame(plan.world), plan, "winter", new Map(), 0);
   const oversized = items.filter((item) => item.foot.w > 32 || item.foot.h > 32).map((item) => item.foot);
   expect(oversized).toEqual([]);
   // A person at the left basin sorts after both the counter piece and the basin in front of them.

@@ -154,7 +154,8 @@ test("the list width, office people and chart values all work from the keyboard 
     await page.getByRole("button", { name: "Office", exact: true }).click();
     await expect(page.getByRole("img", { name: /People here: 1./ })).toBeVisible();
     const people = page.getByRole("combobox", { name: "Show a person" });
-    await people.selectOption({ label: "CEO, Idle" });
+    // The only person is the CEO, listed after the empty choice with whatever state their real work gives them.
+    await people.selectOption({ index: 1 });
     await expect(page.getByRole("dialog", { name: "Agent CEO" })).toBeVisible();
     await people.selectOption({ label: "Show a person…" });
     await expect(page.getByRole("dialog", { name: "Agent CEO" })).toHaveCount(0);

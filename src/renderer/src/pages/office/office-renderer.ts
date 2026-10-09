@@ -1,4 +1,5 @@
-import type { AgentActivity, Camera, FloorPlan, Rect } from "./office-types";
+import type { Camera, FloorPlan, Rect } from "./office-types";
+import type { OfficeState } from "./agent-state";
 import { drawBackWalls, drawGround, sceneDrawables, type Drawable } from "./scene-renderer";
 import { depthOf, toIso, type IsoFrame } from "./iso";
 import { skyScene, weatherFor } from "./sky";
@@ -8,7 +9,7 @@ import type { DayPart, Season } from "../../shared/palette-clock";
 export interface RenderPerson {
   id: string;
   name: string;
-  activity: AgentActivity;
+  state: OfficeState;
   x: number;
   y: number;
   desk: Rect | null;
@@ -41,10 +42,12 @@ export interface OfficeFrame {
   selectedId: string | null;
 }
 
-const ACTIVITY_DOT: Partial<Record<AgentActivity, string>> = {
-  active: "#34d399",
-  thinking: "#818cf8",
-  busy: "#f59e0b",
+/** Marker over the head: green running, grey queued, amber cooling down, red blocked; none when idle. */
+const STATE_MARK: Partial<Record<OfficeState, string>> = {
+  running: "#34d399",
+  queued: "#9aa3b2",
+  cooldown: "#f59e0b",
+  blocked: "#ef4444",
 };
 
 /** The day part washes over the whole floor: warm at dawn and dusk, blue at night. */
@@ -78,8 +81,8 @@ export function renderOffice(ctx: CanvasRenderingContext2D, scene: HTMLCanvasEle
 
   drawGround(sctx, input.frame, input.plan);
   drawBackWalls(sctx, input.frame, input.plan, { sky: skyScene(input.clock), weather: weatherFor(input.clock), clock: input.clock, timeMs: input.timeMs });
-  const lit = new Set(input.people.filter((person) => person.desk && (person.activity === "active" || person.activity === "thinking")).map((person) => person.desk!));
-  const items: Drawable[] = [...sceneDrawables(input.frame, input.plan, input.season, lit, input.timeMs), ...input.people.map((person) => personDrawable(input, person))];
+  const screens = new Map(input.people.filter((person) => person.desk).map((person) => [person.desk!, person.state]));
+  const items: Drawable[] = [...sceneDrawables(input.frame, input.plan, input.season, screens, input.timeMs), ...input.people.map((person) => personDrawable(input, person))];
   items.sort((a, b) => a.depth - b.depth);
   for (const item of items) item.draw(sctx);
 
@@ -109,7 +112,7 @@ function personDrawable(input: OfficeFrame, person: RenderPerson): Drawable {
         ctx.fillRect(Math.round(feet.x) - 14, Math.round(feet.y) - 2, 2, 2);
         ctx.fillRect(Math.round(feet.x) + 12, Math.round(feet.y) - 2, 2, 2);
       }
-      const working = (person.activity === "active" || person.activity === "thinking") && person.walkPhase === 0;
+      const working = person.state === "running" && person.walkPhase === 0;
       drawPerson(ctx, feet.x, feet.y, person.appearance, {
         facing: person.facing,
         walkPhase: person.walkPhase,
@@ -118,7 +121,7 @@ function personDrawable(input: OfficeFrame, person: RenderPerson): Drawable {
         timeMs: input.timeMs,
         animSeed: person.animSeed,
       }, person.isCeo);
-      const dot = ACTIVITY_DOT[person.activity];
+      const dot = STATE_MARK[person.state];
       if (dot) {
         ctx.fillStyle = dot;
         ctx.fillRect(Math.round(feet.x) + 8, Math.round(feet.y) - 40, 4, 4);

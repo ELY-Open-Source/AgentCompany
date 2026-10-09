@@ -1,3 +1,4 @@
+import type { OfficeState } from "./agent-state";
 import type { Rect } from "./office-types";
 import { drawBox, setSouthFaceTransform, toIso, type IsoFrame } from "./iso";
 
@@ -31,14 +32,14 @@ function hand(ctx: CanvasRenderingContext2D, cx: number, cy: number, angle: numb
   }
 }
 
-/** A desk monitor's screen on its south face: scrolling code and a blinking cursor while its agent works, a standby light otherwise. */
-export function drawMonitorScreen(ctx: CanvasRenderingContext2D, frame: IsoFrame, monitor: Rect, z: number, height: number, on: boolean, timeMs: number, seed: number): void {
+/** A desk monitor's screen on its south face: scrolling code while running, a progress dot for queued, an amber sweep for a cooldown, a blinking red mark when blocked, a standby light when idle. */
+export function drawMonitorScreen(ctx: CanvasRenderingContext2D, frame: IsoFrame, monitor: Rect, z: number, height: number, state: OfficeState, timeMs: number, seed: number): void {
   ctx.save();
   setSouthFaceTransform(ctx, frame, monitor.y + monitor.h, z + height);
   const glass = { x: monitor.x + 2, y: 2, w: monitor.w - 4, h: height - 4 };
-  ctx.fillStyle = on ? "#0f2a1c" : "#20242c";
+  ctx.fillStyle = state === "running" ? "#0f2a1c" : state === "blocked" ? "#2a1012" : "#20242c";
   ctx.fillRect(glass.x, glass.y, glass.w, glass.h);
-  if (on) {
+  if (state === "running") {
     const scroll = Math.floor(timeMs / 350);
     ctx.fillStyle = "#37d38a";
     for (let row = 0; row < 4; row++) {
@@ -46,6 +47,19 @@ export function drawMonitorScreen(ctx: CanvasRenderingContext2D, frame: IsoFrame
       ctx.fillRect(glass.x + 1 + (row % 2) * 2, glass.y + 1 + row * 2, width, 1);
     }
     if (Math.floor(timeMs / 500) % 2 === 0) ctx.fillRect(glass.x + glass.w - 3, glass.y + glass.h - 2, 2, 1);
+  } else if (state === "queued") {
+    ctx.fillStyle = "#9aa3b2";
+    for (let dot = 0; dot <= Math.floor(timeMs / 400) % 3; dot++) ctx.fillRect(glass.x + 2 + dot * 3, glass.y + glass.h / 2, 2, 1);
+  } else if (state === "cooldown") {
+    ctx.fillStyle = "#e0a23a";
+    ctx.fillRect(glass.x + 1, glass.y + glass.h / 2, Math.max(1, (glass.w - 2) * (1 - ((timeMs / 4000) % 1))), 1);
+  } else if (state === "blocked") {
+    if (Math.floor(timeMs / 500) % 2 === 0) {
+      ctx.fillStyle = "#ef4444";
+      const cx = Math.round(glass.x + glass.w / 2);
+      ctx.fillRect(cx, glass.y + 1, 1, glass.h - 4);
+      ctx.fillRect(cx, glass.y + glass.h - 2, 1, 1);
+    }
   } else {
     ctx.fillStyle = "#e0a23a";
     ctx.fillRect(glass.x + glass.w - 2, glass.y + glass.h - 1, 1, 1);

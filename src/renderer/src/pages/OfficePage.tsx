@@ -5,12 +5,13 @@ import { activeOrgId, requireActiveEmployee } from "./types";
 import { hashString, renderOffice, type RenderPerson } from "./office/office-renderer";
 import { OfficeSimulation, cameraFor, type MoveInput } from "./office/simulation";
 import { AgentDetailCard } from "./office/AgentDetailCard";
-import { officeActivityLabel } from "../i18n/labels";
+import { officeStateLabel } from "../i18n/labels";
 import { cardPositionFor, CARD_FALLBACK_H } from "./office/agent-card-position";
 import { isoFrame, isoPixelSize, pickAt, toIso, type IsoFrame } from "./office/iso";
 import { dayPart, season } from "../shared/palette-clock";
 import { pixelScale } from "../shared/pixel-scale";
-import type { AgentActivity, Camera, OfficeAgentInput } from "./office/office-types";
+import type { Camera, OfficeAgentInput } from "./office/office-types";
+import { officeStatus } from "./office/agent-state";
 import { t } from "../i18n/i18n";
 
 const FPS_INTERVAL = 1000 / 24;
@@ -44,7 +45,8 @@ export function OfficePage({ snapshot }: PageProps) {
     const orgAgents = snapshot.agents
       .filter((agent) => agent.orgId === orgId && agent.lifecycle === "active")
       .sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id));
-    const orgTasks = snapshot.tasks.filter((task) => task.orgId === orgId && isBusinessTask(task));
+    const allTasks = snapshot.tasks.filter((task) => task.orgId === orgId);
+    const orgTasks = allTasks.filter(isBusinessTask);
     return orgAgents.map((agent) => ({
       id: agent.id,
       name: agent.name,
@@ -52,10 +54,10 @@ export function OfficePage({ snapshot }: PageProps) {
       title: agent.title,
       department: agent.department,
       roleLevel: agent.roleLevel,
-      activity: resolveActivity(snapshot.chatPresence, snapshot.taskRuns, agent.id),
+      status: officeStatus(agent.id, { runs: snapshot.taskRuns, tasks: allTasks, approvals: snapshot.approvals }),
       taskTitle: orgTasks.find((task) => task.assigneeAgentId === agent.id && task.status === "in_progress")?.title ?? null,
     }));
-  }, [snapshot.agents, snapshot.tasks, snapshot.chatPresence, snapshot.taskRuns, orgId]);
+  }, [snapshot.agents, snapshot.tasks, snapshot.approvals, snapshot.taskRuns, orgId]);
 
   useEffect(() => {
     simRef.current!.sync(inputs);
@@ -149,7 +151,7 @@ export function OfficePage({ snapshot }: PageProps) {
       const people: RenderPerson[] = sim.agents.map((agent) => ({
         id: agent.input.id,
         name: agent.input.name,
-        activity: agent.input.activity,
+        state: agent.input.status.state,
         x: agent.x,
         y: agent.y,
         desk: agent.isCeo ? sim.plan.ceoDesk : sim.plan.desks[agent.deskIndex!].bounds,
@@ -165,7 +167,7 @@ export function OfficePage({ snapshot }: PageProps) {
         people.push({
           id: `board:${sim.player.employeeId}`,
           name: sim.player.name,
-          activity: "idle",
+          state: "idle",
           x: sim.player.x,
           y: sim.player.y,
           desk: null,
@@ -262,22 +264,9 @@ export function OfficePage({ snapshot }: PageProps) {
           style={{ width: 200 }}
         >
           <option value="">{t("Show a person…")}</option>
-          {inputs.map((input) => <option key={input.id} value={input.id}>{t("{name}, {activity}", { name: input.name, activity: officeActivityLabel(input.activity) })}</option>)}
+          {inputs.map((input) => <option key={input.id} value={input.id}>{t("{name}, {activity}", { name: input.name, activity: officeStateLabel(input.status.state) })}</option>)}
         </select>
       </div>
     </div>
   );
-}
-
-function resolveActivity(
-  presence: Array<{ principalType: string; principalId: string; status: string }>,
-  runs: Array<{ agentId: string | null; state: string }>,
-  agentId: string,
-): AgentActivity {
-  if (runs.some((run) => run.agentId === agentId && run.state === "running")) return "active";
-  const record = presence.find((row) => row.principalType === "agent" && row.principalId === agentId);
-  if (record?.status === "thinking") return "thinking";
-  if (record?.status === "waiting_approval" || record?.status === "busy") return "busy";
-  if (record?.status === "active" || record?.status === "online") return "active";
-  return "idle";
 }

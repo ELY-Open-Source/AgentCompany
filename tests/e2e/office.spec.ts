@@ -3,6 +3,7 @@ import { mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { randomUUID } from "node:crypto";
+import { DatabaseSync } from "node:sqlite";
 import { buildFloorPlan } from "../../src/renderer/src/pages/office/floor-plan";
 import { cameraFor } from "../../src/renderer/src/pages/office/simulation";
 import { isoFrame, isoPixelSize, toIso } from "../../src/renderer/src/pages/office/iso";
@@ -75,6 +76,21 @@ test("the office floor opens agent details on click", async () => {
     expect(gapToSprite).toBeLessThan(80);
     expect(Math.abs(cardBox!.y + cardBox!.height / 2 - clickY)).toBeLessThan(160);
 
+    await page.keyboard.press("Escape");
+    await expect(card).not.toBeVisible();
+
+    // The office shows real state: a blocked task makes its agent blocked, with the reason on the card.
+    const db = new DatabaseSync(join(profileDir, "agentcompany.db"));
+    const blocked = db.prepare("update tasks set blocked_reason = 'needs the staging key' where assignee_agent_id = (select id from agents where name = 'CEO') and status <> 'done'").run();
+    db.close();
+    expect(blocked.changes).toBeGreaterThan(0);
+    await app.evaluate(({ BrowserWindow }) => {
+      BrowserWindow.getAllWindows()[0]!.webContents.send("agentcompany:renderer-event", { type: "snapshot-changed", version: Number.MAX_SAFE_INTEGER });
+    });
+    await expect(page.getByLabel("Show a person").locator("option", { hasText: "CEO, Blocked" })).toHaveCount(1);
+    await page.getByLabel("Show a person").selectOption({ label: "CEO, Blocked" });
+    await expect(card.getByText("Blocked: needs the staging key")).toBeVisible();
+    await expect(card.getByText("Waiting on you.")).toBeVisible();
     await page.keyboard.press("Escape");
     await expect(card).not.toBeVisible();
 

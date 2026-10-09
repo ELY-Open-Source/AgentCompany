@@ -1,3 +1,4 @@
+import type { OfficeStatus } from "./agent-state";
 export interface Vec {
   x: number;
   y: number;
@@ -61,8 +62,6 @@ export interface FloorPlan {
   entrance: Vec;
 }
 
-export type AgentActivity = "active" | "thinking" | "busy" | "idle";
-
 /** Snapshot-derived facts the office simulation needs about one agent. */
 export interface OfficeAgentInput {
   id: string;
@@ -71,7 +70,7 @@ export interface OfficeAgentInput {
   title: string;
   department: string;
   roleLevel: string;
-  activity: AgentActivity;
+  status: OfficeStatus;
   taskTitle: string | null;
 }
 

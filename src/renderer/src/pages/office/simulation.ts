@@ -116,7 +116,7 @@ export class OfficeSimulation {
     switch (agent.behavior.kind) {
       case "seated": {
         agent.settledMs += dt;
-        if (agent.input.activity === "idle" && agent.settledMs >= SETTLE_MS && this.random() < dt / MEAN_TRIP_INTERVAL_MS) {
+        if (agent.input.status.state === "idle" && agent.settledMs >= SETTLE_MS && this.random() < dt / MEAN_TRIP_INTERVAL_MS) {
           agent.settledMs = 0;
           this.startTrip(agent);
         }
@@ -160,7 +160,7 @@ export class OfficeSimulation {
   conveneMeeting(): number {
     const spots = this.plan.amenities.filter((spot) => spot.kind === "meeting");
     const candidates = this.agents.filter(
-      (agent) => agent.input.activity === "idle" && agent.behavior.kind === "seated" && agent.settledMs >= SETTLE_MS,
+      (agent) => agent.input.status.state === "idle" && agent.behavior.kind === "seated" && agent.settledMs >= SETTLE_MS,
     );
     if (candidates.length < 2 || spots.length < 2) return 0;
     const size = Math.min(spots.length, candidates.length, 2 + Math.floor(this.random() * 3));
@@ -309,7 +309,7 @@ export class OfficeSimulation {
         settledMs: prev?.settledMs ?? 0,
       };
       const onBreak = agent.behavior.kind === "dwelling" || (agent.behavior.kind === "walking" && agent.behavior.destination === "amenity");
-      const workStarted = input.activity !== "idle" && onBreak;
+      const workStarted = input.status.state !== "idle" && onBreak;
       if (workStarted || (planRebuilt && prev && (agent.x !== seat.x || agent.y !== seat.y))) {
         this.sendHome(agent);
       }

@@ -1,3 +1,4 @@
+import type { OfficeState } from "./agent-state";
 import type { FloorPlan, Rect, RoomSpec } from "./office-types";
 import { WALL } from "./floor-plan";
 import { drawWeather, drawWindowSky, type SkyScene, type Weather } from "./sky";
@@ -179,8 +180,8 @@ function centerDepth(rect: Rect): number {
   return depthOf({ x: rect.x + rect.w / 2, y: rect.y + rect.h / 2 });
 }
 
-/** Interior walls, furniture and desks as blocks, each sorted by depth against the people; `lit` desks have their screen on, and `timeMs` animates screens and steam. */
-export function sceneDrawables(frame: IsoFrame, plan: FloorPlan, season: Season, lit: Set<Rect>, timeMs: number): SceneDrawable[] {
+/** Interior walls, furniture and desks as blocks, each sorted by depth against the people; `screens` gives each desk's screen its agent's state, and `timeMs` animates screens and steam. */
+export function sceneDrawables(frame: IsoFrame, plan: FloorPlan, season: Season, screens: Map<Rect, OfficeState>, timeMs: number): SceneDrawable[] {
   const items: SceneDrawable[] = [];
   // Long blocks go in pieces so each sorts against nearby people on its own.
   const block = (foot: Rect, height: number, colors: BoxColors, z = 0, support?: Rect) => {
@@ -197,7 +198,7 @@ export function sceneDrawables(frame: IsoFrame, plan: FloorPlan, season: Season,
   // CEO office: rug, executive desk, sofa, plant.
   block({ x: 32, y: 96, w: 24, h: 72 }, 10, faces("#7a4a41"));
   plant(280, 40);
-  deskBlocks(plan.ceoDesk, true, lit.has(plan.ceoDesk), timeMs).forEach((item) => items.push(item(frame)));
+  deskBlocks(plan.ceoDesk, true, screens.get(plan.ceoDesk) ?? "idle", timeMs).forEach((item) => items.push(item(frame)));
   // Meeting room: table and chairs.
   block({ x: 392, y: 120, w: 160, h: 64 }, 12, faces("#75593b"));
   for (let i = 0; i < 3; i++) {
@@ -229,12 +230,12 @@ export function sceneDrawables(frame: IsoFrame, plan: FloorPlan, season: Season,
     items.push({ foot: basin, depth: restingDepth(basin, sinks), draw: (ctx) => drawBasin(ctx, frame, basin, 14) });
   }
   for (const [cx, cy] of [[312, 300], [632, 300], [904, 300]] as const) plant(cx, cy);
-  for (const desk of plan.desks) deskBlocks(desk.bounds, false, lit.has(desk.bounds), timeMs).forEach((item) => items.push(item(frame)));
+  for (const desk of plan.desks) deskBlocks(desk.bounds, false, screens.get(desk.bounds) ?? "idle", timeMs).forEach((item) => items.push(item(frame)));
   return items;
 }
 
 /** A desk, its monitor and its chair, each a separate block so a seated person sorts between them. */
-function deskBlocks(desk: Rect, executive: boolean, screenOn: boolean, timeMs: number): Array<(frame: IsoFrame) => SceneDrawable> {
+function deskBlocks(desk: Rect, executive: boolean, screen: OfficeState, timeMs: number): Array<(frame: IsoFrame) => SceneDrawable> {
   const monitor = deskMonitor(desk);
   return [
     ...split(desk).map((piece) => (frame: IsoFrame) => blockDrawable(frame, piece, 14, faces(executive ? PALETTE.deskExec : PALETTE.desk))),
@@ -242,7 +243,7 @@ function deskBlocks(desk: Rect, executive: boolean, screenOn: boolean, timeMs: n
       const shell = blockDrawable(frame, monitor, 12, { top: PALETTE.monitor, south: PALETTE.monitor, east: shade(PALETTE.monitor, 0.7) }, 14, desk);
       return { foot: monitor, depth: shell.depth, draw: (ctx) => {
         shell.draw(ctx);
-        drawMonitorScreen(ctx, frame, monitor, 14, 12, screenOn, timeMs, Math.round(desk.x + desk.y));
+        drawMonitorScreen(ctx, frame, monitor, 14, 12, screen, timeMs, Math.round(desk.x + desk.y));
       } };
     },
     (frame) => blockDrawable(frame, { x: desk.x + desk.w / 2 - 8, y: desk.y + desk.h + 6, w: 16, h: 12 }, 9, faces(PALETTE.chair)),

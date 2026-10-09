@@ -1,13 +1,15 @@
 import { Avatar, Icon, IconButton, Pill } from "../../shared/ui";
-import { officeActivityLabel, roleLevelLabel } from "../../i18n/labels";
+import { officeStateLabel, roleLevelLabel } from "../../i18n/labels";
 import { t } from "../../i18n/i18n";
-import type { AgentActivity, OfficeAgentInput } from "./office-types";
+import { TaskHoldNotice } from "../work/TaskHoldNotice";
+import type { OfficeAgentInput } from "./office-types";
+import type { OfficeState } from "./agent-state";
 
-
-const ACTIVITY_TONE: Record<AgentActivity, "green" | "violet" | "amber" | undefined> = {
-  active: "green",
-  thinking: "violet",
-  busy: "amber",
+const STATE_TONE: Record<OfficeState, "green" | "amber" | "red" | undefined> = {
+  running: "green",
+  queued: undefined,
+  cooldown: "amber",
+  blocked: "red",
   idle: undefined,
 };
 
@@ -39,8 +41,9 @@ export function AgentDetailCard({ agent, onClose }: { agent: OfficeAgentInput; o
       <div className="row" style={{ gap: 6, marginTop: 10, flexWrap: "wrap" }}>
         <Pill>{agent.department}</Pill>
         <Pill>{roleLevelLabel(agent.roleLevel)}</Pill>
-        <Pill tone={ACTIVITY_TONE[agent.activity]} dot>{officeActivityLabel(agent.activity)}</Pill>
+        <Pill tone={STATE_TONE[agent.status.state]} dot>{officeStateLabel(agent.status.state)}</Pill>
       </div>
+      {agent.status.hold && <div style={{ marginTop: 10 }}><TaskHoldNotice hold={agent.status.hold} /></div>}
       {agent.taskTitle && (
         <div className="row" style={{ gap: 7, marginTop: 12, alignItems: "flex-start" }}>
           <Icon name="work" color="var(--text-3)" />

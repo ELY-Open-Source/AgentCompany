@@ -1,10 +1,11 @@
 import { describe, expect, test } from "vitest";
 import { OfficeSimulation, cameraFor, type MoveInput } from "../../src/renderer/src/pages/office/simulation";
-import type { AgentActivity, OfficeAgentInput } from "../../src/renderer/src/pages/office/office-types";
+import type { OfficeAgentInput } from "../../src/renderer/src/pages/office/office-types";
+import type { OfficeState } from "../../src/renderer/src/pages/office/agent-state";
 
 const IDLE: MoveInput = { up: false, down: false, left: false, right: false };
 
-function agentInput(id: string, roleLevel = "staff", activity: AgentActivity = "idle"): OfficeAgentInput {
+function agentInput(id: string, roleLevel = "staff", state: OfficeState = "idle"): OfficeAgentInput {
   return {
     id,
     name: `Agent ${id}`,
@@ -12,7 +13,7 @@ function agentInput(id: string, roleLevel = "staff", activity: AgentActivity = "
     title: "Engineer",
     department: "Engineering",
     roleLevel,
-    activity,
+    status: { state, hold: null },
     taskTitle: null,
   };
 }
@@ -121,10 +122,10 @@ describe("office simulation", () => {
     expect(agent.carrying).toBe("coffee");
   });
 
-  test("agents with a run, thinking or busy never leave their desk", () => {
-    for (const activity of ["active", "thinking", "busy"] as const) {
+  test("agents running, queued, cooling down or blocked never leave their desk", () => {
+    for (const state of ["running", "queued", "cooldown", "blocked"] as const) {
       const sim = new OfficeSimulation(() => 0);
-      sim.sync([agentInput("ceo", "c_suite", activity), agentInput("a", "staff", activity)]);
+      sim.sync([agentInput("ceo", "c_suite", state), agentInput("a", "staff", state)]);
       for (let i = 0; i < 6000; i++) {
         sim.step(16, IDLE);
         for (const agent of sim.agents) expect(agent.behavior.kind).toBe("seated");
@@ -144,7 +145,7 @@ describe("office simulation", () => {
     sim.sync([agentInput("a")]);
     expect(sim.agents[0].behavior.kind === "walking" && sim.agents[0].behavior.destination).toBe("amenity");
 
-    sim.sync([agentInput("a", "staff", "active")]);
+    sim.sync([agentInput("a", "staff", "running")]);
     const working = sim.agents[0];
     expect(working.behavior.kind === "walking" && working.behavior.destination).toBe("seat");
     for (let i = 0; i < 6000 && working.behavior.kind !== "seated"; i++) {
@@ -157,7 +158,7 @@ describe("office simulation", () => {
 
   test("only idle agents gather around the table, and anyone with a run stays at their desk", () => {
     const sim = new OfficeSimulation(() => 0);
-    sim.sync([agentInput("a"), agentInput("b"), agentInput("ceo", "c_suite", "active")]);
+    sim.sync([agentInput("a"), agentInput("b"), agentInput("ceo", "c_suite", "running")]);
     // Nobody has settled yet: a meeting cannot be convened.
     expect(sim.conveneMeeting()).toBe(0);
     for (const agent of sim.agents) agent.settledMs = 30_000;

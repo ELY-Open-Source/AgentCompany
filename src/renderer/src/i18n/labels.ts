@@ -20,8 +20,8 @@ const APPROVAL_KINDS: Record<string, string> = {
 };
 export const approvalKindLabel = (kind: string) => labelOf("approval kind", APPROVAL_KINDS, kind);
 
-const OFFICE_ACTIVITIES: Record<string, string> = { active: t("Active"), thinking: t("Thinking"), busy: t("Busy"), idle: t("Idle") };
-export const officeActivityLabel = (activity: string) => labelOf("office activity", OFFICE_ACTIVITIES, activity);
+const OFFICE_STATES: Record<string, string> = { running: t("Running"), queued: t("Queued"), cooldown: t("Cooling down"), blocked: t("Blocked"), idle: t("Idle") };
+export const officeStateLabel = (state: string) => labelOf("office state", OFFICE_STATES, state);
 
 const APPROVAL_STATES: Record<string, string> = { pending: t("Pending"), approved: t("Approved"), declined: t("Declined"), superseded: t("Superseded") };
 export const approvalStateLabel = (state: string) => labelOf("approval state", APPROVAL_STATES, state);
