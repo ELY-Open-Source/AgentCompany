@@ -94,7 +94,7 @@ function CompatFieldsForm({ entry, provider }: { entry: ProviderCatalogEntry; pr
   );
 }
 
-function ModelPicker({ entry, provider }: { entry: ProviderCatalogEntry; provider: ProviderRecord }) {
+export function ModelPicker({ entry, provider }: { entry: ProviderCatalogEntry; provider: ProviderRecord }) {
   const [fetched, setFetched] = useState<ProviderCatalogEntry["models"] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);

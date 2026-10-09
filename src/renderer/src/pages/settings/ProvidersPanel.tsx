@@ -13,7 +13,7 @@ import type {
 } from "../../../../shared/domain";
 import { PROVIDER_DATA_POLICY } from "../../../../shared/domain";
 import { ProviderLogo } from "../../shared/ProviderLogo";
-import { ProviderConnectFields, ProviderOAuthFields } from "./ProviderConnectionDialog";
+import { ModelPicker, ProviderConnectFields, ProviderOAuthFields } from "./ProviderConnectionDialog";
 import { composeSecret } from "./provider-secret";
 import type { SnapshotActions } from "../../app/useSnapshot";
 
@@ -35,6 +35,10 @@ type WorkspaceScope = "organization" | "workspace";
 
 export function ProvidersPanel({ orgId, companyName, employeeId, providers, authProfiles, catalog, agents, providerRateLimits, actions }: ProvidersPanelProps) {
   const [active, setActive] = useState<ProviderRecord | null>(null);
+  const [modelFor, setModelFor] = useState<ProviderRecord | null>(null);
+  const [modelError, setModelError] = useState<string | null>(null);
+  const openModel = (provider: ProviderRecord | null) => { setModelError(null); setModelFor(provider); };
+  const modelForEntry = modelFor ? requireCatalogEntry(catalog, modelFor.providerKey) : null;
   const connected = providers.filter((provider) => provider.enabled);
   const available = providers.filter((provider) => !provider.enabled);
   const activeCatalogEntry = active ? catalog.find((entry) => entry.key === active.providerKey) ?? null : null;
@@ -58,6 +62,16 @@ export function ProvidersPanel({ orgId, companyName, employeeId, providers, auth
     })).then((result) => { if (result) close(); });
   };
 
+  const saveModel = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!modelFor) return;
+    const model = String(new FormData(event.currentTarget).get("model") ?? "");
+    setModelError(null);
+    void actions.run(() => window.agentCompany.setProviderModel({ orgId, providerId: modelFor.id, model }))
+      .then((result) => { if (result) setModelFor(null); })
+      .catch((reason: unknown) => setModelError(reason instanceof Error ? reason.message : String(reason)));
+  };
+
   return (
     <div className="page">
       <h1 className="page-h1">{t("Providers")}</h1>
@@ -75,6 +89,7 @@ export function ProvidersPanel({ orgId, companyName, employeeId, providers, auth
                 agents={agents}
                 onCheck={() => void actions.run(() => window.agentCompany.checkProviderHealth({ orgId, providerId: provider.id }))}
                 onManage={() => setActive(provider)}
+                onChangeModel={provider.providerKey === "azure-openai" ? null : () => openModel(provider)}
                 onRevoke={() => void actions.run(() => window.agentCompany.revokeProviderCredential({ orgId, providerId: provider.id }))}
                 revokesRemotely={requireCatalogEntry(catalog, provider.providerKey).revokesRemotely}
               />
@@ -126,6 +141,26 @@ export function ProvidersPanel({ orgId, companyName, employeeId, providers, auth
           <p style={{ fontSize: 12, color: "var(--text-3)", margin: 0 }}>
             {t("The default model reaches {following} agents without their own model; {own} keep their own. Sessions already started keep the model they began with.", { following: defaultModelReach(agents, active.id).following, own: defaultModelReach(agents, active.id).ownModel })}
           </p>
+        )}
+      </Dialog>
+
+      {/* Only the model changes here: the credential and its sign-in stay as they are. */}
+      <Dialog
+        key={modelFor?.id ?? "none"}
+        title={modelFor ? t("Default model for {label}", { label: modelFor.label }) : ""}
+        open={Boolean(modelFor)}
+        submitLabel={t("Save")}
+        onClose={() => openModel(null)}
+        onSubmit={saveModel}
+      >
+        {modelFor && modelForEntry && (
+          <>
+            <ModelPicker entry={modelForEntry} provider={modelFor} />
+            {modelError && <div className="form-error" role="alert">{modelError}</div>}
+            <p style={{ fontSize: 12, color: "var(--text-3)", margin: 0 }}>
+            {t("The default model reaches {following} agents without their own model; {own} keep their own. Sessions already started keep the model they began with.", { following: defaultModelReach(agents, modelFor.id).following, own: defaultModelReach(agents, modelFor.id).ownModel })}
+          </p>
+          </>
         )}
       </Dialog>
     </div>
@@ -326,6 +361,7 @@ function ProviderRow({
   agents,
   onCheck,
   onManage,
+  onChangeModel,
   onRevoke,
   revokesRemotely,
 }: {
@@ -334,6 +370,8 @@ function ProviderRow({
   agents: AgentRecord[];
   onCheck: () => void;
   onManage: () => void;
+  /** Null where the model lives in the credential (Azure's deployment). */
+  onChangeModel: (() => void) | null;
   onRevoke: () => void;
   revokesRemotely: boolean;
 }) {
@@ -364,6 +402,7 @@ function ProviderRow({
       </div>
       <span className="reveal row" style={{ gap: 6 }}>
         <Button onClick={onCheck}>{t("Check")}</Button>
+        {onChangeModel && <Button onClick={onChangeModel}>{t("Change model")}</Button>}
         <Button onClick={onManage}>{t("Manage")}</Button>
         <Button
           tone="ghost"

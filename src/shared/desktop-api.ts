@@ -72,6 +72,7 @@ import type {
   RunTaskInput,
   RevokeProviderCredentialInput,
   SaveProviderCredentialInput,
+  SetProviderModelInput,
   ConnectComposioToolkitInput,
   ConnectComposioToolkitResult,
   ConnectorCatalogEntry,
@@ -163,6 +164,7 @@ export interface DesktopApi {
   deleteMessage(input: DeleteMessageInput): Promise<DesktopResult<AppSnapshot>>;
   markChatSpaceRead(input: MarkChatSpaceReadInput): Promise<DesktopResult<AppSnapshot>>;
   saveProviderCredential(input: SaveProviderCredentialInput): Promise<DesktopResult<AppSnapshot>>;
+  setProviderModel(input: SetProviderModelInput): Promise<DesktopResult<AppSnapshot>>;
   revokeProviderCredential(input: RevokeProviderCredentialInput): Promise<DesktopResult<AppSnapshot>>;
   startProviderOAuth(input: StartProviderOAuthInput): Promise<DesktopResult<StartProviderOAuthResult>>;
   cancelProviderOAuth(input: CancelProviderOAuthInput): Promise<DesktopResult<null>>;

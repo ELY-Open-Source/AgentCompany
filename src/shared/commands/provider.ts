@@ -7,6 +7,12 @@ export interface SaveProviderCredentialInput {
   model: string | null;
 }
 
+export interface SetProviderModelInput {
+  orgId: string;
+  providerId: string;
+  model: string;
+}
+
 export interface RevokeProviderCredentialInput {
   orgId: string;
   providerId: string;

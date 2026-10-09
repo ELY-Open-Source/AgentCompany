@@ -195,6 +195,23 @@ test("onboards, hires, and creates work in the Electron shell", async () => {
     await page.getByRole("button", { name: "Save OpenAI policy" }).click();
     await expect(page.getByText("0 / 25").first()).toBeVisible();
 
+    // Changing only the default model asks for no key and keeps the sign-in.
+    const changeModel = async (pick: (options: string[]) => string) => {
+      await page.getByRole("button", { name: "Change model" }).first().click();
+      const modelSelect = page.locator(".modal select[name=model]");
+      const options = await modelSelect.locator("option").evaluateAll((nodes) => nodes.map((node) => (node as HTMLOptionElement).value));
+      const chosen = pick(options);
+      await modelSelect.selectOption(chosen);
+      await expect(page.locator(".modal input[type=password]")).toHaveCount(0);
+      await page.locator(".modal").getByRole("button", { name: "Save" }).click();
+      await expect(page.locator(".modal")).toHaveCount(0);
+      return chosen;
+    };
+    const otherModel = await changeModel((options) => options.find((option) => option !== "gpt-5.4") ?? "");
+    await expect(page.getByText(`${otherModel} · API key`).first()).toBeVisible();
+    await changeModel(() => "gpt-5.4");
+    await expect(page.getByText("gpt-5.4 · API key").first()).toBeVisible();
+
     // Skills are built-in now: no Skills tab exists, yet the bundled
     // catalogue imported itself during onboarding.
     await expect(page.getByRole("button", { name: "Skills" })).toHaveCount(0);

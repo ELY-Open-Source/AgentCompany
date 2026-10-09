@@ -27,6 +27,7 @@ export const IPC_CHANNELS = {
   deleteMessage: "agentcompany:delete-message",
   markChatSpaceRead: "agentcompany:mark-chat-space-read",
   saveProviderCredential: "agentcompany:save-provider-credential",
+  setProviderModel: "agentcompany:set-provider-model",
   revokeProviderCredential: "agentcompany:revoke-provider-credential",
   startProviderOAuth: "agentcompany:start-provider-oauth",
   cancelProviderOAuth: "agentcompany:cancel-provider-oauth",

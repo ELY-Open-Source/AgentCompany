@@ -678,6 +678,8 @@ export const zh: Record<string, string> = {
   "{passed}/{total} passed": "{passed}/{total} 通过",
   "{pending} pending · {approved} approved this week": "{pending} 待处理 · 本周已批准 {approved}",
   "{percent}% of cap": "上限的 {percent}%",
+  "Default model for {label}": "{label} 的默认模型",
+  "Change model": "更换模型",
   "Leave the model blank to use the provider's default. A changed model applies from the agent's next session.": "模型留空即使用 Provider 的默认模型。修改后的模型从该 Agent 的下一次会话起生效。",
   "{model} (provider default)": "{model}（Provider 默认）",
   "Chosen when the session starts": "会话开始时确定",

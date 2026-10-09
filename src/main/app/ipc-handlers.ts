@@ -40,6 +40,7 @@ import { stopAllRuns, stopRun } from "../services/run-control";
 import { cancelQueuedRun } from "../services/run-cancel";
 import { runHistory } from "../services/run-history";
 import { deleteWorkspace, setPrimaryWorkspace, updateWorkspace } from "../services/workspace-admin";
+import { setProviderModel } from "../services/provider-default-model";
 
 export interface IpcDeps {
   connection: DatabaseConnection;
@@ -225,6 +226,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
   handle("deleteMessage", (input) => mutate(() => chat.deleteMessage(input)));
   handle("markChatSpaceRead", (input) => mutate(() => chat.markSpaceRead(input)));
   handle("saveProviderCredential", (input) => mutate(() => providers.saveCredential(input)));
+  handle("setProviderModel", (input) => mutate(() => setProviderModel(deps.connection.db, input)));
   handle("revokeProviderCredential", async (input) => {
     try {
       await providers.revokeCredential(input);
