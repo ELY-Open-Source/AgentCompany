@@ -20,9 +20,9 @@ export const metadata: Metadata = {
     siteName: "AgentCompany",
     locale: "en_US",
     type: "website",
-    images: [{ url: "/images/og.jpg", width: 1200, height: 630, alt: "The AgentCompany desktop app" }],
+    images: [{ url: "/images/og.png", width: 1200, height: 630, alt: "AgentCompany in 8-bit: run an autonomous AI company on your desktop" }],
   },
-  twitter: { card: "summary_large_image", title, description, images: ["/images/og.jpg"] },
+  twitter: { card: "summary_large_image", title, description, images: ["/images/og.png"] },
   robots: { index: true, follow: true },
   icons: {
     icon: [

@@ -9,7 +9,8 @@
     "start": "next start",
     "preview": "wrangler pages dev out",
     "test:e2e": "next build && playwright test",
-    "test:unit": "node --import ./tests/unit/resolve-ts.mjs --test 'tests/unit/*.test.ts'"
+    "test:unit": "node --import ./tests/unit/resolve-ts.mjs --test 'tests/unit/*.test.ts'",
+    "og": "node scripts/og.mjs"
   },
   "dependencies": {
     "next": "16.2.6",
