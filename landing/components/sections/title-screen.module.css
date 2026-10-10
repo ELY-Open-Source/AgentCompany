@@ -1,7 +1,9 @@
 .hero {
   position: relative;
   display: grid;
-  min-height: max(640px, min(100svh, 960px));
+  height: 98vh;
+  height: 98svh;
+  min-height: 560px;
   overflow: hidden;
   background: var(--ink-sky-1);
   isolation: isolate;
@@ -225,7 +227,7 @@
     justify-content: center;
     width: min(100%, 1440px);
     margin: 0 auto;
-    padding: 120px 48px 96px;
+    padding: 96px 48px 72px;
     text-align: left;
   }
 
@@ -240,6 +242,16 @@
 
   .word {
     height: 72px;
+  }
+
+  .tagline {
+    font-size: var(--fs-2);
+    line-height: 1.5;
+  }
+
+  .sub {
+    font-size: var(--fs-1);
+    line-height: 2;
   }
 
   .window {

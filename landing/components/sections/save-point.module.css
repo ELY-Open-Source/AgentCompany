@@ -110,7 +110,7 @@
   display: grid;
   grid-template-columns: 3fr 2fr;
   gap: 36px;
-  align-items: start;
+  align-items: center;
   margin-top: 36px;
 }
 

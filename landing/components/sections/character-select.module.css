@@ -7,16 +7,12 @@
 
 .card {
   display: grid;
+  grid-template-rows: auto 1fr;
   gap: 12px;
-  transition: transform 240ms steps(3);
 }
 
 .card[data-selected="false"] {
   opacity: 0.72;
-}
-
-.card[data-selected="true"] {
-  transform: translateY(-12px);
 }
 
 .player {
