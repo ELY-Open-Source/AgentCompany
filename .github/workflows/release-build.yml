@@ -3,8 +3,8 @@ name: Build Release Installers
 # A pushed v* tag builds Windows, Linux and macOS installers on the Gitea
 # runners and attaches them to the tag's release. The tag must equal
 # "v" + package.json version. macOS builds are signed and notarized when the
-# Developer ID certificate and the APPLE_API_* secrets are present; otherwise
-# they are ad-hoc signed.
+# APPLE_API_* secrets are set (the Developer ID identity must then be reachable,
+# or the job fails); without those secrets they are ad-hoc signed.
 
 on:
   push:
@@ -90,12 +90,16 @@ jobs:
           APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
           APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
         run: |
-          if { [ -n "$CSC_LINK" ] || security find-identity -v -p codesigning | grep -q "Developer ID Application: Yang Zhang (9PDD8M2SMS)"; } && [ -n "$APPLE_API_ISSUER" ] && [ -n "$APPLE_API_KEY_ID" ] && [ -n "$APPLE_API_KEY_P8" ]; then
+          if [ -z "$APPLE_API_ISSUER" ] || [ -z "$APPLE_API_KEY_ID" ] || [ -z "$APPLE_API_KEY_P8" ]; then
+            echo "signed=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::No notarization secrets: building ad-hoc-signed, un-notarized macOS installers."
+          elif [ -n "$CSC_LINK" ] || security find-identity -v -p codesigning | grep -q "Developer ID Application: Yang Zhang (9PDD8M2SMS)"; then
             echo "signed=true" >> "$GITHUB_OUTPUT"
             echo "Developer ID certificate and notarization credentials found: building signed + notarized installers."
           else
-            echo "signed=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::Building ad-hoc-signed, un-notarized macOS installers."
+            security find-identity -v -p codesigning
+            echo "::error::Notarization secrets are set but this runner cannot reach the Developer ID identity; run the runner in the login session or set CSC_LINK."
+            exit 1
           fi
       - name: Build installers (signed + notarized)
         if: steps.signing.outputs.signed == 'true'
