@@ -34,7 +34,6 @@ describe("integration key store", () => {
     expect(statuses.map((status) => [status.name, status.configured])).toEqual([
       ["composio", false],
       ["logo_dev", true],
-      ["google_antigravity_client_secret", false],
     ]);
     expect(statuses[1].updatedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
     connection.close();

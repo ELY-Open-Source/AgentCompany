@@ -1,4 +1,4 @@
-import { taskWorkLanguage } from "./work-language";
+import { appLanguage, taskWorkLanguage } from "./work-language";
 import { closeChatWakeTask } from "./chat-wake-close";
 import type { DatabaseSync } from "node:sqlite";
 import type { RunTaskInput } from "../../shared/commands";
@@ -187,7 +187,9 @@ export class TaskExecutionService {
           .run(effectiveModel(agent.model_id, provider.model), provider.credential_id, runId);
       }
       const runModel = pinned ?? effectiveModel(agent.model_id, provider.model);
-      skillRuntimeSnapshot = this.resolveSkillRuntimeSnapshot(orgId, agent.id, runId, skillBudgetTokens(provider.context_window_tokens), `${task.title}\n${task.description}`, { providerKey: provider.provider_key, model: runModel }, task.writing_mode === WRITING_MODE.CONVERSATIONAL, taskWorkLanguage(this.db, orgId, task.id));
+      const language = taskWorkLanguage(this.db, orgId, task.id);
+      const chatLanguage = appLanguage(this.db);
+      skillRuntimeSnapshot = this.resolveSkillRuntimeSnapshot(orgId, agent.id, runId, skillBudgetTokens(provider.context_window_tokens), `${task.title}\n${task.description}`, { providerKey: provider.provider_key, model: runModel }, task.writing_mode === WRITING_MODE.CONVERSATIONAL, task.origin === "chat_wake" ? chatLanguage : language);
       // Watermark for reply delivery and mid-run message polling.
       const runStartedAt = new Date().toISOString();
       const chatContext = loadChatWakeContext(this.db, orgId, agent.id, isolation.secretScopeJson);
@@ -208,7 +210,6 @@ export class TaskExecutionService {
       const connectorNames = new ConnectorGrantsService(this.db)
         .toolkitsForAgent(orgId, agent.id)
         .map(connectorDisplayName);
-      const language = taskWorkLanguage(this.db, orgId, task.id);
       // Baseline taken before any await, so a goal closed while tools load still reaches the session.
       const goalChanges = createGoalChangePoller(this.db, task.goal_id);
       const externalTools = loadComposioTools(this.db, this.providers.integrationKeys, orgId, agent.id);
@@ -222,7 +223,7 @@ export class TaskExecutionService {
           orgId,
           providerId: provider.id,
           workspaceId: task.workspace_id,
-          instructions: buildAgentInstructions({ agent, companyName: this.orgName(orgId), isCeo, hasReports, connectorNames, language }),
+          instructions: buildAgentInstructions({ agent, companyName: this.orgName(orgId), isCeo, hasReports, connectorNames, language, chatLanguage }),
           initialUserTurn: buildTaskPrompt({
             task,
             agent,

@@ -1,7 +1,8 @@
 import type { Camera, FloorPlan, Rect } from "./office-types";
 import type { OfficeState } from "./agent-state";
-import { drawBackWalls, drawGround, sceneDrawables, type Drawable } from "./scene-renderer";
+import { drawBackWalls, drawContactShadows, drawGround, sceneDrawables, windowRects, type Drawable } from "./scene-renderer";
 import { depthOf, toIso, type IsoFrame } from "./iso";
+import { applyLighting, sceneLights, sunPatches } from "./lighting";
 import { skyScene, weatherFor } from "./sky";
 import { drawPerson, type Carrying, type Facing, type SpriteAppearance } from "./sprites";
 import type { DayPart, Season } from "../../shared/palette-clock";
@@ -30,6 +31,8 @@ export interface OfficeFrame {
   camera: Camera;
   /** CSS px per iso pixel. */
   pixel: number;
+  /** Scene pixels per iso pixel (artScale). */
+  art: number;
   /** CSS px per pixel-font pixel, for the crisp text drawn over the scene. */
   fontScale: number;
   viewW: number;
@@ -50,24 +53,16 @@ const STATE_MARK: Partial<Record<OfficeState, string>> = {
   blocked: "#ef4444",
 };
 
-/** The day part washes over the whole floor: warm at dawn and dusk, blue at night. */
-const DAY_TINT: Record<DayPart, string | null> = {
-  dawn: "#f3d9d6",
-  day: null,
-  dusk: "#f0c6a0",
-  night: "#7d8bc0",
-};
-
 export function hashString(value: string): number {
   let hash = 0;
   for (let i = 0; i < value.length; i++) hash = (hash * 31 + value.charCodeAt(i)) | 0;
   return Math.abs(hash);
 }
 
-/** Draws the scene at iso-pixel resolution on `scene`, depth-sorted, then scales it up unsmoothed onto `ctx` and writes labels in the pixel font. */
-export function renderOffice(ctx: CanvasRenderingContext2D, scene: HTMLCanvasElement, input: OfficeFrame): void {
-  const sceneW = Math.ceil(input.viewW / input.pixel);
-  const sceneH = Math.ceil(input.viewH / input.pixel);
+/** Draws the scene at art resolution on `scene`, depth-sorted and lit for the hour, then scales it up unsmoothed onto `ctx` and writes labels in the pixel font. */
+export function renderOffice(ctx: CanvasRenderingContext2D, scene: HTMLCanvasElement, lightMap: HTMLCanvasElement, input: OfficeFrame): void {
+  const sceneW = Math.ceil((input.viewW / input.pixel) * input.art);
+  const sceneH = Math.ceil((input.viewH / input.pixel) * input.art);
   if (scene.width !== sceneW || scene.height !== sceneH) {
     scene.width = sceneW;
     scene.height = sceneH;
@@ -75,29 +70,39 @@ export function renderOffice(ctx: CanvasRenderingContext2D, scene: HTMLCanvasEle
   const sctx = scene.getContext("2d");
   if (!sctx) throw new Error("The office scene canvas has no 2D context.");
   sctx.setTransform(1, 0, 0, 1, 0, 0);
+  sctx.imageSmoothingEnabled = false;
   sctx.fillStyle = "#14161c";
   sctx.fillRect(0, 0, sceneW, sceneH);
-  sctx.translate(-Math.round(input.camera.x), -Math.round(input.camera.y));
+  const camera = snappedCamera(input);
+  sctx.setTransform(input.art, 0, 0, input.art, -camera.x * input.art, -camera.y * input.art);
 
   drawGround(sctx, input.frame, input.plan);
   drawBackWalls(sctx, input.frame, input.plan, { sky: skyScene(input.clock), weather: weatherFor(input.clock), clock: input.clock, timeMs: input.timeMs });
   const screens = new Map(input.people.filter((person) => person.desk).map((person) => [person.desk!, person.state]));
-  const items: Drawable[] = [...sceneDrawables(input.frame, input.plan, input.season, screens, input.timeMs), ...input.people.map((person) => personDrawable(input, person))];
+  const scenery = sceneDrawables(input.frame, input.plan, input.season, screens, input.timeMs);
+  drawContactShadows(sctx, input.frame, scenery);
+  const items: Drawable[] = [...scenery, ...input.people.map((person) => personDrawable(input, person))];
   items.sort((a, b) => a.depth - b.depth);
   for (const item of items) item.draw(sctx);
 
-  const tint = DAY_TINT[input.dayPart];
-  if (tint) {
-    sctx.setTransform(1, 0, 0, 1, 0, 0);
-    sctx.globalCompositeOperation = "multiply";
-    sctx.fillStyle = tint;
-    sctx.fillRect(0, 0, sceneW, sceneH);
-    sctx.globalCompositeOperation = "source-over";
-  }
+  applyLighting(sctx, lightMap, {
+    frame: input.frame,
+    camera,
+    art: input.art,
+    dayPart: input.dayPart,
+    lights: sceneLights(input.plan, screens),
+    patches: sunPatches(input.plan.rooms.flatMap(windowRects), input.clock),
+    timeMs: input.timeMs,
+  });
 
   ctx.imageSmoothingEnabled = false;
-  ctx.drawImage(scene, 0, 0, sceneW * input.pixel, sceneH * input.pixel);
-  drawLabels(ctx, input);
+  ctx.drawImage(scene, 0, 0, (sceneW * input.pixel) / input.art, (sceneH * input.pixel) / input.art);
+  drawLabels(ctx, input, camera);
+}
+
+/** The camera on the scene's pixel grid, so the scene and the labels over it move together. */
+function snappedCamera(input: OfficeFrame): Camera {
+  return { x: Math.round(input.camera.x * input.art) / input.art, y: Math.round(input.camera.y * input.art) / input.art };
 }
 
 function personDrawable(input: OfficeFrame, person: RenderPerson): Drawable {
@@ -106,12 +111,7 @@ function personDrawable(input: OfficeFrame, person: RenderPerson): Drawable {
     depth: depthOf(person) + 0.5,
     draw: (ctx) => {
       const feet = toIso(input.frame, person);
-      if (person.id === input.selectedId) {
-        ctx.fillStyle = "rgba(94,106,210,0.9)";
-        ctx.fillRect(Math.round(feet.x) - 12, Math.round(feet.y), 24, 2);
-        ctx.fillRect(Math.round(feet.x) - 14, Math.round(feet.y) - 2, 2, 2);
-        ctx.fillRect(Math.round(feet.x) + 12, Math.round(feet.y) - 2, 2, 2);
-      }
+      if (person.id === input.selectedId) drawSelection(ctx, feet.x, feet.y, input.timeMs);
       const working = person.state === "running" && person.walkPhase === 0;
       drawPerson(ctx, feet.x, feet.y, person.appearance, {
         facing: person.facing,
@@ -121,24 +121,47 @@ function personDrawable(input: OfficeFrame, person: RenderPerson): Drawable {
         timeMs: input.timeMs,
         animSeed: person.animSeed,
       }, person.isCeo);
-      const dot = STATE_MARK[person.state];
-      if (dot) {
-        ctx.fillStyle = dot;
-        ctx.fillRect(Math.round(feet.x) + 8, Math.round(feet.y) - 40, 4, 4);
-      }
+      const gem = STATE_MARK[person.state];
+      if (gem) drawStateGem(ctx, feet.x, feet.y - 38 + Math.round(Math.sin(input.timeMs / 420 + person.animSeed) * 2) / 2, gem);
     },
   };
 }
 
+/** A small faceted gem floating over the head, in the state's colour. */
+function drawStateGem(ctx: CanvasRenderingContext2D, x: number, y: number, color: string): void {
+  const cx = Math.round(x * 2) / 2;
+  const rows = [0.5, 1.5, 2.5, 2.5, 1.5, 1, 0.5];
+  ctx.fillStyle = "rgba(20,18,24,0.85)";
+  rows.forEach((half, row) => ctx.fillRect(cx - half - 0.5, y + row * 0.5 - 0.5, half * 2 + 1, 1));
+  ctx.fillStyle = color;
+  rows.forEach((half, row) => ctx.fillRect(cx - half, y + row * 0.5, half * 2, 0.5));
+  ctx.fillStyle = "rgba(255,255,255,0.7)";
+  ctx.fillRect(cx - 1, y + 1, 0.5, 0.5);
+  ctx.fillRect(cx - 0.5, y + 0.5, 0.5, 0.5);
+}
+
+/** A pixel ring around the selected person's feet, breathing in and out. */
+function drawSelection(ctx: CanvasRenderingContext2D, x: number, y: number, timeMs: number): void {
+  const grow = Math.round((Math.sin(timeMs / 260) + 1) * 0.5) * 0.5;
+  const cx = Math.round(x * 2) / 2;
+  const cy = Math.round(y * 2) / 2;
+  const rx = 9 + grow;
+  ctx.fillStyle = "rgba(124,138,240,0.95)";
+  for (let step = 0; step < 48; step++) {
+    const angle = (step / 48) * 2 * Math.PI;
+    ctx.fillRect(Math.round((cx + Math.cos(angle) * rx) * 2) / 2, Math.round((cy + Math.sin(angle) * rx * 0.5) * 2) / 2, 0.5, 0.5);
+  }
+}
+
 /** Names under people and room signs over doors, in the pixel font at screen resolution so they stay crisp. */
-function drawLabels(ctx: CanvasRenderingContext2D, input: OfficeFrame): void {
+function drawLabels(ctx: CanvasRenderingContext2D, input: OfficeFrame, camera: Camera): void {
   const size = 12 * input.fontScale;
   ctx.font = `${size}px "Fusion Pixel"`;
   ctx.textAlign = "center";
   ctx.textBaseline = "top";
   const screen = (x: number, y: number, z = 0) => {
     const iso = toIso(input.frame, { x, y }, z);
-    return { x: Math.round((iso.x - Math.round(input.camera.x)) * input.pixel), y: Math.round((iso.y - Math.round(input.camera.y)) * input.pixel) };
+    return { x: Math.round((iso.x - camera.x) * input.pixel), y: Math.round((iso.y - camera.y) * input.pixel) };
   };
   for (const room of input.plan.rooms) {
     const at = screen(room.doorCx, room.bounds.y + room.bounds.h, 22);

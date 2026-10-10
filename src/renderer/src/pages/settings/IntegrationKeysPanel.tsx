@@ -16,11 +16,6 @@ const KEY_COPY: Record<IntegrationKeyName, { label: string; hint: string; placeh
     hint: t("Shows brand logos for connectors. Create one at logo.dev."),
     placeholder: "pk_…",
   },
-  google_antigravity_client_secret: {
-    label: t("Google Antigravity OAuth client secret"),
-    hint: t("Needed to sign in to and refresh the Google Antigravity provider."),
-    placeholder: "GOCSPX-…",
-  },
 };
 
 export function IntegrationKeysPanel({ keys, companyName, actions }: { keys: IntegrationKeyStatus[]; companyName: string; actions: SnapshotActions }) {
@@ -31,12 +26,12 @@ export function IntegrationKeysPanel({ keys, companyName, actions }: { keys: Int
       <p style={{ margin: "0 0 24px", color: "var(--text-2)" }}>
         {t("Keys are stored on this device, encrypted by the operating system, and shared by every company.")}
       </p>
-      {keys.map((status) => <KeyRow key={status.name} status={status} actions={actions} />)}
+      {keys.map((status) => <IntegrationKeyRow key={status.name} status={status} actions={actions} />)}
     </div>
   );
 }
 
-function KeyRow({ status, actions }: { status: IntegrationKeyStatus; actions: SnapshotActions }) {
+export function IntegrationKeyRow({ status, actions }: { status: IntegrationKeyStatus; actions: SnapshotActions }) {
   const copy = KEY_COPY[status.name];
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);

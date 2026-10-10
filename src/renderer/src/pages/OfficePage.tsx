@@ -7,7 +7,7 @@ import { OfficeSimulation, cameraFor, type MoveInput } from "./office/simulation
 import { AgentDetailCard } from "./office/AgentDetailCard";
 import { officeStateLabel } from "../i18n/labels";
 import { cardPositionFor, CARD_FALLBACK_H } from "./office/agent-card-position";
-import { isoFrame, isoPixelSize, pickAt, toIso, type IsoFrame } from "./office/iso";
+import { artScale, isoFrame, isoPixelSize, pickAt, toIso, type IsoFrame } from "./office/iso";
 import { dayPart, season } from "../shared/palette-clock";
 import { pixelScale } from "../shared/pixel-scale";
 import type { Camera, OfficeAgentInput } from "./office/office-types";
@@ -119,6 +119,7 @@ export function OfficePage({ snapshot }: PageProps) {
     let raf = 0;
     let lastFrame = 0;
     const scene = document.createElement("canvas");
+    const lightMap = document.createElement("canvas");
 
     const tick = (now: number) => {
       if (!running) return;
@@ -180,11 +181,12 @@ export function OfficePage({ snapshot }: PageProps) {
         });
       }
       const clock = new Date();
-      renderOffice(ctx, scene, {
+      renderOffice(ctx, scene, lightMap, {
         frame,
         plan: sim.plan,
         camera,
         pixel,
+        art: artScale(dpr),
         fontScale: pixelScale(dpr),
         viewW,
         viewH,

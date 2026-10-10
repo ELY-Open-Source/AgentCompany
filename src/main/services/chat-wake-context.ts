@@ -30,16 +30,18 @@ export function loadChatWakeContext(db: DatabaseSync, orgId: string, agentId: st
   const thread = db.prepare("select space_id from chat_threads where id = ? and org_id = ?")
     .get(scope.sourceThreadId, orgId) as { space_id: string } | undefined;
   if (!thread) throw new Error(`Chat wake thread ${scope.sourceThreadId} no longer exists.`);
-  const lastReplyAt = (db.prepare(`
-    select coalesce(max(created_at), '') as at from chat_messages
+  const lastReply = db.prepare(`
+    select created_at as at, rowid as seq from chat_messages
     where thread_id = ? and org_id = ? and sender_type = 'agent' and sender_id = ? and deleted_at is null
-  `).get(scope.sourceThreadId, orgId, agentId) as { at: string }).at;
-  const isFresh = `not (m.sender_type = 'agent' and m.sender_id = ?) and (m.created_at > ? or coalesce(m.edited_at, '') > ?)`;
+    order by created_at desc, rowid desc limit 1
+  `).get(scope.sourceThreadId, orgId, agentId) as { at: string; seq: number } | undefined;
+  const at = lastReply?.at ?? "";
+  const isFresh = `not (m.sender_type = 'agent' and m.sender_id = ?) and ((m.created_at, m.rowid) > (?, ?) or coalesce(m.edited_at, '') >= ?)`;
   const inThread = "m.thread_id = ? and m.org_id = ? and m.deleted_at is null";
-  const args = [scope.sourceThreadId, orgId, agentId, lastReplyAt, lastReplyAt];
-  const fresh = db.prepare(`${MESSAGE_SELECT} where ${inThread} and ${isFresh} order by m.created_at asc`)
+  const args = [scope.sourceThreadId, orgId, agentId, at, lastReply?.seq ?? 0, at];
+  const fresh = db.prepare(`${MESSAGE_SELECT} where ${inThread} and ${isFresh} order by m.created_at asc, m.rowid asc`)
     .all(...args) as unknown as ThreadMessageRow[];
-  const history = (db.prepare(`${MESSAGE_SELECT} where ${inThread} and not (${isFresh}) order by m.created_at desc limit ?`)
+  const history = (db.prepare(`${MESSAGE_SELECT} where ${inThread} and not (${isFresh}) order by m.created_at desc, m.rowid desc limit ?`)
     .all(...args, HISTORY_LIMIT) as unknown as ThreadMessageRow[]).reverse();
   const historyTotal = (db.prepare(`select count(*) as n from chat_messages m where ${inThread} and not (${isFresh})`)
     .get(...args) as { n: number }).n;
@@ -98,24 +100,26 @@ function utcMinute(iso: string): string {
   return `${iso.slice(0, 10)} ${iso.slice(11, 16)} UTC`;
 }
 
-/** Polls the threads this run is part of for messages from others. */
+/** Polls the threads this run is part of for messages from others that it has not seen; ids, not timestamps, mark what was seen. */
 export function createRunMessagePoller(
   db: DatabaseSync,
   input: { orgId: string; agentId: string; sourceThreadId: string | null; runStartedAt: string; onInjected: (entries: ReadEntry[]) => void },
 ): () => string | null {
-  let watermark = input.runStartedAt;
+  const since = db.prepare("select id from chat_messages where org_id = ? and created_at >= ?");
+  const seen = new Set((since.all(input.orgId, input.runStartedAt) as Array<{ id: string }>).map((row) => row.id));
   return () => {
-    const rows = db.prepare(`${MESSAGE_SELECT}
-      where m.org_id = ? and m.created_at > ? and m.deleted_at is null
+    const rows = (db.prepare(`${MESSAGE_SELECT}
+      where m.org_id = ? and m.created_at >= ? and m.deleted_at is null
         and not (m.sender_type = 'agent' and m.sender_id = ?)
         and (m.thread_id = ? or m.thread_id in (
           select own.thread_id from chat_messages own
           where own.org_id = ? and own.sender_type = 'agent' and own.sender_id = ? and own.created_at >= ?
         ))
-      order by m.created_at asc
-    `).all(input.orgId, watermark, input.agentId, input.sourceThreadId, input.orgId, input.agentId, input.runStartedAt) as unknown as ThreadMessageRow[];
+      order by m.created_at asc, m.rowid asc
+    `).all(input.orgId, input.runStartedAt, input.agentId, input.sourceThreadId, input.orgId, input.agentId, input.runStartedAt) as unknown as ThreadMessageRow[])
+      .filter((row) => !seen.has(row.id));
+    for (const row of rows) seen.add(row.id);
     if (rows.length === 0) return null;
-    watermark = rows[rows.length - 1].created_at;
     input.onInjected(rows.map(readEntry));
     console.info(`[run-inbox] agent ${input.agentId}: ${rows.length} new message(s) injected mid-run`);
     return ["Messages that arrived while you were working (they may change what you should do):", ...rows.map((m) => formatMessage(db, m))].join("\n");

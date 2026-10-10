@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import { DatabaseConnection } from "../../src/main/database/connection";
 import { OrganizationService } from "../../src/main/services/organization-service";
 import { ProviderService } from "../../src/main/services/provider-service";
@@ -9,6 +9,8 @@ import { providerAdapters } from "../../src/main/services/provider-adapters";
 import type { AgentTurnResult, ProviderToolTurnInput } from "../../src/main/services/provider-tool-turn";
 import { ConnectorGrantsService } from "../../src/main/services/composio/connector-grants";
 import { TaskExecutionService } from "../../src/main/services/task-execution-service";
+import { SkillService } from "../../src/main/services/skill-service";
+import { ChatService } from "../../src/main/services/chat-service";
 import { RISK_LEVEL, TASK_PRIORITY, TASK_STATUS } from "../../src/shared/domain";
 import { buildAgentInstructions, type TaskExecutionAgentRow } from "../../src/main/services/task-prompts";
 import { AGENT_TOOLS } from "../../src/main/services/agent-tools";
@@ -33,13 +35,13 @@ function agentRow(overrides: Partial<TaskExecutionAgentRow>): TaskExecutionAgent
 
 describe("agent instructions", () => {
   test("first-hire guidance is one rule everywhere, and new leaders get a leader's voice", () => {
-    const ceo = buildAgentInstructions({ agent: agentRow({ name: "CEO", role: "CEO", role_level: "c_suite", manager_agent_id: null }), companyName: "O", isCeo: true, hasReports: false, connectorNames: [], language: "en" });
+    const ceo = buildAgentInstructions({ agent: agentRow({ name: "CEO", role: "CEO", role_level: "c_suite", manager_agent_id: null }), companyName: "O", isCeo: true, hasReports: false, connectorNames: [], language: "en", chatLanguage: "en" });
     const hireTool = AGENT_TOOLS.find((tool) => tool.name === "hire_agent");
     for (const text of [ceo, goalKickoffDescription("O", "Ship", "Ship it.", { roleLevel: "c_suite", hasReports: false }), hireTool?.description ?? ""]) {
       expect(text).toContain(CEO_FIRST_HIRES);
     }
     const voice = (role_level: string, hasReports: boolean) =>
-      buildAgentInstructions({ agent: agentRow({ role_level }), companyName: "O", isCeo: false, hasReports, connectorNames: [], language: "en" });
+      buildAgentInstructions({ agent: agentRow({ role_level }), companyName: "O", isCeo: false, hasReports, connectorNames: [], language: "en", chatLanguage: "en" });
     expect(voice("director", false)).toContain('Your department has no one in it yet: hire the managers (hire_agent, seniority "lead") and staff your department needs');
     expect(voice("lead", false)).toContain("Your team has no one in it yet: hire the staff your team needs (hire_agent)");
     expect(voice("lead", false)).toContain("You lead a team.");
@@ -58,6 +60,7 @@ describe("agent instructions", () => {
       hasReports: false,
       connectorNames: ["GitHub", "Slack"],
       language: "en",
+      chatLanguage: "en",
     });
     expect(text).toContain("every connected service");
     expect(text).toContain("grant_connector");
@@ -77,6 +80,7 @@ describe("agent instructions", () => {
       hasReports: false,
       connectorNames: ["Stripe"],
       language: "en",
+      chatLanguage: "en",
     });
     expect(text).toContain("Connected external services you carry in this run: Stripe");
     expect(text).toContain("composio_find_actions");
@@ -93,31 +97,24 @@ describe("agent instructions", () => {
       hasReports: false,
       connectorNames: [],
       language: "en",
+      chatLanguage: "en",
     });
     expect(text).toContain("You currently hold no connector grants");
     expect(text).toContain("message the CEO");
     expect(text).not.toContain("grant before you assign");
   });
 
-  test("Chinese app language directs agents to work in Chinese", () => {
-    const zh = buildAgentInstructions({
-      agent: agentRow({}),
-      companyName: "OrbitOps",
-      isCeo: false,
-      hasReports: false,
-      connectorNames: [],
-      language: "zh",
+  test("chat follows the app language; work follows the working language", () => {
+    const text = (language: "en" | "zh", chatLanguage: "en" | "zh") => buildAgentInstructions({
+      agent: agentRow({}), companyName: "OrbitOps", isCeo: false, hasReports: false, connectorNames: [], language, chatLanguage,
     });
+    const mixed = text("en", "zh");
+    expect(mixed).toContain("The working language is English");
+    expect(mixed).toContain("聊天语言是简体中文");
+    const zh = text("zh", "zh");
     expect(zh).toContain("公司的工作语言是简体中文");
-    const en = buildAgentInstructions({
-      agent: agentRow({}),
-      companyName: "OrbitOps",
-      isCeo: false,
-      hasReports: false,
-      connectorNames: [],
-      language: "en",
-    });
-    expect(en).not.toContain("简体中文");
+    expect(zh).not.toContain("The chat language is English");
+    expect(text("en", "en")).not.toContain("简体中文");
   });
 });
 
@@ -178,9 +175,11 @@ describe("agent instruction wiring", () => {
       await execution.runTask({ orgId, taskId });
       return capturedInstructions;
     };
-    // The display language changes only what the operator sees.
+    // The display language sets the chat language, not the working language.
+    expect(await rerun()).toContain("The chat language is English");
     organization.updateUiPreferences({ language: "zh" });
     expect(await rerun()).toContain("The working language is English");
+    expect(capturedInstructions).toContain("聊天语言是简体中文");
     expect(capturedInstructions).not.toContain("公司的工作语言是简体中文");
     // The company's working language redirects its agents, and a task can keep its own.
     connection.db.prepare("update organizations set work_language = 'zh' where id = ?").run(orgId);
@@ -188,6 +187,19 @@ describe("agent instruction wiring", () => {
     connection.db.prepare("update tasks set work_language = 'en' where id = ?").run(taskId);
     expect(await rerun()).toContain("The working language is English");
     expect(capturedInstructions).not.toContain("公司的工作语言是简体中文");
+    // A chat reply's house style follows the chat language.
+    connection.db.prepare("update organizations set work_language = 'en' where id = ?").run(orgId);
+    const houseStyle = vi.spyOn(SkillService.prototype, "hasRuntimeSkills");
+    await rerun();
+    expect(houseStyle.mock.lastCall?.[3]).toBe("en");
+    const chat = new ChatService(connection.db);
+    const employeeId = (connection.db.prepare("select id from employees where org_id = ?").get(orgId) as { id: string }).id;
+    const spaceId = chat.ensureDirectSpace(orgId, { type: "employee", id: employeeId }, { type: "agent", id: agentId });
+    chat.sendMessage({ orgId, spaceId, threadId: null, senderType: "employee", senderId: employeeId, bodyMd: "ping", attachmentFileIds: [] });
+    const wakeRun = connection.db.prepare("select id from task_runs where org_id = ? and trigger = 'chat_mention' and state = 'queued'").get(orgId) as { id: string };
+    await execution.executeRun(orgId, wakeRun.id);
+    expect(houseStyle.mock.lastCall?.[3]).toBe("zh");
+    houseStyle.mockRestore();
   });
 
   test("a new department head's task prompt tells them to staff their department, not to work as an IC", async () => {

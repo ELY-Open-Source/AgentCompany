@@ -3,7 +3,6 @@ import { describe, expect, test } from "vitest";
 import { interpretPollResponse } from "../../src/main/services/oauth/github-copilot-flow";
 import { interpretKimiPollResponse } from "../../src/main/services/oauth/kimi-code-flow";
 import { extractAccountId } from "../../src/main/services/oauth/openai-codex-flow";
-import { readProjectId, requireAntigravityClientSecret } from "../../src/main/services/oauth/google-antigravity-flow";
 import { generatePkce } from "../../src/main/services/oauth/pkce";
 import { providerAdapters } from "../../src/main/services/provider-adapters";
 
@@ -80,28 +79,6 @@ describe("openai codex account id extraction", () => {
   });
 });
 
-describe("antigravity project discovery", () => {
-  test("reads a string or object project id", () => {
-    expect(readProjectId({ cloudaicompanionProject: "proj-a" })).toBe("proj-a");
-    expect(readProjectId({ cloudaicompanionProject: { id: "proj-b" } })).toBe("proj-b");
-  });
-
-  test("returns null when no project is present", () => {
-    expect(readProjectId({})).toBeNull();
-    expect(readProjectId({ cloudaicompanionProject: {} })).toBeNull();
-  });
-});
-
-describe("antigravity oauth configuration", () => {
-  test("passes a saved client secret through", () => {
-    expect(requireAntigravityClientSecret("live-secret")).toBe("live-secret");
-  });
-
-  test("requires a client secret saved in Settings", () => {
-    expect(() => requireAntigravityClientSecret(null)).toThrow("Settings > Integrations");
-  });
-});
-
 describe("pkce generation", () => {
   test("produces an S256 challenge for the verifier", () => {
     const { verifier, challenge } = generatePkce();
@@ -117,7 +94,6 @@ describe("oauth credential parsing", () => {
   test("a stored sign-in is accepted only with what a run needs to use and renew it", () => {
     expect(providerAdapters["github-copilot"].parseAuthProfile(signIn())).toEqual({ type: "access_token", accessToken: "live_token" });
     expect(providerAdapters["gpt-account"].parseAuthProfile(signIn({ accountId: "acct_1" }))).toEqual({ type: "account_token", accessToken: "live_token" });
-    expect(providerAdapters["google-antigravity"].parseAuthProfile(signIn({ projectId: "proj-1" }))).toEqual({ type: "access_token", accessToken: "live_token" });
   });
 
   test("a pasted token, or a sign-in missing its refresh token, expiry or provider extras, is refused at save time", () => {
@@ -125,7 +101,6 @@ describe("oauth credential parsing", () => {
     expect(() => providerAdapters["claude-pro"].parseAuthProfile(JSON.stringify({ access: "a", expires: 1 }))).toThrow("missing its refresh token");
     expect(() => providerAdapters["kimi-code"].parseAuthProfile(JSON.stringify({ access: "a", refresh: "r" }))).toThrow("missing its expiry");
     expect(() => providerAdapters["gpt-account"].parseAuthProfile(signIn())).toThrow("missing its ChatGPT account id");
-    expect(() => providerAdapters["google-antigravity"].parseAuthProfile(signIn())).toThrow("missing its Google Cloud project id");
   });
 });
 

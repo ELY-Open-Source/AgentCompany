@@ -2,7 +2,6 @@ import type { ToolTurnFn } from "../provider-tool-turn";
 import {
   makeChatCompletionsTurn,
   runAnthropicTurn,
-  runAntigravityTurn,
   runAzureTurn,
   runBedrockTurn,
   runClaudeProTurn,
@@ -28,7 +27,6 @@ const TURNS: Record<string, ToolTurnFn> = {
   "kimi-cn": makeChatCompletionsTurn("kimi-cn", "https://api.moonshot.cn/v1/chat/completions", "Kimi CN"),
   "gpt-account": runCodexTurn,
   "github-copilot": runCopilotTurn,
-  "google-antigravity": runAntigravityTurn,
   "claude-pro": runClaudeProTurn,
   "kimi-code": runKimiCodeTurn,
   "custom-openai": runCustomOpenAiTurn,

@@ -208,6 +208,21 @@ describe("chat wake context", () => {
     h.connection.close();
   });
 
+  test("a message stamped in the same millisecond as the reply still counts as new", async () => {
+    const h = await founderLine();
+    const threadId = h.say("Ship on Monday.", null);
+    await h.runWake();
+    h.say("Tie breaker.", threadId);
+    h.connection.db.exec(`
+      update chat_messages set created_at = (select created_at from chat_messages where sender_type = 'agent' order by rowid desc limit 1)
+      where body_md = 'Tie breaker.'
+    `);
+    await h.runWake();
+    const prompt = h.wakePrompts[1];
+    expect(prompt.slice(prompt.indexOf("New since your last reply"))).toContain(": Tie breaker.");
+    h.connection.close();
+  });
+
   test("a long thread keeps every new message and the most recent history", async () => {
     const h = await founderLine();
     const threadId = h.say("Message 0", null);

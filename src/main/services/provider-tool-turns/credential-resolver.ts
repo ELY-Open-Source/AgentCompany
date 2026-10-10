@@ -3,7 +3,7 @@
  * pass the key straight through; OAuth/subscription providers parse the stored
  * credential JSON, refresh the access token when it has expired (persisting the
  * rotated token), and hand the turn a usable access token plus the extras
- * (accountId / projectId / enterpriseUrl) its backend needs.
+ * (accountId / enterpriseUrl) its backend needs.
  */
 import { PROVIDER_AUTH_TYPE } from "../../../shared/domain";
 import type { AuthBrokerService } from "../auth-broker-service";
@@ -26,21 +26,17 @@ import type { TurnCredential } from "../provider-tool-turn";
 import type { OAuthCredentials } from "../oauth/oauth-types";
 import { refreshCodex } from "../oauth/openai-codex-flow";
 import { refreshClaudePro } from "../oauth/anthropic-claude-flow";
-import { refreshAntigravity, requireAntigravityClientSecret } from "../oauth/google-antigravity-flow";
-import type { IntegrationKeyStore } from "../integration-key-store";
 import { refreshGitHubCopilotToken } from "../oauth/github-copilot-flow";
 import { refreshKimiCode } from "../oauth/kimi-code-flow";
 import { parseStoredOAuth, type StoredOAuth } from "../oauth/stored-oauth";
 import { untilStopped } from "../run-control";
 
-function refreshOAuth(providerKey: string, creds: StoredOAuth, keys: IntegrationKeyStore): Promise<OAuthCredentials> {
+function refreshOAuth(providerKey: string, creds: StoredOAuth): Promise<OAuthCredentials> {
   switch (providerKey) {
     case "gpt-account":
       return refreshCodex(creds.refresh);
     case "claude-pro":
       return refreshClaudePro(creds.refresh);
-    case "google-antigravity":
-      return refreshAntigravity(creds.refresh, requireProjectId(creds), requireAntigravityClientSecret(keys.read("google_antigravity_client_secret")));
     case "github-copilot":
       return refreshGitHubCopilotToken(creds.refresh, creds.enterpriseUrl ?? undefined);
     case "kimi-code":
@@ -82,14 +78,12 @@ function toTurnCredential(creds: StoredOAuth | OAuthCredentials): TurnCredential
   return {
     accessToken: creds.access,
     accountId: typeof creds.accountId === "string" ? creds.accountId : undefined,
-    projectId: typeof creds.projectId === "string" ? creds.projectId : undefined,
     enterpriseUrl: typeof enterpriseUrl === "string" ? enterpriseUrl : enterpriseUrl === null ? null : undefined,
   };
 }
 
 export async function resolveTurnCredential(deps: {
   authBroker: AuthBrokerService;
-  integrationKeys: IntegrationKeyStore;
   orgId: string;
   provider: ProviderRow;
 }): Promise<TurnCredential> {
@@ -109,13 +103,13 @@ export async function resolveTurnCredential(deps: {
 /** Refreshes in flight, by stored credential: a rotating provider honours a refresh token once, so callers at once share one. */
 const refreshing = new Map<string, Promise<OAuthCredentials>>();
 
-function refreshOnce(deps: { authBroker: AuthBrokerService; integrationKeys: IntegrationKeyStore; orgId: string; provider: ProviderRow }, creds: StoredOAuth): Promise<OAuthCredentials> {
+function refreshOnce(deps: { authBroker: AuthBrokerService; orgId: string; provider: ProviderRow }, creds: StoredOAuth): Promise<OAuthCredentials> {
   const credentialId = deps.provider.credential_id;
   if (!credentialId) throw new Error("Provider credential id is missing; reconnect the provider.");
   const running = refreshing.get(credentialId);
   if (running) return running;
   console.info(`[credentials] refreshing the ${deps.provider.provider_key} sign-in`);
-  const refresh = refreshOAuth(deps.provider.provider_key, creds, deps.integrationKeys)
+  const refresh = refreshOAuth(deps.provider.provider_key, creds)
     .then((refreshed) => {
       deps.authBroker.updateProviderSecret({ orgId: deps.orgId, providerKey: deps.provider.provider_key, credentialId, secret: JSON.stringify(refreshed) });
       return refreshed;
@@ -123,9 +117,4 @@ function refreshOnce(deps: { authBroker: AuthBrokerService; integrationKeys: Int
     .finally(() => refreshing.delete(credentialId));
   refreshing.set(credentialId, refresh);
   return refresh;
-}
-
-function requireProjectId(creds: StoredOAuth): string {
-  if (!creds.projectId) throw new Error("The Google Antigravity sign-in is missing its Google Cloud project id; sign in again.");
-  return creds.projectId;
 }

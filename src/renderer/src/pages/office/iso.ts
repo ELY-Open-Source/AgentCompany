@@ -57,13 +57,21 @@ export function drawBox(ctx: CanvasRenderingContext2D, frame: IsoFrame, foot: Re
   polygon(ctx, colors.south, [toIso(frame, { x: x0, y: y1 }, z), toIso(frame, { x: x1, y: y1 }, z), toIso(frame, { x: x1, y: y1 }, top), toIso(frame, { x: x0, y: y1 }, top)]);
   polygon(ctx, colors.east, [toIso(frame, { x: x1, y: y1 }, z), toIso(frame, { x: x1, y: y0 }, z), toIso(frame, { x: x1, y: y0 }, top), toIso(frame, { x: x1, y: y1 }, top)]);
   polygon(ctx, colors.top, [toIso(frame, { x: x0, y: y0 }, top), toIso(frame, { x: x1, y: y0 }, top), toIso(frame, { x: x1, y: y1 }, top), toIso(frame, { x: x0, y: y1 }, top)]);
+  if (height <= 0) return;
+  const rim = toIso(frame, { x: x1, y: y1 }, top);
+  polygon(ctx, "rgba(255,255,255,0.2)", [toIso(frame, { x: x0, y: y1 }, top), rim, { x: rim.x, y: rim.y + 0.5 }, toIso(frame, { x: x0, y: y1 }, top - 0.5)]);
+  polygon(ctx, "rgba(255,255,255,0.14)", [rim, toIso(frame, { x: x1, y: y0 }, top), toIso(frame, { x: x1, y: y0 }, top - 0.5), { x: rim.x, y: rim.y + 0.5 }]);
+  const base = toIso(frame, { x: x1, y: y1 }, z);
+  polygon(ctx, "rgba(255,255,255,0.1)", [{ x: rim.x - 0.5, y: rim.y }, rim, base, { x: base.x - 0.5, y: base.y }]);
 }
 
 function polygon(ctx: CanvasRenderingContext2D, color: string, points: Vec[]): void {
+  const art = Math.max(1, Math.round(ctx.getTransform().a));
+  const snap = (value: number) => Math.round(value * art) / art;
   ctx.fillStyle = color;
   ctx.beginPath();
-  ctx.moveTo(Math.round(points[0]!.x), Math.round(points[0]!.y));
-  for (const point of points.slice(1)) ctx.lineTo(Math.round(point.x), Math.round(point.y));
+  ctx.moveTo(snap(points[0]!.x), snap(points[0]!.y));
+  for (const point of points.slice(1)) ctx.lineTo(snap(point.x), snap(point.y));
   ctx.closePath();
   ctx.fill();
 }
@@ -85,4 +93,9 @@ export function pickAt<T extends Vec>(frame: IsoFrame, people: T[], point: Vec):
 /** Screen size of one iso pixel in CSS px: two CSS px rounded to whole device pixels. */
 export function isoPixelSize(devicePixelRatio: number): number {
   return Math.max(1, Math.round(2 * devicePixelRatio)) / devicePixelRatio;
+}
+
+/** Scene pixels per iso pixel: two when an iso pixel spans an even number of device pixels, so detail stays on whole device pixels. */
+export function artScale(devicePixelRatio: number): number {
+  return Math.max(1, Math.round(2 * devicePixelRatio)) % 2 === 0 ? 2 : 1;
 }

@@ -138,6 +138,11 @@ describe("agent direct messages", () => {
     const assignment = h.connection.db.prepare("select space_id, body_md from chat_messages where org_id = ?").get(h.orgId) as { space_id: string; body_md: string };
     expect(assignment.space_id).toBe(spaces[0].id);
     expect(assignment.body_md).toContain("take task_id=");
+
+    h.organization.updateUiPreferences({ language: "zh" });
+    dispatchAgentTool(deps, h.ctx, call("create_task", { title: "Ship docs", description: "d", assignee_agent_name: "Dana" }));
+    const zh = h.connection.db.prepare("select body_md from chat_messages where org_id = ? and body_md like '%Ship docs%'").get(h.orgId) as { body_md: string };
+    expect(zh.body_md).toContain("请接手 task_id=");
   });
 
   test("send_message requires exactly one destination", () => {

@@ -5,7 +5,7 @@ import { accumulateResponsesStream, parseResponsesOutput, toResponsesInput } fro
 import { accumulateChatStream, parseChatChoice, toChatMessages } from "../../src/main/services/provider-tool-turns/chat-format";
 import { parseAnthropicContent, toAnthropicMessages } from "../../src/main/services/provider-tool-turns/anthropic-format";
 import { parseBedrockOutput, toBedrockMessages } from "../../src/main/services/provider-tool-turns/bedrock-format";
-import { accumulateGeminiStream, parseGeminiResponse, vertexRequestBody } from "../../src/main/services/provider-tool-turns/gemini-format";
+import { parseGeminiResponse, vertexRequestBody } from "../../src/main/services/provider-tool-turns/gemini-format";
 
 async function* stream(items: JsonRecord[]): AsyncIterable<ProviderEventStreamMessage> {
   for (const data of items) yield { eventName: null, data, rawData: JSON.stringify(data) };
@@ -53,10 +53,8 @@ describe("reasoning survives tool turns", () => {
 
   test("Gemini: thought signatures on parts go back, streamed or not", async () => {
     const parts = [{ text: "plan", thought: true }, { functionCall: { name: "f", args: {} }, thoughtSignature: "SIG" }];
-    const vertex = vertexRequestBody({ model: "gemini-3-pro", instructions: null, messages: after(parseGeminiResponse({ candidates: [{ content: { parts }, finishReason: "STOP" }] })), tools: [] });
+    const vertex = vertexRequestBody({ instructions: null, messages: after(parseGeminiResponse({ candidates: [{ content: { parts }, finishReason: "STOP" }] })), tools: [] });
     expect((vertex.contents as JsonRecord[])[1]).toEqual({ role: "model", parts });
-    const streamed = await accumulateGeminiStream(stream([...parts.map((part) => ({ response: { candidates: [{ content: { parts: [part] } }] } })), { response: { candidates: [{ finishReason: "STOP" }] } }]));
-    expect(streamed.replay).toEqual({ format: "gemini", content: parts });
   });
 
   test("Chat: streamed reasoning goes back under the field it came in, and OpenRouter details are merged into whole entries", async () => {

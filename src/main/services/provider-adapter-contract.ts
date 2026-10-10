@@ -3,7 +3,7 @@ import type { ProviderModelEntry } from "../../shared/provider-models";
 import type { ProviderObservedRateLimitState } from "../../shared/provider-runtime-domain";
 import type { ProviderAuthProfile } from "./provider-auth-profiles";
 import type { ProviderBackgroundCreateResult, ProviderBackgroundRetrieveResult } from "./provider-background";
-import type { ProviderAuthorizeHandler, ProviderRefreshHandler, ProviderRevokeHandler } from "./provider-auth-lifecycle";
+import type { ProviderAuthorizeHandler, ProviderRefreshHandler } from "./provider-auth-lifecycle";
 import type { ProviderCancelResult, ProviderStreamResult } from "./provider-streaming";
 
 export interface ProviderExecutionInput {
@@ -50,7 +50,6 @@ export interface ProviderAdapter {
   authType: ProviderAuthType;
   authorize: ProviderAuthorizeHandler;
   refresh: ProviderRefreshHandler;
-  revoke: ProviderRevokeHandler;
   parseAuthProfile(secret: string): ProviderAuthProfile;
   listModels(ctx: ProviderContext): Promise<ProviderModelEntry[]>;
   getRateLimitState(ctx: ProviderContext): Promise<ProviderRateLimitState | null>;

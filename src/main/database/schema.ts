@@ -109,6 +109,7 @@ import { searchPendingSchema } from "./migrations/107-search-pending";
 import { dropAutomationRulesSchema } from "./migrations/108-drop-automation-rules";
 import { dropMeetingsSchema } from "./migrations/109-drop-meetings";
 import { dropSprintsSchema } from "./migrations/110-drop-sprints";
+import { dropGoogleAntigravitySchema } from "./migrations/111-drop-google-antigravity";
 
 interface Migration {
   version: number;
@@ -227,6 +228,7 @@ const MIGRATIONS: Migration[] = [
   { version: 108, name: "drop_automation_rules", sql: dropAutomationRulesSchema },
   { version: 109, name: "drop_meetings", sql: dropMeetingsSchema },
   { version: 110, name: "drop_sprints", sql: dropSprintsSchema },
+  { version: 111, name: "drop_google_antigravity", sql: dropGoogleAntigravitySchema },
 ];
 
 const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;

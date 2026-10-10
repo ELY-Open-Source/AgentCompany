@@ -43,7 +43,7 @@ test("the office floor opens agent details on click", async () => {
     await page.getByLabel("Acceptance criteria").fill("Clicking an agent opens their card.");
     await page.getByRole("button", { name: "Launch" }).click();
     await expect(page.getByRole("heading", { name: "Connectors" })).toBeVisible();
-    await page.getByRole("button", { name: "Finish" }).click();
+    await page.getByRole("button", { name: "Skip" }).click();
     await expect(page.getByRole("button", { name: /Pixel Works/ })).toBeVisible();
 
     await page.getByRole("button", { name: "Office", exact: true }).click();

@@ -48,7 +48,6 @@ describe("every agent turn has the same output cap and a wait that fits how it i
       const { body } = await capture(key);
       expect([key, body[field]]).toEqual([key, OUTPUT_RESERVE_TOKENS]);
     }
-    expect(outputCap((await capture("google-antigravity", "gemini-3-pro")).body)).toBe(OUTPUT_RESERVE_TOKENS);
     expect(outputCap((await capture("vertex-ai", "gemini-3-pro")).body)).toBe(OUTPUT_RESERVE_TOKENS);
     expect(outputCap((await capture("aws-bedrock", "anthropic.claude-sonnet-4-5")).body)).toBe(OUTPUT_RESERVE_TOKENS);
   });
@@ -64,7 +63,7 @@ describe("every agent turn has the same output cap and a wait that fits how it i
       const { streamed, timeouts } = await capture(key);
       expect([key, streamed, timeouts?.headersTimeoutMs]).toEqual([key, false, 300_000]);
     }
-    for (const key of ["xai", "kimi-code", "gpt-account", "google-antigravity"]) {
+    for (const key of ["xai", "kimi-code", "gpt-account"]) {
       const { streamed, timeouts } = await capture(key);
       expect([key, streamed, timeouts?.headersTimeoutMs]).toEqual([key, true, undefined]);
     }

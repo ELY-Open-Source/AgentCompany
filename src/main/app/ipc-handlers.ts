@@ -65,7 +65,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
   const chat = new ChatService(deps.connection.db);
   const providers = new ProviderService(deps.connection.db);
   const integrationKeys = new IntegrationKeyStore(deps.connection.db);
-  const providerOAuth = new ProviderOAuthService(integrationKeys);
+  const providerOAuth = new ProviderOAuthService();
   const skills = new SkillService(deps.connection.db, deps.artifactRoot);
   const announceChange = coalesce(() => {
     try {
@@ -261,17 +261,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     }
   });
   handle("setProviderModel", (input) => mutate(() => setProviderModel(deps.connection.db, input)));
-  handle("revokeProviderCredential", async (input) => {
-    try {
-      await providers.revokeCredential(input);
-      notifyDataChanged();
-      return ok(snapshot.load());
-    } catch (error) {
-      // The local disconnect has happened even when the provider refused the revocation.
-      notifyDataChanged();
-      return fail("provider_revoke_failed", error instanceof Error ? error.message : String(error));
-    }
-  });
+  handle("revokeProviderCredential", (input) => mutate(() => providers.revokeCredential(input)));
   handle("updateProviderPolicy", (input) => mutate(() => providers.updatePolicy(input)));
   handle("setProviderPrices", (input) => mutate(() => providers.setPrices(input)));
   handle("setGoalAuditor", (input) => mutate(() => setGoalAuditor(deps.connection.db, input)));

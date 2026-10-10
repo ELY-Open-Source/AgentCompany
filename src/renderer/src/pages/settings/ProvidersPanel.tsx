@@ -93,7 +93,6 @@ export function ProvidersPanel({ orgId, companyName, employeeId, providers, auth
                 onManage={() => setActive(provider)}
                 onChangeModel={provider.providerKey === "azure-openai" ? null : () => openModel(provider)}
                 onRevoke={() => setDisconnecting(provider)}
-                revokesRemotely={requireCatalogEntry(catalog, provider.providerKey).revokesRemotely}
               />
             ))}
           </div>
@@ -151,7 +150,6 @@ export function ProvidersPanel({ orgId, companyName, employeeId, providers, auth
           key={disconnecting.id}
           orgId={orgId}
           provider={disconnecting}
-          revokesRemotely={requireCatalogEntry(catalog, disconnecting.providerKey).revokesRemotely}
           actions={actions}
           onClose={() => setDisconnecting(null)}
         />
@@ -235,7 +233,6 @@ function ProviderRow({
   onManage,
   onChangeModel,
   onRevoke,
-  revokesRemotely,
 }: {
   provider: ProviderRecord;
   authProfile: ProviderAuthProfileRecord | null;
@@ -245,7 +242,6 @@ function ProviderRow({
   /** Null where the model lives in the credential (Azure's deployment). */
   onChangeModel: (() => void) | null;
   onRevoke: () => void;
-  revokesRemotely: boolean;
 }) {
   const boundCount = agents.filter((agent) => agent.modelProviderId === provider.id).length;
   return (
@@ -279,9 +275,7 @@ function ProviderRow({
         <Button
           tone="ghost"
           onClick={onRevoke}
-          title={revokesRemotely
-            ? t("Revokes the sign-in at {provider} and erases it from this computer.", { provider: provider.label })
-            : t("Erases the key from this computer. {provider} keeps accepting it until you revoke it in your account.", { provider: provider.label })}
+          title={t("Erases the key from this computer. {provider} keeps accepting it until you revoke it in your account.", { provider: provider.label })}
         >
           {t("Disconnect")}
         </Button>

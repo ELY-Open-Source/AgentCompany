@@ -9,7 +9,7 @@ import type { AgentTurnMessage, AgentTurnResult, ProviderToolTurnInput, TurnCred
 import { accumulateResponsesStream, parseResponsesOutput, responsesToolDefs, toResponsesInput } from "./responses-format";
 import { anthropicToolDefs, parseAnthropicContent, toAnthropicMessages } from "./anthropic-format";
 import { accumulateChatStream, chatMaxTokensField, chatToolDefs, parseChatChoice, toChatMessages } from "./chat-format";
-import { accumulateGeminiStream, antigravityRequestBody, parseGeminiResponse, vertexRequestBody } from "./gemini-format";
+import { parseGeminiResponse, vertexRequestBody } from "./gemini-format";
 import { bedrockToolConfig, parseBedrockOutput, toBedrockMessages } from "./bedrock-format";
 import { signAwsRequest } from "./aws-sigv4";
 import { getGcpAccessToken } from "./gcp-auth";
@@ -17,8 +17,6 @@ import { COPILOT_HEADERS, copilotBaseUrl } from "../oauth/github-copilot-flow";
 import { KIMI_CODE_BASE_URL } from "../oauth/kimi-code-flow";
 import { OUTPUT_RESERVE_TOKENS } from "../context-budget";
 
-const ANTIGRAVITY_VERSION = "1.21.9";
-const ANTIGRAVITY_ENDPOINT = "https://cloudcode-pa.googleapis.com";
 const CODEX_BASE_URL = "https://chatgpt.com/backend-api";
 
 function requireApiKey(credential: TurnCredential, label: string): string {
@@ -211,27 +209,6 @@ export async function runCustomAnthropicTurn(input: ProviderToolTurnInput): Prom
   return { ...parsed, rawResponseJson: JSON.stringify(response.data), rateLimitState: response.rateLimitState };
 }
 
-// ---- Google Antigravity (OAuth, Gemini Code Assist, SSE) ----
-
-export async function runAntigravityTurn(input: ProviderToolTurnInput): Promise<AgentTurnResult> {
-  const access = requireAccessToken(input.credential, "Google Antigravity");
-  if (!input.credential.projectId) throw new Error("Antigravity credential is missing its project id.");
-  const requestId = `agent-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
-  const body = antigravityRequestBody({
-    model: input.model,
-    projectId: input.credential.projectId,
-    instructions: input.instructions,
-    messages: input.messages,
-    tools: input.tools,
-    requestId,
-  });
-  const response = await postEventStream(`${ANTIGRAVITY_ENDPOINT}/v1internal:streamGenerateContent?alt=sse`, {
-    Authorization: `Bearer ${access}`,
-    "User-Agent": `antigravity/${ANTIGRAVITY_VERSION} darwin/arm64`,
-  }, body);
-  return { ...(await accumulateGeminiStream(response.messages)), rateLimitState: response.rateLimitState };
-}
-
 // ---- Azure OpenAI (Chat Completions at the resource deployment) ----
 
 export async function runAzureTurn(input: ProviderToolTurnInput): Promise<AgentTurnResult> {
@@ -283,7 +260,7 @@ export async function runVertexTurn(input: ProviderToolTurnInput): Promise<Agent
   const { projectId, region, serviceAccountJson } = input.credential;
   if (!projectId || !region || !serviceAccountJson) throw new Error("Vertex AI credential is incomplete.");
   const token = await getGcpAccessToken(serviceAccountJson);
-  const body = vertexRequestBody({ model: input.model, instructions: input.instructions, messages: input.messages, tools: input.tools });
+  const body = vertexRequestBody({ instructions: input.instructions, messages: input.messages, tools: input.tools });
   const url = `https://${region}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${region}/publishers/google/models/${input.model}:generateContent`;
   const response = await postJson(url, { authorization: `Bearer ${token}` }, body, WHOLE_RESPONSE_WAIT);
   const parsed = parseGeminiResponse(response.data);

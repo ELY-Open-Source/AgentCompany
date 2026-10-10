@@ -12,7 +12,7 @@ import { StartupScreen } from "./StartupScreen";
 import type { Focus } from "../pages/types";
 import { useMemo, useState } from "react";
 import { Shell } from "../shared/Shell";
-import { ROUTE_IDS, type RouteId } from "../shared/routes";
+import { connectorsEnabled, ROUTE_IDS, type RouteId } from "../shared/routes";
 import { AvatarDirectoryContext, type AvatarLook } from "../shared/ui";
 import { Onboarding } from "./Onboarding";
 import { useSnapshot } from "./useSnapshot";
@@ -77,7 +77,8 @@ export function App() {
     return <StartupScreen failure={syncFailure} onRetry={() => void actions.reload().catch(() => undefined)} />;
   }
   seedViewState(snapshot.viewState);
-  const route = routeChoice ?? readViewState("route", isRoute) ?? "home";
+  const chosenRoute = routeChoice ?? readViewState("route", isRoute) ?? "home";
+  const route = chosenRoute === "connectors" && !connectorsEnabled(snapshot) ? "home" : chosenRoute;
   // A company exists from Launch on, but its setup is unfinished until the connectors step is done; that is stored, so a restart resumes it.
   const unfinished = snapshot.organizations.find((organization) => organization.setupCompletedAt === null) ?? null;
   if (snapshot.organizations.length === 0 || creatingOrg || unfinished) {

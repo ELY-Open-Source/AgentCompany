@@ -1,12 +1,12 @@
 import { PROVIDER_AUTH_TYPE, type ProviderCatalogEntry } from "./domain";
 import { listProviderModels } from "./provider-models";
 
-const RAW_CATALOG: Omit<ProviderCatalogEntry, "models" | "supportsLiveModels" | "revokesRemotely">[] = [
+const RAW_CATALOG: Omit<ProviderCatalogEntry, "models" | "supportsLiveModels">[] = [
   {
     key: "openai",
     label: "OpenAI",
     authType: PROVIDER_AUTH_TYPE.API_KEY,
-    defaultModel: "gpt-5.4",
+    defaultModel: "gpt-6.1-sol",
     capabilityTags: ["responses", "tools", "background"],
     signInUrl: null,
     credentialHelp: "Generate an API key at platform.openai.com → API keys.",
@@ -101,20 +101,12 @@ const RAW_CATALOG: Omit<ProviderCatalogEntry, "models" | "supportsLiveModels" | 
     signInUrl: "https://github.com/login/device",
     credentialHelp: "Sign in with the GitHub device code shown here — no token to copy.",
   },
-  {
-    key: "google-antigravity",
-    label: "Google Antigravity",
-    authType: PROVIDER_AUTH_TYPE.OAUTH_PKCE,
-    defaultModel: "claude-sonnet-4-5",
-    capabilityTags: ["account", "coding"],
-    signInUrl: "https://antigravity.google/",
-    credentialHelp: "Sign in with your Google account in the browser; AgentCompany finishes the handshake.",
-  },
+
   {
     key: "gpt-account",
     label: "GPT account",
     authType: PROVIDER_AUTH_TYPE.ACCOUNT_SUBSCRIPTION,
-    defaultModel: "gpt-5.3-codex",
+    defaultModel: "gpt-6.1-sol",
     capabilityTags: ["codex", "subscription"],
     signInUrl: "https://chatgpt.com/codex",
     credentialHelp: "Sign in to ChatGPT Plus/Pro in the browser; AgentCompany finishes the handshake.",
@@ -183,7 +175,6 @@ const RAW_CATALOG: Omit<ProviderCatalogEntry, "models" | "supportsLiveModels" | 
 // list exists) or a free-text model id instead of a live fetch.
 const CURATED_MODEL_PROVIDERS = new Set([
   "github-copilot",
-  "google-antigravity",
   "gpt-account",
   "azure-openai",
   "aws-bedrock",
@@ -192,12 +183,8 @@ const CURATED_MODEL_PROVIDERS = new Set([
   "custom-anthropic",
 ]);
 
-// Google documents a token revocation endpoint (RFC 7009); the others offer none for what we hold.
-const REMOTE_REVOCATION = new Set(["google-antigravity"]);
-
 export const PROVIDER_CATALOG: ProviderCatalogEntry[] = RAW_CATALOG.map((entry) => ({
   ...entry,
   models: listProviderModels(entry.key),
   supportsLiveModels: !CURATED_MODEL_PROVIDERS.has(entry.key),
-  revokesRemotely: REMOTE_REVOCATION.has(entry.key),
 }));

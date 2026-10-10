@@ -5,7 +5,7 @@ import { accumulateResponsesStream, parseResponsesOutput } from "../../src/main/
 import { accumulateChatStream, parseChatChoice } from "../../src/main/services/provider-tool-turns/chat-format";
 import { parseAnthropicContent } from "../../src/main/services/provider-tool-turns/anthropic-format";
 import { parseBedrockOutput } from "../../src/main/services/provider-tool-turns/bedrock-format";
-import { accumulateGeminiStream, parseGeminiResponse } from "../../src/main/services/provider-tool-turns/gemini-format";
+import { parseGeminiResponse } from "../../src/main/services/provider-tool-turns/gemini-format";
 import { mapAnthropicMessageStream, mapOpenAiChatCompletionStream, mapOpenAiResponseStream } from "../../src/main/services/provider-streaming";
 
 async function* stream(items: JsonRecord[]): AsyncIterable<ProviderEventStreamMessage> {
@@ -46,12 +46,10 @@ describe("a turn the provider cut short is never treated as finished", () => {
     expect(parseBedrockOutput({ stopReason: "end_turn", output: { message: { content: [{ text: "ok" }] } } }).text).toBe("ok");
   });
 
-  test("Gemini: MAX_TOKENS fails, a stream without finishReason fails, STOP passes", async () => {
+  test("Gemini: MAX_TOKENS fails, STOP passes", () => {
     const parts = [{ text: "ok" }];
     expect(() => parseGeminiResponse({ candidates: [{ content: { parts }, finishReason: "MAX_TOKENS" }] })).toThrow("MAX_TOKENS");
     expect(parseGeminiResponse({ candidates: [{ content: { parts }, finishReason: "STOP" }] }).text).toBe("ok");
-    await expect(accumulateGeminiStream(stream([{ response: { candidates: [{ content: { parts } }] } }]))).rejects.toThrow("no stop reason");
-    expect((await accumulateGeminiStream(stream([{ response: { candidates: [{ content: { parts }, finishReason: "STOP" }] } }]))).text).toBe("ok");
   });
 
   test("streamed replies: a cut-off stop is an error, not a message_stop", async () => {

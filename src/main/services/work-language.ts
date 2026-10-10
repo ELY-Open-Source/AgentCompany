@@ -11,3 +11,9 @@ export function taskWorkLanguage(db: DatabaseSync, orgId: string, taskId: string
   if (!row) throw new Error("Task was not found.");
   return row.language;
 }
+
+/** The app's display language; agents chat in it. */
+export function appLanguage(db: DatabaseSync): WorkLanguage {
+  const row = db.prepare("select language from app_state where id = 1").get() as { language: WorkLanguage } | undefined;
+  return row?.language ?? "en";
+}

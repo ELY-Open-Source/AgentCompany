@@ -2,7 +2,9 @@ import { currentDataVersion } from "./data-version";
 import { loadViewState } from "./view-state";
 import { loadOnboardingDraft } from "./onboarding-progress";
 import type { DatabaseSync, StatementSync, SQLInputValue } from "node:sqlite";
-import type { AppSnapshot } from "../../shared/domain";
+import type { AppSnapshot, UiTheme } from "../../shared/domain";
+
+const UI_THEMES: UiTheme[] = ["system", "light", "dark", "clock"];
 import { PROVIDER_CATALOG } from "../../shared/provider-catalog";
 import { IntegrationKeyStore } from "./integration-key-store";
 import { currentProviderUsageWindow } from "../../shared/provider-runtime-domain";
@@ -173,9 +175,10 @@ export class SnapshotService {
   private resolveUiPreferences(): AppSnapshot["uiPreferences"] {
     const row = this.db.prepare("select theme, language from app_state where id = 1")
       .get() as { theme: string; language: string } | undefined;
-    const theme = row?.theme === "light" || row?.theme === "dark" ? row.theme : "system";
+    const theme = row?.theme ?? "system";
+    if (!UI_THEMES.includes(theme as UiTheme)) throw new Error(`Stored theme "${theme}" is not a known theme.`);
     const language = row?.language === "zh" ? "zh" : "en";
-    return { theme, language };
+    return { theme: theme as UiTheme, language };
   }
 }
 

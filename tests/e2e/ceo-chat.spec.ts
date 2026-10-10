@@ -43,7 +43,7 @@ test("the pinned CEO conversation is the Messages front door", async () => {
     await page.getByLabel("Acceptance criteria").fill("A working product, not documents about one.");
     await page.getByRole("button", { name: "Launch" }).click();
     await expect(page.getByRole("heading", { name: "Connectors" })).toBeVisible();
-    await page.getByRole("button", { name: "Finish" }).click();
+    await page.getByRole("button", { name: "Skip" }).click();
 
     // The CEO conversation is the first row, badged, and already selected —
     // opening Messages IS opening the CEO chat.

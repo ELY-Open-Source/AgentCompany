@@ -57,9 +57,9 @@ test("onboarding resumes where it was left after the app is closed", async () =>
   app = await launch();
   page = await app.firstWindow();
   await expect(page.getByRole("heading", { name: "Connectors" })).toBeVisible();
-  // The step says when connector statuses could not be checked, as the Connectors page does.
-  await expect(page.getByRole("alert").filter({ hasText: "Account status could not be checked with Composio" })).toBeVisible();
-  await page.getByRole("button", { name: "Finish" }).click();
+  // Without a Composio key the step asks for one; skipping keeps Connectors out of the app.
+  await expect(page.getByText("Composio API key")).toBeVisible();
+  await page.getByRole("button", { name: "Skip" }).click();
   await expect(page.getByRole("button", { name: "Settings" })).toBeVisible();
 
   // A cancelled second company leaves nothing behind for the next attempt.

@@ -32,7 +32,7 @@ test("the library manages documents with versions and knowledge with history", a
     await page.getByLabel("Goal").fill("Keep company knowledge.");
     await page.getByLabel("Acceptance criteria").fill("Documents and knowledge are manageable.");
     await page.getByRole("button", { name: "Launch" }).click();
-    await page.getByRole("button", { name: "Finish" }).click();
+    await page.getByRole("button", { name: "Skip" }).click();
     await expect(page.getByRole("button", { name: /Stack Works/ })).toBeVisible();
 
     const orgId = await page.evaluate(async () => {

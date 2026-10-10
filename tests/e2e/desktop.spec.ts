@@ -56,7 +56,9 @@ test("onboards, hires, and creates work in the Electron shell", async () => {
     // The company exists after Launch; the wizard closes with the optional
     // connectors step.
     await expect(page.getByRole("heading", { name: "Connectors" })).toBeVisible();
-    await page.getByRole("button", { name: "Finish" }).click();
+    await expect(page.getByText("logo.dev publishable key")).toBeVisible();
+    await page.getByRole("button", { name: "Skip" }).click();
+    await expect(page.getByRole("button", { name: "Connectors", exact: true })).toHaveCount(0);
 
     await expect(page.getByRole("button", { name: /Acme Operations/ })).toBeVisible();
     await page.getByRole("button", { name: "Work", exact: true }).click();
@@ -74,6 +76,12 @@ test("onboards, hires, and creates work in the Electron shell", async () => {
     await page.getByLabel("Role").fill("CTO");
     await page.getByLabel("Department").fill("Engineering");
     await page.getByLabel("Monthly budget").fill("250");
+    // The model picker offers the provider's whole list, whatever is picked now.
+    const model = page.locator(".modal select[name=modelId]");
+    await model.selectOption("gpt-6.1-sol");
+    const offered = await model.locator("option").evaluateAll((options) => options.map((option) => (option as HTMLOptionElement).value));
+    expect(offered).toEqual(expect.arrayContaining(["", "gpt-6.1-sol", "gpt-6-astra", "gpt-5.4-mini"]));
+    await model.selectOption("");
     await page.locator(".modal").getByRole("button", { name: "Hire" }).click();
     await expect(page.getByText("Alex Chen").first()).toBeVisible();
     const hiredAgent = await page.evaluate(async () => {
@@ -108,20 +116,19 @@ test("onboards, hires, and creates work in the Electron shell", async () => {
     await page.getByRole("button", { name: "Edit Alex Chen" }).click();
     await page.locator(".modal").getByLabel("Name", { exact: true }).fill("Alex Turing");
     await page.getByLabel("Avatar emoji").fill("🚀");
-    // The blank model field names the default of whichever provider is picked now.
-    const editModel = page.locator(".modal").getByLabel("Model", { exact: true });
-    await expect(editModel).toHaveAttribute("placeholder", "gpt-5.4");
+    // The blank model choice names the default of whichever provider is picked now.
+    const editModel = page.locator(".modal [name=modelId]");
+    await expect(editModel.locator("option").first()).toHaveText("gpt-5.4 (provider default)");
     const editProvider = page.locator(".modal select[name=modelProviderId]");
     const savedProvider = await editProvider.inputValue();
-    // Suggestions come from the picked provider only, and switching provider clears the model.
-    await expect(page.locator("#edit-model-suggestions option").first()).toHaveAttribute("value", /.+/);
-    await expect(page.locator("#edit-model-suggestions option[value^=claude]")).toHaveCount(0);
-    await editModel.fill("gpt-5.4");
+    // Choices come from the picked provider only, and switching provider clears the model.
+    await expect(editModel.locator("option[value^=claude]")).toHaveCount(0);
+    await editModel.selectOption("gpt-5.4");
     await editProvider.selectOption("");
-    await expect(editModel).toHaveAttribute("placeholder", "");
     await expect(editModel).toHaveValue("");
     await expect(editModel).toBeDisabled();
     await editProvider.selectOption(savedProvider);
+    await expect(editModel).toHaveValue("");
     await page.locator(".modal").getByRole("button", { name: "Save" }).click();
     await expect(page.getByText("Alex Turing").first()).toBeVisible();
     await expect(page.locator(".table-row", { hasText: "Alex Turing" }).locator(".avatar", { hasText: "🚀" })).toBeVisible();
@@ -213,12 +220,15 @@ test("onboards, hires, and creates work in the Electron shell", async () => {
     await page.getByRole("button", { name: "Approvals" }).click();
     await expect(page.getByText("Escalate release").first()).toBeVisible();
 
-    // The Connectors page shell renders whether or not the Composio catalog
-    // is reachable from the test machine.
+    // A saved Composio key brings Connectors into the sidebar; the page renders whether or not Composio answers.
+    await page.getByRole("button", { name: "Settings" }).click();
+    await page.getByRole("button", { name: "Integrations", exact: true }).click();
+    await page.locator("form").filter({ hasText: "Composio API key" }).getByLabel("Key").fill("ak_e2e");
+    await page.locator("form").filter({ hasText: "Composio API key" }).getByRole("button", { name: "Save" }).click();
     await page.getByRole("button", { name: "Connectors", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Connectors" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Refresh" })).toHaveCount(0);
-    // Without a Composio key the account check fails, and the page says the statuses may be stale.
+    // A key Composio rejects fails the account check, and the page says the statuses may be stale.
     await expect(page.getByRole("alert").filter({ hasText: "Account status could not be checked with Composio" })).toBeVisible();
     // A connector failure is shown whole and can be copied.
     const catalogError = page.getByRole("alert").filter({ has: page.getByRole("button", { name: "Retry" }) }).filter({ hasNotText: "Account status" }).first();
@@ -229,6 +239,7 @@ test("onboards, hires, and creates work in the Electron shell", async () => {
     expect((await app.evaluate(({ clipboard }) => clipboard.readText())).trim()).toBe(shownReason);
 
     await page.getByRole("button", { name: "Settings" }).click();
+    await page.getByRole("button", { name: "General", exact: true }).click();
     await expect(page.getByText("AI CEO", { exact: true })).toBeVisible();
     await page.getByRole("button", { name: "Providers" }).click();
     for (const label of ["Kimi", "Kimi CN", "Kimi Code"]) {

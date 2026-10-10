@@ -1,6 +1,5 @@
 import { githubCopilotFlow } from "./github-copilot-flow";
 import { openaiCodexFlow } from "./openai-codex-flow";
-import { antigravityFlow } from "./google-antigravity-flow";
 import { anthropicClaudeFlow } from "./anthropic-claude-flow";
 import { kimiCodeFlow } from "./kimi-code-flow";
 import type { OAuthFlow } from "./oauth-types";
@@ -9,7 +8,6 @@ import type { OAuthFlow } from "./oauth-types";
 const OAUTH_FLOWS: Record<string, OAuthFlow> = {
   "github-copilot": githubCopilotFlow,
   "gpt-account": openaiCodexFlow,
-  "google-antigravity": antigravityFlow,
   "claude-pro": anthropicClaudeFlow,
   "kimi-code": kimiCodeFlow,
 };

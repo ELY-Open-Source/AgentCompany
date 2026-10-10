@@ -46,7 +46,7 @@ test("captures every page for visual review", async () => {
 
     await expect(page.getByRole("heading", { name: "Connectors" })).toBeVisible();
     await page.screenshot({ path: join(outDir, "05-onboarding-connectors.png"), fullPage: false });
-    await page.getByRole("button", { name: "Finish" }).click();
+    await page.getByRole("button", { name: "Skip" }).click();
 
     await expect(page.getByRole("button", { name: /OrbitOps/ })).toBeVisible();
     await snap(page, outDir, "10-home");
@@ -56,6 +56,7 @@ test("captures every page for visual review", async () => {
     await go(page, "Messages", outDir, "13-messages");
     await go(page, "Files", outDir, "14-files");
     await go(page, "Approvals", outDir, "15-approvals");
+    await page.evaluate(() => window.agentCompany.setIntegrationKey({ name: "composio", value: "ak_e2e" }));
     await go(page, "Connectors", outDir, "16-connectors");
     await go(page, "Settings", outDir, "17-settings");
     await go(page, "Office", outDir, "18-office");

@@ -14,7 +14,7 @@ export async function onboard(page: Page, company: string): Promise<void> {
   await page.getByLabel("Goal").fill("Ship.");
   await page.getByLabel("Acceptance criteria").fill("It ships.");
   await page.getByRole("button", { name: "Launch" }).click();
-  await page.getByRole("button", { name: "Finish" }).click();
+  await page.getByRole("button", { name: "Skip" }).click();
   await expect(page.getByRole("button", { name: "Settings" })).toBeVisible();
 }
 

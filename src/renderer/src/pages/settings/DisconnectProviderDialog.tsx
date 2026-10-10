@@ -5,11 +5,10 @@ import type { SnapshotActions } from "../../app/useSnapshot";
 import { Dialog } from "../../shared/Dialog";
 import { t } from "../../i18n/i18n";
 
-/** Shows what a disconnect stops before it happens, then its outcome, including a provider that refused to revoke. */
-export function DisconnectProviderDialog({ orgId, provider, revokesRemotely, actions, onClose }: {
+/** Shows what a disconnect stops before it happens, then its outcome. */
+export function DisconnectProviderDialog({ orgId, provider, actions, onClose }: {
   orgId: string;
   provider: ProviderRecord;
-  revokesRemotely: boolean;
   actions: SnapshotActions;
   onClose: () => void;
 }) {
@@ -55,9 +54,7 @@ export function DisconnectProviderDialog({ orgId, provider, revokesRemotely, act
           {impact.agents.length > 0 && <li>{t("Open tasks assigned to them: {count}.", { count: impact.openTasks })}</li>}
           <li>{t("Running sessions that stop now: {count}.", { count: impact.runningRuns })}</li>
           <li>{t("Queued sessions that will fail when they start: {count}.", { count: impact.queuedRuns })}</li>
-          <li>{revokesRemotely
-            ? t("Revokes the sign-in at {provider} and erases it from this computer.", { provider: provider.label })
-            : t("Erases the key from this computer. {provider} keeps accepting it until you revoke it in your account.", { provider: provider.label })}</li>
+          <li>{t("Erases the key from this computer. {provider} keeps accepting it until you revoke it in your account.", { provider: provider.label })}</li>
         </ul>
       )}
       {state.kind === "error" && <div className="form-error" role="alert">{state.message}</div>}

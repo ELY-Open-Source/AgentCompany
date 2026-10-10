@@ -198,9 +198,24 @@ export function Onboarding({
         </div>
       </section>
 
+      {step === "connectors" ? (
+        <div className="onboarding-panel">
+          <div key={step} className="step-view">
+            {bootstrappedOrgId && (
+              <ConnectorsStep
+                orgId={bootstrappedOrgId}
+                snapshot={snapshot}
+                actions={actions}
+                onFinish={() => finishSetup(bootstrappedOrgId)}
+              />
+            )}
+          </div>
+          {error && <div style={{ color: "var(--red)", marginTop: 16, fontSize: "var(--fs-body)" }}>{error}</div>}
+        </div>
+      ) : (
       <form className="onboarding-panel" onSubmit={submit} noValidate>
         <div key={step} className="step-view">
-          {restored && step !== "connectors" && (
+          {restored && (
             <p role="status" style={{ fontSize: "var(--fs-body)", color: "var(--text-2)", margin: "0 0 12px" }}>
               {t("Your progress was restored. Keys are never saved before launch, so enter yours again.")}
             </p>
@@ -240,17 +255,10 @@ export function Onboarding({
               onBack={back("mode")}
             />
           )}
-          {step === "connectors" && bootstrappedOrgId && (
-            <ConnectorsStep
-              orgId={bootstrappedOrgId}
-              snapshot={snapshot}
-              actions={actions}
-              onFinish={() => finishSetup(bootstrappedOrgId)}
-            />
-          )}
         </div>
         {error && <div style={{ color: "var(--red)", marginTop: 16, fontSize: "var(--fs-body)" }}>{error}</div>}
       </form>
+      )}
       </main>
     </div>
   );

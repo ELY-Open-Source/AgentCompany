@@ -1,5 +1,5 @@
 import type { Focus } from "../pages/types";
-import type { RouteId } from "./routes";
+import { connectorsEnabled, type RouteId } from "./routes";
 import { shortcutLabel } from "../i18n/labels";
 import { isBusinessTask } from "../pages/work/task-helpers";
 import { unreadBySpace } from "../pages/chat/chat-helpers";
@@ -98,7 +98,7 @@ export function Shell({
           <span className="search-kbd">{shortcutLabel("K")}</span>
         </button>
         <nav className="nav">
-          {allNav.map((item) => (
+          {allNav.filter((item) => item.id !== "connectors" || connectorsEnabled(snapshot)).map((item) => (
             <NavButton key={item.id} item={item} active={route === item.id} badge={badges[item.id]} onSelect={setRoute} />
           ))}
         </nav>

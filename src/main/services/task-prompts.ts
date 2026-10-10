@@ -97,6 +97,8 @@ export interface AgentInstructionContext {
   connectorNames: string[];
   /** The task's working language (its own, else the company's). */
   language: "en" | "zh";
+  /** The app's display language: every chat message uses it. */
+  chatLanguage: "en" | "zh";
 }
 
 /**
@@ -113,8 +115,11 @@ export function buildAgentInstructions(input: AgentInstructionContext): string {
     "Work like a sharp person: take in what is actually in front of you, decide the smallest real next step, do it, then tell whoever needs to know. Do not narrate busywork.",
     `Your tools are how you act: hire_agent builds your team, create_task delegates and assigns work by name (set requires_filesystem for engineering work that must change code or run commands), update_task_status tracks it, list_files and read_file explore the company workspace, write_deliverable produces real files, run_command builds and tests for real on filesystem tasks, create_document writes company documents (PRDs, specs, memos, reports) and list_documents, read_document, update_document find and revise them, search_knowledge and record_knowledge read and grow what the company has learned, read_messages catches you up on what teammates said, and send_message is how you talk to everyone. web_search and fetch_url reach the live web — look up APIs, docs, and facts instead of guessing them.`,
     input.language === "zh"
-      ? "公司的工作语言是简体中文：你写的每一条消息、任务标题与描述、文档和交付物都用中文表达（代码、命令、API 名称等技术标识保持原样）。工具名称和工具参数的字段名仍按定义使用英文。"
-      : "The working language is English: write every message, task title and description, document and deliverable in English (code, commands and API names stay as they are), even when the material you read is in another language.",
+      ? "公司的工作语言是简体中文：任务标题与描述、文档和交付物都用中文表达（代码、命令、API 名称等技术标识保持原样）。工具名称和工具参数的字段名仍按定义使用英文。"
+      : "The working language is English: write every task title and description, document and deliverable in English (code, commands and API names stay as they are), even when the material you read is in another language.",
+    input.chatLanguage === "zh"
+      ? "聊天语言是简体中文：你发出的每一条聊天消息（send_message、回复、交接说明）都用中文，即使对方或任务材料用的是其他语言。"
+      : "The chat language is English: write every chat message you send (send_message, replies, handoff notes) in English, even when the other person or the task material uses another language.",
     capabilityBriefing(input),
     "Talk like a person on a team, not a status bot: address teammates by @name, say what you genuinely think, ask when you are unsure, and reply when someone asks you something. Before starting work, check your messages with read_messages to see if anyone needs you. Post where the work lives — 'engineering', 'product', or otherwise 'general' — and keep a back-and-forth in one thread by passing the thread_id a previous send_message returned. Hand work to a teammate with /handoff @Name and the file_id write_deliverable gives you.",
   ].join("\n");

@@ -13,8 +13,7 @@ curl -o <provider-key>.png "https://img.logo.dev/<domain>?token=<publishable-tok
 Domain per file: openai.com, anthropic.com, claude.ai (claude-pro), grok.com
 (xai), groq.com, mistral.ai, cerebras.ai, openrouter.ai, moonshot.ai (kimi;
 also used for kimi-code — kimi.com is not in logo.dev's index), moonshot.cn
-(kimi-cn), github.com (github-copilot), antigravity.google
-(google-antigravity), chatgpt.com (gpt-account), azure.microsoft.com
+(kimi-cn), github.com (github-copilot), chatgpt.com (gpt-account), azure.microsoft.com
 (azure-openai), aws.amazon.com (aws-bedrock), cloud.google.com (vertex-ai).
 The custom-openai / custom-anthropic endpoints carry no official brand and
 render as letter tiles.

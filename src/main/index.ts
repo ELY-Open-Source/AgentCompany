@@ -1,7 +1,6 @@
 import { app } from "electron";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { DatabaseSync } from "node:sqlite";
 import { DatabaseConnection } from "./database/connection";
 import { appPageUrl, createMainWindow } from "./app/create-window";
 import { registerIpcHandlers } from "./app/ipc-handlers";
@@ -13,6 +12,7 @@ import { recoverInterruptedWork } from "./app/startup-recovery";
 import { startTaskQueueWorker } from "./app/task-queue-worker";
 import { confirmDiscardOnClose } from "./app/unsaved-guard";
 import { stopAllRunsAndWait } from "./services/run-control";
+import { appLanguage } from "./services/work-language";
 
 const QUIT_GRACE_MS = 10_000;
 
@@ -28,7 +28,7 @@ if (!app.requestSingleInstanceLock()) {
   // strings, date formatting) is only settable pre-ready, and it follows the
   // stored language preference instead of the OS locale.
   const connection = new DatabaseConnection(join(profileDir, "agentcompany.db"));
-  const language = storedLanguage(connection.db);
+  const language = appLanguage(connection.db);
   app.commandLine.appendSwitch("lang", language === "zh" ? "zh-CN" : "en-US");
 
   app.whenReady().then(() => {
@@ -96,11 +96,6 @@ if (!app.requestSingleInstanceLock()) {
   app.on("window-all-closed", () => {
     if (process.platform !== "darwin") app.quit();
   });
-}
-
-function storedLanguage(db: DatabaseSync): string {
-  const row = db.prepare("select language from app_state where id = 1").get() as { language: string } | undefined;
-  return row?.language ?? "en";
 }
 
 /**

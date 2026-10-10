@@ -8,6 +8,7 @@ import { AvatarField } from "../shared/AvatarField";
 import { TopbarActions } from "../shared/TopbarActions";
 import { Dialog } from "../shared/Dialog";
 import { OrgChartTree } from "./team/OrgChartTree";
+import { AgentModelField } from "./team/AgentModelField";
 import type { AgentRecord, EmployeeRecord, ProviderCatalogEntry, ProviderRecord } from "../../../shared/domain";
 import type { PageProps } from "./types";
 import { activeOrgId, money } from "./types";
@@ -151,10 +152,12 @@ export function TeamPage({ snapshot, actions, focus }: PageProps) {
             {providers.map((provider) => <option key={provider.id} value={provider.id}>{provider.label}</option>)}
           </select>
         </Field>
-        <Field label={t("Model")}>
-          <input className="input" name="modelId" list="hire-model-suggestions" value={hireModelId} disabled={!hireProviderId} placeholder={providers.find((provider) => provider.id === hireProviderId)?.model ?? ""} onChange={(event) => setHireModelId(event.currentTarget.value)} />
-        </Field>
-        <ModelSuggestions id="hire-model-suggestions" providerId={hireProviderId} providers={providers} catalog={snapshot.providerCatalog} />
+        <AgentModelField
+          provider={providers.find((provider) => provider.id === hireProviderId) ?? null}
+          entry={catalogEntry(snapshot.providerCatalog, providers, hireProviderId)}
+          value={hireModelId}
+          onChange={setHireModelId}
+        />
         <p style={{ fontSize: "var(--fs-body)", color: "var(--text-3)", margin: 0 }}>{t("Leave the model blank to use the provider's default. A changed model applies from the agent's next session.")}</p>
         <Field label={t("Manager")}>
           <select className="input" name="managerAgentId" defaultValue="">
@@ -260,7 +263,6 @@ function buildRoster(
   return rows;
 }
 
-/** The placeholder names the default of the provider picked now, which is the model a blank field will follow. */
 function EditModelFields({ agent, providers, catalog }: { agent: AgentRecord; providers: ProviderRecord[]; catalog: ProviderCatalogEntry[] }) {
   const [providerId, setProviderId] = useState(agent.modelProviderId ?? "");
   const [modelId, setModelId] = useState(agent.modelId ?? "");
@@ -272,23 +274,20 @@ function EditModelFields({ agent, providers, catalog }: { agent: AgentRecord; pr
           {providers.map((provider) => <option key={provider.id} value={provider.id}>{provider.label}</option>)}
         </select>
       </Field>
-      <Field label={t("Model")}>
-        <input className="input" name="modelId" value={modelId} onChange={(event) => setModelId(event.currentTarget.value)} disabled={!providerId} placeholder={providers.find((provider) => provider.id === providerId)?.model ?? ""} list="edit-model-suggestions" />
-      </Field>
-      <ModelSuggestions id="edit-model-suggestions" providerId={providerId} providers={providers} catalog={catalog} />
+      <AgentModelField
+        provider={providers.find((provider) => provider.id === providerId) ?? null}
+        entry={catalogEntry(catalog, providers, providerId)}
+        value={modelId}
+        onChange={setModelId}
+      />
     </>
   );
 }
 
-/** Suggests only the picked provider's models; a model from another provider would mean nothing here. */
-function ModelSuggestions({ id, providerId, providers, catalog }: { id: string; providerId: string; providers: ProviderRecord[]; catalog: ProviderCatalogEntry[] }) {
+/** The catalog entry of the provider picked now. */
+function catalogEntry(catalog: ProviderCatalogEntry[], providers: ProviderRecord[], providerId: string): ProviderCatalogEntry | null {
   const providerKey = providers.find((provider) => provider.id === providerId)?.providerKey;
-  const models = catalog.find((entry) => entry.key === providerKey)?.models ?? [];
-  return (
-    <datalist id={id}>
-      {models.map((model) => <option key={model.id} value={model.id}>{model.name}</option>)}
-    </datalist>
-  );
+  return catalog.find((entry) => entry.key === providerKey) ?? null;
 }
 
 function RosterRow({ row, last, onEdit }: { row: RosterEntry; last: boolean; onEdit: (() => void) | null }) {

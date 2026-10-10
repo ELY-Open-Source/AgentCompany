@@ -1,4 +1,3 @@
-import type { IntegrationKeyStore } from "./integration-key-store";
 import type { DatabaseSync } from "node:sqlite";
 import type { CancelProviderResponseInput, CreateProviderResponseInput, StreamProviderResponseInput } from "../../shared/commands";
 import { FEATURE_FLAG_KEY, PROVIDER_AUTH_TYPE, PROVIDER_DATA_POLICY, PROVIDER_EXECUTION_MODE, PROVIDER_REQUEST_STATE, type ProviderExecutionMode } from "../../shared/domain";
@@ -41,7 +40,6 @@ export interface ProviderResponseRunnerDeps {
   adapters: ProviderAdapterRegistry;
   audit: AuditService;
   authBroker: AuthBrokerService;
-  integrationKeys: IntegrationKeyStore;
   operations: OperationsService;
   rateLimitRegistry: ProviderRateLimitRegistry;
   responseObserver: ProviderResponseObserver;
@@ -122,7 +120,7 @@ export class ProviderResponseRunner {
     const provider = loadConfiguredProvider(this.deps.db, input.orgId, input.providerId);
     const workspaceId = this.normalizeWorkspaceId(input.orgId, input.workspaceId ?? null);
     if (!supportsToolTurn(provider.provider_key)) {
-      throw new Error("Agent execution is not available for this provider; assign the agent an OpenAI, Anthropic, xAI, Groq, Mistral, Cerebras, OpenRouter, GPT account, GitHub Copilot, Google Antigravity, or Claude Pro provider.");
+      throw new Error("Agent execution is not available for this provider; assign the agent an OpenAI, Anthropic, xAI, Groq, Mistral, Cerebras, OpenRouter, GPT account, GitHub Copilot, or Claude Pro provider.");
     }
     // A call made for a run works for its agent: the agent's model, its budget, its attribution.
     const taskRunId = currentRunId();
@@ -198,7 +196,7 @@ export class ProviderResponseRunner {
     });
     const startedAt = Date.now();
     try {
-      const credential = await resolveTurnCredential({ authBroker: this.deps.authBroker, integrationKeys: this.deps.integrationKeys, orgId, provider: owner });
+      const credential = await resolveTurnCredential({ authBroker: this.deps.authBroker, orgId, provider: owner });
       const result = await turn({ credential, model, instructions: request.instructions, messages: request.messages, tools: request.tools });
       recordObservedRateLimit(this.deps.rateLimitRegistry, orgId, owner, model, result.rateLimitState ?? null);
       // Tool calls are output the model wrote, as much as its text.

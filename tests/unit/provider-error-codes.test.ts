@@ -7,7 +7,6 @@ import { refreshCodex } from "../../src/main/services/oauth/openai-codex-flow";
 import { refreshKimiCode } from "../../src/main/services/oauth/kimi-code-flow";
 import { postJson, ProviderHttpError } from "../../src/main/services/provider-http";
 import { accumulateResponsesStream } from "../../src/main/services/provider-tool-turns/responses-format";
-import { accumulateGeminiStream } from "../../src/main/services/provider-tool-turns/gemini-format";
 import { DatabaseConnection } from "../../src/main/database/connection";
 import { OrganizationService } from "../../src/main/services/organization-service";
 import { ProviderService } from "../../src/main/services/provider-service";
@@ -67,8 +66,6 @@ describe("provider errors keep their status and machine code", () => {
     const codex = await accumulateResponsesStream(events({ type: "error", error: { type: "usage_limit_reached", message: "The usage limit has been reached" } })).catch((caught: unknown) => caught);
     expect(codex).toMatchObject({ status: null, code: "usage_limit_reached" });
     expect(classifyProviderFailure(codex, NOW).transient).toBe(true);
-    const gemini = await accumulateGeminiStream(events({ error: { code: 503, message: "busy", status: "UNAVAILABLE" } })).catch((caught: unknown) => caught);
-    expect(gemini).toMatchObject({ status: 503, code: "UNAVAILABLE" });
   });
 
   test("a streamed reply's error event keeps the provider's code on the error and the request", async () => {

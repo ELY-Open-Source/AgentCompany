@@ -115,7 +115,7 @@ function GoalCard({
   return (
     <section className="card">
       <div className="card-label" style={{ marginBottom: 12 }}>{t("Quarter goal")}</div>
-      <div style={{ fontSize: "var(--fs-body)", lineHeight: 1.4, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", minHeight: 44 }}>
+      <div style={{ fontSize: "var(--fs-body)", lineHeight: 1.4, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", minHeight: "2.8em" }}>
         {goal ? goal.title : t("Set the first goal for {organizationName}.", { organizationName })}
       </div>
       <div className="row" style={{ alignItems: "baseline", gap: 8, marginTop: 16 }}>

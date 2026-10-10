@@ -1,4 +1,4 @@
-export const INTEGRATION_KEY_NAMES = ["composio", "logo_dev", "google_antigravity_client_secret"] as const;
+export const INTEGRATION_KEY_NAMES = ["composio", "logo_dev"] as const;
 
 export type IntegrationKeyName = (typeof INTEGRATION_KEY_NAMES)[number];
 

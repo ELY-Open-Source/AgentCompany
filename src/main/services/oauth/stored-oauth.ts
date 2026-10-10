@@ -6,14 +6,12 @@ export interface StoredOAuth {
   refresh: string;
   expires: number;
   accountId?: string;
-  projectId?: string;
   enterpriseUrl?: string | null;
 }
 
 /** Extras a provider's turns cannot run without, with the words used when one is missing. */
-const REQUIRED_EXTRAS: Record<string, { field: "accountId" | "projectId"; label: string }> = {
+const REQUIRED_EXTRAS: Record<string, { field: "accountId"; label: string }> = {
   "gpt-account": { field: "accountId", label: "ChatGPT account id" },
-  "google-antigravity": { field: "projectId", label: "Google Cloud project id" },
 };
 
 /** The one check of a stored sign-in, used both when it is saved and when a run uses it. */

@@ -20,6 +20,7 @@ test("every page and onboarding step draws its text on the pixel font's grid", a
     await expect(page.getByRole("heading", { name: "Welcome" })).toBeVisible();
     expect(await offGridText(page)).toEqual([]);
     await onboard(page, "Grid Co");
+    await page.evaluate(() => window.agentCompany.setIntegrationKey({ name: "composio", value: "ak_e2e" }));
     for (const route of ["Home", "Work", "Team", "Office", "Messages", "Runs", "Files", "Library", "Approvals", "Connectors", "Settings"]) {
       await page.getByRole("button", { name: route, exact: true }).click();
       await page.waitForTimeout(400);

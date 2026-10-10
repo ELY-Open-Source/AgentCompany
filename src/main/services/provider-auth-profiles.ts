@@ -82,11 +82,6 @@ export function requireAccessTokenProfile(profile: ProviderAuthProfile): Extract
   return profile;
 }
 
-export function requireAccountTokenProfile(profile: ProviderAuthProfile): Extract<ProviderAuthProfile, { type: "account_token" }> {
-  if (profile.type !== "account_token") throw new Error("Account token profile is required.");
-  return profile;
-}
-
 export function requireAzureProfile(profile: ProviderAuthProfile): Extract<ProviderAuthProfile, { type: "azure_openai" }> {
   if (profile.type !== "azure_openai") throw new Error("Azure OpenAI profile is required.");
   return profile;

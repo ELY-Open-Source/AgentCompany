@@ -18,6 +18,7 @@ import { sendMessageTool } from "./agent-send-message";
 import { withSavepoint } from "../database/connection";
 import { optionalEnum, optionalString, optionalStringArray, optionalText, requireString } from "./agent-tool-args";
 import { CEO_FIRST_HIRES } from "./org-building";
+import { appLanguage } from "./work-language";
 import type { JsonRecord } from "./provider-http";
 import type { ToolCall, ToolDefinition } from "./provider-tool-turn";
 
@@ -435,8 +436,11 @@ function postAssignmentMessage(
     { type: "agent", id: ctx.agent.id },
     { type: "agent", id: input.assignee.id },
   );
+  const mention = `@${canonicalMentionHandle(input.assignee.name)}`;
   const body = [
-    `@${canonicalMentionHandle(input.assignee.name)} take task_id=${input.taskId}: ${input.title}.`,
+    appLanguage(deps.db) === "zh"
+      ? `${mention} 请接手 task_id=${input.taskId}：${input.title}。`
+      : `${mention} take task_id=${input.taskId}: ${input.title}.`,
     input.description,
   ].join(" ");
   const messageId = deps.chat.sendMessage({

@@ -16,7 +16,6 @@ const PROVIDER_SECRET_SAMPLES: Record<string, string> = {
   "kimi-cn": "sk-live-provider",
   "kimi-code": JSON.stringify({ access: "live-access", refresh: "live-refresh", expires: 1_900_000_000_000 }),
   "github-copilot": JSON.stringify({ access: "live-access", refresh: "live-refresh", expires: 1_900_000_000_000 }),
-  "google-antigravity": JSON.stringify({ access: "live-access", refresh: "live-refresh", expires: 1_900_000_000_000, projectId: "acme-project" }),
   "gpt-account": JSON.stringify({ access: "live-access", refresh: "live-refresh", expires: 1_900_000_000_000, accountId: "acct_1" }),
   "azure-openai": JSON.stringify({
     baseUrl: "https://acme.openai.azure.com",
@@ -88,7 +87,7 @@ describe("provider contracts", () => {
   // Providers with no enumerable models endpoint keep returning the curated
   // catalog; the rest fetch live (covered offline by provider-models-fetch.test).
   const CURATED_MODEL_PROVIDERS = new Set([
-    "github-copilot", "google-antigravity", "gpt-account", "azure-openai", "aws-bedrock", "vertex-ai",
+    "github-copilot", "gpt-account", "azure-openai", "aws-bedrock", "vertex-ai",
     "custom-openai", "custom-anthropic",
   ]);
 
@@ -115,8 +114,6 @@ describe("provider contracts", () => {
       const secret = PROVIDER_SECRET_SAMPLES[provider.key];
       const profile = adapter.parseAuthProfile(secret);
       await expect(adapter.authorize({ secret })).resolves.toEqual({ authProfile: profile });
-      // Remote revocation makes a network call; provider-disconnect.test covers it.
-      if (!provider.revokesRemotely) await expect(adapter.revoke({ authProfile: profile, secret })).resolves.toBeUndefined();
       await expect(adapter.refresh({ authProfile: profile })).rejects.toThrow("does not support token refresh");
     }
   });

@@ -21,7 +21,6 @@ The app ships with no keys. Add your own in **Settings > Integrations**:
 |---|---|---|
 | Composio API key | Connectors page and agent connector tools | platform.composio.dev |
 | logo.dev publishable key | Connector logos | logo.dev |
-| Google Antigravity OAuth client secret | Google Antigravity sign-in | Google |
 
 Model provider keys and sign-ins live in **Settings > Providers**. All keys are encrypted with the OS keychain.
 

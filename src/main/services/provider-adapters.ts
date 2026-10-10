@@ -9,16 +9,10 @@ import {
   parseOpenAiCompatProfile,
   parseVertexProfile,
   requireAccessTokenProfile,
-  requireAccountTokenProfile,
-  requireAnthropicCompatProfile,
   requireApiKeyProfile,
-  requireAzureProfile,
-  requireBedrockProfile,
-  requireOpenAiCompatProfile,
-  requireVertexProfile,
 } from "./provider-auth-profiles";
 import { backgroundUnsupported, retrieveUnsupported } from "./provider-background";
-import { authorizeWithParser, refreshUnsupported, revokeLocalProfile } from "./provider-auth-lifecycle";
+import { authorizeWithParser, refreshUnsupported } from "./provider-auth-lifecycle";
 import { getJson, postEventStream, postJson, WHOLE_RESPONSE_WAIT, type JsonRecord } from "./provider-http";
 import { OUTPUT_RESERVE_TOKENS } from "./context-budget";
 import { chatMaxTokensField } from "./provider-tool-turns/chat-format";
@@ -26,8 +20,6 @@ import { fetchAnthropicModels, fetchOpenAiModels } from "./provider-models-fetch
 import { KIMI_CODE_BASE_URL } from "./oauth/kimi-code-flow";
 import { FINISHED_STOP_REASONS, incompleteTurn, requireFinished } from "./provider-tool-turn";
 import { incompleteReason } from "./provider-tool-turns/responses-format";
-import { revokeAntigravity } from "./oauth/google-antigravity-flow";
-import { parseStoredOAuth } from "./oauth/stored-oauth";
 
 const ANTHROPIC_VERSION = "2023-06-01";
 const CLAUDE_PRO_BETA = "claude-code-20250219,oauth-2025-04-20,fine-grained-tool-streaming-2025-05-14";
@@ -55,7 +47,6 @@ export const providerAdapters: ProviderAdapterRegistry = {
     authType: PROVIDER_AUTH_TYPE.API_KEY,
     authorize: authorizeWithParser(parseApiKey),
     refresh: refreshUnsupported("OpenAI API key"),
-    revoke: revokeLocalProfile((profile) => { requireApiKeyProfile(profile, "OpenAI"); }),
     parseAuthProfile: parseApiKey,
     listModels: (ctx) => fetchOpenAiModels("https://api.openai.com/v1/models", {
       authorization: `Bearer ${requireApiKeyProfile(ctx.authProfile, "OpenAI").apiKey}`,
@@ -138,7 +129,6 @@ export const providerAdapters: ProviderAdapterRegistry = {
     authType: PROVIDER_AUTH_TYPE.API_KEY,
     authorize: authorizeWithParser(parseApiKey),
     refresh: refreshUnsupported("Anthropic API key"),
-    revoke: revokeLocalProfile((profile) => { requireApiKeyProfile(profile, "Anthropic"); }),
     parseAuthProfile: parseApiKey,
     listModels: (ctx) => fetchAnthropicModels("https://api.anthropic.com/v1/models", {
       "x-api-key": requireApiKeyProfile(ctx.authProfile, "Anthropic").apiKey,
@@ -224,10 +214,6 @@ export const providerAdapters: ProviderAdapterRegistry = {
     healthUrl: "https://api.moonshot.cn/v1/models",
   }),
   "github-copilot": browserTokenAdapter("github-copilot", PROVIDER_AUTH_TYPE.OAUTH_PKCE),
-  "google-antigravity": {
-    ...browserTokenAdapter("google-antigravity", PROVIDER_AUTH_TYPE.OAUTH_PKCE),
-    revoke: async (input) => revokeAntigravity(parseStoredOAuth("google-antigravity", input.secret).refresh),
-  },
   "gpt-account": browserTokenAdapter("gpt-account", PROVIDER_AUTH_TYPE.ACCOUNT_SUBSCRIPTION),
   "claude-pro": {
     ...browserTokenAdapter("claude-pro", PROVIDER_AUTH_TYPE.OAUTH_PKCE),
@@ -248,7 +234,6 @@ export const providerAdapters: ProviderAdapterRegistry = {
     authType: PROVIDER_AUTH_TYPE.CLOUD,
     authorize: authorizeWithParser(parseAzureProfile),
     refresh: refreshUnsupported("Azure OpenAI cloud credential"),
-    revoke: revokeLocalProfile((profile) => { requireAzureProfile(profile); }),
     parseAuthProfile: parseAzureProfile,
     listModels: () => listStaticModels("azure-openai"),
     getRateLimitState: providerRateLimitUnknown,
@@ -262,7 +247,6 @@ export const providerAdapters: ProviderAdapterRegistry = {
     authType: PROVIDER_AUTH_TYPE.CLOUD,
     authorize: authorizeWithParser(parseBedrockProfile),
     refresh: refreshUnsupported("AWS Bedrock cloud credential"),
-    revoke: revokeLocalProfile((profile) => { requireBedrockProfile(profile); }),
     parseAuthProfile: parseBedrockProfile,
     listModels: () => listStaticModels("aws-bedrock"),
     getRateLimitState: providerRateLimitUnknown,
@@ -276,7 +260,6 @@ export const providerAdapters: ProviderAdapterRegistry = {
     authType: PROVIDER_AUTH_TYPE.CLOUD,
     authorize: authorizeWithParser(parseVertexProfile),
     refresh: refreshUnsupported("Vertex AI cloud credential"),
-    revoke: revokeLocalProfile((profile) => { requireVertexProfile(profile); }),
     parseAuthProfile: parseVertexProfile,
     listModels: () => listStaticModels("vertex-ai"),
     getRateLimitState: providerRateLimitUnknown,
@@ -290,7 +273,6 @@ export const providerAdapters: ProviderAdapterRegistry = {
     authType: PROVIDER_AUTH_TYPE.CLOUD,
     authorize: authorizeWithParser(parseOpenAiCompatProfile),
     refresh: refreshUnsupported("Custom OpenAI-compatible endpoint"),
-    revoke: revokeLocalProfile((profile) => { requireOpenAiCompatProfile(profile); }),
     parseAuthProfile: parseOpenAiCompatProfile,
     listModels: () => listStaticModels("custom-openai"),
     getRateLimitState: providerRateLimitUnknown,
@@ -304,7 +286,6 @@ export const providerAdapters: ProviderAdapterRegistry = {
     authType: PROVIDER_AUTH_TYPE.CLOUD,
     authorize: authorizeWithParser(parseAnthropicCompatProfile),
     refresh: refreshUnsupported("Custom Anthropic-compatible endpoint"),
-    revoke: revokeLocalProfile((profile) => { requireAnthropicCompatProfile(profile); }),
     parseAuthProfile: parseAnthropicCompatProfile,
     listModels: () => listStaticModels("custom-anthropic"),
     getRateLimitState: providerRateLimitUnknown,
@@ -363,7 +344,6 @@ function openAiCompatibleAdapter({
     authType: PROVIDER_AUTH_TYPE.API_KEY,
     authorize: authorizeWithParser(parseApiKey),
     refresh: refreshUnsupported(`${label} API key`),
-    revoke: revokeLocalProfile((profile) => { requireApiKeyProfile(profile, label); }),
     parseAuthProfile: parseApiKey,
     listModels: (ctx) => fetchOpenAiModels(healthUrl, {
       authorization: `Bearer ${requireApiKeyProfile(ctx.authProfile, label).apiKey}`,
@@ -413,13 +393,11 @@ function responseMessages(instructions: string | null, prompt: string): Array<{ 
 
 function browserTokenAdapter(providerKey: string, authType: ProviderAuthType): ProviderAdapter {
   const parseAuthProfile = oauthProfileParser(providerKey, authType === PROVIDER_AUTH_TYPE.ACCOUNT_SUBSCRIPTION ? "account_token" : "access_token");
-  const assertProfile = authType === PROVIDER_AUTH_TYPE.ACCOUNT_SUBSCRIPTION ? requireAccountTokenProfile : requireAccessTokenProfile;
   return {
     providerKey,
     authType,
     authorize: authorizeWithParser(parseAuthProfile),
     refresh: refreshUnsupported(`${providerKey} token`),
-    revoke: revokeLocalProfile((profile) => { assertProfile(profile); }),
     parseAuthProfile,
     listModels: () => listStaticModels(providerKey),
     getRateLimitState: providerRateLimitUnknown,

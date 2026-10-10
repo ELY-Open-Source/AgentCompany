@@ -7,7 +7,6 @@ import type { AgentTurnMessage } from "../../src/main/services/provider-tool-tur
 import { accumulateResponsesStream, parseResponsesOutput, responsesToolDefs, toResponsesInput } from "../../src/main/services/provider-tool-turns/responses-format";
 import { accumulateChatStream, parseChatChoice, toChatMessages } from "../../src/main/services/provider-tool-turns/chat-format";
 import { parseAnthropicContent, toAnthropicMessages } from "../../src/main/services/provider-tool-turns/anthropic-format";
-import { accumulateGeminiStream, antigravityRequestBody } from "../../src/main/services/provider-tool-turns/gemini-format";
 import { bedrockToolConfig, parseBedrockOutput, toBedrockMessages } from "../../src/main/services/provider-tool-turns/bedrock-format";
 import { parseGeminiResponse, vertexRequestBody } from "../../src/main/services/provider-tool-turns/gemini-format";
 import { signAwsRequest } from "../../src/main/services/provider-tool-turns/aws-sigv4";
@@ -19,7 +18,6 @@ import { ProviderService } from "../../src/main/services/provider-service";
 import { providerAdapters } from "../../src/main/services/provider-adapters";
 import { AuthBrokerService } from "../../src/main/services/auth-broker-service";
 import { loadConfiguredProvider } from "../../src/main/services/provider-internal";
-import { IntegrationKeyStore } from "../../src/main/services/integration-key-store";
 
 const CONVO: AgentTurnMessage[] = [
   { role: "user", text: "do it" },
@@ -135,40 +133,6 @@ describe("anthropic encoding", () => {
   });
 });
 
-describe("antigravity (gemini) encoding", () => {
-  test("wraps the request with the Antigravity system instruction and tool declarations", () => {
-    const body = antigravityRequestBody({ model: "claude-sonnet-4-5", projectId: "proj", instructions: "be helpful", messages: CONVO, tools: [{ name: "f", description: "d", parameters: { type: "object" } }], requestId: "agent-1" });
-    expect(body.project).toBe("proj");
-    expect(body.requestType).toBe("agent");
-    expect(body.userAgent).toBe("antigravity");
-    const request = body.request as JsonRecord;
-    const system = request.systemInstruction as { role: string; parts: Array<{ text: string }> };
-    expect(system.role).toBe("user");
-    expect(system.parts[0].text).toContain("You are Antigravity");
-    expect(system.parts[system.parts.length - 1].text).toBe("be helpful");
-    // claude-* models use the legacy `parameters` field
-    expect(request.tools).toEqual([{ functionDeclarations: [{ name: "f", description: "d", parameters: { type: "object" } }] }]);
-  });
-
-  test("gemini models use parametersJsonSchema and omit the tool-call id", () => {
-    const body = antigravityRequestBody({ model: "gemini-3.1-pro-high", projectId: "proj", instructions: null, messages: CONVO, tools: [{ name: "f", description: "d", parameters: { type: "object" } }], requestId: "agent-2" });
-    const request = body.request as JsonRecord;
-    expect(request.tools).toEqual([{ functionDeclarations: [{ name: "f", description: "d", parametersJsonSchema: { type: "object" } }] }]);
-    const contents = request.contents as Array<{ role: string; parts: Array<JsonRecord> }>;
-    const assistant = contents.find((c) => c.role === "model");
-    const fnCall = assistant?.parts.find((p) => "functionCall" in p)?.functionCall as JsonRecord;
-    expect(fnCall.id).toBeUndefined();
-  });
-
-  test("accumulates streamed candidates", async () => {
-    const result = await accumulateGeminiStream(stream([
-      { response: { candidates: [{ content: { parts: [{ text: "hello" }, { functionCall: { name: "f", args: { x: 1 }, id: "g1" } }] }, finishReason: "STOP" }] } },
-    ]));
-    expect(result.text).toBe("hello");
-    expect(result.toolCalls).toEqual([{ id: "g1", name: "f", arguments: { x: 1 } }]);
-  });
-});
-
 describe("bedrock converse encoding", () => {
   test("encodes toolUse/toolResult and the tool config", () => {
     expect(toBedrockMessages(CONVO)).toEqual([
@@ -190,9 +154,11 @@ describe("bedrock converse encoding", () => {
 
 describe("vertex (gemini) encoding", () => {
   test("builds a generateContent body with tools and parses the response", () => {
-    const body = vertexRequestBody({ model: "gemini-2.5-pro", instructions: "sys", messages: CONVO, tools: [{ name: "f", description: "d", parameters: { type: "object" } }] });
+    const body = vertexRequestBody({ instructions: "sys", messages: CONVO, tools: [{ name: "f", description: "d", parameters: { type: "object" } }] });
     expect((body.systemInstruction as JsonRecord).parts).toEqual([{ text: "sys" }]);
     expect(body.tools).toEqual([{ functionDeclarations: [{ name: "f", description: "d", parametersJsonSchema: { type: "object" } }] }]);
+    const assistant = (body.contents as Array<{ role: string; parts: JsonRecord[] }>).find((c) => c.role === "model");
+    expect((assistant?.parts.find((p) => "functionCall" in p)?.functionCall as JsonRecord).id).toBeUndefined();
     const parsed = parseGeminiResponse({ candidates: [{ content: { parts: [{ text: "hi" }, { functionCall: { name: "f", args: { x: 1 }, id: "v1" } }] }, finishReason: "STOP" }] });
     expect(parsed).toMatchObject({ text: "hi", toolCalls: [{ id: "v1", name: "f", arguments: { x: 1 } }] });
   });
@@ -214,7 +180,7 @@ describe("aws sigv4", () => {
 
 describe("tool-turn router", () => {
   test("supports every agent-capable provider (incl. cloud and custom) and rejects unknown ones", () => {
-    for (const key of ["openai", "anthropic", "xai", "groq", "mistral", "cerebras", "openrouter", "kimi", "kimi-cn", "gpt-account", "github-copilot", "google-antigravity", "claude-pro", "kimi-code", "custom-openai", "custom-anthropic", "azure-openai", "aws-bedrock", "vertex-ai"]) {
+    for (const key of ["openai", "anthropic", "xai", "groq", "mistral", "cerebras", "openrouter", "kimi", "kimi-cn", "gpt-account", "github-copilot", "claude-pro", "kimi-code", "custom-openai", "custom-anthropic", "azure-openai", "aws-bedrock", "vertex-ai"]) {
       expect(supportsToolTurn(key)).toBe(true);
       expect(typeof selectToolTurn(key)).toBe("function");
     }
@@ -229,7 +195,6 @@ describe("credential resolver", () => {
     const organization = new OrganizationService(connection.db);
     const providers = new ProviderService(connection.db, providerAdapters, testVault);
     const authBroker = new AuthBrokerService(connection.db, testVault);
-    const integrationKeys = new IntegrationKeyStore(connection.db, testVault);
     let orgId = "";
     let openaiId = "";
     let gptAccountId = "";
@@ -243,31 +208,13 @@ describe("credential resolver", () => {
     });
 
     return (async () => {
-      const apiKeyCred = await resolveTurnCredential({ authBroker, integrationKeys, orgId, provider: loadConfiguredProvider(connection.db, orgId, openaiId) });
+      const apiKeyCred = await resolveTurnCredential({ authBroker, orgId, provider: loadConfiguredProvider(connection.db, orgId, openaiId) });
       expect(apiKeyCred).toEqual({ apiKey: "sk-live" });
-      const oauthCred = await resolveTurnCredential({ authBroker, integrationKeys, orgId, provider: loadConfiguredProvider(connection.db, orgId, gptAccountId) });
+      const oauthCred = await resolveTurnCredential({ authBroker, orgId, provider: loadConfiguredProvider(connection.db, orgId, gptAccountId) });
       expect(oauthCred.accessToken).toBe("tok");
       expect(oauthCred.accountId).toBe("acct_1");
       connection.close();
     })();
-  });
-
-  test("an expired Antigravity credential without a saved client secret points to Settings", async () => {
-    const connection = new DatabaseConnection(join(tmpdir(), `ac-cred-${randomUUID()}.db`));
-    const organization = new OrganizationService(connection.db);
-    const providers = new ProviderService(connection.db, providerAdapters, testVault);
-    const authBroker = new AuthBrokerService(connection.db, testVault);
-    const integrationKeys = new IntegrationKeyStore(connection.db, testVault);
-    let orgId = "";
-    let antigravityId = "";
-    connection.transaction(() => {
-      orgId = organization.createOrganization({ organizationName: "Acme", employeeName: "Dana", mission: "m", goal: "g" });
-      antigravityId = (connection.db.prepare("select id from providers where org_id = ? and provider_key = 'google-antigravity'").get(orgId) as { id: string }).id;
-      providers.saveCredential({ orgId, providerId: antigravityId, secret: JSON.stringify({ access: "old", refresh: "r", expires: 0, projectId: "p" }), model: "gemini-3-pro" });
-    });
-    await expect(resolveTurnCredential({ authBroker, integrationKeys, orgId, provider: loadConfiguredProvider(connection.db, orgId, antigravityId) }))
-      .rejects.toThrow("Settings > Integrations");
-    connection.close();
   });
 });
 
@@ -306,7 +253,7 @@ describe("mid-run follow-up text rides on the tool-result turn", () => {
       role: "user",
       content: [{ toolResult: { toolUseId: "c1", content: [{ text: "ok" }] } }, { text: "New: stop" }],
     });
-    const gemini = vertexRequestBody({ model: "gemini-3-pro", instructions: null, messages: convo, tools: [] }) as { contents: Array<{ role: string; parts: unknown[] }> };
+    const gemini = vertexRequestBody({ instructions: null, messages: convo, tools: [] }) as { contents: Array<{ role: string; parts: unknown[] }> };
     expect(gemini.contents.at(-1)).toEqual({
       role: "user",
       parts: [{ functionResponse: { name: "f", response: { output: "ok" } } }, { text: "New: stop" }],

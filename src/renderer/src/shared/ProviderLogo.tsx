@@ -9,7 +9,6 @@ import openrouterLogo from "../assets/provider-logos/openrouter.png";
 import kimiLogo from "../assets/provider-logos/kimi.png";
 import kimiCnLogo from "../assets/provider-logos/kimi-cn.png";
 import githubCopilotLogo from "../assets/provider-logos/github-copilot.png";
-import googleAntigravityLogo from "../assets/provider-logos/google-antigravity.png";
 import gptAccountLogo from "../assets/provider-logos/gpt-account.png";
 import azureOpenAiLogo from "../assets/provider-logos/azure-openai.png";
 import awsBedrockLogo from "../assets/provider-logos/aws-bedrock.png";
@@ -35,7 +34,6 @@ const PROVIDER_LOGOS: Record<string, string> = {
   "kimi-cn": kimiCnLogo,
   "kimi-code": kimiLogo,
   "github-copilot": githubCopilotLogo,
-  "google-antigravity": googleAntigravityLogo,
   "gpt-account": gptAccountLogo,
   "azure-openai": azureOpenAiLogo,
   "aws-bedrock": awsBedrockLogo,
