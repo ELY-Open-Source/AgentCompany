@@ -71,7 +71,8 @@ jobs:
   macos:
     name: macOS installers (dmg + zip, x64 + arm64)
     needs: release
-    runs-on: macos-latest
+    # Runs in the login session, where the Developer ID identity lives.
+    runs-on: macos-signing
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
