@@ -4,7 +4,7 @@ import type { DayPart } from "../../shared/palette-clock";
 import { BACK_WALL_H, toIso, type IsoFrame } from "./iso";
 import { WALL } from "./floor-plan";
 
-export interface Light {
+interface Light {
   at: Vec;
   z: number;
   /** Reach in iso pixels. */
@@ -66,7 +66,7 @@ export function ditherLevels(data: Uint8ClampedArray, width: number): void {
   }
 }
 
-export interface LightingInput {
+interface LightingInput {
   frame: IsoFrame;
   camera: Camera;
   /** Scene pixels per iso pixel. */

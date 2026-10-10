@@ -112,6 +112,8 @@ jobs:
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
           APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
         run: |
+          # An empty CSC_LINK reads as a certificate path; the keychain signs instead.
+          [ -n "$CSC_LINK" ] || unset CSC_LINK CSC_KEY_PASSWORD
           printf '%s' "$APPLE_API_KEY_P8" > "$APPLE_API_KEY"
           trap 'rm -f "$APPLE_API_KEY"' EXIT
           pnpm build
