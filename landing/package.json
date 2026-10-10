@@ -8,22 +8,21 @@
     "build": "next build",
     "start": "next start",
     "preview": "wrangler pages dev out",
-    "test:e2e": "next build && playwright test"
+    "test:e2e": "next build && playwright test",
+    "test:unit": "node --import ./tests/unit/resolve-ts.mjs --test 'tests/unit/*.test.ts'"
   },
   "dependencies": {
     "next": "16.2.6",
     "react": "19.2.4",
     "react-dom": "19.2.4",
-    "reicon-brands": "^1.0.2",
-    "reicon-react": "^1.1.2"
+    "three": "^0.180.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.58.2",
-    "@tailwindcss/postcss": "^4.2.2",
     "@types/node": "^24.9.1",
     "@types/react": "^19.2.2",
     "@types/react-dom": "^19.2.2",
-    "tailwindcss": "^4.2.2",
+    "@types/three": "^0.180.0",
     "typescript": "^5.9.3"
   },
   "overrides": {

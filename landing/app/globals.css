@@ -1,246 +1,184 @@
-@import "tailwindcss";
-
-/*
- * AgentCompany landing — design system.
- * Light theme is a faithful rendering of the adaline pebble/meadow palette
- * (warm cream + dark green). Dark theme uses the matching Material-3 dark
- * surfaces + mint primary. Components consume the CSS variables below, so the
- * whole palette is defined once here.
- */
-
-@theme {
-  --font-sans: var(--font-instrument-sans), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
-  --font-serif: var(--font-newsreader), "Source Serif Pro", Georgia, "Times New Roman", serif;
-  --font-mono: var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
-  --font-display: var(--font-instrument-serif), "Cormorant Garamond", Georgia, serif;
+/* Fusion Pixel 12px (OFL, see /fonts/fusion-pixel-licenses): a small Latin subset, and the full CJK file only when CJK text appears. */
+@font-face {
+  font-family: "Fusion Pixel";
+  font-display: swap;
+  src: url("/fonts/FusionPixel-12px-zh_hans.woff2") format("woff2");
+  unicode-range: U+3000-303F, U+4E00-4E2C, U+4E2E-4F52, U+4F54-6586, U+6588-7B7F, U+7B81-9FFF, U+FF00-FFEF;
+}
+@font-face {
+  font-family: "Fusion Pixel";
+  font-display: swap;
+  src: url("/fonts/FusionPixel-12px-latin.woff2") format("woff2");
+  unicode-range: U+0020-007E, U+00A0-00FF, U+2010-2027, U+2030-203A, U+2122, U+2190-21FF, U+2500-26FF, U+4E2D, U+4F53, U+6587, U+7B80;
 }
 
-/* ── Light theme (pebble / meadow) ── */
+/* Palette inks are registered colours so a palette swap fades in four hard steps, like a 16-bit palette cycle. */
+@property --ink-void { syntax: "<color>"; inherits: true; initial-value: #000; }
+@property --ink-shadow { syntax: "<color>"; inherits: true; initial-value: #000; }
+@property --ink-ink { syntax: "<color>"; inherits: true; initial-value: #000; }
+@property --ink-ink-soft { syntax: "<color>"; inherits: true; initial-value: #000; }
+@property --ink-stone { syntax: "<color>"; inherits: true; initial-value: #000; }
+@property --ink-stone-light { syntax: "<color>"; inherits: true; initial-value: #000; }
+@property --ink-paper { syntax: "<color>"; inherits: true; initial-value: #000; }
+@property --ink-white { syntax: "<color>"; inherits: true; initial-value: #000; }
+@property --ink-sky-0 { syntax: "<color>"; inherits: true; initial-value: #000; }
+@property --ink-sky-1 { syntax: "<color>"; inherits: true; initial-value: #000; }
+@property --ink-sky-2 { syntax: "<color>"; inherits: true; initial-value: #000; }
+@property --ink-sky-3 { syntax: "<color>"; inherits: true; initial-value: #000; }
+@property --ink-sun { syntax: "<color>"; inherits: true; initial-value: #000; }
+@property --ink-glow { syntax: "<color>"; inherits: true; initial-value: #000; }
+@property --ink-cloud { syntax: "<color>"; inherits: true; initial-value: #000; }
+@property --ink-star { syntax: "<color>"; inherits: true; initial-value: #000; }
+@property --ink-wood { syntax: "<color>"; inherits: true; initial-value: #000; }
+@property --ink-wood-dark { syntax: "<color>"; inherits: true; initial-value: #000; }
+@property --ink-brick { syntax: "<color>"; inherits: true; initial-value: #000; }
+@property --ink-rug { syntax: "<color>"; inherits: true; initial-value: #000; }
+@property --ink-leaf-0 { syntax: "<color>"; inherits: true; initial-value: #000; }
+@property --ink-leaf-1 { syntax: "<color>"; inherits: true; initial-value: #000; }
+@property --ink-leaf-2 { syntax: "<color>"; inherits: true; initial-value: #000; }
+@property --ink-bloom { syntax: "<color>"; inherits: true; initial-value: #000; }
+@property --ink-accent { syntax: "<color>"; inherits: true; initial-value: #000; }
+@property --ink-accent-dark { syntax: "<color>"; inherits: true; initial-value: #000; }
+@property --ink-gold { syntax: "<color>"; inherits: true; initial-value: #000; }
+@property --ink-mint { syntax: "<color>"; inherits: true; initial-value: #000; }
+@property --ink-sea { syntax: "<color>"; inherits: true; initial-value: #000; }
+@property --ink-berry { syntax: "<color>"; inherits: true; initial-value: #000; }
+@property --ink-skin { syntax: "<color>"; inherits: true; initial-value: #000; }
+@property --ink-screen { syntax: "<color>"; inherits: true; initial-value: #000; }
+
+/* The day palette (lib/palette.ts) for first paint without script; PaletteClock overwrites these on <html>. */
 :root {
-  --bg: #fbfdf6;
-  --bg-subtle: #f8f9f5;
-  --panel: #fdfefb;
-  --panel-soft: #f1f3ef;
-  --panel-illustration: #eff2e8;
-  --text: #0a1d08;
-  --text-secondary: #2e3b28;
-  --muted: #6b7860;
-  --muted-strong: #505c47;
-  --accent: #203b14;
-  --accent-hover: #13290e;
-  --accent-soft: #ecf2df;
-  --text-on-accent: #fbfdf6;
-  --cta: #203b14;
-  --cta-hover: #13290e;
-  --cta-soft: rgba(32, 59, 20, 0.06);
-  --text-on-cta: #fbfdf6;
-  --text-on-cta-muted: rgba(251, 253, 246, 0.75);
-  --text-on-cta-faint: rgba(251, 253, 246, 0.6);
-  --border: #e1e6df;
-  --border-strong: #c4cbc2;
-  --border-cool: #c4cbc2;
-  --band: #2a332a;
-  --band-text: #fbfdf6;
-  --band-border: rgba(253, 254, 251, 0.24);
-  --footer-bg: #050e11;
-  --footer-text: #fbfdf6;
-  --glow-warm: rgba(32, 59, 20, 0.05);
-  --glow-accent: rgba(99, 143, 61, 0.06);
-  --section-alt: rgba(32, 59, 20, 0.02);
-  --aurora-mint: rgba(94, 236, 151, 0.22);
-  --aurora-teal: rgba(45, 212, 191, 0.16);
-  --aurora-lime: rgba(137, 175, 84, 0.16);
+  --p0: #0b0a12; --p1: #1d1b2b; --p2: #2f2c40; --p3: #4a4660;
+  --p4: #6d6884; --p5: #9a95ad; --p6: #e9e2cf; --p7: #fbf7ec;
+  --p8: #3f7fd1; --p9: #68a2e6; --p10: #9cc6f2; --p11: #d4e8fa;
+  --p12: #ffe08a; --p13: #fff2c2; --p14: #f4f7fb; --p15: #ffffff;
+  --p16: #a8693c; --p17: #6e3f23; --p18: #b4533f; --p19: #5d6ea8;
+  --p20: #235c2e; --p21: #3f8f3f; --p22: #78c050; --p23: #ffd35c;
+  --p24: #e0663d; --p25: #9c3b22; --p26: #f2b632; --p27: #5fd3a8;
+  --p28: #2a8fa8; --p29: #c4466f; --p30: #f1c79a; --p31: #7ef0c2;
+  --ink-void: var(--p0); --ink-shadow: var(--p1); --ink-ink: var(--p2); --ink-ink-soft: var(--p3);
+  --ink-stone: var(--p4); --ink-stone-light: var(--p5); --ink-paper: var(--p6); --ink-white: var(--p7);
+  --ink-sky-0: var(--p8); --ink-sky-1: var(--p9); --ink-sky-2: var(--p10); --ink-sky-3: var(--p11);
+  --ink-sun: var(--p12); --ink-glow: var(--p13); --ink-cloud: var(--p14); --ink-star: var(--p15);
+  --ink-wood: var(--p16); --ink-wood-dark: var(--p17); --ink-brick: var(--p18); --ink-rug: var(--p19);
+  --ink-leaf-0: var(--p20); --ink-leaf-1: var(--p21); --ink-leaf-2: var(--p22); --ink-bloom: var(--p23);
+  --ink-accent: var(--p24); --ink-accent-dark: var(--p25); --ink-gold: var(--p26); --ink-mint: var(--p27);
+  --ink-sea: var(--p28); --ink-berry: var(--p29); --ink-skin: var(--p30); --ink-screen: var(--p31);
+
+  /* UI roles. Dawn, day and dusk are paper-and-ink; night (below) inverts to a lit-window look. */
+  --ui-ground: var(--ink-paper);
+  --ui-dither: var(--ink-white);
+  --ui-panel: var(--ink-white);
+  --ui-text: var(--ink-void);
+  --ui-muted: var(--ink-ink-soft);
+  --ui-line: var(--ink-void);
+  --ui-on-line: var(--ink-white);
+  --ui-hi: var(--ink-star);
+  --ui-lo: var(--ink-stone-light);
+  --ui-drop: var(--ink-stone-light);
+  --ui-focus: var(--ink-void);
+  --ui-danger: var(--ink-accent-dark);
+  --ui-select: var(--ink-accent-dark);
+  --ui-xp: var(--ink-mint);
+  --ui-xp-off: var(--ink-ink-soft);
+
+  /* --px snaps one font pixel to whole device pixels (set before paint by PaletteClock); --u is one 2× art pixel. */
+  --px: 1;
+  --u: calc(2px * var(--px));
+  --fs-1: calc(12px * var(--px));
+  --fs-2: calc(24px * var(--px));
+  --fs-3: calc(36px * var(--px));
+  --fs-4: calc(48px * var(--px));
+
+  color-scheme: light;
+  transition-property:
+    --ink-void, --ink-shadow, --ink-ink, --ink-ink-soft, --ink-stone, --ink-stone-light, --ink-paper, --ink-white,
+    --ink-sky-0, --ink-sky-1, --ink-sky-2, --ink-sky-3, --ink-sun, --ink-glow, --ink-cloud, --ink-star,
+    --ink-wood, --ink-wood-dark, --ink-brick, --ink-rug, --ink-leaf-0, --ink-leaf-1, --ink-leaf-2, --ink-bloom,
+    --ink-accent, --ink-accent-dark, --ink-gold, --ink-mint, --ink-sea, --ink-berry, --ink-skin, --ink-screen;
+  transition-duration: 600ms;
+  transition-timing-function: steps(4, jump-end);
 }
 
-/* ── Dark theme (Material-3 dark surfaces + mint primary) ── */
-.dark {
-  --bg: #131515;
-  --bg-subtle: #171b1c;
-  --panel: #1d2226;
-  --panel-soft: #20262a;
-  --panel-illustration: #1d2226;
-  --text: #d8e3dd;
-  --text-secondary: #b2c3bf;
-  --muted: #93a49e;
-  --muted-strong: #b2c3bf;
-  --accent: #5eec97;
-  --accent-hover: #4af58f;
-  --accent-soft: #1c4534;
-  --text-on-accent: #124627;
-  --cta: #5eec97;
-  --cta-hover: #4af58f;
-  --cta-soft: rgba(94, 236, 151, 0.1);
-  --text-on-cta: #124627;
-  --text-on-cta-muted: rgba(18, 70, 39, 0.75);
-  --text-on-cta-faint: rgba(18, 70, 39, 0.55);
-  --border: #2c343b;
-  --border-strong: #3b454f;
-  --border-cool: #3b454f;
-  --band: #0b1510;
-  --band-text: #d8e3dd;
-  --band-border: rgba(216, 227, 221, 0.2);
-  --footer-bg: #05090b;
-  --footer-text: #d8e3dd;
-  --glow-warm: rgba(94, 236, 151, 0.05);
-  --glow-accent: rgba(94, 236, 151, 0.04);
-  --section-alt: rgba(94, 236, 151, 0.03);
-  --aurora-mint: rgba(94, 236, 151, 0.3);
-  --aurora-teal: rgba(45, 212, 191, 0.22);
-  --aurora-lime: rgba(137, 175, 84, 0.18);
+:root[data-daypart="night"] {
+  --ui-ground: var(--ink-shadow);
+  --ui-dither: var(--ink-void);
+  --ui-panel: var(--ink-ink);
+  --ui-text: var(--ink-star);
+  --ui-muted: var(--ink-glow);
+  --ui-line: var(--ink-glow);
+  --ui-on-line: var(--ink-void);
+  --ui-hi: var(--ink-stone);
+  --ui-lo: var(--ink-void);
+  --ui-drop: var(--ink-void);
+  --ui-focus: var(--ink-gold);
+  --ui-danger: var(--ink-accent);
+  --ui-select: var(--ink-accent);
+  --ui-xp-off: var(--ink-stone);
+  color-scheme: dark;
 }
 
-/* ── Base ── */
-html {
-  scroll-behavior: smooth;
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
 }
 
 body {
-  background-color: var(--bg);
-  color: var(--text);
-  font-family: var(--font-sans);
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  text-rendering: optimizeLegibility;
-  line-height: 1.55;
+  margin: 0;
+  min-height: 100vh;
+  color: var(--ui-text);
+  font-family: "Fusion Pixel", ui-monospace, monospace;
+  font-size: var(--fs-1);
+  line-height: 1.5;
+  font-synthesis: none;
+  -webkit-font-smoothing: none;
+  text-rendering: optimizeSpeed;
+  image-rendering: pixelated;
+  overflow-x: clip;
+  /* Ground: a sparse two-colour dither, one art pixel lit in every 4×4 block on alternating diagonals. */
+  background:
+    conic-gradient(from 270deg at var(--u) var(--u), var(--ui-dither) 25%, transparent 0) 0 0 / calc(4 * var(--u)) calc(4 * var(--u)),
+    conic-gradient(from 270deg at var(--u) var(--u), var(--ui-dither) 25%, transparent 0) calc(2 * var(--u)) calc(2 * var(--u)) / calc(4 * var(--u)) calc(4 * var(--u)),
+    var(--ui-ground);
 }
 
-.font-display {
-  font-family: var(--font-display);
-  font-variant-ligatures: common-ligatures discretionary-ligatures;
+h1, h2, h3, h4, h5, h6, b, strong, th {
+  font-weight: normal;
+}
+
+a {
+  color: inherit;
+}
+
+button, input, select, textarea {
+  font: inherit;
+  color: inherit;
+}
+
+img, svg, canvas, video {
+  image-rendering: pixelated;
 }
 
 ::selection {
-  background-color: var(--accent);
-  color: var(--text-on-accent);
+  background: var(--ink-gold);
+  color: var(--ink-void);
 }
 
 :focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
+  outline: var(--u) solid var(--ui-focus);
+  outline-offset: var(--u);
 }
 
-:focus:not(:focus-visible) {
-  outline: none;
-}
-
-/* ── Eyebrow / small-caps mono label ── */
-.eyebrow {
-  font-family: var(--font-mono);
-  font-variant-caps: all-small-caps;
-  letter-spacing: 0.06em;
-}
-
-/* ── Scrollbar ── */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-::-webkit-scrollbar-thumb {
-  background: var(--border-strong);
-  border-radius: 3px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: var(--muted);
-}
-
-* {
-  scrollbar-width: thin;
-  scrollbar-color: var(--border-strong) transparent;
-}
-
-/* ── Entrance + reveal motion (faithful to adaline: ease-out-quint) ── */
-@keyframes nav-enter {
-  from {
-    opacity: 0;
-    transform: translateY(-10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes rise-enter {
-  from {
-    opacity: 0;
-    transform: translateY(14px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.enter-nav {
-  animation: nav-enter 0.52s cubic-bezier(0.22, 1, 0.36, 1) 0.1s both;
-}
-
-.enter-rise {
-  animation: rise-enter 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
-}
-
-/*
- * Scroll-reveal primitive. Progressive enhancement: content is visible by
- * default and only starts hidden once the `js` class is present, so the page
- * stays fully readable if scripts never run.
- */
-.reveal {
-  transition:
-    opacity 0.6s cubic-bezier(0.22, 1, 0.36, 1),
-    transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
-  transition-delay: var(--reveal-delay, 0ms);
-}
-
-.js .reveal {
-  opacity: 0;
-  transform: translateY(16px);
-}
-
-.js .reveal[data-in-view="true"] {
-  opacity: 1;
-  transform: translateY(0);
-}
-
-/* ── Aurora: slow-drifting gradient light for dark showcase surfaces ── */
-@keyframes aurora-drift {
-  0% {
-    transform: translate3d(0, 0, 0) scale(1);
-  }
-  50% {
-    transform: translate3d(-4%, 3%, 0) scale(1.12);
-  }
-  100% {
-    transform: translate3d(0, 0, 0) scale(1);
-  }
-}
-
-.aurora-layer {
-  animation: aurora-drift 20s ease-in-out infinite;
-  will-change: transform;
-}
-
-/* ── Reduced motion ── */
 @media (prefers-reduced-motion: reduce) {
-  html {
-    scroll-behavior: auto;
+  :root {
+    transition: none;
   }
-
   *,
   *::before,
   *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-  }
-
-  .js .reveal {
-    opacity: 1;
-    transform: none;
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
   }
 }

@@ -3,8 +3,8 @@ import { readFile, stat } from "node:fs/promises";
 import { extname, join, normalize } from "node:path";
 
 // Minimal static server for the exported `out/` directory, used by the e2e
-// suite. Cloudflare Pages Functions are not served here; tests that need
-// `/api/*` mock those routes in the browser.
+// suite. Cloudflare Pages Functions are not served here, so `/api/*` answers
+// 404 with the exported 404 page, like any other unknown path.
 
 const root = process.argv[2] ?? "out";
 const port = Number(process.argv[3] ?? 4319);

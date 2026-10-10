@@ -1,0 +1,149 @@
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 24px;
+  font: inherit;
+  font-size: var(--fs-2);
+  line-height: 1;
+  color: var(--ui-text);
+  background: var(--ui-panel);
+  border: 0;
+  box-shadow: inset 0 0 0 var(--u) var(--ui-line), inset 0 -6px 0 var(--ui-lo);
+  cursor: pointer;
+}
+
+.tab[aria-selected="true"] {
+  color: var(--ink-void);
+  background: var(--ink-gold);
+  box-shadow: inset 0 0 0 var(--u) var(--ui-line), inset 0 -6px 0 var(--ink-accent);
+}
+
+.tab:hover {
+  color: var(--ui-select);
+}
+
+.tab[aria-selected="true"]:hover {
+  color: var(--ink-void);
+}
+
+.panel {
+  margin-top: 12px;
+}
+
+.note {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 24px;
+  font-size: var(--fs-1);
+  line-height: 2;
+}
+
+.assets {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.asset {
+  display: grid;
+  grid-template-columns: auto 1fr auto auto;
+  align-items: center;
+  gap: 24px;
+  padding: 12px 0;
+  border-top: 3px dashed currentColor;
+}
+
+.asset:first-child {
+  border-top: 0;
+}
+
+.chest {
+  color: var(--ui-select);
+}
+
+.info {
+  display: grid;
+  min-width: 0;
+}
+
+.label {
+  font-size: var(--fs-2);
+  line-height: 1.5;
+}
+
+.file {
+  overflow-wrap: anywhere;
+  font-size: var(--fs-1);
+  line-height: 2;
+  opacity: 0.8;
+}
+
+.specs {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: var(--fs-1);
+  line-height: 2;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.footer {
+  display: grid;
+  grid-template-columns: 3fr 2fr;
+  gap: 36px;
+  align-items: start;
+  margin-top: 36px;
+}
+
+.links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+}
+
+@media (max-width: 860px) {
+  .asset {
+    grid-template-columns: auto 1fr;
+    gap: 12px 24px;
+  }
+
+  .specs,
+  .asset > :last-child {
+    grid-column: 2;
+  }
+
+  .footer {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .tab {
+    padding: 12px;
+    font-size: var(--fs-1);
+  }
+
+  .label {
+    font-size: var(--fs-1);
+    line-height: 2;
+  }
+}

@@ -1,0 +1,144 @@
+.map {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 12px;
+  margin: 0 0 48px;
+  padding: 0;
+  list-style: none;
+}
+
+.map::before {
+  content: "";
+  position: absolute;
+  top: 34px;
+  left: 8%;
+  right: 8%;
+  height: 6px;
+  background: repeating-linear-gradient(90deg, var(--ui-muted) 0 12px, transparent 12px 24px);
+}
+
+.stop {
+  position: relative;
+  display: flex;
+  justify-content: center;
+}
+
+.node {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  padding: 0;
+  font: inherit;
+  color: var(--ui-muted);
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+.flag {
+  display: grid;
+  place-items: center;
+  width: 72px;
+  height: 72px;
+  color: var(--ui-text);
+  background: var(--ui-panel);
+  box-shadow:
+    0 -6px 0 0 var(--ui-line),
+    0 6px 0 0 var(--ui-line),
+    -6px 0 0 0 var(--ui-line),
+    6px 0 0 0 var(--ui-line),
+    6px 12px 0 0 var(--ui-drop);
+}
+
+.stop[data-state="cleared"] .flag {
+  color: var(--ink-void);
+  background: var(--ink-mint);
+}
+
+.stop[data-state="current"] .flag {
+  color: var(--ink-void);
+  background: var(--ink-gold);
+  box-shadow:
+    0 -6px 0 0 var(--ink-accent),
+    0 6px 0 0 var(--ink-accent),
+    -6px 0 0 0 var(--ink-accent),
+    6px 0 0 0 var(--ink-accent),
+    6px 12px 0 0 var(--ui-drop);
+  animation: hop 800ms steps(2, jump-none) infinite;
+}
+
+@keyframes hop {
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+.stageNo {
+  font-size: var(--fs-1);
+  line-height: 2;
+  color: var(--ui-select);
+}
+
+.name {
+  font-size: var(--fs-2);
+  line-height: 1;
+  color: var(--ui-text);
+}
+
+.stop[data-state="current"] .name::before {
+  content: "▶";
+  color: var(--ui-select);
+}
+
+.detail {
+  display: grid;
+  grid-template-columns: 3fr 2fr;
+  gap: 24px;
+  align-items: start;
+}
+
+.body {
+  margin: 0 0 24px;
+  min-height: 108px;
+  font-size: var(--fs-2);
+  line-height: 1.5;
+}
+
+@media (max-width: 960px) {
+  .map {
+    grid-template-columns: repeat(3, 1fr);
+    row-gap: 36px;
+  }
+
+  .map::before {
+    display: none;
+  }
+
+  .detail {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .flag {
+    width: 48px;
+    height: 48px;
+  }
+
+  .name {
+    font-size: var(--fs-1);
+  }
+
+  .body {
+    min-height: 0;
+    font-size: var(--fs-1);
+    line-height: 2;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stop[data-state="current"] .flag {
+    animation: none;
+  }
+}

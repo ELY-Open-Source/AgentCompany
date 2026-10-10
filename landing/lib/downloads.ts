@@ -1,4 +1,4 @@
-import { platformDownloads, type PlatformDownload, type PlatformDownloadAsset } from "./release-links.generated";
+import { platformDownloads, RELEASE_HOST, type PlatformDownload, type PlatformDownloadAsset } from "./release-links";
 
 export const DOWNLOAD_COUNT_SEED = 13674;
 export const DOWNLOAD_DEDUP_WINDOW_HOURS = 24;
@@ -25,4 +25,9 @@ export function getDownloadAsset(assetId: string) {
 
 export function getTrackedDownloadHref(assetId: string) {
   return `/api/download?asset=${encodeURIComponent(assetId)}`;
+}
+
+export function isAllowedDownloadUrl(href: string) {
+  const url = new URL(href);
+  return url.protocol === "https:" && url.host === RELEASE_HOST;
 }

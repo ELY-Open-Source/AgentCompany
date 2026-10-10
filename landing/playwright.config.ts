@@ -7,7 +7,7 @@ const baseURL = `http://127.0.0.1:${PORT}`;
 // `playwright install` revision is unavailable locally); CI uses the bundled
 // browser and leaves this unset.
 const executablePath = process.env.PW_CHROME || undefined;
-const launchOptions = executablePath ? { executablePath } : {};
+const swiftshader = ["--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"];
 
 export default defineConfig({
   testDir: "./tests/e2e",
@@ -18,18 +18,28 @@ export default defineConfig({
   use: {
     baseURL,
     trace: "on-first-retry",
-    launchOptions,
   },
   projects: [
     {
       name: "desktop",
-      use: { ...devices["Desktop Chrome"], viewport: { width: 1440, height: 900 } },
+      grepInvert: /@no-webgl/,
+      use: {
+        ...devices["Desktop Chrome"],
+        viewport: { width: 1440, height: 900 },
+        launchOptions: { executablePath, args: swiftshader },
+      },
     },
     {
-      name: "mobile",
-      use: { ...devices["Pixel 5"] },
+      name: "no-webgl",
+      grep: /@no-webgl/,
+      use: {
+        ...devices["Desktop Chrome"],
+        viewport: { width: 1440, height: 900 },
+        launchOptions: { executablePath, args: ["--disable-webgl", "--disable-webgl2"] },
+      },
     },
   ],
+  // `npm run test:e2e` builds the static export first; this only serves `out/` (with 404.html for unknown paths).
   webServer: {
     command: `node tests/e2e/serve.mjs out ${PORT}`,
     url: baseURL,

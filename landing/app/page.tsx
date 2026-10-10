@@ -1,36 +1,33 @@
-import { Bento } from "../components/sections/bento";
-import { DownloadSection } from "../components/sections/download-section";
-import { FAQ } from "../components/sections/faq";
-import { Footer } from "../components/layout/footer";
-import { Hero } from "../components/sections/hero";
-import { HowItWorks } from "../components/sections/how-it-works";
-import { Navbar } from "../components/layout/navbar";
-import { Runtimes } from "../components/sections/runtimes";
-import { Showcase } from "../components/sections/showcase";
+import { CharacterSelect } from "../components/sections/character-select";
+import { Credits } from "../components/sections/credits";
+import { FaqSection } from "../components/sections/faq-section";
+import { InventorySection } from "../components/sections/inventory-section";
+import { PartyRoster } from "../components/sections/party-roster";
+import { QuestLog } from "../components/sections/quest-log";
+import { SavePoint } from "../components/sections/save-point";
+import { TitleScreen } from "../components/sections/title-screen";
+import { TopBar } from "../components/sections/top-bar";
+import { XpSection } from "../components/sections/xp-section";
+import styles from "./page.module.css";
 
 export default function Page() {
   return (
-    <>
-      <a
-        href="#main"
-        className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[100] focus:px-4 focus:py-2 focus:rounded-lg focus:bg-[var(--accent)] focus:text-[var(--text-on-accent)] focus:text-sm focus:font-medium"
-      >
+    <div className={styles.page}>
+      <a href="#main" className={styles.skip}>
         Skip to content
       </a>
-
-      <Navbar />
-
-      <main id="main">
-        <Hero />
-        <Runtimes />
-        <Bento />
-        <Showcase />
-        <HowItWorks />
-        <FAQ />
-        <DownloadSection />
+      <TopBar />
+      <main id="main" tabIndex={-1}>
+        <TitleScreen />
+        <QuestLog />
+        <CharacterSelect />
+        <InventorySection />
+        <PartyRoster />
+        <XpSection />
+        <SavePoint />
+        <FaqSection />
       </main>
-
-      <Footer />
-    </>
+      <Credits />
+    </div>
   );
 }

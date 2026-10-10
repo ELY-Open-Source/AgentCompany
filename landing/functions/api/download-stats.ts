@@ -18,10 +18,16 @@ async function readDownloadCount(db: CounterDatabase) {
     .bind(DOWNLOAD_COUNT_SEED)
     .first<{ downloads: number }>();
 
-  return result?.downloads ?? DOWNLOAD_COUNT_SEED;
+  if (!result) {
+    throw new Error("Download count query returned no row.");
+  }
+  return result.downloads;
 }
 
 export const onRequestGet: PagesHandler<Env> = async (context) => {
+  if (!context.env.DOWNLOAD_COUNTER_DB) {
+    throw new Error("DOWNLOAD_COUNTER_DB binding is missing.");
+  }
   const downloads = await readDownloadCount(context.env.DOWNLOAD_COUNTER_DB);
   return Response.json(
     { downloads },

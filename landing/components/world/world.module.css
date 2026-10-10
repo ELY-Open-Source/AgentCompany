@@ -1,0 +1,48 @@
+.frame {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--ink-sky-2);
+}
+
+.canvas {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: block;
+  transform: translate(-50%, -50%);
+  image-rendering: pixelated;
+}
+
+.fallback {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.band {
+  flex: 1;
+}
+
+.skyline {
+  position: absolute;
+  inset: auto 0 0;
+  display: flex;
+  align-items: flex-end;
+  height: 60%;
+}
+
+.tower {
+  --tower: var(--ink-ink-soft);
+  flex: 1;
+  background-color: var(--tower);
+  background-image: repeating-linear-gradient(0deg, var(--tower) 0 10px, transparent 10px 16px),
+    repeating-linear-gradient(90deg, var(--tower) 0 8px, var(--ink-gold) 8px 14px, var(--tower) 14px 20px);
+  box-shadow: inset 0 6px 0 var(--ink-ink);
+}
+
+.tower:nth-child(odd) {
+  --tower: var(--ink-stone);
+}

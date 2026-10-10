@@ -1,0 +1,427 @@
+/* All sizes are whole art pixels (--u = 2 screen px at 1×); every colour is a palette role from app/globals.css. */
+
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.icon {
+  display: inline-block;
+  flex-shrink: 0;
+  width: calc(12px * var(--px) * var(--icon-scale));
+  height: calc(12px * var(--px) * var(--icon-scale));
+  vertical-align: calc(-2px * var(--px));
+}
+
+/* Window frame: notched outline, a full inner rim, a bottom-right inner shade and a hard drop shadow. */
+.frame {
+  --frame-line: var(--ui-line);
+  --frame-rim: var(--ui-hi);
+  position: relative;
+  color: var(--ui-text);
+  background: var(--ui-panel);
+  box-shadow:
+    0 calc(-1 * var(--u)) 0 0 var(--frame-line),
+    0 var(--u) 0 0 var(--frame-line),
+    calc(-1 * var(--u)) 0 0 0 var(--frame-line),
+    var(--u) 0 0 0 var(--frame-line),
+    inset 0 0 0 var(--u) var(--frame-rim),
+    inset calc(-2 * var(--u)) calc(-2 * var(--u)) 0 0 var(--ui-lo),
+    calc(2 * var(--u)) calc(2 * var(--u)) 0 0 var(--ui-drop);
+}
+.frame[data-tone="accent"] { --frame-rim: var(--ink-gold); }
+.frame[data-tone="danger"] { --frame-rim: var(--ink-accent); }
+
+.plate {
+  --plate-bg: var(--ui-line);
+  --plate-fg: var(--ui-on-line);
+  position: absolute;
+  top: calc(-6 * var(--u));
+  left: calc(4 * var(--u));
+  margin: 0;
+  padding: var(--u) calc(4 * var(--u));
+  font-size: var(--fs-1);
+  line-height: calc(var(--fs-1) * 1.5);
+  color: var(--plate-fg);
+  background: var(--plate-bg);
+  box-shadow:
+    0 calc(-1 * var(--u)) 0 0 var(--frame-line),
+    0 var(--u) 0 0 var(--frame-line),
+    calc(-1 * var(--u)) 0 0 0 var(--frame-line),
+    var(--u) 0 0 0 var(--frame-line);
+}
+[data-tone="accent"] > .plate { --plate-bg: var(--ink-gold); --plate-fg: var(--ink-void); }
+[data-tone="danger"] > .plate { --plate-bg: var(--ink-accent-dark); --plate-fg: var(--ink-star); }
+
+.dialog {
+  margin: var(--u);
+  padding: calc(6 * var(--u));
+}
+.dialog[data-titled] {
+  margin-top: calc(7 * var(--u));
+  padding-top: calc(9 * var(--u));
+}
+
+/* Button: a face on a base; hover lifts the face one art pixel, :active sinks it flush with the base. */
+.button {
+  --face: var(--ink-gold);
+  --face-text: var(--ink-void);
+  --face-hi: var(--ink-star);
+  --base: var(--ink-accent-dark);
+  --d: calc(2 * var(--u));
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: calc(3 * var(--u));
+  min-height: calc(18 * var(--u));
+  margin: var(--u) var(--u) calc(3 * var(--u));
+  padding: calc(2 * var(--u)) calc(6 * var(--u));
+  border: 0;
+  border-radius: 0;
+  font-size: var(--fs-1);
+  line-height: 1.5;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  color: var(--face-text);
+  background: var(--face);
+  box-shadow:
+    inset 0 var(--u) 0 0 var(--face-hi),
+    0 var(--d) 0 0 var(--base),
+    0 calc(-1 * var(--u)) 0 0 var(--ui-line),
+    calc(-1 * var(--u)) 0 0 0 var(--ui-line),
+    var(--u) 0 0 0 var(--ui-line),
+    calc(-1 * var(--u)) var(--d) 0 0 var(--ui-line),
+    var(--u) var(--d) 0 0 var(--ui-line),
+    0 calc(var(--d) + var(--u)) 0 0 var(--ui-line);
+}
+.button[data-variant="ghost"] {
+  --face: var(--ui-panel);
+  --face-text: var(--ui-text);
+  --face-hi: var(--ui-hi);
+  --base: var(--ui-lo);
+}
+.button:hover {
+  --d: calc(3 * var(--u));
+  transform: translateY(calc(-1 * var(--u)));
+}
+.button:active {
+  --d: 0px;
+  transform: translateY(calc(2 * var(--u)));
+}
+
+.badge {
+  --badge-bg: var(--ui-line);
+  --badge-fg: var(--ui-on-line);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--u);
+  padding: 0 calc(3 * var(--u));
+  font-size: var(--fs-1);
+  line-height: calc(var(--fs-1) * 1.5);
+  white-space: nowrap;
+  color: var(--badge-fg);
+  background: var(--badge-bg);
+  clip-path: polygon(
+    var(--u) 0, calc(100% - var(--u)) 0, calc(100% - var(--u)) var(--u), 100% var(--u),
+    100% calc(100% - var(--u)), calc(100% - var(--u)) calc(100% - var(--u)), calc(100% - var(--u)) 100%, var(--u) 100%,
+    var(--u) calc(100% - var(--u)), 0 calc(100% - var(--u)), 0 var(--u), var(--u) var(--u)
+  );
+}
+.badge[data-tone="accent"] { --badge-bg: var(--ink-gold); --badge-fg: var(--ink-void); }
+.badge[data-tone="mint"] { --badge-bg: var(--ink-mint); --badge-fg: var(--ink-void); }
+.badge[data-tone="danger"] { --badge-bg: var(--ink-accent-dark); --badge-fg: var(--ink-star); }
+
+/* Menu: the ▶ cursor rests on the current item and blinks while the menu is in use. */
+.menu {
+  display: grid;
+  gap: var(--u);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.menu[data-orientation="horizontal"] {
+  display: flex;
+  flex-wrap: wrap;
+  gap: calc(4 * var(--u));
+}
+.menuItem {
+  position: relative;
+  display: flex;
+  align-items: baseline;
+  gap: calc(4 * var(--u));
+  width: 100%;
+  padding: var(--u) calc(2 * var(--u)) var(--u) calc(7 * var(--u));
+  border: 0;
+  background: none;
+  font: inherit;
+  text-align: left;
+  text-decoration: none;
+  color: inherit;
+  cursor: pointer;
+}
+.menuItem::before {
+  content: "";
+  position: absolute;
+  left: calc(2 * var(--u));
+  top: calc(50% - 2.5 * var(--u));
+  width: calc(3 * var(--u));
+  height: calc(5 * var(--u));
+  background: currentColor;
+  clip-path: polygon(
+    0 0, var(--u) 0, var(--u) var(--u), calc(2 * var(--u)) var(--u), calc(2 * var(--u)) calc(2 * var(--u)),
+    calc(3 * var(--u)) calc(2 * var(--u)), calc(3 * var(--u)) calc(3 * var(--u)), calc(2 * var(--u)) calc(3 * var(--u)),
+    calc(2 * var(--u)) calc(4 * var(--u)), var(--u) calc(4 * var(--u)), var(--u) calc(5 * var(--u)), 0 calc(5 * var(--u))
+  );
+  visibility: hidden;
+}
+.menuItem[data-active]::before { visibility: visible; }
+.menu:is(:hover, :focus-within) .menuItem[data-active]::before {
+  animation: blink 0.8s steps(1, end) infinite;
+}
+.menuItem:focus-visible { outline-offset: 0; }
+.menuHint {
+  margin-left: auto;
+  color: var(--ui-muted);
+}
+.menu[data-orientation="horizontal"] .menuItem { width: auto; }
+.menu[data-orientation="horizontal"] .menuHint { margin-left: 0; opacity: 0; }
+.menu[data-orientation="horizontal"] .menuItem[data-active] .menuHint { opacity: 1; }
+
+/* NPC speech box: portrait on the left, name plate on the edge, ▼ bobbing once a line has finished. */
+.npc {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: calc(6 * var(--u));
+  align-items: start;
+  margin: calc(7 * var(--u)) var(--u) var(--u);
+  padding: calc(9 * var(--u)) calc(6 * var(--u)) calc(8 * var(--u));
+  cursor: pointer;
+}
+.portrait {
+  display: grid;
+  place-items: center;
+  width: calc(24 * var(--u));
+  height: calc(24 * var(--u));
+  margin: var(--u);
+  color: var(--ui-text);
+  background: var(--ink-sky-2);
+  box-shadow:
+    0 calc(-1 * var(--u)) 0 0 var(--ui-line),
+    0 var(--u) 0 0 var(--ui-line),
+    calc(-1 * var(--u)) 0 0 0 var(--ui-line),
+    var(--u) 0 0 0 var(--ui-line),
+    inset 0 calc(-2 * var(--u)) 0 0 var(--ink-sky-1);
+}
+.npcText {
+  margin: 0;
+  min-height: calc(var(--fs-1) * 1.5 * 2);
+}
+.npcText p { margin: 0; }
+:global(:root[data-js]) .ghost { visibility: hidden; }
+.advance {
+  position: absolute;
+  right: calc(3 * var(--u));
+  bottom: calc(2 * var(--u));
+  padding: calc(2 * var(--u));
+  border: 0;
+  background: none;
+  color: var(--ui-muted);
+  cursor: pointer;
+}
+.advance::before {
+  content: "";
+  display: block;
+  width: calc(5 * var(--u));
+  height: calc(3 * var(--u));
+  background: currentColor;
+  clip-path: polygon(
+    0 0, calc(5 * var(--u)) 0, calc(5 * var(--u)) var(--u), calc(4 * var(--u)) var(--u), calc(4 * var(--u)) calc(2 * var(--u)),
+    calc(3 * var(--u)) calc(2 * var(--u)), calc(3 * var(--u)) calc(3 * var(--u)), calc(2 * var(--u)) calc(3 * var(--u)),
+    calc(2 * var(--u)) calc(2 * var(--u)), var(--u) calc(2 * var(--u)), var(--u) var(--u), 0 var(--u)
+  );
+}
+.advance[data-done] { color: var(--ui-text); }
+.advance[data-done]::before { animation: bob 0.7s steps(1, end) infinite; }
+
+/* Inventory: sunken slots in a tray, corner brackets on the chosen one, its description below. */
+.inventory {
+  display: grid;
+  gap: calc(6 * var(--u));
+}
+.slots {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, calc(24 * var(--u)));
+  gap: calc(4 * var(--u));
+  margin: var(--u);
+  padding: calc(5 * var(--u));
+  list-style: none;
+  background: var(--ui-panel);
+  box-shadow:
+    0 calc(-1 * var(--u)) 0 0 var(--ui-line),
+    0 var(--u) 0 0 var(--ui-line),
+    calc(-1 * var(--u)) 0 0 0 var(--ui-line),
+    var(--u) 0 0 0 var(--ui-line);
+}
+.slot {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: calc(24 * var(--u));
+  height: calc(24 * var(--u));
+  color: var(--ui-text);
+  background: var(--ui-ground);
+  box-shadow:
+    inset var(--u) var(--u) 0 0 var(--ui-lo),
+    inset calc(-1 * var(--u)) calc(-1 * var(--u)) 0 0 var(--ui-hi);
+  cursor: pointer;
+}
+.slot:focus-visible { outline: none; }
+.slot[aria-selected="true"]::after {
+  --c: var(--ui-select);
+  --l: calc(4 * var(--u));
+  content: "";
+  position: absolute;
+  inset: calc(-2 * var(--u));
+  pointer-events: none;
+  background:
+    linear-gradient(var(--c) 0 0) 0 0 / var(--l) var(--u),
+    linear-gradient(var(--c) 0 0) 0 0 / var(--u) var(--l),
+    linear-gradient(var(--c) 0 0) 100% 0 / var(--l) var(--u),
+    linear-gradient(var(--c) 0 0) 100% 0 / var(--u) var(--l),
+    linear-gradient(var(--c) 0 0) 0 100% / var(--l) var(--u),
+    linear-gradient(var(--c) 0 0) 0 100% / var(--u) var(--l),
+    linear-gradient(var(--c) 0 0) 100% 100% / var(--l) var(--u),
+    linear-gradient(var(--c) 0 0) 100% 100% / var(--u) var(--l);
+  background-repeat: no-repeat;
+}
+.slot[aria-selected="true"]:focus-visible::after {
+  --c: var(--ui-focus);
+  animation: pulse 0.8s steps(1, end) infinite;
+}
+.itemInfo {
+  margin: var(--u);
+  padding: calc(6 * var(--u));
+  min-height: calc(var(--fs-1) * 1.5 * 3 + 12 * var(--u));
+}
+.itemInfo p { margin: 0; }
+.itemName {
+  display: flex;
+  align-items: center;
+  gap: calc(3 * var(--u));
+  margin-bottom: calc(2 * var(--u)) !important;
+  color: var(--ui-muted);
+}
+
+/* XP bar: twenty blocks that light one after another the first time the bar is seen. */
+.xp {
+  display: grid;
+  gap: calc(2 * var(--u));
+  width: max-content;
+  max-width: 100%;
+}
+.xpHead {
+  display: flex;
+  justify-content: space-between;
+  gap: calc(6 * var(--u));
+}
+.xpNumbers { color: var(--ui-muted); }
+.xpTrack {
+  display: grid;
+  grid-template-columns: repeat(20, calc(4 * var(--u)));
+  gap: var(--u);
+  height: calc(7 * var(--u));
+  margin: 0 var(--u);
+  padding: var(--u);
+  background: var(--ink-void);
+  box-shadow:
+    0 calc(-1 * var(--u)) 0 0 var(--ink-void),
+    0 var(--u) 0 0 var(--ink-void);
+}
+.xpSegment { background: var(--ui-xp-off); }
+.xpSegment[data-on] {
+  background: var(--ui-xp);
+  box-shadow: inset 0 var(--u) 0 0 var(--ink-screen);
+  animation: xp-tick 1ms steps(1, end) both paused;
+  animation-delay: calc(var(--i) * 60ms);
+}
+.xp[data-playing] .xpSegment[data-on] { animation-play-state: running; }
+:global(:root:not([data-js])) .xpSegment { animation: none; }
+
+/* Game over: the banner blinks three times, then CONTINUE? waits. */
+.gameOver {
+  display: grid;
+  justify-items: center;
+  gap: calc(8 * var(--u));
+  margin: var(--u);
+  padding: calc(12 * var(--u)) calc(8 * var(--u)) calc(10 * var(--u));
+  text-align: center;
+}
+.gameOverTitle {
+  margin: 0;
+  font-size: var(--fs-4);
+  line-height: 1;
+  color: var(--ui-danger);
+  text-shadow: calc(2 * var(--u)) calc(2 * var(--u)) 0 var(--ui-line);
+  animation: blink 0.5s steps(1, end) 3;
+}
+.gameOverMessage { max-width: 48ch; }
+.gameOverPrompt {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: calc(2 * var(--u)) calc(6 * var(--u));
+}
+
+/* HUD: inline where the page places it on phones, pinned to the top-right corner from 600px up. */
+.hud {
+  display: flex;
+  align-items: center;
+  gap: calc(4 * var(--u));
+  padding: calc(3 * var(--u)) calc(5 * var(--u)) calc(4 * var(--u)) calc(4 * var(--u));
+  border: 0;
+  cursor: pointer;
+}
+.hud:active { transform: translateY(var(--u)); }
+@media (min-width: 600px) {
+  .hud {
+    position: fixed;
+    top: calc(6 * var(--u));
+    right: calc(6 * var(--u));
+    z-index: 50;
+  }
+}
+.hudGlyphs {
+  display: flex;
+  gap: calc(2 * var(--u));
+}
+.hudText {
+  display: grid;
+  gap: var(--u);
+  text-align: left;
+}
+.swatches {
+  display: grid;
+  grid-template-columns: repeat(16, var(--u));
+  grid-auto-rows: var(--u);
+  box-shadow: 0 0 0 var(--u) var(--ui-line);
+}
+.swatches i { background: var(--swatch); }
+
+@keyframes blink { 50% { visibility: hidden; } }
+@keyframes bob { 50% { transform: translateY(var(--u)); } }
+@keyframes pulse { 50% { inset: calc(-1 * var(--u)); } }
+@keyframes xp-tick { from { background: var(--ui-xp-off); box-shadow: none; } }
+
+@media (prefers-reduced-motion: reduce) {
+  :global(:root[data-js]) .ghost { visibility: visible; }
+}

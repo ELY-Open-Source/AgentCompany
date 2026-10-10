@@ -1,12 +1,13 @@
 import {
   DOWNLOAD_DEDUP_WINDOW_MS,
   getDownloadAsset,
+  isAllowedDownloadUrl,
 } from "../../lib/downloads";
 import type { CounterDatabase, PagesHandler } from "../types";
 
 interface Env {
   DOWNLOAD_COUNTER_DB: CounterDatabase;
-  DOWNLOAD_COUNTER_SALT?: string;
+  DOWNLOAD_COUNTER_SALT: string;
 }
 
 function getClientIp(request: Request) {
@@ -28,13 +29,13 @@ async function sha256Hex(input: string) {
   return Array.from(new Uint8Array(buffer), (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
-async function countUniqueDownload(db: CounterDatabase, request: Request, assetId: string, salt: string | undefined) {
+async function countUniqueDownload(db: CounterDatabase, request: Request, assetId: string, salt: string) {
   const clientIp = getClientIp(request);
   if (!clientIp) {
     return;
   }
 
-  const ipHash = await sha256Hex(`${salt ?? ""}:${clientIp}`);
+  const ipHash = await sha256Hex(`${salt}:${clientIp}`);
   const windowKey = getWindowKey();
 
   await db
@@ -51,6 +52,13 @@ async function countUniqueDownload(db: CounterDatabase, request: Request, assetI
 }
 
 export const onRequestGet: PagesHandler<Env> = async (context) => {
+  if (!context.env.DOWNLOAD_COUNTER_DB) {
+    throw new Error("DOWNLOAD_COUNTER_DB binding is missing.");
+  }
+  if (!context.env.DOWNLOAD_COUNTER_SALT) {
+    throw new Error("DOWNLOAD_COUNTER_SALT variable is missing.");
+  }
+
   const url = new URL(context.request.url);
   const assetId = url.searchParams.get("asset")?.trim();
   if (!assetId) {
@@ -60,6 +68,9 @@ export const onRequestGet: PagesHandler<Env> = async (context) => {
   const asset = getDownloadAsset(assetId);
   if (!asset) {
     return new Response("Unknown asset.", { status: 404 });
+  }
+  if (!isAllowedDownloadUrl(asset.href)) {
+    throw new Error(`Asset ${asset.id} points outside the release host: ${asset.href}`);
   }
 
   await countUniqueDownload(

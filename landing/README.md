@@ -1,14 +1,48 @@
 # AgentCompany Landing
 
-Next.js landing page for the AgentCompany desktop release lane.
+The website for [AgentCompany](https://agent-company.dev): a 16-bit pixel-art landing page built with Next.js (static export), React and three.js, hosted on Cloudflare Pages.
 
-## Copy Sources
+## Structure
 
-| Surface | Source |
+| Path | What lives there |
 |---|---|
-| Download cards | `landing/lib/release-links.generated.ts` |
-| Platform FAQ | `landing/lib/platform-support.ts` |
-| Hero, How It Works, software JSON-LD features | `landing/lib/product-narrative.ts` |
-| Runtime download URLs | generated from `scripts/generate-landing-release-links.mjs` |
+| `app/` | Page shell (`layout.tsx`, `page.tsx`, `not-found.tsx`) and `globals.css` |
+| `components/sections/` | Page sections, with copy in `lib/content.ts` |
+| `components/pixel/` | The pixel UI kit: dialogs, NPC speech, menus, buttons, XP bars, badges, inventory, icons, GAME OVER, HUD, and the `PaletteClock` provider |
+| `components/world/` | `PixelWorld`, the three.js office diorama rendered at low resolution and quantized to the palette with ordered dithering |
+| `lib/palette.ts` | The 32-colour palette per day part and season; every colour on the site comes from its CSS variables |
+| `lib/pixel-icons.ts` | Hand-placed 12×12 icons |
+| `lib/release-links.ts` | Release version, Gitea source and release URLs, and every download asset |
+| `lib/downloads.ts` | Flat asset list and tracked `/api/download` links |
+| `lib/platform.ts` | Visitor OS/architecture detection and the recommended download |
+| `functions/api/` | Cloudflare Pages Functions: `download` (counts a unique download in D1, then redirects to Gitea) and `download-stats` |
+| `migrations/` | D1 schema for the download counter |
+| `public/_headers` | Security and cache headers |
 
-The public story mirrors the first-run desktop flow: Welcome, Requirements, Providers, Company, Team Models, Mode, Mission, Launch.
+Append `?time=dawn|day|dusk|night&season=spring|summer|autumn|winter` to preview a palette.
+
+## Downloads and source
+
+Installers and source code live on Gitea, not GitHub: <https://git.zacharyzhang.com/ZacharyZhang-NY/AgentCompany>. Contributions go through AGit pull requests there.
+
+## Updating the release
+
+Edit `lib/release-links.ts`: bump `releaseVersion` and update each asset's file name and byte size from the release API:
+
+```sh
+curl -s https://git.zacharyzhang.com/api/v1/repos/ZacharyZhang-NY/AgentCompany/releases/tags/v<version>
+```
+
+Asset ids stay stable across releases so existing `/api/download?asset=<id>` links keep working. The download function only redirects to `git.zacharyzhang.com`.
+
+## Develop, test, build, deploy
+
+```sh
+npm install
+npm run dev
+node --import ./tests/unit/resolve-ts.mjs --test 'tests/unit/*.test.ts'
+npm run build
+npx wrangler pages deploy out --project-name agentcompany
+```
+
+`npm run build` writes the static site to `out/`. Pages Functions and the `DOWNLOAD_COUNTER_DB` D1 binding are configured in `wrangler.toml`; `npm run preview` serves `out/` with the functions locally.

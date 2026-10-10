@@ -1,0 +1,104 @@
+.footer {
+  position: relative;
+  padding: 0 24px 72px;
+  text-align: center;
+  color: var(--ink-star);
+  background: var(--ink-void);
+}
+
+.sky {
+  height: 48px;
+  margin: 0 -24px 72px;
+  background: linear-gradient(
+    var(--ink-void) 0 12px,
+    var(--ink-sky-0) 12px 24px,
+    var(--ink-sky-1) 24px 36px,
+    var(--ink-sky-0) 36px 42px,
+    var(--ink-void) 42px
+  );
+}
+
+.roll {
+  display: grid;
+  justify-items: center;
+  gap: 36px;
+  max-width: 768px;
+  margin: 0 auto;
+}
+
+.theEnd {
+  margin: 0;
+  font-size: var(--fs-3);
+  line-height: 1.333;
+  color: var(--ink-gold);
+  text-shadow: 3px 3px 0 var(--ink-accent-dark);
+}
+
+.cast {
+  display: grid;
+  gap: 24px;
+  margin: 0;
+}
+
+:global([data-reveal="shown"]) .line {
+  animation: rise 720ms steps(6) backwards;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(36px);
+  }
+}
+
+.line dt {
+  font-size: var(--fs-1);
+  line-height: 2;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-glow);
+}
+
+.line dd {
+  margin: 0;
+  font-size: var(--fs-2);
+  line-height: 1.5;
+}
+
+.links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px 36px;
+  font-size: var(--fs-1);
+  line-height: 2;
+}
+
+.links a {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--ink-mint);
+}
+
+.links a:hover,
+.links a:focus-visible {
+  color: var(--ink-gold);
+}
+
+.fine {
+  margin: 0;
+  font-size: var(--fs-1);
+  line-height: 2;
+  color: var(--ink-glow);
+}
+
+.fine a {
+  color: var(--ink-mint);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .line {
+    animation: none;
+  }
+}
