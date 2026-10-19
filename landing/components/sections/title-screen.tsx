@@ -27,8 +27,8 @@ export function TitleScreen() {
           </p>
           <div className={styles.actions}>
             <PlatformCta />
-            <PixelButton href={SOURCE_URL} variant="ghost" icon="chest">
-              View source on Gitea
+            <PixelButton href={SOURCE_URL} variant="ghost" icon="github">
+              View source on GitHub
             </PixelButton>
           </div>
           <p className={styles.meta}>

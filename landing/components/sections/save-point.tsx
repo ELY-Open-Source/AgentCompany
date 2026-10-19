@@ -43,7 +43,7 @@ export function SavePoint() {
             id="save-title"
             stage="World 6 · Save point"
             title="Save point reached. Grab your build."
-            intro={`Version ${releaseVersion}, served straight from the project's Gitea releases.`}
+            intro={`Version ${releaseVersion}, served straight from the project's GitHub releases.`}
           />
           <div role="tablist" aria-label="Platform" className={styles.tabs} onKeyDown={onKeyDown}>
             {platformDownloads.map((item, index) => (
@@ -109,8 +109,8 @@ export function SavePoint() {
               <PixelButton href={RELEASE_PAGE_URL} variant="ghost" icon="flag">
                 Full release notes
               </PixelButton>
-              <PixelButton href={SOURCE_URL} variant="ghost" icon="chest">
-                Source on Gitea
+              <PixelButton href={SOURCE_URL} variant="ghost" icon="github">
+                Source on GitHub
               </PixelButton>
             </div>
           </div>

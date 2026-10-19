@@ -12,10 +12,10 @@ The website for [AgentCompany](https://agent-company.dev): a 16-bit pixel-art la
 | `components/world/` | `PixelWorld`, the three.js office diorama rendered at low resolution and quantized to the palette with ordered dithering |
 | `lib/palette.ts` | The 32-colour palette per day part and season; every colour on the site comes from its CSS variables |
 | `lib/pixel-icons.ts` | Hand-placed 12×12 icons |
-| `lib/release-links.ts` | Release version, Gitea source and release URLs, and every download asset |
+| `lib/release-links.ts` | Release version, GitHub source and release URLs, and every download asset |
 | `lib/downloads.ts` | Flat asset list and tracked `/api/download` links |
 | `lib/platform.ts` | Visitor OS/architecture detection and the recommended download |
-| `functions/api/` | Cloudflare Pages Functions: `download` (counts a unique download in D1, then redirects to Gitea) and `download-stats` |
+| `functions/api/` | Cloudflare Pages Functions: `download` (counts a unique download in D1, then redirects to the GitHub release asset) and `download-stats` |
 | `migrations/` | D1 schema for the download counter |
 | `public/_headers` | Security and cache headers |
 
@@ -23,17 +23,17 @@ Append `?time=dawn|day|dusk|night&season=spring|summer|autumn|winter` to preview
 
 ## Downloads and source
 
-Installers and source code live on Gitea, not GitHub: <https://git.zacharyzhang.com/ZacharyZhang-NY/AgentCompany>. Contributions go through AGit pull requests there.
+Installers and source code live on GitHub: <https://github.com/ELY-Open-Source/AgentCompany>. Contributions go through pull requests there.
 
 ## Updating the release
 
 Edit `lib/release-links.ts`: bump `releaseVersion` and update each asset's file name and byte size from the release API:
 
 ```sh
-curl -s https://git.zacharyzhang.com/api/v1/repos/ZacharyZhang-NY/AgentCompany/releases/tags/v<version>
+curl -s https://api.github.com/repos/ELY-Open-Source/AgentCompany/releases/tags/v<version> | jq -r '.assets[] | "\(.name) \(.size)"'
 ```
 
-Asset ids stay stable across releases so existing `/api/download?asset=<id>` links keep working. The download function only redirects to `git.zacharyzhang.com`.
+Asset ids stay stable across releases so existing `/api/download?asset=<id>` links keep working. The download function only redirects to `https://github.com/ELY-Open-Source/AgentCompany/releases/download/`.
 
 ## Develop, test, build, deploy
 

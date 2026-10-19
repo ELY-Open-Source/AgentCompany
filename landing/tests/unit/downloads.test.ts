@@ -24,7 +24,7 @@ test("lists every v1.5.1 build with unique ids", () => {
   );
 });
 
-test("points every asset at the Gitea release for the current version", () => {
+test("points every asset at the GitHub release for the current version", () => {
   for (const asset of downloadAssets) {
     assert.ok(isAllowedDownloadUrl(asset.href), asset.href);
     assert.ok(asset.href.endsWith(`/releases/download/v${releaseVersion}/${asset.fileName}`), asset.href);
@@ -42,6 +42,8 @@ test("looks assets up by id and tracks downloads through the API", () => {
 
 test("rejects download urls off the release host", () => {
   assert.equal(isAllowedDownloadUrl("https://evil.example/AgentCompany.dmg"), false);
-  assert.equal(isAllowedDownloadUrl("http://git.zacharyzhang.com/x.dmg"), false);
-  assert.equal(isAllowedDownloadUrl("https://git.zacharyzhang.com.evil.example/x.dmg"), false);
+  assert.equal(isAllowedDownloadUrl("http://github.com/ELY-Open-Source/AgentCompany/releases/download/v1.5.1/x.dmg"), false);
+  assert.equal(isAllowedDownloadUrl("https://github.com.evil.example/ELY-Open-Source/AgentCompany/releases/download/v1.5.1/x.dmg"), false);
+  assert.equal(isAllowedDownloadUrl("https://github.com/someone-else/AgentCompany/releases/download/v1.5.1/x.dmg"), false);
+  assert.equal(isAllowedDownloadUrl("https://git.zacharyzhang.com/ZacharyZhang-NY/AgentCompany/releases/download/v1.5.1/x.dmg"), false);
 });

@@ -166,7 +166,7 @@ test.describe("downloads", () => {
     await expect(rows.first()).toContainText("AgentCompany-1.5.1-x64.exe");
   });
 
-  test("the hero CTA recommends the detected build and the source link points at Gitea", async ({ page }) => {
+  test("the hero CTA recommends the detected build and the source link points at GitHub", async ({ page }) => {
     await page.goto("/?time=day");
     const hero = page.locator("#top");
     const cta = hero.getByRole("link", { name: /^Download for / });
@@ -174,9 +174,9 @@ test.describe("downloads", () => {
     const id = new URL((await cta.getAttribute("href"))!, "http://x").searchParams.get("asset")!;
     expect(assetIds.has(id)).toBe(true);
 
-    const source = hero.getByRole("link", { name: "View source on Gitea" });
-    await expect(source).toHaveAttribute("href", "https://git.zacharyzhang.com/ZacharyZhang-NY/AgentCompany");
-    expect(SOURCE_URL).toBe("https://git.zacharyzhang.com/ZacharyZhang-NY/AgentCompany");
+    const source = hero.getByRole("link", { name: "View source on GitHub" });
+    await expect(source).toHaveAttribute("href", "https://github.com/ELY-Open-Source/AgentCompany");
+    expect(SOURCE_URL).toBe("https://github.com/ELY-Open-Source/AgentCompany");
   });
 });
 

@@ -134,8 +134,8 @@ export const faqs: { question: string; answer: string[] }[] = [
   {
     question: "Where does the source live?",
     answer: [
-      "On Gitea at git.zacharyzhang.com. GitHub is no longer used.",
-      "Want to help? Open an AGit pull request on that Gitea. Push to refs/for/main and you're in the party.",
+      "On GitHub at github.com/ELY-Open-Source/AgentCompany.",
+      "Want to help? Fork it, open a pull request, and you're in the party.",
     ],
   },
   {

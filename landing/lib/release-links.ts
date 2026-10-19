@@ -20,8 +20,9 @@ export type PlatformDownload = {
 };
 
 export const releaseVersion = "1.5.1";
-export const RELEASE_HOST = "git.zacharyzhang.com";
-export const SOURCE_URL = `https://${RELEASE_HOST}/ZacharyZhang-NY/AgentCompany`;
+export const RELEASE_HOST = "github.com";
+export const SOURCE_URL = `https://${RELEASE_HOST}/ELY-Open-Source/AgentCompany`;
+export const RELEASE_DOWNLOAD_PREFIX = "/ELY-Open-Source/AgentCompany/releases/download/";
 export const RELEASE_PAGE_URL = `${SOURCE_URL}/releases/tag/v${releaseVersion}`;
 
 function asset(

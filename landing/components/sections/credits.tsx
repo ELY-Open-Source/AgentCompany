@@ -22,7 +22,7 @@ export function Credits() {
           </dl>
           <nav className={styles.links} aria-label="Project">
             <a href={SOURCE_URL}>
-              <Icon name="chest" size={1} /> Source on Gitea
+              <Icon name="github" size={1} /> Source on GitHub
             </a>
             <a href={RELEASE_PAGE_URL}>
               <Icon name="flag" size={1} /> Release page
