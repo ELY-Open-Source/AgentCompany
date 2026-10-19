@@ -1,10 +1,11 @@
 name: Build Release Installers
 
-# A pushed v* tag builds Windows, Linux and macOS installers on the Gitea
-# runners and attaches them to the tag's release. The tag must equal
-# "v" + package.json version. macOS builds are signed and notarized when the
-# APPLE_API_* secrets are set (the Developer ID identity must then be reachable,
-# or the job fails); without those secrets they are ad-hoc signed.
+# A pushed v* tag builds Windows, Linux and macOS installers on GitHub Actions
+# and attaches them to the tag's release. The tag must equal "v" + package.json
+# version. macOS builds are signed and notarized when the APPLE_API_* secrets
+# are set (the Developer ID identity must then be reachable, or the job fails);
+# without those secrets they are ad-hoc signed. Only tag pushes run this
+# workflow, so pull requests never reach the self-hosted macOS signing runner.
 
 on:
   push:
@@ -15,7 +16,7 @@ permissions:
 
 env:
   COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
-  GITEA_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 jobs:
   release:
@@ -28,7 +29,7 @@ jobs:
           node-version: 24
           package-manager-cache: false
       - name: Check version and create the release
-        run: node scripts/gitea-release.mjs create
+        run: node scripts/github-release.mjs create
 
   windows:
     name: Windows installer (NSIS x64)
@@ -47,7 +48,7 @@ jobs:
       - name: Build installer
         run: pnpm run package:win
       - name: Upload installer
-        run: node scripts/gitea-release.mjs upload release
+        run: node scripts/github-release.mjs upload release
 
   linux:
     name: Linux packages (AppImage + deb x64)
@@ -66,13 +67,15 @@ jobs:
       - name: Build packages
         run: pnpm run package:linux
       - name: Upload packages
-        run: node scripts/gitea-release.mjs upload release
+        run: node scripts/github-release.mjs upload release
 
   macos:
     name: macOS installers (dmg + zip, x64 + arm64)
     needs: release
-    # Runs in the login session, where the Developer ID identity lives.
-    runs-on: macos-signing
+    # The org's Mac mini, in the login session where the Developer ID identity lives.
+    # The repo is public: never let a pull_request event reach this runner.
+    if: github.event_name == 'push'
+    runs-on: [self-hosted, macos-signing]
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -124,4 +127,4 @@ jobs:
           pnpm build
           pnpm exec electron-builder --mac --x64 --arm64 --publish never --config electron-builder.unsigned.yml
       - name: Upload installers
-        run: node scripts/gitea-release.mjs upload release
+        run: node scripts/github-release.mjs upload release

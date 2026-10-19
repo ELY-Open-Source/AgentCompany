@@ -1,4 +1,4 @@
-// Gitea release for the pushed tag: `create` checks the tag against package.json and opens the release; `upload` attaches installers.
+// GitHub release for the pushed tag: `create` checks the tag against package.json and opens the release; `upload` attaches installers.
 import { openAsBlob } from "node:fs";
 import { readdir, readFile } from "node:fs/promises";
 import { basename, join } from "node:path";
@@ -11,13 +11,13 @@ function env(name) {
   return value;
 }
 
-const api = `${env("GITHUB_SERVER_URL")}/api/v1/repos/${env("GITHUB_REPOSITORY")}`;
+const api = `${env("GITHUB_API_URL")}/repos/${env("GITHUB_REPOSITORY")}`;
 const tag = env("GITHUB_REF_NAME");
-const headers = { Authorization: `token ${env("GITEA_TOKEN")}` };
+const headers = { Authorization: `Bearer ${env("GITHUB_TOKEN")}`, Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28" };
 
-async function call(method, path, body) {
-  const response = await fetch(`${api}${path}`, { method, headers: body instanceof FormData ? headers : { ...headers, "Content-Type": "application/json" }, body: body instanceof FormData ? body : body && JSON.stringify(body) });
-  if (!response.ok) throw new Error(`${method} ${path} failed: ${response.status} ${await response.text()}`);
+async function call(method, url, body, contentType = "application/json") {
+  const response = await fetch(url.startsWith("https://") ? url : `${api}${url}`, { method, headers: body ? { ...headers, "Content-Type": contentType } : headers, body: body instanceof Blob ? body : body && JSON.stringify(body) });
+  if (!response.ok) throw new Error(`${method} ${url} failed: ${response.status} ${await response.text()}`);
   return response.status === 204 ? null : response.json();
 }
 
@@ -35,14 +35,14 @@ async function upload(dir) {
   const files = (await readdir(dir)).filter((name) => INSTALLER.test(name)).map((name) => join(dir, name));
   if (files.length === 0) throw new Error(`No installers found in ${dir}.`);
   const release = await call("GET", `/releases/tags/${tag}`);
+  // upload_url is a URI template ending in {?name,label}.
+  const uploadUrl = release.upload_url.replace(/\{.*\}$/, "");
   for (const file of files) {
     const name = basename(file);
     // A re-run replaces the asset instead of failing on the duplicate name.
     const old = release.assets.find((asset) => asset.name === name);
-    if (old) await call("DELETE", `/releases/${release.id}/assets/${old.id}`);
-    const form = new FormData();
-    form.append("attachment", await openAsBlob(file), name);
-    await call("POST", `/releases/${release.id}/assets?name=${encodeURIComponent(name)}`, form);
+    if (old) await call("DELETE", `/releases/assets/${old.id}`);
+    await call("POST", `${uploadUrl}?name=${encodeURIComponent(name)}`, await openAsBlob(file), "application/octet-stream");
     console.log(`Uploaded ${name}.`);
   }
 }
