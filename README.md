@@ -1,6 +1,6 @@
 # AgentCompany
 
-A desktop app that runs a company of AI agents. You set a goal. An AI CEO hires a team, splits the goal into tasks, and the agents do the work against real model providers. You watch, chat, and approve.
+A desktop app that runs a company of AI agents. Source, issues and installers: <https://github.com/ELY-Open-Source/AgentCompany>. You set a goal. An AI CEO hires a team, splits the goal into tasks, and the agents do the work against real model providers. You watch, chat, and approve.
 
 Electron, React, and SQLite. Company data lives in a local database; prompts go to the model providers you connect.
 
@@ -48,7 +48,9 @@ Without an Apple Developer ID, build macOS with the ad-hoc config:
 pnpm build && pnpm exec electron-builder --mac --publish never --config electron-builder.unsigned.yml
 ```
 
-GitHub Actions runs `verify:ci` on pushes to `main` and on pull requests, and attaches installers to each published release.
+GitHub Actions runs `verify:ci` on pushes to `main` and on pull requests. Pushing a `v<version>` tag builds the installers and attaches them to that tag's [GitHub release](https://github.com/ELY-Open-Source/AgentCompany/releases); macOS builds are signed and notarized on the org's self-hosted Mac runner.
+
+To contribute, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 

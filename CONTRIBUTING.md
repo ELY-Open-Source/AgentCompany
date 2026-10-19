@@ -1,15 +1,15 @@
 # Contributing
 
-## Opening a pull request on git.zacharyzhang.com
+## Opening a pull request on GitHub
 
-Forking is disabled on this server. Open pull requests with AGit instead:
-
-1. Register an account at https://git.zacharyzhang.com
-2. Clone, commit your changes, then push to a `refs/for/<target-branch>` ref:
+1. Fork https://github.com/ELY-Open-Source/AgentCompany and clone your fork:
 
    ```bash
-   git clone https://git.zacharyzhang.com/ZacharyZhang-NY/AgentCompany.git
-   git push origin HEAD:refs/for/main -o topic=<short-name> -o title="<PR title>" -o description="<PR body>"
+   git clone https://github.com/<your-user>/AgentCompany.git
    ```
 
-3. To update the pull request, push again with the same `topic`.
+2. Create a branch, commit your changes, and run `pnpm verify` before pushing.
+3. Push the branch to your fork and open a pull request against `main`. CI runs `verify:ci` on it.
+4. To update the pull request, push more commits to the same branch.
+
+Report bugs at https://github.com/ELY-Open-Source/AgentCompany/issues.
